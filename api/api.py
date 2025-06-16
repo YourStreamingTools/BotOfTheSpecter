@@ -69,16 +69,20 @@ async def init_database():
     conn = await get_mysql_connection()
     try:
         async with conn.cursor() as cur:
-            # Create api_counts table if it doesn't exist
-            await cur.execute("""
-                CREATE TABLE IF NOT EXISTS api_counts (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    type VARCHAR(50) NOT NULL,
-                    count INT NOT NULL,
-                    reset_day INT NOT NULL,
-                    UNIQUE(type)
-                )
-            """)
+            # Check if api_counts table exists
+            await cur.execute("SHOW TABLES LIKE 'api_counts'")
+            table_exists = await cur.fetchone()
+            if not table_exists:
+                # Create api_counts table only if it doesn't exist
+                await cur.execute("""
+                    CREATE TABLE api_counts (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        type VARCHAR(50) NOT NULL,
+                        count INT NOT NULL,
+                        reset_day INT NOT NULL,
+                        UNIQUE(type)
+                    )
+                """)
             # Initialize default counts if they don't exist
             await cur.execute("SELECT COUNT(*) FROM api_counts WHERE type='weather'")
             if (await cur.fetchone())[0] == 0:
@@ -90,7 +94,6 @@ async def init_database():
             if (await cur.fetchone())[0] == 0:
                 await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES ('exchangerate', 1500, 14)")
             await conn.commit()
-            logging.info("Database tables initialized successfully")
     except Exception as e:
         logging.error(f"Error initializing database tables: {e}")
     finally:
