@@ -31,40 +31,22 @@ date_default_timezone_set($timezone);
 $logContent = t('logs_please_select_type');
 $logType = '';  // Default log type
 
-// Include SSH config
-include_once "/var/www/config/ssh.php";
-$logPath = "/home/botofthespecter/logs/logs";
-// Helper function to read log file over SSH
-function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
-    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    if (!function_exists('ssh2_connect')) {
-      return ['error' => 'SSH2 extension not installed'];
+$logPath = "/var/www/logs";
+// Helper function to read log file locally
+function read_log_file($file_path, $lines = 200, $startLine = null) {
+    if (!file_exists($file_path)) {
+        return ['error' => 'Log file not found'];
     }
-    // Use the function parameters, not undefined variables
-    $connection = ssh2_connect($bots_ssh_host, 22);
-    if (!$connection) return ['error' => 'Could not connect to SSH server'];
-    if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
-      return ['error' => 'SSH authentication failed'];
-    }
-    // Count total lines
-    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
-    $stream = ssh2_exec($connection, $cmd_count);
-    stream_set_blocking($stream, true);
-    $linesTotal = (int)trim(stream_get_contents($stream));
-    fclose($stream);
+    $file_lines = file($file_path, FILE_IGNORE_NEW_LINES);
+    $linesTotal = count($file_lines);
     // Calculate start line
     if ($startLine === null) {
-      $startLine = max(0, $linesTotal - $lines);
+        $startLine = max(0, $linesTotal - $lines);
     }
-    // Use tail and head to get the desired lines
-    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
-    $stream = ssh2_exec($connection, $cmd);
-    stream_set_blocking($stream, true);
-    $logContent = stream_get_contents($stream);
-    fclose($stream);
+    $logContent = array_slice($file_lines, $startLine, $lines);
     return [
-      'linesTotal' => $linesTotal,
-      'logContent' => $logContent
+        'linesTotal' => $linesTotal,
+        'logContent' => implode("\n", $logContent)
     ];
 }
 
@@ -93,8 +75,8 @@ if (isset($_GET['log'])) {
   $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
   $currentUser = $_SESSION['username'] ?? '';
   $log = "$logPath/$logType/$currentUser.txt";
-  // Use SSH to read the log file with config variables
-  $result = read_log_over_ssh($log, 200, $since);
+  // Read the log file locally
+  $result = read_log_file($log, 200, $since);
   if (isset($result['error'])) {
     echo json_encode(['error' => $result['error']]);
     exit();
@@ -110,8 +92,8 @@ if (isset($_GET['logType'])) {
   $logType = $_GET['logType'];
   $currentUser = $_SESSION['username'] ?? '';
   $log = "$logPath/$logType/$currentUser.txt";
-  // Use SSH to read the log file with config variables
-  $result = read_log_over_ssh($log, 200);
+  // Read the log file locally
+  $result = read_log_file($log, 200);
   if (isset($result['error'])) {
     $logContent = "Error: " . $result['error'];
   } else {
@@ -124,26 +106,6 @@ if (isset($_GET['logType'])) {
   $logContent = highlight_log_dates($logContent);
 }
 
-
-// Check if it's an AJAX request
-if (isset($_GET['log'])) {
-  header('Content-Type: application/json');
-  $logType = $_GET['log'];
-  $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
-  $currentUser = $_SESSION['username'] ?? '';
-  $log = "$logPath/$logType/$currentUser.txt";
-  // Use SSH to read the log file with config variables
-  $result = read_log_over_ssh($log, 200, $since);
-  if (isset($result['error'])) {
-    echo json_encode(['error' => $result['error']]);
-    exit();
-  }
-  $logContent = $result['logContent'];
-  $linesTotal = $result['linesTotal'];
-  $logContent = highlight_log_dates($logContent);
-  echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
-  exit();
-}
 
 // Include access control
 include "mod_access.php";
