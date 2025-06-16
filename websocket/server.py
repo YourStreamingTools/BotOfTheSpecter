@@ -806,7 +806,6 @@ class BotOfTheSpecter_WebsocketServer:
             conn = await self.get_database_connection(database_name)
             if not conn:
                 return None
-                
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute(query, params)
                 if query.strip().upper().startswith('SELECT'):
@@ -814,7 +813,6 @@ class BotOfTheSpecter_WebsocketServer:
                     return result
                 else:
                     return cursor.rowcount
-                    
         except Exception as e:
             self.logger.error(f"Database query error: {e}")
             return None
@@ -848,13 +846,8 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def log_websocket_activity(self, channel_name, event_type, data=None):
         try:
-            query = """
-                INSERT INTO websocket_activity_log 
-                (channel_name, event_type, data, timestamp) 
-                VALUES (%s, %s, %s, NOW())
-            """
+            query = "INSERT INTO websocket_activity_log (channel_name, event_type, data, timestamp) VALUES (%s, %s, %s, NOW())"
             params = (channel_name, event_type, json.dumps(data) if data else None)
-            
             result = await self.execute_query(query, params, 'website')
             if result:
                 self.logger.debug(f"Logged WebSocket activity: {event_type} for {channel_name}")
@@ -865,7 +858,7 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def get_user_api_key_info(self, api_key):
         try:
-            query = "SELECT username, user_id FROM users WHERE api_key = %s"
+            query = "SELECT username, twitch_user_id FROM users WHERE api_key = %s"
             result = await self.execute_query(query, (api_key,), 'website')
             return result[0] if result else None
         except Exception as e:
