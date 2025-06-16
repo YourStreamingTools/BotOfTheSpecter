@@ -859,7 +859,7 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
 async def get_weather_lat_lon(location):
     location = location.replace(" ", "%20")
     async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={WEATHER_API}") as response:
+        async with session.get(f"https://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={WEATHER_API}") as response:
             data = await response.json()
             if len(data) > 0:
                 return data[0], data[0]['lat'], data[0]['lon']
