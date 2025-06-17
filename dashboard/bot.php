@@ -474,7 +474,7 @@ ob_start();
       <div class="card-content">
         <!-- Service Health Meters -->
         <div class="columns is-multiline">
-          <div class="column is-3">
+          <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
                 <span class="icon is-large">
@@ -495,7 +495,7 @@ ob_start();
               <?php endif; ?>
             </div>
           </div>
-          <div class="column is-3">
+          <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
                 <span class="icon is-large">
@@ -516,7 +516,7 @@ ob_start();
               <?php endif; ?>
             </div>
           </div>
-          <div class="column is-3">
+          <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
                 <span class="icon is-large">
@@ -537,7 +537,7 @@ ob_start();
               <?php endif; ?>
             </div>
           </div>
-          <div class="column is-3">
+          <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
                 <span class="icon is-large">
