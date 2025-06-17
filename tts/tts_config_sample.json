@@ -1,0 +1,18 @@
+{
+    "tts_model": "tts_models/en/ljspeech/tacotron2-DDC",
+    "ssh_config": {
+        "hostname": "your-server.com",
+        "username": "your-username",
+        "key_filename": "/path/to/your/private/key",
+        "password": null,
+        "port": 22
+    },
+    "remote_paths": {
+        "tts_directory": "/var/www/html/tts/",
+        "temp_directory": "/tmp/tts/"
+    },
+    "audio_settings": {
+        "sample_rate": 22050,
+        "format": "mp3"
+    }
+}
