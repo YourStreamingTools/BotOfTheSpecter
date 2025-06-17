@@ -304,15 +304,17 @@ ob_start();
                         <?php echo htmlspecialchars($subscription_status); ?>
                     </span>
                 </p>
-                <?php if ($is_subscribed): ?>
-                    <p class="has-text-black">
-                        <span class="has-text-weight-bold has-text-black"><?php echo t('persistent_storage_total_used'); ?></span> <?php echo $total_used_storage; ?> GB
+                <?php if ($is_subscribed): ?>                    <p class="has-text-black">
+                        <span class="has-text-weight-bold has-text-black">
+                            <?php echo t('persistent_storage_total_used'); ?>
+                        </span> 
+                        <?php echo $total_used_storage; ?> GB
                     </p>
                     <p class="has-text-black mt-2">
-                        <a href="https://billing.botofthespecter.com" target="_blank" class="button is-primary is-rounded">
+                        <button type="button" class="button is-primary is-rounded billing-btn">
                             <span class="icon"><i class="fas fa-cog"></i></span>
                             <span><?php echo t('persistent_storage_manage_subscription'); ?></span>
-                        </a>
+                        </button>
                     </p>
                 <?php endif; ?>
             </div>
@@ -352,7 +354,6 @@ ob_start();
                     Use the dropdown above to view files from different regions.
                 </p>
             </div>
-            
             <p class="has-text-black"><?php echo t('persistent_storage_info_upload_hint'); ?></p>
             <p class="has-text-black mt-2">
                 <a href="streaming.php" class="button is-primary is-rounded">
@@ -410,35 +411,52 @@ ob_start();
                 <p class="has-text-weight-bold has-text-black"><?php echo t('persistent_storage_subscription'); ?> <?php echo htmlspecialchars($subscription_status); ?></p>
                 <?php if (strtolower($subscription_status) === 'canceled'): ?>
                     <?php if (!empty($suspend_reason)): ?>
-                        <p class="has-text-black"><?php echo t('persistent_storage_cancellation_reason'); ?> <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
+                        <p class="has-text-black">
+                            <?php echo t('persistent_storage_cancellation_reason'); ?> 
+                            <span class="has-text-weight-bold">
+                                <?php echo htmlspecialchars($suspend_reason); ?>
+                            </span>
+                        </p>
                     <?php endif; ?>
                     <?php if ($deletion_time): ?>
-                        <p class="has-text-black"><?php echo t('persistent_storage_files_deleted'); ?> <span id="deletion-countdown" class="has-text-weight-bold" data-deletion-time="<?php echo $deletion_time; ?>"><?php echo t('persistent_storage_in_24_hours'); ?></span></p>
+                        <p class="has-text-black">
+                            <?php echo t('persistent_storage_files_deleted'); ?> 
+                            <span id="deletion-countdown" class="has-text-weight-bold" data-deletion-time="<?php echo $deletion_time; ?>">
+                                <?php echo t('persistent_storage_in_24_hours'); ?>
+                            </span>
+                        </p>
                     <?php endif; ?>
                     <p class="mt-3">
-                        <a href="https://billing.botofthespecter.com" target="_blank" class="button is-warning">
+                        <button type="button" class="button is-warning billing-btn" disabled style="pointer-events: none; opacity: 0.6;">
                             <span class="icon"><i class="fas fa-undo"></i></span>
                             <span><?php echo t('persistent_storage_reactivate_subscription'); ?></span>
-                        </a>
+                        </button>
                     </p>
                 <?php elseif (strtolower($subscription_status) === 'suspended'): ?>
                     <?php if (!empty($suspend_reason)): ?>
-                        <p class="has-text-black"><?php echo t('persistent_storage_reason'); ?> <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
+                        <p class="has-text-black">
+                            <?php echo t('persistent_storage_reason'); ?> 
+                            <span class="has-text-weight-bold">
+                                <?php echo htmlspecialchars($suspend_reason); ?>
+                            </span>
+                        </p>
                     <?php endif; ?>
-                    <p class="has-text-black"><?php echo t('persistent_storage_suspended_notice'); ?></p>
+                    <p class="has-text-black">
+                        <?php echo t('persistent_storage_suspended_notice'); ?>
+                    </p>
                     <p class="mt-3">
-                        <a href="https://billing.botofthespecter.com" target="_blank" class="button is-warning">
+                        <button type="button" class="button is-warning billing-btn" disabled style="pointer-events: none; opacity: 0.6;">
                             <span class="icon"><i class="fas fa-credit-card"></i></span>
                             <span><?php echo t('persistent_storage_pay_invoice'); ?></span>
-                        </a>
+                        </button>
                     </p>
                 <?php else: ?>
                     <p class="has-text-black"><?php echo t('persistent_storage_requires_active'); ?></p>
                     <p class="mt-3">
-                        <a href="https://billing.botofthespecter.com" target="_blank" class="button is-primary">
+                        <button type="button" class="button is-primary billing-btn" disabled style="pointer-events: none; opacity: 0.6;">
                             <span class="icon"><i class="fas fa-shopping-cart"></i></span>
                             <span><?php echo t('persistent_storage_subscribe'); ?></span>
-                        </a>
+                        </button>
                     </p>
                     <?php if (!$has_billing_account): ?>
                     <div class="mt-3 has-text-black">
@@ -518,6 +536,24 @@ document.addEventListener('DOMContentLoaded', function() {
         updateCountdown();
         setInterval(updateCountdown, 1000);
     }
+    
+    // Billing buttons functionality - handles all billing buttons with class 'billing-btn'
+    const billingButtons = document.querySelectorAll('.billing-btn');
+    billingButtons.forEach(function(button) {
+        console.log('Billing button found, disabled state:', button.disabled);
+        button.addEventListener('click', function(e) {
+            console.log('Billing button clicked, disabled:', this.disabled, 'hasAttribute:', this.hasAttribute('disabled'));
+            if (this.disabled || this.hasAttribute('disabled')) {
+                console.log('Billing button is disabled, preventing action');
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                return false;
+            }
+            console.log('Opening billing window');
+            window.open('https://billing.botofthespecter.com', '_blank');
+        });
+    });
 });
 </script>
 <?php
