@@ -10,12 +10,13 @@ from aiohttp import web
 import ipaddress
 import paramiko
 import uuid
-from dotenv import load_dotenv, find_dotenv
 import json
 import aiomysql
+import shutil
 from music_handler import MusicHandler
 
 # Load ENV file
+from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv("/home/botofthespecter/.env"))
 
 class BotOfTheSpecter_WebsocketServer:
@@ -837,11 +838,13 @@ class BotOfTheSpecter_WebsocketServer:
             tts_script_path = "/home/botofthespecter/local_tts_generator.py"
             python_exe = "/home/botofthespecter/tts_env/bin/python"
             config_path = "/home/botofthespecter/websocket_tts_config.json"
+            desired_filename = f'tts_output_{code}_{unique_id}.mp3'
             cmd = [
                 python_exe,
                 tts_script_path,
                 "--text", text,
                 "--config", config_path,
+                "--filename", desired_filename,
                 "--keep-local"  # Keep local copy for SFTP transfer
             ]
             # Add voice parameter if specified
@@ -866,30 +869,19 @@ class BotOfTheSpecter_WebsocketServer:
             stdout, stderr = await process.communicate()
             if process.returncode == 0:
                 self.logger.info(f"TTS generation successful: {stdout.decode()}")
-                # Look for the generated file in the local output directory
+                # Check if the file was created on the remote server (transferred via SSH)
+                remote_file_path = f"/var/www/html/tts/{desired_filename}"
+                # Also check for local copy
                 local_output_dir = "/home/botofthespecter/local_tts_output"
-                if os.path.exists(local_output_dir):
-                    # Find the most recent file with our code in the name
-                    files = [f for f in os.listdir(local_output_dir) if f.endswith('.mp3') or f.endswith('.wav')]
-                    if files:
-                        # Get the most recently created file
-                        files.sort(key=lambda x: os.path.getctime(os.path.join(local_output_dir, x)), reverse=True)
-                        audio_file = os.path.join(local_output_dir, files[0])
-                        # Rename file to include our code and unique ID
-                        new_filename = f'tts_output_{code}_{unique_id}.mp3'
-                        new_audio_file = os.path.join(self.tts_dir, new_filename)
-                        # Copy file to TTS directory
-                        import shutil
-                        shutil.copy2(audio_file, new_audio_file)
-                        # Clean up the original file
-                        os.remove(audio_file)
-                        self.logger.info(f"TTS file ready: {new_audio_file}")
-                        return new_audio_file
-                    else:
-                        self.logger.error("No audio files found in local output directory")
-                        return None
+                local_file_path = os.path.join(local_output_dir, desired_filename)
+                if os.path.exists(local_file_path):
+                    # Move the local file to the TTS directory for serving
+                    final_file_path = os.path.join(self.tts_dir, desired_filename)
+                    shutil.move(local_file_path, final_file_path)
+                    self.logger.info(f"TTS file ready: {final_file_path}")
+                    return final_file_path
                 else:
-                    self.logger.error(f"Local output directory not found: {local_output_dir}")
+                    self.logger.error(f"Generated TTS file not found: {local_file_path}")
                     return None
             else:
                 self.logger.error(f"TTS generation failed: {stderr.decode()}")
@@ -917,6 +909,28 @@ class BotOfTheSpecter_WebsocketServer:
         estimated_duration = max(2, estimated_duration)  # Minimum 2 seconds
         self.logger.info(f"Estimated audio duration: {estimated_duration} seconds (based on {words} words)")
         return estimated_duration
+
+    async def cleanup_tts_file(self, file_path, delay_seconds=0):
+        try:
+            if delay_seconds > 0:
+                await asyncio.sleep(delay_seconds)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                self.logger.info(f"Cleaned up TTS file: {file_path}")
+                # Also try to clean up from remote server via SSH
+                filename = os.path.basename(file_path)
+                await self.cleanup_remote_tts_file(filename)
+            else:
+                self.logger.warning(f"TTS file not found for cleanup: {file_path}")
+        except Exception as e:
+            self.logger.error(f"Error cleaning up TTS file {file_path}: {e}")
+
+    async def cleanup_remote_tts_file(self, filename):
+        try:
+            self.logger.info(f"Remote cleanup will remove: /var/www/html/tts/{filename}")
+            # TODO: Implement SSH cleanup
+        except Exception as e:
+            self.logger.error(f"Error in remote cleanup for {filename}: {e}")
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
