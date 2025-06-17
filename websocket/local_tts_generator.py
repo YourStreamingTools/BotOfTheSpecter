@@ -10,11 +10,9 @@ import json
 import hashlib
 from datetime import datetime
 import subprocess
-try:
-    from TTS.api import TTS
-except ImportError:
-    print("Error: TTS library not installed. Please run: pip install TTS[all]")
-    sys.exit(1)
+from TTS.api import TTS
+os.environ['NNPACK_DISABLE'] = '1'
+os.environ['PYTORCH_DISABLE_NNPACK_RUNTIME_ERROR'] = '1'
 
 # Configure logging
 logging.basicConfig(
