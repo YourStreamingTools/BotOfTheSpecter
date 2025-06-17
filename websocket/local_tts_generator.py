@@ -4,6 +4,8 @@ import tempfile
 import argparse
 import logging
 from pathlib import Path
+os.environ['NNPACK_DISABLE'] = '1'
+os.environ['PYTORCH_DISABLE_NNPACK_RUNTIME_ERROR'] = '1'
 import paramiko
 from scp import SCPClient
 import json
@@ -11,8 +13,6 @@ import hashlib
 from datetime import datetime
 import subprocess
 from TTS.api import TTS
-os.environ['NNPACK_DISABLE'] = '1'
-os.environ['PYTORCH_DISABLE_NNPACK_RUNTIME_ERROR'] = '1'
 
 # Configure logging
 logging.basicConfig(
