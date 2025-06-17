@@ -52,10 +52,13 @@ class BotOfTheSpecter(commands.Bot):
         self.discord_token = discord_token
         self.logger = discord_logger
         self.typing_speed = 50
-        self.processed_messages_file = f"/var/www/logs/discord/messages.txt"
+        self.processed_messages_file = f"/home/botofthespecter/logs/discord/messages.txt"
         self.version = BOT_VERSION
         self.pool = None  # Initialize the pool attribute
-        # Ensure the log file exists
+        # Ensure the log directory and file exist
+        messages_dir = os.path.dirname(self.processed_messages_file)
+        if not os.path.exists(messages_dir):
+            os.makedirs(messages_dir)
         if not os.path.exists(self.processed_messages_file):
             open(self.processed_messages_file, 'w').close()
 
