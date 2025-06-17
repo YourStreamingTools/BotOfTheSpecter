@@ -6310,6 +6310,11 @@ async def handle_ad_break_start(duration_seconds):
         @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
         async def handle_ad_break_end(channel):
             await channel.send(ad_end_message)
+            # Check for the next ad after this one completes
+            global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+            ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+            headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
+            asyncio.create_task(check_next_ad_after_completion(channel, ads_api_url, headers))
         handle_ad_break_end.start(channel)
 
 # Fcuntion for POLLS
@@ -8065,95 +8070,137 @@ async def handle_upcoming_ads():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
-    headers = {
-        "Client-ID": CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}"
-    }
-    previous_online = False
-    async with aiohttp.ClientSession() as session:
-        while True:
-            await asyncio.sleep(30)
-            if not stream_online:
-                previous_online = False
-                continue
-            if stream_online and not previous_online:
-                api_logger.info("Stream just went online. Checking for updated ad schedule.")
-                await check_and_handle_ads(channel, session, headers, ads_api_url)
-            # Regular ad monitoring every minute
-            if stream_online:
-                await check_and_handle_ads(channel, session, headers, ads_api_url)
-            previous_online = stream_online
+    headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
+    last_notification_time = None
+    last_ad_time = None
+    while stream_online:
+        try:
+            last_notification_time, last_ad_time = await check_and_handle_ads(
+                channel, ads_api_url, headers, last_notification_time, last_ad_time
+            )
+            await asyncio.sleep(60)  # Check every minute
+        except Exception as e:
+            api_logger.error(f"Error in handle_upcoming_ads loop: {e}")
             await asyncio.sleep(60)
 
-async def check_and_handle_ads(channel, session, headers, ads_api_url, ad_upcoming_message, ad_info):
+async def check_and_handle_ads(channel, ads_api_url, headers, last_notification_time, last_ad_time):
+    global stream_online
+    if not stream_online:
+        return last_notification_time, last_ad_time
     try:
-        async with session.get(ads_api_url, headers=headers) as response:
-            if response.status != 200:
-                api_logger.warning(f"Failed to fetch ad data. Status: {response.status}, Response: {await response.text()}")
-                return
-            data = await response.json()
-            ads_data = data.get("data", [])
-            if not ads_data:
-                api_logger.info("No upcoming ad breaks scheduled.")
-                return
-            ad_info = ads_data[0]
-            preroll_free_time = ad_info.get("preroll_free_time")
-            ad_duration = ad_info.get("ad_duration")
-            initial_snooze_count = ad_info.get("snooze_count")
-            if ad_duration is None or preroll_free_time is None:
-                api_logger.warning("Ad data is missing required fields (preroll_free_time or ad_duration).")
-                return
-            max_time = ad_duration + 300
-            if ad_duration < preroll_free_time < max_time:
-                time_to_ad = preroll_free_time - 180
-                time_to_ad_minutes = max(1, int(time_to_ad / 60))
-                message = ad_upcoming_message.replace("(minutes)", str(time_to_ad_minutes))
-                if time_to_ad_minutes == 1:
-                    message = message.replace("minutes", "minute")
-                await channel.send(message)
-                api_logger.info(f"Sent ad notification: {message}")
-                elapsed_time = 0
-                ad_window = preroll_free_time
-                last_snooze_count = initial_snooze_count
-                while elapsed_time < ad_window:
-                    await asyncio.sleep(30)
-                    elapsed_time += 30
-                    async with session.get(ads_api_url, headers=headers) as check_response:
-                        if check_response.status != 200:
-                            api_logger.warning(f"Failed to fetch ad data during snooze check. Status: {check_response.status}, Response: {await check_response.text()}")
-                            continue
-                        check_data = await check_response.json()
-                        check_ads = check_data.get("data", [])
-                        if not check_ads:
-                            continue
-                        current_info = check_ads[0]
-                        current_snooze_count = current_info.get("snooze_count")
-                        if current_snooze_count < last_snooze_count:
-                            await channel.send("Ad break snoozed.")
-                            api_logger.info("Ad break snooze detected.")
-                            last_snooze_count = current_snooze_count
-                        preroll_free_time = current_info.get("preroll_free_time", 0)
-                        if preroll_free_time <= 0:
-                            api_logger.info("Ad break should have started.")
-                            break
-                api_logger.info("Ad cycle finished. Refreshing ad schedule.")
-                try:
-                    async with session.get(ads_api_url, headers=headers) as refresh_response:
-                        if refresh_response.status == 200:
-                            refreshed_data = await refresh_response.json()
-                            updated_ads = refreshed_data.get("data", [])
-                            if updated_ads:
-                                ad_info.update(updated_ads[0])  # update current ad_info in memory
-                                api_logger.info("Ad info updated after cycle.")
-                            else:
-                                api_logger.warning("No ad data available after refresh.")
-                        else:
-                            api_logger.warning(f"Failed to refresh ad info after ad cycle. Status: {refresh_response.status}")
-                except Exception as e:
-                    api_logger.error(f"Error refreshing ad info: {e}")
-                await asyncio.sleep(600)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(ads_api_url, headers=headers) as response:
+                if response.status != 200:
+                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}")
+                    return last_notification_time, last_ad_time
+                data = await response.json()
+                ads_data = data.get("data", [])
+                if not ads_data:
+                    api_logger.debug("No ad data available")
+                    return last_notification_time, last_ad_time
+                ad_info = ads_data[0]
+                next_ad_at = ad_info.get("next_ad_at")
+                duration = ad_info.get("duration")
+                preroll_free_time = ad_info.get("preroll_free_time", 0)
+                snooze_count = ad_info.get("snooze_count", 0)
+                last_ad_at = ad_info.get("last_ad_at")
+                api_logger.debug(f"Ad info - next_ad_at: {next_ad_at}, duration: {duration}, preroll_free_time: {preroll_free_time}")
+                # Check if we have a scheduled ad
+                if next_ad_at:
+                    try:
+                        # Parse the next ad time
+                        next_ad_datetime = datetime.fromisoformat(next_ad_at.replace('Z', '+00:00'))
+                        current_time = datetime.now(pytz.UTC)
+                        # Notify if ad is coming up in exactly 5 minutes and we haven't notified recently
+                        time_until_ad = (next_ad_datetime - current_time).total_seconds()
+                        if 270 <= time_until_ad <= 330:  # 4.5 to 5.5 minutes (30 second tolerance)
+                            # Check if we've already notified for this ad
+                            if last_notification_time != next_ad_at:
+                                minutes_until = 5  # Always 5 minutes as per requirement
+                                # Get the ad notification message from database
+                                duration_text = f"{duration} second" if duration == "1" else f"{duration} seconds"
+                                sqldb = await get_mysql_connection()
+                                try:
+                                    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                                        await cursor.execute("SELECT ad_upcoming_message FROM ad_notice_settings WHERE id = 1")
+                                        result = await cursor.fetchone()
+                                        if result and result['ad_upcoming_message']:
+                                            message = result['ad_upcoming_message']
+                                            # Replace placeholders
+                                            message = message.replace("(minutes)", str(minutes_until))
+                                            message = message.replace("(duration)", duration_text)
+                                        else:
+                                            message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
+                                finally:
+                                    await sqldb.ensure_closed()
+                                    await channel.send(message)
+                                api_logger.info(f"Sent 5-minute ad notification: {message}")
+                                last_notification_time = next_ad_at
+                    except Exception as e:
+                        api_logger.error(f"Error parsing ad time: {e}")
+                if last_ad_at and last_ad_at != last_ad_time:
+                    # A new ad just finished, reset notification time and schedule next ad check
+                    api_logger.info("Ad break completed, checking for next scheduled ad")
+                    last_notification_time = None
+                    last_ad_time = last_ad_at
+                    # Schedule a check for the next ad after a brief delay
+                    asyncio.create_task(check_next_ad_after_completion(channel, ads_api_url, headers))
+                # Log preroll free time for debugging
+                if preroll_free_time > 0:
+                    api_logger.debug(f"Preroll free time remaining: {preroll_free_time} seconds")
+                return last_notification_time, last_ad_time
     except Exception as e:
         api_logger.error(f"Error in check_and_handle_ads: {e}")
+        return last_notification_time, last_ad_time
+
+async def check_next_ad_after_completion(channel, ads_api_url, headers):
+    await asyncio.sleep(10)  # Wait 10 seconds after ad completion
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(ads_api_url, headers=headers) as response:
+                if response.status != 200:
+                    api_logger.warning(f"Failed to fetch next ad data after completion. Status: {response.status}")
+                    return
+                data = await response.json()
+                ads_data = data.get("data", [])
+                if not ads_data:
+                    api_logger.debug("No next ad data available after completion")
+                    return
+                ad_info = ads_data[0]
+                next_ad_at = ad_info.get("next_ad_at")
+                duration = ad_info.get("duration")
+                if next_ad_at:
+                    try:
+                        # Parse the next ad time
+                        next_ad_datetime = datetime.fromisoformat(next_ad_at.replace('Z', '+00:00'))
+                        current_time = datetime.now(pytz.UTC)
+                        time_until_ad = (next_ad_datetime - current_time).total_seconds()
+                        api_logger.info(f"Next ad scheduled in {time_until_ad} seconds ({time_until_ad/60:.1f} minutes)")
+                        # If the next ad is 5 minutes or less away, send immediate notification
+                        if time_until_ad <= 300:  # 5 minutes or less
+                            minutes_until = max(1, int(time_until_ad / 60))
+                            duration_text = f"{duration} second" if duration == "1" else f"{duration} seconds"
+                            # Get the ad notification message from database
+                            sqldb = await get_mysql_connection()
+                            try:
+                                async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                                    await cursor.execute("SELECT ad_upcoming_message FROM ad_notice_settings WHERE id = 1")
+                                    result = await cursor.fetchone()
+                                    if result and result['ad_upcoming_message']:
+                                        message = result['ad_upcoming_message']
+                                        # Replace placeholders
+                                        message = message.replace("(minutes)", str(minutes_until))
+                                        message = message.replace("(duration)", duration_text)
+                                    else:
+                                        message = f"Heads up! Another ad break is coming up in {minutes_until} minute{'s' if minutes_until != 1 else ''} and will last {duration_text}."
+                            finally:
+                                await sqldb.ensure_closed()
+                            await channel.send(message)
+                            api_logger.info(f"Sent immediate next-ad notification: {message}")
+                    except Exception as e:
+                        api_logger.error(f"Error parsing next ad time after completion: {e}")
+    except Exception as e:
+        api_logger.error(f"Error checking next ad after completion: {e}")
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
