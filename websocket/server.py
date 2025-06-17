@@ -7,17 +7,24 @@ import ssl
 import argparse
 import socketio
 from aiohttp import web
-import ipaddress
+import time
+import threading
 import paramiko
-from scp import SCPClient
 import uuid
 import json
 import aiomysql
 import shutil
 import subprocess
-import time
-import threading
+import ipaddress
+
+# Import our modular components
 from music_handler import MusicHandler
+from tts_handler import TTSHandler
+from database_manager import DatabaseManager
+from event_handler import EventHandler
+from security_manager import SecurityManager
+from donation_handler import DonationEventHandler
+from settings_manager import SettingsManager
 
 # Load ENV file
 from dotenv import load_dotenv, find_dotenv
@@ -115,12 +122,16 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger = logger
         self.ip = self.get_own_ip()
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
-        self.tts_dir = "/home/botofthespecter/tts"
         self.registered_clients = {}
-        # Initialize SSH connection manager
+        # Initialize modular components
         self.ssh_manager = SSHConnectionManager(logger, timeout_minutes=2)
-        # Load TTS configuration
-        self.tts_config = self.load_tts_config()
+        self.security_manager = SecurityManager(logger)
+        self.database_manager = DatabaseManager(logger)
+        self.settings_manager = SettingsManager(logger)
+        self.tts_handler = TTSHandler(logger, self.ssh_manager)
+        self.event_handler = EventHandler(None, logger, lambda: self.registered_clients)
+        self.donation_handler = DonationEventHandler(None, logger, lambda: self.registered_clients)
+        # Initialize SocketIO server
         self.sio = socketio.AsyncServer(
             logger=logger, 
             engineio_logger=logger, 
@@ -128,56 +139,27 @@ class BotOfTheSpecter_WebsocketServer:
             ping_timeout=30,
             ping_interval=25
         )
-        self.app = web.Application(middlewares=[self.ip_restriction_middleware])
+        # Update event handlers with the sio instance
+        self.event_handler.sio = self.sio
+        self.donation_handler.sio = self.sio
+        # Initialize web application with security middleware
+        self.app = web.Application(middlewares=[self.security_manager.ip_restriction_middleware])
         self.app.on_startup.append(self.on_startup)
         self.app.on_shutdown.append(self.on_shutdown)
         self.setup_routes()
+        # Initialize music handler
         self.music_handler = MusicHandler(
             sio=self.sio,
             logger=self.logger,
             get_clients=lambda: self.registered_clients,
-            save_settings=self.save_music_settings,
-            load_settings=self.load_music_settings,
+            save_settings=self.settings_manager.save_music_settings,
+            load_settings=self.settings_manager.load_music_settings,
         )
         self.setup_event_handlers()
         self.sio.attach(self.app)
         self.loop = None
         signal.signal(signal.SIGTERM, self.sig_handler)
         signal.signal(signal.SIGINT, self.sig_handler)
-        self.tts_queue = asyncio.Queue()
-        self.processing_task = None
-        ips_file = "/home/botofthespecter/ips.txt"
-        self.allowed_ips = self.load_ips(ips_file)
-
-    def load_tts_config(self):
-        config_path = "/home/botofthespecter/websocket_tts_config.json"
-        try:
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-                self.logger.info("TTS configuration loaded successfully")
-                return config
-        except Exception as e:
-            self.logger.error(f"Failed to load TTS config from {config_path}: {e}")
-            return None
-
-    def load_ips(self, ips_file):
-        allowed_ips = []
-        try:
-            with open(ips_file, 'r') as file:
-                for line in file:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        allowed_ips.append(ipaddress.ip_network(line))
-        except FileNotFoundError:
-            self.logger.error(f"IPs file not found.")
-        return allowed_ips
-
-    def is_ip_allowed(self, ip):
-        ip_address = ipaddress.ip_address(ip)
-        for allowed_ip in self.allowed_ips:
-            if ip_address in allowed_ip:
-                return True
-        return False
 
     def setup_routes(self):
         # Set up the routes for the web application.
@@ -195,26 +177,26 @@ class BotOfTheSpecter_WebsocketServer:
             ("disconnect", self.disconnect),
             ("REGISTER", self.register),
             ("LIST_CLIENTS", self.list_clients_event),
-            ("NOTIFY", self.notify),
-            ("DEATHS", self.deaths),
-            ("WEATHER", self.weather),
-            ("WEATHER_DATA", self.weather_data),
-            ("TWITCH_FOLLOW", self.twitch_follow),
-            ("TWITCH_CHEER", self.twitch_cheer),
-            ("TWITCH_RAID", self.twitch_raid),
-            ("TWITCH_SUB", self.twitch_sub),
-            ("TWITCH_CHANNELPOINTS", self.twitch_channelpoints),
-            ("WALKON", self.walkon),
+            ("NOTIFY", self.event_handler.handle_generic_notify),
+            ("DEATHS", self.event_handler.handle_deaths),
+            ("WEATHER", self.event_handler.handle_weather),
+            ("WEATHER_DATA", self.event_handler.handle_weather_data),
+            ("TWITCH_FOLLOW", self.event_handler.handle_twitch_follow),
+            ("TWITCH_CHEER", self.event_handler.handle_twitch_cheer),
+            ("TWITCH_RAID", self.event_handler.handle_twitch_raid),
+            ("TWITCH_SUB", self.event_handler.handle_twitch_sub),
+            ("TWITCH_CHANNELPOINTS", self.event_handler.handle_twitch_channelpoints),
+            ("WALKON", self.event_handler.handle_walkon),
             ("TTS", self.tts),
-            ("SOUND_ALERT", self.sound_alert),
-            ("VIDEO_ALERT", self.video_alert),
-            ("STREAM_ONLINE", self.stream_online),
-            ("STREAM_OFFLINE", self.stream_offline),
-            ("DISCORD_JOIN", self.discord_join),
+            ("SOUND_ALERT", self.event_handler.handle_sound_alert),
+            ("VIDEO_ALERT", self.event_handler.handle_video_alert),
+            ("STREAM_ONLINE", self.event_handler.handle_stream_online),
+            ("STREAM_OFFLINE", self.event_handler.handle_stream_offline),
+            ("DISCORD_JOIN", self.event_handler.handle_discord_join),
             ("FOURTHWALL", self.handle_fourthwall_event),
             ("KOFI", self.handle_kofi_event),
             ("PATREON", self.handle_patreon_event),
-            ("SEND_OBS_EVENT", self.handle_obs_event),
+            ("SEND_OBS_EVENT", self.event_handler.handle_obs_event),
             ("MUSIC_COMMAND", self.music_handler.music_command),
             ("*", self.event)
         ]
@@ -351,15 +333,15 @@ class BotOfTheSpecter_WebsocketServer:
             raise web.HTTPBadRequest(text="400 Bad Request: API Key is missing")
         if not event:
             raise web.HTTPBadRequest(text="400 Bad Request: Event is missing")
-        # Log incoming request data
         data = {k: v for k, v in request.query.items()}
         self.logger.info(f"Notify request data: {data}")
         event = event.upper().replace(" ", "_")
         count = 0
         if event == "TTS" and text:
             # Add TTS request to queue with additional parameters
-            await self.tts_queue.put({"text": text, "session_id": code, "language_code": language_code, "gender": gender,"voice_name": voice_name})
+            await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name)
             self.logger.info(f"TTS request added to queue: {text}")
+            count = 1
         elif event == "FOURTHWALL":
             # Handle Fourthwall-specific event
             await self.handle_fourthwall_event(code, data)
@@ -387,30 +369,7 @@ class BotOfTheSpecter_WebsocketServer:
         if not event:
             self.logger.error('Missing event information for NOTIFY event')
             return
-        # Broadcast the event to all clients
         await self.sio.emit(event, data, sid)
-
-    async def process_tts_queue(self):
-        while True:
-            try:
-                # Wait for the next TTS request in the queue
-                request_data = await self.tts_queue.get()
-                # Unpack the data
-                text = request_data.get('text')
-                session_id = request_data.get('session_id')
-                language_code = request_data.get('language_code', None)
-                gender = request_data.get('gender', None)
-                voice_name = request_data.get('voice_name', None)
-                # Log the request
-                self.logger.info(f"Dequeued TTS request for session ID: {session_id} with text: {text}")
-                # Process the request in a separate task
-                asyncio.create_task(self.process_tts_request(text, session_id, language_code, gender, voice_name))
-                # Mark the task as done
-                self.tts_queue.task_done()
-                self.logger.info(f"TTS request for session ID {session_id} marked as done")
-            except Exception as e:
-                # Log and handle any errors that occur during queue processing
-                self.logger.error(f"Error while processing TTS queue: {e}")
 
     async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
         # Generate the TTS audio using local TTS script
@@ -581,7 +540,7 @@ class BotOfTheSpecter_WebsocketServer:
         voice_name = data.get("voice_name", None)
         if text:
             # Add the TTS request to the queue with all parameters
-            await self.tts_queue.put({"text": text, "session_id": sid, "language_code": language_code, "gender": gender, "voice_name": voice_name})
+            await self.tts_handler.add_tts_request(text, sid, language_code, gender, voice_name)
             self.logger.info(f"TTS request added to queue from SID [{sid}]: {text}")
         else:
             # Log an error if no text was provided
@@ -680,9 +639,8 @@ class BotOfTheSpecter_WebsocketServer:
         # Cancel SSH cleanup task if running
         if hasattr(self, 'ssh_cleanup_task') and self.ssh_cleanup_task:
             self.ssh_cleanup_task.cancel()
-        # Cancel TTS processing task if running
-        if hasattr(self, 'processing_task') and self.processing_task:
-            self.processing_task.cancel()
+        # Stop TTS processing
+        await self.tts_handler.stop_processing()
         # Clean up all SSH connections
         self.ssh_manager.cleanup_all_connections()
         # Disconnect all registered clients properly
@@ -697,11 +655,10 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info("All clients disconnected.")
 
     async def on_startup(self, app):
-        self.logger.info("Starting application startup tasks...")
-        # Start the SSH cleanup task
+        self.logger.info("Starting application startup tasks...")        # Start the SSH cleanup task
         await self.start_ssh_cleanup_task()
         # Start the TTS processing task
-        self.processing_task = asyncio.create_task(self.process_tts_queue())
+        await self.tts_handler.start_processing()
         self.logger.info("Application startup completed.")
 
     async def start_ssh_cleanup_task(self):
