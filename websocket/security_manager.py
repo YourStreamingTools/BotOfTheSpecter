@@ -41,21 +41,25 @@ class SecurityManager:
 
     async def ip_restriction_middleware(self, app, handler):
         async def middleware_handler(request):
-            client_ip = request.remote
-            # Get the real IP if behind a proxy
-            if 'X-Forwarded-For' in request.headers:
-                client_ip = request.headers['X-Forwarded-For'].split(',')[0].strip()
-            elif 'X-Real-IP' in request.headers:
-                client_ip = request.headers['X-Real-IP']
-            # Allow localhost and server IP
-            if client_ip in ['127.0.0.1', '::1', 'localhost']:
-                return await handler(request)
-            # Check if IP is allowed
-            if not self.is_ip_allowed(client_ip):
-                self.logger.warning(f"Access denied for IP: {client_ip}")
-                from aiohttp import web
-                return web.Response(status=403, text="Access Forbidden")
-            self.logger.debug(f"Access granted for IP: {client_ip}")
+            # Only apply IP restrictions to specific endpoints
+            restricted_paths = ['/clients', '/notify']
+            if request.path in restricted_paths:
+                client_ip = request.remote
+                # Get the real IP if behind a proxy
+                if 'X-Forwarded-For' in request.headers:
+                    client_ip = request.headers['X-Forwarded-For'].split(',')[0].strip()
+                elif 'X-Real-IP' in request.headers:
+                    client_ip = request.headers['X-Real-IP']
+                # Allow localhost and server IP
+                if client_ip in ['127.0.0.1', '::1', 'localhost']:
+                    return await handler(request)
+                # Check if IP is allowed for restricted endpoints
+                if not self.is_ip_allowed(client_ip):
+                    self.logger.warning(f"Access denied for IP: {client_ip} on restricted path: {request.path}")
+                    from aiohttp import web
+                    return web.Response(status=403, text="Access Forbidden")
+                self.logger.debug(f"Access granted for IP: {client_ip} on restricted path: {request.path}")
+            # Allow all other requests to pass through without IP checking
             return await handler(request)
         return middleware_handler
 
