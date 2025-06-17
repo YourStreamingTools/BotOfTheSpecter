@@ -31,16 +31,34 @@ function checkSSHService($host, $username, $password, $serviceName, $timeout = 5
     if (!extension_loaded('ssh2')) { return ['status' => 'ERROR', 'message' => 'SSH2 PHP extension not available']; }
     $connection = @ssh2_connect($host, 22);
     if (!$connection) { return ['status' => 'ERROR', 'message' => 'SSH connection failed']; }
-    if (!@ssh2_auth_password($connection, $username, $password)) { return ['status' => 'ERROR', 'message' => 'SSH authentication failed']; }
-    // Execute systemctl status command
-    $stream = ssh2_exec($connection, "systemctl is-active $serviceName");
+    if (!@ssh2_auth_password($connection, $username, $password)) { return ['status' => 'ERROR', 'message' => 'SSH authentication failed']; }    // Execute systemctl status command to get detailed status
+    $stream = ssh2_exec($connection, "systemctl status $serviceName");
     if (!$stream) { return ['status' => 'ERROR', 'message' => 'Failed to execute SSH command']; }
     stream_set_blocking($stream, true);
-    $output = trim(stream_get_contents($stream));
+    $output = stream_get_contents($stream);
     fclose($stream);
     $latency = round((microtime(true) - $start) * 1000);
-    if ($output === 'active') { return ['status' => 'OK', 'latency_ms' => $latency]; }
-    else { return ['status' => 'ERROR', 'message' => "Service status: $output", 'latency_ms' => $latency]; }
+    // Parse the systemctl status output
+    if (strpos($output, 'Active: active (running)') !== false) {
+        return ['status' => 'OK', 'latency_ms' => $latency];
+    } else if (strpos($output, 'Active: activating') !== false) {
+        return ['status' => 'OK', 'latency_ms' => $latency];
+    } else if (strpos($output, 'Active: inactive (dead)') !== false) {
+        return ['status' => 'ERROR', 'message' => 'Service is stopped (inactive/dead)', 'latency_ms' => $latency];
+    } else if (strpos($output, 'Active: failed') !== false) {
+        return ['status' => 'ERROR', 'message' => 'Service has failed', 'latency_ms' => $latency];
+    } else {
+        // Extract the Active line for detailed error message
+        $lines = explode("\n", $output);
+        $activeLine = '';
+        foreach ($lines as $line) {
+            if (strpos(trim($line), 'Active:') === 0) {
+                $activeLine = trim($line);
+                break;
+            }
+        }
+        return ['status' => 'ERROR', 'message' => $activeLine ?: 'Unknown service status', 'latency_ms' => $latency];
+    }
 }
 
 // Map services to host/port
