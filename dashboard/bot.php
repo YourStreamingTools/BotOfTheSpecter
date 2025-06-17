@@ -699,6 +699,7 @@ if (<?php echo json_encode($isTechnical); ?>) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  const isTechnical = <?php echo json_encode($isTechnical); ?>;
   // Initialize the notification deletion functionality
   const deleteButtons = document.querySelectorAll('.notification .delete');
   deleteButtons.forEach(button => {
@@ -1625,7 +1626,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const forceOnlineBtn = document.getElementById('force-online-btn');
   const forceOfflineBtn = document.getElementById('force-offline-btn');
   const apiKey = <?php echo json_encode($user['api_key'] ?? ''); ?>;
-  const isTechnical = <?php echo json_encode($isTechnical); ?>;
   function fetchAndUpdateChannelStatus() {
     // Only run if no bot action is in progress
     if (botActionInProgress) return;
