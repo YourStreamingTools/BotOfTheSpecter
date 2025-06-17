@@ -89,7 +89,15 @@ class TTSGenerator:
         except Exception as e:
             logger.error(f"Failed to initialize TTS model: {e}")
             raise
-    def generate_filename(self, text, voice=None):
+    def generate_filename(self, text, voice=None, custom_filename=None):
+        # Use custom filename if provided, otherwise generate one
+        if custom_filename:
+            # Ensure it has the correct extension
+            if not custom_filename.endswith('.wav'):
+                custom_filename = custom_filename.replace('.mp3', '.wav')
+                if not custom_filename.endswith('.wav'):
+                    custom_filename += '.wav'
+            return custom_filename
         # Create hash of text and voice for unique filename
         content = f"{text}_{voice or 'default'}"
         hash_object = hashlib.md5(content.encode())
@@ -193,12 +201,12 @@ class TTSGenerator:
         if self.ssh_client:
             self.ssh_client.close()
             logger.info("SSH connection closed")
-    def process_tts_request(self, text, voice=None, keep_local=False):
+    def process_tts_request(self, text, voice=None, keep_local=False, custom_filename=None):
         try:
             # Create temporary directory for processing
             with tempfile.TemporaryDirectory() as temp_dir:
                 # Generate filename
-                wav_filename = self.generate_filename(text, voice)
+                wav_filename = self.generate_filename(text, voice, custom_filename)
                 wav_path = os.path.join(temp_dir, wav_filename)
                 # Generate TTS
                 if not self.generate_tts(text, wav_path, voice):
@@ -232,48 +240,21 @@ class TTSGenerator:
         finally:
             self.cleanup_ssh()
 
-def create_sample_config():
-    sample_config = {
-        "tts_model": "tts_models/en/ljspeech/tacotron2-DDC",
-        "ssh_config": {
-            "hostname": "your-server.com",
-            "username": "your-username",
-            "key_filename": "/path/to/your/private/key",
-            "password": None,
-            "port": 22
-        },
-        "remote_paths": {
-            "tts_directory": "/var/www/html/tts/",
-            "temp_directory": "/tmp/tts/"
-        },
-        "audio_settings": {
-            "sample_rate": 22050,
-            "format": "mp3"
-        }
-    }
-    with open('tts_config.json', 'w') as f:
-        json.dump(sample_config, f, indent=4)
-    print("Sample configuration file created: tts_config.json")
-    print("Please edit this file with your server details before using the script.")
-
 def main():
     parser = argparse.ArgumentParser(description='Local TTS Generator with SSH Transfer')
     parser.add_argument('--text', '-t', required=True, help='Text to convert to speech')
     parser.add_argument('--voice', '-v', help='Voice to use (if supported by model)')
-    parser.add_argument('--config', '-c', default='tts_config.json', help='Configuration file path')
+    parser.add_argument('--config', '-c', default='websocket_tts_config.json', help='Configuration file path')
     parser.add_argument('--keep-local', action='store_true', help='Keep local copy of generated file')
-    parser.add_argument('--create-config', action='store_true', help='Create sample configuration file')
+    parser.add_argument('--filename', '-f', help='Custom filename for the output file')
     args = parser.parse_args()
-    if args.create_config:
-        create_sample_config()
-        return
-    # Initialize TTS generator
     generator = TTSGenerator(args.config)
     # Process TTS request
     result = generator.process_tts_request(
         text=args.text,
         voice=args.voice,
-        keep_local=args.keep_local
+        keep_local=args.keep_local,
+        custom_filename=args.filename
     )
     if result['success']:
         print(f"TTS generation successful!")
