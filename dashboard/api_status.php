@@ -69,16 +69,25 @@ if (isset($serviceMap[$service])) {
         'name' => $svc['name'],
         'status' => $result['status'],
         'latency_ms' => $result['status'] === 'OK' ? $result['latency_ms'] : null,
+        'host' => $svc['host'],
+        'port' => $svc['port'],
+        'host_port' => $svc['host'] . ':' . $svc['port'],
+        'timestamp' => date('c'), // ISO 8601 format
+        'checked_at' => time(),
         // Use translation for messages
         'message' => $result['status'] === 'OK' ? t('bot_running_normally') : $result['message']
     ];
 } elseif ($service === 'ping') {
     $serviceData = [
-        'pong' => true
+        'pong' => true,
+        'timestamp' => date('c'),
+        'checked_at' => time()
     ];
 } else {
     $serviceData = [
-        'error' => t('bot_status_unknown')
+        'error' => t('bot_status_unknown'),
+        'timestamp' => date('c'),
+        'checked_at' => time()
     ];
 }
 
