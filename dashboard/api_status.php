@@ -47,7 +47,7 @@ $serviceMap = [
     'bots' => [
         'name' => 'Bots Service',
         'host' => 'bots.botofthespecter.com',
-        'port' => 443
+        'port' => 22
     ],
     'streamingService' => [
         'name' => 'AU-EAST-1 Streaming Service',
