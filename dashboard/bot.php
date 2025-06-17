@@ -173,11 +173,10 @@ if ($selectedBot === 'beta' && !$betaAccess) {
 }
 
 // Check running status for all bots to prevent conflicts
-$stableRunning = checkBotsRunning($statusScriptPath, $username, 'stable');
-$betaRunning = checkBotsRunning($statusScriptPath, $username, 'beta');
-
-// Count how many bots are running
-$runningBotCount = ($stableRunning ? 1 : 0) + ($betaRunning ? 1 : 0);
+$stableRunning = false; // Will be determined by JavaScript
+$betaRunning = false;   // Will be determined by JavaScript
+$discordBotSystemStatus = false; // Will be determined by JavaScript
+$runningBotCount = 0;
 $multiBotWarning = '';
 if (($stableRunning || $betaRunning) && $selectedBot !== 'discord') {
   $multiBotWarning = '<div class="notification is-danger has-text-black has-text-weight-bold">'
@@ -443,49 +442,26 @@ ob_start();
               } elseif ($selectedBot === 'discord') {
                 $isRunning = $discordBotSystemStatus;
               }
-              // Use a green beating heart if running, else a red broken heart
-              if ($isRunning) {
-                $heartIcon = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
-              } else {
-                $heartIcon = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
-              }
+              // Show loading state initially - JavaScript will update with real status
+              $heartIcon = '<i class="fas fa-spinner fa-spin fa-2x has-text-info"></i>';
               echo $heartIcon;
             ?>
           </span>
           <span class="is-size-5" style="font-weight:600;">
-            <?php
-              $statusText = $selectedBot === 'stable' ? ($stableRunning ? t('bot_online') : t('bot_offline')) :
-                            ($selectedBot === 'beta' ? ($betaRunning ? t('bot_online') : t('bot_offline')) :
-                            ($selectedBot === 'discord' ? ($discordBotSystemStatus ? t('bot_online') : t('bot_offline')) : t('bot_unknown')));
-              echo t('bot_status_label') . " <span class='has-text-" . (($statusText === t('bot_online')) ? "success" : "danger") . "'>$statusText</span>";
-            ?>
-            <?php if ($isTechnical && $isRunning): ?>
+            <?php echo t('bot_status_label') . " <span class='has-text-info'>Fetching status...</span>"; ?>
+            <?php if ($isTechnical): ?>
               <br>
-              <span class="is-size-7 has-text-grey-light" id="bot-pid-display" style="font-family: monospace;">
+              <span class="is-size-7 has-text-grey-light" id="bot-pid-display" style="font-family: monospace; display: none;">
                 PID: <span id="bot-pid-value">--</span>
               </span>
             <?php endif; ?>
           </span>
         </div>
         <div class="buttons is-centered mb-2">
-          <?php
-            // Only show STOP if running, RUN if not running
-            if ($isRunning) {
-              ?>
-              <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3">
-                <span class="icon"><i class="fas fa-stop"></i></span>
-                <span><?php echo t('bot_stop'); ?></span>
-              </button>
-              <?php
-            } else {
-              ?>
-              <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3">
-                <span class="icon"><i class="fas fa-play"></i></span>
-                <span><?php echo t('bot_run'); ?></span>
-              </button>
-              <?php
-            }
-          ?>
+          <button class="button is-info is-medium has-text-black has-text-weight-bold px-6 mr-3" disabled>
+            <span class="icon"><i class="fas fa-spinner fa-spin"></i></span>
+            <span>Checking status...</span>
+          </button>
         </div>
         <?php endif; ?>
       </div>
@@ -1298,16 +1274,13 @@ document.addEventListener('DOMContentLoaded', function() {
   // Set up polling for status updates
   setInterval(updateServiceStatus, 10000);
   setInterval(updateApiLimits, 30000);
-  setInterval(() => updateBotStatus(true), 60000); // Check bot status every minute (silent updates)
-  // Initial calls to populate data
-  updateServiceStatus();
+  setInterval(() => updateBotStatus(true), 60000);  updateServiceStatus();
   updateApiLimits();
-  updateBotStatus(true); // Initial silent update
+  updateBotStatus(false);
   attachBotButtonListeners();
   // Channel Status Force Buttons
   const forceOnlineBtn = document.getElementById('force-online-btn');
   const forceOfflineBtn = document.getElementById('force-offline-btn');
-  // You may want to set apiKey from PHP session or config
   const apiKey = <?php echo json_encode($user['api_key'] ?? ''); ?>;
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
   function fetchAndUpdateChannelStatus() {
