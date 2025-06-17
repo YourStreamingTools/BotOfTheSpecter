@@ -31,28 +31,17 @@ $stableLastRestartOutput = '';
 $discordLastModifiedOutput = '';
 $discordLastRestartOutput = '';
 
-// Determine which bot to display based on selection or cookie
 $selectedBot = $_GET['bot'] ?? null;
-
-// If bot is specified in URL, update the cookie only for stable or beta
 if (isset($_GET['bot'])) {
   if (in_array($_GET['bot'], ['stable', 'beta'])) {
     setcookie('selectedBot', $_GET['bot'], time() + (86400 * 30), "/"); // Cookie for 30 days
   }
-} 
-// If no bot specified in URL, try to get from cookie
+}
 else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta'])) {
   $selectedBot = $_COOKIE['selectedBot'];
-} 
-// Default to stable if no selection or cookie
-else {
-  $selectedBot = 'stable';
 }
-
-// Validate selected bot
-if (!in_array($selectedBot, ['stable', 'beta', 'discord'])) {
-  $selectedBot = 'stable';
-}
+else { $selectedBot = 'stable'; }
+if (!in_array($selectedBot, ['stable', 'beta', 'discord'])) { $selectedBot = 'stable'; }
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
@@ -131,7 +120,6 @@ if (isset($username) && $username === 'botofthespecter') {
     // No Discord record exists, user has never linked
     $discordNeedsRelink = false; // This is a new user, not a relink case
   }
-
   $discordSetupResult->close();
   $discordSetupStmt->close();
 }
@@ -355,9 +343,15 @@ ob_start();
           </span>
           <div class="select is-medium" style="background: transparent; border: none;">
             <select id="bot-selector" onchange="changeBotSelection(this.value)" style="background: #23272f; color: #fff; border: none; font-weight: 600;">
-              <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>><?php echo t('bot_stable_bot'); ?></option>
-              <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>><?php echo t('bot_beta_bot'); ?></option>
-              <option value="discord" <?php if($selectedBot === 'discord') echo 'selected'; ?>><?php echo t('bot_discord_bot'); ?></option>
+              <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
+                <?php echo t('bot_stable_bot'); ?>
+              </option>
+              <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
+                <?php echo t('bot_beta_bot'); ?>
+              </option>
+              <option value="discord" <?php if($selectedBot === 'discord') echo 'selected'; ?>>
+                <?php echo t('bot_discord_bot'); ?>
+              </option>
             </select>
           </div>
         </div>
@@ -367,16 +361,23 @@ ob_start();
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             <?php echo t('bot_stable_controls') . " (v{$newVersion})"; ?>
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4"><?php echo t('bot_stable_description'); ?></p>
+          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+            <?php echo t('bot_stable_description'); ?>
+          </p>
         <?php elseif ($selectedBot === 'beta' && $betaAccess): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             <?php echo t('bot_beta_controls') . " (v{$betaNewVersion} B)"; ?>
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4"><?php echo t('bot_beta_description'); ?></p>        <?php elseif ($selectedBot === 'discord' && $hasDiscordSetup): ?>
+          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+            <?php echo t('bot_beta_description'); ?>
+          </p>
+        <?php elseif ($selectedBot === 'discord' && $hasDiscordSetup): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             <?php echo t('bot_discord_controls') . " (v{$discordNewVersion})"; ?>
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4"><?php echo t('bot_discord_description'); ?></p>
+          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+            <?php echo t('bot_discord_description'); ?>
+          </p>
         <?php elseif ($selectedBot === 'discord' && $discordNeedsRelink): ?>
           <div class="notification is-warning has-text-black mb-4">
             <div class="has-text-centered">
@@ -418,8 +419,8 @@ ob_start();
                 <span>Connect Discord Account</span>
               </a>
             </div>
-          </div>        <?php endif; ?>
-        
+          </div>
+        <?php endif; ?>
         <?php 
         // Only show bot status and controls if the bot is properly configured
         $showBotControls = false;
@@ -469,7 +470,9 @@ ob_start();
     <!-- System Status Card -->
     <div class="card has-background-dark has-text-white">
       <div class="card-header">
-        <p class="card-header-title has-text-white is-centered"><?php echo t('bot_system_status'); ?></p>
+        <p class="card-header-title has-text-white is-centered">
+          <?php echo t('bot_system_status'); ?>
+        </p>
       </div>
       <div class="card-content">
         <!-- Service Health Meters -->
@@ -482,7 +485,9 @@ ob_start();
                 </span>
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_api_service'); ?></h4>
-              <p id="api-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <p id="api-service-status" class="is-size-7 has-text-grey-light">
+                <?php echo t('bot_running_normally'); ?>
+              </p>
               <?php if ($isTechnical): ?>
                 <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
                   <div class="has-text-grey-light">
@@ -503,7 +508,9 @@ ob_start();
                 </span>
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_database_service'); ?></h4>
-              <p id="db-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <p id="db-service-status" class="is-size-7 has-text-grey-light">
+                <?php echo t('bot_running_normally'); ?>
+              </p>
               <?php if ($isTechnical): ?>
                 <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
                   <div class="has-text-grey-light">
@@ -524,7 +531,9 @@ ob_start();
                 </span>
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_notification_service'); ?></h4>
-              <p id="notif-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <p id="notif-service-status" class="is-size-7 has-text-grey-light">
+                <?php echo t('bot_running_normally'); ?>
+              </p>
               <?php if ($isTechnical): ?>
                 <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
                   <div class="has-text-grey-light">
@@ -580,7 +589,9 @@ ob_start();
             </div>
           </div>
         </div>
-        <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4"><?php echo t('bot_streaming_service_status'); ?></h4>
+        <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4">
+          <?php echo t('bot_streaming_service_status'); ?>
+        </h4>
         <div class="columns is-multiline">
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
@@ -645,7 +656,8 @@ ob_start();
               <?php endif; ?>
             </div>
           </div>
-        </div>        <div class="has-text-centered mt-5">
+        </div>
+        <div class="has-text-centered mt-5">
           <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link is-fullwidth has-text-weight-bold">
             <span class="icon"><i class="fas fa-chart-line"></i></span>
             <span><?php echo t('bot_view_detailed_uptime'); ?></span>
