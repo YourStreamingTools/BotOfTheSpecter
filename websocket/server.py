@@ -7,7 +7,6 @@ import ssl
 import argparse
 import socketio
 from aiohttp import web
-from google.cloud import texttospeech
 import ipaddress
 import paramiko
 import uuid
@@ -21,8 +20,6 @@ load_dotenv(find_dotenv("/home/botofthespecter/.env"))
 
 class BotOfTheSpecter_WebsocketServer:
     def __init__(self, logger):
-        # Set up Google Cloud credentials
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/home/botofthespecter/service-account-file.json"
         # Initialize the WebSocket server.
         self.logger = logger
         self.ip = self.get_own_ip()
@@ -32,7 +29,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.sio = socketio.AsyncServer(
             logger=logger, 
             engineio_logger=logger, 
-            cors_allowed_origins='*', 
+            cors_allowed_origins='*',
             ping_timeout=30,
             ping_interval=25
         )
@@ -51,7 +48,6 @@ class BotOfTheSpecter_WebsocketServer:
         self.loop = None
         signal.signal(signal.SIGTERM, self.sig_handler)
         signal.signal(signal.SIGINT, self.sig_handler)
-        self.tts_client = texttospeech.TextToSpeechClient()
         self.tts_queue = asyncio.Queue()
         self.processing_task = None
         ips_file = "/home/botofthespecter/ips.txt"
@@ -322,22 +318,12 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.error(f"Error while processing TTS queue: {e}")
 
     async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
-        # Generate the TTS audio
+        # Generate the TTS audio using local TTS script
         self.logger.info(f"Processing TTS request for code {code} with text: {text}")
-        response = self.generate_speech(text, language_code, gender, voice_name)
-        if response is None:
+        # Generate TTS using the local script in its own environment
+        audio_file = await self.generate_local_tts(text, code, voice_name)
+        if audio_file is None:
             self.logger.error(f"Failed to generate speech for text: {text}")
-            return
-        # Generate a unique filename using code and timestamp/UUID
-        unique_id = uuid.uuid4().hex[:8]
-        audio_file = os.path.join(self.tts_dir, f'tts_output_{code}_{unique_id}.mp3')
-        # Save the generated audio to a file
-        try:
-            with open(audio_file, 'wb') as out:
-                out.write(response.audio_content)
-            self.logger.info(f'Audio content written to file "{audio_file}"')
-        except Exception as e:
-            self.logger.error(f'Failed to write audio content to file "{audio_file}": {e}')
             return
         try:
             # Attempt to transfer the file via SFTP
@@ -360,9 +346,9 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.error(f"No clients found with code {code}. Unable to emit TTS event.")
         except Exception as e:
             self.logger.error(f'Failed to transfer file "{audio_file}" via SFTP: {e}')
-            return
+            return 
         # Estimate the duration of the audio and wait for it to finish
-        duration = self.estimate_duration(response)
+        duration = self.estimate_audio_duration(audio_file, text)
         self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
         await asyncio.sleep(duration + 5)
         # After playback, delete the TTS file from the SFTP server
@@ -372,30 +358,9 @@ class BotOfTheSpecter_WebsocketServer:
         except Exception as e:
             self.logger.error(f'Failed to delete audio file "{audio_file}" from SFTP server: {e}')
 
-    def generate_speech(self, text, language_code=None, gender=None, voice_name=None):
-        voice_params = {
-            "language_code": language_code if language_code else "en-US",
-            "ssml_gender": getattr(texttospeech.SsmlVoiceGender, gender.upper() if gender else "NEUTRAL", texttospeech.SsmlVoiceGender.NEUTRAL),
-        }
-        if voice_name:
-            voice_params["name"] = voice_name
-        input_text = texttospeech.SynthesisInput(text=text)
-        voice = texttospeech.VoiceSelectionParams(**voice_params)
-        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
-        try:
-            response = self.tts_client.synthesize_speech(
-                input=input_text, voice=voice, audio_config=audio_config
-            )
-            if not hasattr(response, 'audio_content'):
-                raise ValueError("TTS API response does not contain audio content.")
-            return response
-        except Exception as e:
-            self.logger.error(f"Failed to generate speech: {e}")
-            return None
-
     async def sftp_transfer(self, local_file_path):
         # Set up the SFTP connection details from .env file
-        hostname = "10.240.0.169"
+        hostname = "web1.botofthespecter.com"
         username = os.getenv("SFTP_USERNAME")
         password = os.getenv("SFTP_PASSWORD")
         remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
@@ -415,7 +380,7 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def sftp_delete(self, local_file_path):
         # Set up the SFTP connection details from .env file
-        hostname = "10.240.0.169"
+        hostname = "web1.botofthespecter.com"
         username = os.getenv("SFTP_USERNAME")
         password = os.getenv("SFTP_PASSWORD")
         remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
@@ -864,6 +829,96 @@ class BotOfTheSpecter_WebsocketServer:
         except Exception as e:
             self.logger.error(f"Failed to get user API key info: {e}")
             return None
+
+    async def generate_local_tts(self, text, code, voice_name=None):
+        try:
+            # Generate unique filename
+            unique_id = uuid.uuid4().hex[:8]
+            # Path to the TTS script and its environment
+            tts_script_dir = os.path.join(self.script_dir, "..", "tts")
+            tts_script_path = os.path.join(tts_script_dir, "local_tts_generator.py")
+            # Python executable in the TTS environment
+            if os.name == 'nt':  # Windows
+                python_exe = os.path.join(tts_script_dir, "tts_env", "Scripts", "python.exe")
+            else:  # Unix/Linux
+                python_exe = os.path.join(tts_script_dir, "tts_env", "bin", "python")
+            # Check if TTS environment exists
+            if not os.path.exists(python_exe):
+                self.logger.error(f"TTS environment not found at {python_exe}. Please run setup.py first.")
+                return None            # Build command to run TTS script
+            config_path = os.path.join(tts_script_dir, "websocket_tts_config.json")
+            cmd = [
+                python_exe,
+                tts_script_path,
+                "--text", text,
+                "--config", config_path,
+                "--keep-local"  # Keep local copy for SFTP transfer
+            ]
+            # Add voice parameter if specified
+            if voice_name:
+                cmd.extend(["--voice", voice_name])
+            # Run the TTS script
+            self.logger.info(f"Running TTS command: {' '.join(cmd)}")
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=tts_script_dir
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode == 0:
+                self.logger.info(f"TTS generation successful: {stdout.decode()}")
+                # Look for the generated file in the local output directory
+                local_output_dir = os.path.join(tts_script_dir, "local_tts_output")
+                if os.path.exists(local_output_dir):
+                    # Find the most recent file with our code in the name
+                    files = [f for f in os.listdir(local_output_dir) if f.endswith('.mp3') or f.endswith('.wav')]
+                    if files:
+                        # Get the most recently created file
+                        files.sort(key=lambda x: os.path.getctime(os.path.join(local_output_dir, x)), reverse=True)
+                        audio_file = os.path.join(local_output_dir, files[0])
+                        # Rename file to include our code and unique ID
+                        new_filename = f'tts_output_{code}_{unique_id}.mp3'
+                        new_audio_file = os.path.join(self.tts_dir, new_filename)
+                        # Copy file to TTS directory
+                        import shutil
+                        shutil.copy2(audio_file, new_audio_file)
+                        # Clean up the original file
+                        os.remove(audio_file)
+                        self.logger.info(f"TTS file ready: {new_audio_file}")
+                        return new_audio_file
+                    else:
+                        self.logger.error("No audio files found in local output directory")
+                        return None
+                else:
+                    self.logger.error(f"Local output directory not found: {local_output_dir}")
+                    return None
+            else:
+                self.logger.error(f"TTS generation failed: {stderr.decode()}")
+                return None
+        except Exception as e:
+            self.logger.error(f"Error generating local TTS: {e}")
+            return None
+
+    def estimate_audio_duration(self, audio_file, text):
+        try:
+            # Try to get actual duration from the audio file if possible
+            import subprocess
+            result = subprocess.run([
+                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                '-of', 'csv=p=0', audio_file
+            ], capture_output=True, text=True, timeout=10)
+            if result.returncode == 0 and result.stdout.strip():
+                duration = float(result.stdout.strip())
+                self.logger.info(f"Actual audio duration: {duration} seconds")
+                return duration
+        except Exception as e:
+            self.logger.warning(f"Could not get actual audio duration: {e}")
+        words = len(text.split())
+        estimated_duration = (words / 180) * 60  # 180 words per minute
+        estimated_duration = max(2, estimated_duration)  # Minimum 2 seconds
+        self.logger.info(f"Estimated audio duration: {estimated_duration} seconds (based on {words} words)")
+        return estimated_duration
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
