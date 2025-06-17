@@ -832,21 +832,11 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def generate_local_tts(self, text, code, voice_name=None):
         try:
-            # Generate unique filename
             unique_id = uuid.uuid4().hex[:8]
-            # Path to the TTS script and its environment
-            tts_script_dir = os.path.join(self.script_dir, "..", "tts")
-            tts_script_path = os.path.join(tts_script_dir, "local_tts_generator.py")
-            # Python executable in the TTS environment
-            if os.name == 'nt':  # Windows
-                python_exe = os.path.join(tts_script_dir, "tts_env", "Scripts", "python.exe")
-            else:  # Unix/Linux
-                python_exe = os.path.join(tts_script_dir, "tts_env", "bin", "python")
-            # Check if TTS environment exists
-            if not os.path.exists(python_exe):
-                self.logger.error(f"TTS environment not found at {python_exe}. Please run setup.py first.")
-                return None            # Build command to run TTS script
-            config_path = os.path.join(tts_script_dir, "websocket_tts_config.json")
+            # Absolute paths for TTS script and environment (both in /home/botofthespecter/)
+            tts_script_path = "/home/botofthespecter/local_tts_generator.py"
+            python_exe = "/home/botofthespecter/tts_env/bin/python"
+            config_path = "/home/botofthespecter/websocket_tts_config.json"
             cmd = [
                 python_exe,
                 tts_script_path,
@@ -863,13 +853,12 @@ class BotOfTheSpecter_WebsocketServer:
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=tts_script_dir
-            )
+                cwd="/home/botofthespecter"            )
             stdout, stderr = await process.communicate()
             if process.returncode == 0:
                 self.logger.info(f"TTS generation successful: {stdout.decode()}")
                 # Look for the generated file in the local output directory
-                local_output_dir = os.path.join(tts_script_dir, "local_tts_output")
+                local_output_dir = "/home/botofthespecter/local_tts_output"
                 if os.path.exists(local_output_dir):
                     # Find the most recent file with our code in the name
                     files = [f for f in os.listdir(local_output_dir) if f.endswith('.mp3') or f.endswith('.wav')]
