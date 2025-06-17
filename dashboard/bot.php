@@ -1061,7 +1061,6 @@ document.addEventListener('DOMContentLoaded', function() {
     return fetch(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`)
       .then(async response => {
         const text = await response.text();
-        console.log('updateBotStatus response text:', text);
         try {
           const data = JSON.parse(text);
           console.log('updateBotStatus parsed data:', data);
