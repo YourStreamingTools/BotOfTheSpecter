@@ -544,7 +544,7 @@ ob_start();
                   <i id="botsService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
                 </span>
               </div>
-              <h4 class="subtitle has-text-white mb-1">Bots Service</h4>
+              <h4 class="subtitle has-text-white mb-1">BOT Server</h4>
               <p id="bots-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
               <?php if ($isTechnical): ?>
                 <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
