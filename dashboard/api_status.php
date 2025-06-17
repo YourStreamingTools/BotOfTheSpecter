@@ -115,10 +115,19 @@ if (isset($serviceMap[$service])) {
     if (isset($svc['type']) && $svc['type'] === 'ssh_service') {
         // SSH service check
         $result = checkSSHService($svc['ssh_host'], $svc['ssh_username'], $svc['ssh_password'], $svc['service_name']);
+        // Special handling for Discord bot service - use Bots service latency when running
+        $latency_to_show = $result['latency_ms'];
+        if ($service === 'discordbot' && $result['status'] === 'OK') {
+            // Get the Bots service latency to show instead of SSH latency
+            $botsResult = checkPort($serviceMap['bots']['host'], $serviceMap['bots']['port']);
+            if ($botsResult['status'] === 'OK') {
+                $latency_to_show = $botsResult['latency_ms'];
+            }
+        }
         $serviceData = [
             'name' => $svc['name'],
             'status' => $result['status'],
-            'latency_ms' => $result['status'] === 'OK' ? $result['latency_ms'] : null,
+            'latency_ms' => $result['status'] === 'OK' ? $latency_to_show : null,
             'host' => $svc['ssh_host'],
             'service' => $svc['service_name'],
             'timestamp' => date('c'),
