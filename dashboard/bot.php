@@ -483,6 +483,16 @@ ob_start();
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_api_service'); ?></h4>
               <p id="api-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="api-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="api-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
           <div class="column is-4">
@@ -494,6 +504,16 @@ ob_start();
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_database_service'); ?></h4>
               <p id="db-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="db-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="db-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
           <div class="column is-4">
@@ -505,6 +525,16 @@ ob_start();
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_notification_service'); ?></h4>
               <p id="notif-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="notif-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="notif-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
         </div>
@@ -519,6 +549,16 @@ ob_start();
               </div>
               <h4 class="subtitle has-text-white mb-1">AU-EAST-1</h4>
               <p id="auEast1-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="auEast1-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="auEast1-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
           <div class="column is-4">
@@ -530,6 +570,16 @@ ob_start();
               </div>
               <h4 class="subtitle has-text-white mb-1">US-WEST-1</h4>
               <p id="usWest1-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="usWest1-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="usWest1-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
           <div class="column is-4">
@@ -541,15 +591,71 @@ ob_start();
               </div>
               <h4 class="subtitle has-text-white mb-1">US-EAST-1</h4>
               <p id="usEast1-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="usEast1-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="usEast1-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
-        </div>
-        <div class="has-text-centered mt-5">
+        </div>        <div class="has-text-centered mt-5">
           <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link is-fullwidth has-text-weight-bold">
             <span class="icon"><i class="fas fa-chart-line"></i></span>
             <span><?php echo t('bot_view_detailed_uptime'); ?></span>
           </a>
         </div>
+        <?php if ($isTechnical): ?>
+          <div class="mt-5">
+            <h4 class="title is-6 has-text-white has-text-centered mb-4">Technical System Overview</h4>
+            <div class="box has-background-darker">
+              <div class="columns is-multiline">
+                <div class="column is-6">
+                  <div class="has-text-centered p-3">
+                    <h5 class="subtitle is-6 has-text-white mb-2">
+                      <span class="icon"><i class="fas fa-server"></i></span>
+                      Server Load
+                    </h5>
+                    <div style="font-family: monospace; font-size: 0.8rem;">
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">CPU:</span> <span id="server-cpu-load">--</span>
+                      </div>
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Memory:</span> <span id="server-memory-usage">--</span>
+                      </div>
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Disk:</span> <span id="server-disk-usage">--</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="column is-6">
+                  <div class="has-text-centered p-3">
+                    <h5 class="subtitle is-6 has-text-white mb-2">
+                      <span class="icon"><i class="fas fa-network-wired"></i></span>
+                      Network Status
+                    </h5>
+                    <div style="font-family: monospace; font-size: 0.8rem;">
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
+                      </div>
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/6</span>
+                      </div>
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Last Update:</span> <span id="system-last-update">--</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -560,6 +666,38 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+// Technical UI Enhancements
+const technicalCSS = `
+  .technical-info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem;
+    align-items: center;
+  }
+  .technical-metric {
+    transition: all 0.3s ease;
+  }
+  .technical-metric:hover {
+    transform: scale(1.05);
+  }
+  .heartbeat.beating {
+    animation: heartbeat 2s ease-in-out infinite;
+  }
+  @keyframes heartbeat {
+    0% { transform: scale(1); }
+    14% { transform: scale(1.1); }
+    28% { transform: scale(1); }
+    42% { transform: scale(1.1); }
+    70% { transform: scale(1); }
+  }
+`;
+// Inject CSS if technical mode is enabled
+if (<?php echo json_encode($isTechnical); ?>) {
+  const style = document.createElement('style');
+  style.textContent = technicalCSS;
+  document.head.appendChild(style);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   // Initialize the notification deletion functionality
   const deleteButtons = document.querySelectorAll('.notification .delete');
@@ -1225,29 +1363,30 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     return agoTranslations.days.replace(':count', Math.floor(diff/86400));
   }
-
   // Function to update service status from api_status.php
   function updateServiceStatus() {
     // Map service icon IDs to their api_status.php service param and status text element IDs
     const services = [
-      { id: 'apiService', api: 'api', statusId: 'api-service-status' },
-      { id: 'databaseService', api: 'database', statusId: 'db-service-status' },
-      { id: 'notificationService', api: 'websocket', statusId: 'notif-service-status' },
-      { id: 'auEast1Service', api: 'streamingService', statusId: 'auEast1-service-status' },
-      { id: 'usWest1Service', api: 'streamingServiceWest', statusId: 'usWest1-service-status' },
-      { id: 'usEast1Service', api: 'streamingServiceEast', statusId: 'usEast1-service-status' }
+      { id: 'apiService', api: 'api', statusId: 'api-service-status', latencyId: 'api-service-latency', lastCheckId: 'api-service-lastcheck' },
+      { id: 'databaseService', api: 'database', statusId: 'db-service-status', latencyId: 'db-service-latency', lastCheckId: 'db-service-lastcheck' },
+      { id: 'notificationService', api: 'websocket', statusId: 'notif-service-status', latencyId: 'notif-service-latency', lastCheckId: 'notif-service-lastcheck' },
+      { id: 'auEast1Service', api: 'streamingService', statusId: 'auEast1-service-status', latencyId: 'auEast1-service-latency', lastCheckId: 'auEast1-service-lastcheck' },
+      { id: 'usWest1Service', api: 'streamingServiceWest', statusId: 'usWest1-service-status', latencyId: 'usWest1-service-latency', lastCheckId: 'usWest1-service-lastcheck' },
+      { id: 'usEast1Service', api: 'streamingServiceEast', statusId: 'usEast1-service-status', latencyId: 'usEast1-service-latency', lastCheckId: 'usEast1-service-lastcheck' }
     ];
     // Inject translations from PHP
     const runningNormallyText = <?php echo json_encode(t('bot_running_normally')); ?>;
     const serviceDegradedText = <?php echo json_encode(t('bot_status_unknown')); ?>;
     const statusCheckFailedText = <?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>;
     services.forEach(svc => {
+      const checkStartTime = Date.now();
       fetch('api_status.php?service=' + svc.api)
         .then(r => r.json())
         .then(data => {
           const icon = document.getElementById(svc.id);
           const statusElem = document.getElementById(svc.statusId);
           if (!icon || !statusElem) return;
+          // Update status and icon
           if (data.status === 'OK') {
             icon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
             statusElem.textContent = runningNormallyText;
@@ -1256,6 +1395,32 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.className = 'fas fa-heart-broken fa-2x has-text-danger';
             statusElem.textContent = data.message || serviceDegradedText;
             statusElem.className = 'is-size-7 has-text-danger';
+          }
+          
+          // Update technical information if in technical mode
+          if (isTechnical) {
+            const latencyElem = document.getElementById(svc.latencyId);
+            const lastCheckElem = document.getElementById(svc.lastCheckId);
+            
+            if (latencyElem) {
+              if (data.latency_ms !== null && data.latency_ms !== undefined) {
+                const latencyColor = data.latency_ms < 100 ? 'has-text-success' : data.latency_ms < 300 ? 'has-text-warning' : 'has-text-danger';
+                latencyElem.innerHTML = `<span class="${latencyColor}">${data.latency_ms}ms</span>`;
+              } else {
+                latencyElem.innerHTML = '<span class="has-text-danger">--ms</span>';
+              }
+            }
+            
+            if (lastCheckElem) {
+              const now = new Date();
+              const timeStr = now.toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+              });
+              lastCheckElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
+            }
           }
         })
         .catch(error => {
@@ -1268,15 +1433,193 @@ document.addEventListener('DOMContentLoaded', function() {
             statusElem.textContent = statusCheckFailedText;
             statusElem.className = 'is-size-7 has-text-danger';
           }
+          
+          // Update technical information on error if in technical mode
+          if (isTechnical) {
+            const latencyElem = document.getElementById(svc.latencyId);
+            const lastCheckElem = document.getElementById(svc.lastCheckId);
+            
+            if (latencyElem) {
+              latencyElem.innerHTML = '<span class="has-text-danger">ERROR</span>';
+            }
+            
+            if (lastCheckElem) {
+              const now = new Date();
+              const timeStr = now.toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+              });
+              lastCheckElem.innerHTML = `<span class="has-text-danger">${timeStr}</span>`;            }
+          }
         });
     });
   }
-  // Set up polling for status updates
+  
+  // Function to update technical system overview
+  function updateTechnicalOverview() {
+    if (!isTechnical) return;
+    
+    // Calculate average latency and services status
+    const services = ['api', 'database', 'websocket', 'streamingService', 'streamingServiceWest', 'streamingServiceEast'];
+    let totalLatency = 0;
+    let servicesUp = 0;
+    let latencyCount = 0;
+    let servicesChecked = 0;
+    
+    services.forEach(service => {
+      fetch(`api_status.php?service=${service}`)
+        .then(r => r.json())
+        .then(data => {
+          servicesChecked++;
+          if (data.status === 'OK') {
+            servicesUp++;
+            if (data.latency_ms) {
+              totalLatency += data.latency_ms;
+              latencyCount++;
+            }
+          }
+          
+          // Update overview after all services are checked
+          if (servicesChecked === services.length) {
+            const avgLatency = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0;
+            
+            // Update network status
+            const avgLatencyElem = document.getElementById('network-avg-latency');
+            if (avgLatencyElem) {
+              const latencyColor = avgLatency < 100 ? 'has-text-success' : avgLatency < 300 ? 'has-text-warning' : 'has-text-danger';
+              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;
+            }
+            
+            const servicesUpElem = document.getElementById('services-up-count');
+            if (servicesUpElem) {
+              const servicesColor = servicesUp === 6 ? 'has-text-success' : servicesUp >= 4 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/6</span>`;
+            }
+            
+            const lastUpdateElem = document.getElementById('system-last-update');
+            if (lastUpdateElem) {
+              const now = new Date();
+              const timeStr = now.toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+              });
+              lastUpdateElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
+            }
+          }
+        })
+        .catch(() => {
+          servicesChecked++;
+          // Service check failed, don't count as up
+          if (servicesChecked === services.length) {
+            // Still update the display even if some services failed
+            const avgLatency = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0;
+            
+            const avgLatencyElem = document.getElementById('network-avg-latency');
+            if (avgLatencyElem && avgLatency > 0) {
+              const latencyColor = avgLatency < 100 ? 'has-text-success' : avgLatency < 300 ? 'has-text-warning' : 'has-text-danger';
+              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;
+            }
+            
+            const servicesUpElem = document.getElementById('services-up-count');
+            if (servicesUpElem) {
+              const servicesColor = servicesUp === 6 ? 'has-text-success' : servicesUp >= 4 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/6</span>`;
+            }
+          }
+        });
+    });
+    
+    // Update server metrics
+    updateServerMetrics();
+  }
+    // Function to update server metrics using real data
+  function updateServerMetrics() {
+    if (!isTechnical) return;
+    
+    fetch('server_metrics.php')
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          // Fallback to simulated data if real metrics not available
+          updateSimulatedServerMetrics();
+          return;
+        }
+        
+        const cpuElem = document.getElementById('server-cpu-load');
+        if (cpuElem && data.cpu_load !== null) {
+          const cpuColor = data.cpu_load < 60 ? 'has-text-success' : data.cpu_load < 80 ? 'has-text-warning' : 'has-text-danger';
+          cpuElem.innerHTML = `<span class="${cpuColor}">${data.cpu_load}%</span>`;
+        } else if (cpuElem) {
+          cpuElem.innerHTML = '<span class="has-text-grey">N/A</span>';
+        }
+        
+        const memoryElem = document.getElementById('server-memory-usage');
+        if (memoryElem && data.memory_usage !== null) {
+          const memoryColor = data.memory_usage < 70 ? 'has-text-success' : data.memory_usage < 85 ? 'has-text-warning' : 'has-text-danger';
+          memoryElem.innerHTML = `<span class="${memoryColor}">${data.memory_usage}%</span>`;
+        } else if (memoryElem) {
+          memoryElem.innerHTML = '<span class="has-text-grey">N/A</span>';
+        }
+        
+        const diskElem = document.getElementById('server-disk-usage');
+        if (diskElem && data.disk_usage !== null) {
+          const diskColor = data.disk_usage < 70 ? 'has-text-success' : data.disk_usage < 85 ? 'has-text-warning' : 'has-text-danger';
+          diskElem.innerHTML = `<span class="${diskColor}">${data.disk_usage}%</span>`;
+        } else if (diskElem) {
+          diskElem.innerHTML = '<span class="has-text-grey">N/A</span>';
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching server metrics:', error);
+        // Fallback to simulated data
+        updateSimulatedServerMetrics();
+      });
+  }
+  
+  // Fallback function for simulated server metrics
+  function updateSimulatedServerMetrics() {
+    if (!isTechnical) return;
+    
+    // Simulate some realistic server metrics
+    const cpuLoad = Math.floor(Math.random() * 30) + 15; // 15-45%
+    const memoryUsage = Math.floor(Math.random() * 40) + 35; // 35-75%
+    const diskUsage = Math.floor(Math.random() * 20) + 25; // 25-45%
+    
+    const cpuElem = document.getElementById('server-cpu-load');
+    if (cpuElem) {
+      const cpuColor = cpuLoad < 60 ? 'has-text-success' : cpuLoad < 80 ? 'has-text-warning' : 'has-text-danger';
+      cpuElem.innerHTML = `<span class="${cpuColor}">${cpuLoad}% <small>(sim)</small></span>`;
+    }
+    
+    const memoryElem = document.getElementById('server-memory-usage');
+    if (memoryElem) {
+      const memoryColor = memoryUsage < 70 ? 'has-text-success' : memoryUsage < 85 ? 'has-text-warning' : 'has-text-danger';
+      memoryElem.innerHTML = `<span class="${memoryColor}">${memoryUsage}% <small>(sim)</small></span>`;
+    }
+    
+    const diskElem = document.getElementById('server-disk-usage');
+    if (diskElem) {
+      const diskColor = diskUsage < 70 ? 'has-text-success' : diskUsage < 85 ? 'has-text-warning' : 'has-text-danger';
+      diskElem.innerHTML = `<span class="${diskColor}">${diskUsage}% <small>(sim)</small></span>`;
+    }
+  }// Set up polling for status updates
   setInterval(updateServiceStatus, 10000);
   setInterval(updateApiLimits, 30000);
-  setInterval(() => updateBotStatus(true), 60000);  updateServiceStatus();
+  setInterval(() => updateBotStatus(true), 60000);
+  if (isTechnical) {
+    setInterval(updateTechnicalOverview, 15000); // Update technical overview every 15 seconds
+  }
+  
+  updateServiceStatus();
   updateApiLimits();
   updateBotStatus(false);
+  if (isTechnical) {
+    updateTechnicalOverview();
+  }
   attachBotButtonListeners();
   // Channel Status Force Buttons
   const forceOnlineBtn = document.getElementById('force-online-btn');
