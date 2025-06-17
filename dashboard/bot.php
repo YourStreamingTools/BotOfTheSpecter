@@ -71,6 +71,7 @@ $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
+$isTechnical = isset($user['is_technical']) ? (bool)$user['is_technical'] : false;
 
 // Check if Discord is properly setup for this user with valid tokens
 $hasDiscordSetup = false;
@@ -458,6 +459,12 @@ ob_start();
                             ($selectedBot === 'discord' ? ($discordBotSystemStatus ? t('bot_online') : t('bot_offline')) : t('bot_unknown')));
               echo t('bot_status_label') . " <span class='has-text-" . (($statusText === t('bot_online')) ? "success" : "danger") . "'>$statusText</span>";
             ?>
+            <?php if ($isTechnical && $isRunning): ?>
+              <br>
+              <span class="is-size-7 has-text-grey-light" id="bot-pid-display" style="font-family: monospace;">
+                PID: <span id="bot-pid-value">--</span>
+              </span>
+            <?php endif; ?>
           </span>
         </div>
         <div class="buttons is-centered mb-2">
@@ -1001,6 +1008,19 @@ document.addEventListener('DOMContentLoaded', function() {
       statusSpan.textContent = statusText;
       statusSpan.className = `has-text-${statusClass}`;
     }
+    // Update PID display if technical mode is enabled
+    if (isTechnical) {
+      const pidDisplay = document.getElementById('bot-pid-display');
+      const pidValue = document.getElementById('bot-pid-value');
+      if (pidDisplay && pidValue) {
+        if (expectedRunning) {
+          pidDisplay.style.display = '';
+          pidValue.textContent = '--'; // Will be updated by status verification
+        } else {
+          pidDisplay.style.display = 'none';
+        }
+      }
+    }
     // Update buttons
     const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
     if (buttonContainer) {
@@ -1063,6 +1083,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (statusSpan) {
               statusSpan.textContent = statusText;
               statusSpan.className = `has-text-${statusClass}`;
+            }
+            // Update PID display if technical mode is enabled
+            if (isTechnical) {
+              const pidDisplay = document.getElementById('bot-pid-display');
+              const pidValue = document.getElementById('bot-pid-value');
+              if (pidDisplay && pidValue) {
+                if (data.running && data.pid) {
+                  pidDisplay.style.display = '';
+                  pidValue.textContent = data.pid;
+                } else {
+                  pidDisplay.style.display = 'none';
+                }
+              }
             }
             // Update buttons by replacing the entire button container
             const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
@@ -1277,6 +1310,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const forceOfflineBtn = document.getElementById('force-offline-btn');
   // You may want to set apiKey from PHP session or config
   const apiKey = <?php echo json_encode($user['api_key'] ?? ''); ?>;
+  const isTechnical = <?php echo json_encode($isTechnical); ?>;
   function fetchAndUpdateChannelStatus() {
     // Only run if no bot action is in progress
     if (botActionInProgress) return;
