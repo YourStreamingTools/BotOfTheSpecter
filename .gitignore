@@ -60,7 +60,7 @@ api/weather.txt
 api/version_control.txt
 
 # Media files
-tts/*
+tts/*.mp3
 walkons/*
 soundalerts/*/*
 
