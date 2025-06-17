@@ -1584,17 +1584,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const cpuElem = document.getElementById('server-cpu-load');
     if (cpuElem) {
       const cpuColor = cpuLoad < 60 ? 'has-text-success' : cpuLoad < 80 ? 'has-text-warning' : 'has-text-danger';
-      cpuElem.innerHTML = `<span class="${cpuColor}">${cpuLoad}% <small>(sim)</small></span>`;
+      cpuElem.innerHTML = `<span class="${cpuColor}">${cpuLoad}%</span>`;
     }
     const memoryElem = document.getElementById('server-memory-usage');
     if (memoryElem) {
       const memoryColor = memoryUsage < 70 ? 'has-text-success' : memoryUsage < 85 ? 'has-text-warning' : 'has-text-danger';
-      memoryElem.innerHTML = `<span class="${memoryColor}">${memoryUsage}% <small>(sim)</small></span>`;
+      memoryElem.innerHTML = `<span class="${memoryColor}">${memoryUsage}%</span>`;
     }
     const diskElem = document.getElementById('server-disk-usage');
     if (diskElem) {
       const diskColor = diskUsage < 70 ? 'has-text-success' : diskUsage < 85 ? 'has-text-warning' : 'has-text-danger';
-      diskElem.innerHTML = `<span class="${diskColor}">${diskUsage}% <small>(sim)</small></span>`;
+      diskElem.innerHTML = `<span class="${diskColor}">${diskUsage}%</span>`;
     }
   }
   // Set up polling for status updates
