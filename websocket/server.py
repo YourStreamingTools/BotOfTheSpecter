@@ -129,6 +129,7 @@ class BotOfTheSpecter_WebsocketServer:
             ping_interval=25
         )
         self.app = web.Application(middlewares=[self.ip_restriction_middleware])
+        self.app.on_startup.append(self.on_startup)
         self.app.on_shutdown.append(self.on_shutdown)
         self.setup_routes()
         self.music_handler = MusicHandler(
@@ -691,6 +692,9 @@ class BotOfTheSpecter_WebsocketServer:
         # Cancel SSH cleanup task if running
         if hasattr(self, 'ssh_cleanup_task') and self.ssh_cleanup_task:
             self.ssh_cleanup_task.cancel()
+        # Cancel TTS processing task if running
+        if hasattr(self, 'processing_task') and self.processing_task:
+            self.processing_task.cancel()
         # Clean up all SSH connections
         self.ssh_manager.cleanup_all_connections()
         # Disconnect all registered clients properly
@@ -704,7 +708,15 @@ class BotOfTheSpecter_WebsocketServer:
                     self.logger.error(f"Error disconnecting SID [{sid}]: {e}")
         self.logger.info("All clients disconnected.")
 
-    def start_ssh_cleanup_task(self):
+    async def on_startup(self, app):
+        self.logger.info("Starting application startup tasks...")
+        # Start the SSH cleanup task
+        await self.start_ssh_cleanup_task()
+        # Start the TTS processing task
+        self.processing_task = asyncio.create_task(self.process_tts_queue())
+        self.logger.info("Application startup completed.")
+
+    async def start_ssh_cleanup_task(self):
         async def periodic_ssh_cleanup():
             while True:
                 try:
@@ -733,21 +745,17 @@ class BotOfTheSpecter_WebsocketServer:
         db_test_result = self.loop.run_until_complete(self.test_database_connection())
         if not db_test_result:
             self.logger.warning("⚠ Database connection test failed, but server will continue starting...")
-        # Start SSH cleanup task
-        self.start_ssh_cleanup_task()
         # Try to create SSL context
         ssl_context = self.create_ssl_context()
         if ssl_context is not None:
             # SSL certificates available - run secure server
             self.logger.info(f"🔒 Starting secure WebSocket server on {host}:{port}")
-            self.processing_task = self.loop.create_task(self.process_tts_queue())
             web.run_app(self.app, loop=self.loop, host=host, port=port, ssl_context=ssl_context, handle_signals=True, shutdown_timeout=10)
         else:
             # No SSL certificates - fallback to insecure server
             fallback_port = 80 if port == 443 else port
             self.logger.warning(f"⚠ Starting insecure WebSocket server on {host}:{fallback_port}")
             self.logger.warning("  Consider setting up SSL certificates for production use.")
-            self.processing_task = self.loop.create_task(self.process_tts_queue())
             web.run_app(self.app, loop=self.loop, host=host, port=fallback_port, ssl_context=None, handle_signals=True, shutdown_timeout=10)
 
     def stop(self):
