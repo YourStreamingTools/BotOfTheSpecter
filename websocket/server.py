@@ -9,15 +9,105 @@ import socketio
 from aiohttp import web
 import ipaddress
 import paramiko
+from scp import SCPClient
 import uuid
 import json
 import aiomysql
 import shutil
+import subprocess
+import time
+import threading
 from music_handler import MusicHandler
 
 # Load ENV file
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv("/home/botofthespecter/.env"))
+
+class SSHConnectionManager:
+    def __init__(self, logger, timeout_minutes=2):
+        self.logger = logger
+        self.timeout_seconds = timeout_minutes * 60
+        self.connections = {}  # hostname -> connection info
+        self.lock = threading.Lock()
+    async def get_connection(self, ssh_config):
+        hostname = ssh_config['hostname']
+        with self.lock:
+            # Check if we have an active connection
+            if hostname in self.connections:
+                conn_info = self.connections[hostname]
+                # Check if connection is still valid and not timed out
+                if (time.time() - conn_info['last_used'] < self.timeout_seconds and 
+                    self._is_connection_alive(conn_info['client'])):
+                    conn_info['last_used'] = time.time()
+                    self.logger.debug(f"Reusing SSH connection to {hostname}")
+                    return conn_info['client']
+                else:
+                    # Connection expired or dead, clean it up
+                    self._cleanup_connection(hostname)
+            # Create new connection
+            return await self._create_connection(hostname, ssh_config)
+    def _is_connection_alive(self, ssh_client):
+        try:
+            transport = ssh_client.get_transport()
+            return transport and transport.is_active()
+        except:
+            return False
+    async def _create_connection(self, hostname, ssh_config):
+        try:
+            self.logger.info(f"Creating new SSH connection to {hostname}")
+            ssh_client = paramiko.SSHClient()
+            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # Connect with provided credentials
+            connect_kwargs = {
+                'hostname': ssh_config['hostname'],
+                'port': ssh_config.get('port', 22),
+                'username': ssh_config['username'],
+                'timeout': 30
+            }
+            if ssh_config.get('password'):
+                connect_kwargs['password'] = ssh_config['password']
+            elif ssh_config.get('key_filename'):
+                connect_kwargs['key_filename'] = ssh_config['key_filename']
+            else:
+                raise ValueError("Either password or key_filename must be provided in SSH config")
+            # Run connection in thread to avoid blocking
+            await asyncio.get_event_loop().run_in_executor(
+                None, lambda: ssh_client.connect(**connect_kwargs)
+            )
+            # Store connection info
+            self.connections[hostname] = {
+                'client': ssh_client,
+                'last_used': time.time(),
+                'config': ssh_config
+            }
+            self.logger.info(f"SSH connection established to {hostname}")
+            return ssh_client
+        except Exception as e:
+            self.logger.error(f"Failed to create SSH connection to {hostname}: {e}")
+            raise
+    def _cleanup_connection(self, hostname):
+        if hostname in self.connections:
+            try:
+                self.connections[hostname]['client'].close()
+                self.logger.debug(f"Closed SSH connection to {hostname}")
+            except:
+                pass
+            del self.connections[hostname]
+    async def cleanup_expired_connections(self):
+        current_time = time.time()
+        expired_hosts = []
+        with self.lock:
+            for hostname, conn_info in self.connections.items():
+                if current_time - conn_info['last_used'] > self.timeout_seconds:
+                    expired_hosts.append(hostname)
+            for hostname in expired_hosts:
+                self.logger.info(f"Cleaning up expired SSH connection to {hostname}")
+                self._cleanup_connection(hostname)
+    def cleanup_all_connections(self):
+        with self.lock:
+            for hostname in list(self.connections.keys()):
+                self._cleanup_connection(hostname)
+            self.logger.info("All SSH connections cleaned up")
 
 class BotOfTheSpecter_WebsocketServer:
     def __init__(self, logger):
@@ -27,6 +117,10 @@ class BotOfTheSpecter_WebsocketServer:
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
         self.tts_dir = "/home/botofthespecter/tts"
         self.registered_clients = {}
+        # Initialize SSH connection manager
+        self.ssh_manager = SSHConnectionManager(logger, timeout_minutes=2)
+        # Load TTS configuration
+        self.tts_config = self.load_tts_config()
         self.sio = socketio.AsyncServer(
             logger=logger, 
             engineio_logger=logger, 
@@ -53,6 +147,17 @@ class BotOfTheSpecter_WebsocketServer:
         self.processing_task = None
         ips_file = "/home/botofthespecter/ips.txt"
         self.allowed_ips = self.load_ips(ips_file)
+
+    def load_tts_config(self):
+        config_path = "/home/botofthespecter/websocket_tts_config.json"
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                self.logger.info("TTS configuration loaded successfully")
+                return config
+        except Exception as e:
+            self.logger.error(f"Failed to load TTS config from {config_path}: {e}")
+            return None
 
     def load_ips(self, ips_file):
         allowed_ips = []
@@ -583,6 +688,11 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def on_shutdown(self, app):
         self.logger.info("Shutting down...")
+        # Cancel SSH cleanup task if running
+        if hasattr(self, 'ssh_cleanup_task') and self.ssh_cleanup_task:
+            self.ssh_cleanup_task.cancel()
+        # Clean up all SSH connections
+        self.ssh_manager.cleanup_all_connections()
         # Disconnect all registered clients properly
         for code, sids in list(self.registered_clients.items()):
             for client in sids:
@@ -593,6 +703,19 @@ class BotOfTheSpecter_WebsocketServer:
                 except Exception as e:
                     self.logger.error(f"Error disconnecting SID [{sid}]: {e}")
         self.logger.info("All clients disconnected.")
+
+    def start_ssh_cleanup_task(self):
+        async def periodic_ssh_cleanup():
+            while True:
+                try:
+                    await asyncio.sleep(60)  # Check every minute
+                    await self.ssh_manager.cleanup_expired_connections()
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    self.logger.error(f"Error in SSH cleanup task: {e}")
+        self.ssh_cleanup_task = asyncio.create_task(periodic_ssh_cleanup())
+        self.logger.info("SSH cleanup task started")
 
     def sig_handler(self, signum, frame):
         # Handle system signals for graceful shutdown.
@@ -610,6 +733,8 @@ class BotOfTheSpecter_WebsocketServer:
         db_test_result = self.loop.run_until_complete(self.test_database_connection())
         if not db_test_result:
             self.logger.warning("⚠ Database connection test failed, but server will continue starting...")
+        # Start SSH cleanup task
+        self.start_ssh_cleanup_task()
         # Try to create SSL context
         ssl_context = self.create_ssl_context()
         if ssl_context is not None:
@@ -893,7 +1018,6 @@ class BotOfTheSpecter_WebsocketServer:
     def estimate_audio_duration(self, audio_file, text):
         try:
             # Try to get actual duration from the audio file if possible
-            import subprocess
             result = subprocess.run([
                 'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
                 '-of', 'csv=p=0', audio_file
@@ -926,11 +1050,50 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.error(f"Error cleaning up TTS file {file_path}: {e}")
 
     async def cleanup_remote_tts_file(self, filename):
+        if not self.tts_config or not self.tts_config.get('ssh_config'):
+            self.logger.warning("No SSH config available for remote cleanup")
+            return
         try:
-            self.logger.info(f"Remote cleanup will remove: /var/www/html/tts/{filename}")
-            # TODO: Implement SSH cleanup
+            # Get SSH connection from manager
+            ssh_client = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
+            # Build remote file path
+            remote_dir = self.tts_config['remote_paths']['tts_directory']
+            remote_file_path = f"{remote_dir.rstrip('/')}/{filename}"
+            # Execute delete command
+            command = f"rm -f '{remote_file_path}'"
+            self.logger.info(f"Executing remote cleanup: {command}")
+            stdin, stdout, stderr = ssh_client.exec_command(command)
+            exit_status = stdout.channel.recv_exit_status()
+            if exit_status == 0:
+                self.logger.info(f"Successfully deleted remote file: {remote_file_path}")
+            else:
+                error_msg = stderr.read().decode().strip()
+                self.logger.warning(f"Remote delete command returned {exit_status}: {error_msg}")
         except Exception as e:
             self.logger.error(f"Error in remote cleanup for {filename}: {e}")
+
+    async def move_file_to_remote(self, local_file_path, remote_filename):
+        if not self.tts_config or not self.tts_config.get('ssh_config'):
+            self.logger.warning("No SSH config available for file transfer")
+            return None
+        try:
+            # Get SSH connection from manager
+            ssh_client = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
+            # Build remote path
+            remote_dir = self.tts_config['remote_paths']['tts_directory']
+            remote_file_path = f"{remote_dir.rstrip('/')}/{remote_filename}"
+            # Create remote directory if needed
+            mkdir_command = f"mkdir -p '{remote_dir}'"
+            ssh_client.exec_command(mkdir_command)
+            # Transfer file using SCP
+            from scp import SCPClient
+            with SCPClient(ssh_client.get_transport()) as scp:
+                scp.put(local_file_path, remote_file_path)
+            self.logger.info(f"File transferred successfully: {remote_file_path}")
+            return remote_file_path
+        except Exception as e:
+            self.logger.error(f"Error transferring file {local_file_path}: {e}")
+            return None
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
