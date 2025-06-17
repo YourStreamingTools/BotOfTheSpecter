@@ -6,12 +6,19 @@ import logging
 from pathlib import Path
 os.environ['NNPACK_DISABLE'] = '1'
 os.environ['PYTORCH_DISABLE_NNPACK_RUNTIME_ERROR'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="torch")
 import paramiko
 from scp import SCPClient
 import json
 import hashlib
 from datetime import datetime
 import subprocess
+import contextlib
+import torch
+torch.backends.disable_global_flags()
 from TTS.api import TTS
 
 # Configure logging
@@ -24,6 +31,16 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+@contextlib.contextmanager
+def suppress_stderr():
+    with open(os.devnull, "w") as devnull:
+        old_stderr = sys.stderr
+        sys.stderr = devnull
+        try:
+            yield
+        finally:
+            sys.stderr = old_stderr
 
 class TTSGenerator:
     def __init__(self, config_file=None):
@@ -66,7 +83,8 @@ class TTSGenerator:
     def initialize_tts(self):
         try:
             logger.info(f"Initializing TTS model: {self.config['tts_model']}")
-            self.tts_model = TTS(self.config['tts_model'])
+            with suppress_stderr():
+                self.tts_model = TTS(self.config['tts_model'])
             logger.info("TTS model initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize TTS model: {e}")
@@ -83,12 +101,13 @@ class TTSGenerator:
             if not self.tts_model:
                 self.initialize_tts()
             logger.info(f"Generating TTS for text: {text[:50]}...")
-            # Generate TTS
-            if voice:
-                # If voice is specified and model supports it
-                self.tts_model.tts_to_file(text=text, file_path=output_path, speaker=voice)
-            else:
-                self.tts_model.tts_to_file(text=text, file_path=output_path)
+            # Generate TTS with stderr suppression to hide NNPACK warnings
+            with suppress_stderr():
+                if voice:
+                    # If voice is specified and model supports it
+                    self.tts_model.tts_to_file(text=text, file_path=output_path, speaker=voice)
+                else:
+                    self.tts_model.tts_to_file(text=text, file_path=output_path)
             logger.info(f"TTS generated successfully: {output_path}")
             return True
         except Exception as e:
