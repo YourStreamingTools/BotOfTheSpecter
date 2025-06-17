@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $alertClass = 'is-danger';
         }
     } elseif ($action === 'update_technical_mode') {
-        $isTechnicalNew = isset($_POST['is_technical']) ? 1 : 0;
+        $isTechnicalNew = isset($_POST['is_technical']) ? (int)$_POST['is_technical'] : 0;
         $updateQuery = "UPDATE users SET is_technical = ? WHERE id = ?";
         $stmt = mysqli_prepare($conn, $updateQuery);
         mysqli_stmt_bind_param($stmt, 'ii', $isTechnicalNew, $userId);
@@ -182,6 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $alertClass = 'is-success';
             $isTechnical = (bool)$isTechnicalNew;
             $_SESSION['is_technical'] = $isTechnical;
+            $user['is_technical'] = $isTechnicalNew;
         } else {
             $message = t('technical_mode_update_error') . ': ' . mysqli_error($conn);
             $alertClass = 'is-danger';
@@ -888,13 +889,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // Set cookie_consent to accepted
             document.cookie = "cookie_consent=accepted; expires=Fri, 31 Dec 9999 23:59:59 GMT; path=/";
             location.reload();
-        });
-    }
-
-    const techCheckbox = document.getElementById('is-technical-checkbox');
-    if (techCheckbox) {
-        techCheckbox.addEventListener('change', function() {
-            document.getElementById('technical-mode-form').submit();
         });
     }
 });
