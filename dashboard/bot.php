@@ -558,6 +558,27 @@ ob_start();
               <?php endif; ?>
             </div>
           </div>
+          <div class="column is-4">
+            <div class="box has-background-darker has-text-centered p-4">
+              <div class="mb-3">
+                <span class="icon is-large">
+                  <i id="discordService" class="fab fa-discord fa-2x beating has-text-success"></i>
+                </span>
+              </div>
+              <h4 class="subtitle has-text-white mb-1">Discord Bot Service</h4>
+              <p id="discord-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="discord-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="discord-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
+            </div>
+          </div>
         </div>
         <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4"><?php echo t('bot_streaming_service_status'); ?></h4>
         <div class="columns is-multiline">
@@ -665,7 +686,7 @@ ob_start();
                         <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
                       </div>
                       <div class="has-text-grey-light">
-                        <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/6</span>
+                        <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/8</span>
                       </div>
                       <div class="has-text-grey-light">
                         <span class="has-text-grey">Last Update:</span> <span id="system-last-update">--</span>
@@ -1380,13 +1401,14 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateServiceStatus() {
     // Map service icon IDs to their api_status.php service param and status text element IDs
     const services = [
-      { id: 'apiService', api: 'api', statusId: 'api-service-status', latencyId: 'api-service-latency', lastCheckId: 'api-service-lastcheck' },
-      { id: 'databaseService', api: 'database', statusId: 'db-service-status', latencyId: 'db-service-latency', lastCheckId: 'db-service-lastcheck' },
-      { id: 'notificationService', api: 'websocket', statusId: 'notif-service-status', latencyId: 'notif-service-latency', lastCheckId: 'notif-service-lastcheck' },
-      { id: 'botsService', api: 'bots', statusId: 'bots-service-status', latencyId: 'bots-service-latency', lastCheckId: 'bots-service-lastcheck' },
-      { id: 'auEast1Service', api: 'streamingService', statusId: 'auEast1-service-status', latencyId: 'auEast1-service-latency', lastCheckId: 'auEast1-service-lastcheck' },
-      { id: 'usWest1Service', api: 'streamingServiceWest', statusId: 'usWest1-service-status', latencyId: 'usWest1-service-latency', lastCheckId: 'usWest1-service-lastcheck' },
-      { id: 'usEast1Service', api: 'streamingServiceEast', statusId: 'usEast1-service-status', latencyId: 'usEast1-service-latency', lastCheckId: 'usEast1-service-lastcheck' }
+      { id: 'apiService',           api: 'api',                   statusId: 'api-service-status',     latencyId: 'api-service-latency',     lastCheckId: 'api-service-lastcheck' },
+      { id: 'databaseService',      api: 'database',              statusId: 'db-service-status',      latencyId: 'db-service-latency',      lastCheckId: 'db-service-lastcheck' },
+      { id: 'notificationService',  api: 'websocket',             statusId: 'notif-service-status',   latencyId: 'notif-service-latency',   lastCheckId: 'notif-service-lastcheck' },
+      { id: 'botsService',          api: 'bots',                  statusId: 'bots-service-status',    latencyId: 'bots-service-latency',    lastCheckId: 'bots-service-lastcheck' },
+      { id: 'discordService',       api: 'discordbot',            statusId: 'discord-service-status', latencyId: 'discord-service-latency', lastCheckId: 'discord-service-lastcheck' },
+      { id: 'auEast1Service',       api: 'streamingService',      statusId: 'auEast1-service-status', latencyId: 'auEast1-service-latency', lastCheckId: 'auEast1-service-lastcheck' },
+      { id: 'usWest1Service',       api: 'streamingServiceWest',  statusId: 'usWest1-service-status', latencyId: 'usWest1-service-latency', lastCheckId: 'usWest1-service-lastcheck' },
+      { id: 'usEast1Service',       api: 'streamingServiceEast',  statusId: 'usEast1-service-status', latencyId: 'usEast1-service-latency', lastCheckId: 'usEast1-service-lastcheck' }
     ];
     // Inject translations from PHP
     const runningNormallyText = <?php echo json_encode(t('bot_running_normally')); ?>;
@@ -1468,7 +1490,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateTechnicalOverview() {
     if (!isTechnical) return;
     // Calculate average latency and services status
-    const services = ['api', 'database', 'websocket', 'bots', 'streamingService', 'streamingServiceWest', 'streamingServiceEast'];
+    const services = ['api', 'database', 'websocket', 'bots', 'discordbot', 'streamingService', 'streamingServiceWest', 'streamingServiceEast'];
     let totalLatency = 0;
     let servicesUp = 0;
     let latencyCount = 0;
@@ -1492,12 +1514,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const avgLatencyElem = document.getElementById('network-avg-latency');
             if (avgLatencyElem) {
               const latencyColor = avgLatency < 100 ? 'has-text-success' : avgLatency < 300 ? 'has-text-warning' : 'has-text-danger';
-              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;
-            }            
+              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;            }            
             const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === 7 ? 'has-text-success' : servicesUp >= 5 ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/7</span>`;
+              const servicesColor = servicesUp === 8 ? 'has-text-success' : servicesUp >= 6 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/8</span>`;
             }
             const lastUpdateElem = document.getElementById('system-last-update');
             if (lastUpdateElem) {
@@ -1518,16 +1539,14 @@ document.addEventListener('DOMContentLoaded', function() {
           if (servicesChecked === services.length) {
             // Still update the display even if some services failed
             const avgLatency = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0;
-            
             const avgLatencyElem = document.getElementById('network-avg-latency');
             if (avgLatencyElem && avgLatency > 0) {
               const latencyColor = avgLatency < 100 ? 'has-text-success' : avgLatency < 300 ? 'has-text-warning' : 'has-text-danger';
-              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;
-            }
+              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;            }
               const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === 7 ? 'has-text-success' : servicesUp >= 5 ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/7</span>`;
+              const servicesColor = servicesUp === 8 ? 'has-text-success' : servicesUp >= 6 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/8</span>`;
             }
           }
         });
