@@ -44,6 +44,11 @@ $serviceMap = [
         'host' => 'websocket.botofthespecter.com',
         'port' => 443
     ],
+    'bots' => [
+        'name' => 'Bots Service',
+        'host' => 'bots.botofthespecter.com',
+        'port' => 443
+    ],
     'streamingService' => [
         'name' => 'AU-EAST-1 Streaming Service',
         'host' => 'au-east-1.botofthespecter.video',
