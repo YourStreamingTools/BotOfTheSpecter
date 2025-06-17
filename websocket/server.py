@@ -306,18 +306,6 @@ class BotOfTheSpecter_WebsocketServer:
             client_data = {"sid": sid, "name": name}
             self.registered_clients[code].append(client_data)
             self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
-            # Log registration activity to database (if available)
-            try:
-                user_info = await self.get_user_api_key_info(code)
-                if user_info:
-                    channel_name = user_info.get('username', 'unknown')
-                    await self.log_websocket_activity(channel_name, 'client_registration', {
-                        'sid': sid,
-                        'name': name,
-                        'channel': channel
-                    })
-            except Exception as e:
-                self.logger.debug(f"Database logging failed (non-critical): {e}")
             # Send success message to the new client
             await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
@@ -942,18 +930,6 @@ class BotOfTheSpecter_WebsocketServer:
         except Exception as e:
             self.logger.error(f"✗ Database connection test error: {e}")
             return False
-
-    async def log_websocket_activity(self, channel_name, event_type, data=None):
-        try:
-            query = "INSERT INTO websocket_activity_log (channel_name, event_type, data, timestamp) VALUES (%s, %s, %s, NOW())"
-            params = (channel_name, event_type, json.dumps(data) if data else None)
-            result = await self.execute_query(query, params, 'website')
-            if result:
-                self.logger.debug(f"Logged WebSocket activity: {event_type} for {channel_name}")
-            return result
-        except Exception as e:
-            self.logger.error(f"Failed to log WebSocket activity: {e}")
-            return None
 
     async def get_user_api_key_info(self, api_key):
         try:
