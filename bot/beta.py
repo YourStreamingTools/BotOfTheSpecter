@@ -2515,7 +2515,11 @@ class TwitchBot(commands.Bot):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
                 # Get the current song and artist from Spotify
-                song_name, artist_name, song_id = await get_spotify_current_song()
+                song_name, artist_name, song_id, spotify_error = await get_spotify_current_song()
+                # Check if there was a Spotify error
+                if spotify_error:
+                    await ctx.send(spotify_error)
+                    return
                 if song_name and artist_name:
                     # If the stream is offline, notify that the user that the streamer is listening to music while offline
                     if not stream_online:
@@ -2717,7 +2721,11 @@ class TwitchBot(commands.Bot):
                             queue = data['queue']
                             queue_length = len(queue)
                             # Get the currently playing song
-                            song_name, artist_name, song_id = await get_spotify_current_song()
+                            song_name, artist_name, song_id, spotify_error = await get_spotify_current_song()
+                            # Check if there was a Spotify error when getting current song
+                            if spotify_error:
+                                await ctx.send(spotify_error)
+                                return
                             current_song_requester = song_requests.get(song_id, {}).get("user") if song_id in song_requests else None
                             if song_name and artist_name:
                                 if current_song_requester:
@@ -6229,7 +6237,7 @@ async def send_timed_message(message_id, message, delay):
 
 # Function to get the song via Spotify
 async def get_spotify_current_song():
-    global SPOTIFY_ACCESS_TOKEN, song_requests
+    global SPOTIFY_ACCESS_TOKEN, SPOTIFY_ERROR_MESSAGES, song_requests
     headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
     async with aiohttp.ClientSession() as session:
         async with session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers) as response:
@@ -6242,16 +6250,17 @@ async def get_spotify_current_song():
                     song_name = data["item"]["name"]
                     artist_name = ", ".join([artist["name"] for artist in data["item"]["artists"]])
                     api_logger.info(f"The current song from Spotify is: {song_name} by {artist_name}")
-                    return song_name, artist_name, song_id  # Return song name, artist name and song id as tuple
+                    return song_name, artist_name, song_id, None  # Return song name, artist name, song id and no error
                 else:
-                    return None, None  # No song playing
+                    return None, None, None, None  # No song playing
             elif response.status == 204:
                 # 204 No Content means no song is currently playing
-                return None, None
+                return None, None, None, None
             else:
-                # Handle potential Spotify API errors
-                api_logger.error(f"Spotify API error: {response.status}")
-                return None, None
+                # Handle potential Spotify API errors with proper error messages
+                error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
+                api_logger.error(f"Spotify API error: {response.status} - {error_message}")
+                return None, None, None, error_message
 
 # Function to get the current playing song
 async def shazam_the_song():
