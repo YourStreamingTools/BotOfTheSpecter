@@ -47,6 +47,11 @@ class TTSGenerator:
         self.config = self.load_config(config_file)
         self.tts_model = None
         self.ssh_client = None
+        # Performance optimizations
+        self.use_cache = self.config.get('performance', {}).get('use_cache', False)
+        self.cache_dir = self.config.get('performance', {}).get('cache_dir', './tts_cache')
+        if self.use_cache:
+            os.makedirs(self.cache_dir, exist_ok=True)
     def load_config(self, config_file):
         default_config = {
             "tts_model": "tts_models/en/ljspeech/tacotron2-DDC",
@@ -80,12 +85,26 @@ class TTSGenerator:
                 logger.error(f"Error loading config file: {e}")
                 logger.info("Using default configuration")
         return default_config
+
     def initialize_tts(self):
         try:
-            logger.info(f"Initializing TTS model: {self.config['tts_model']}")
+            model_name = self.config['tts_model']
+            logger.info(f"Initializing TTS model: {model_name}")
+            # Performance settings
+            performance_config = self.config.get('performance', {})
+            use_gpu = performance_config.get('use_gpu', True)
+            # Check GPU availability
+            gpu_available = torch.cuda.is_available()
+            if use_gpu and gpu_available:
+                logger.info("GPU detected, using CUDA acceleration")
+                device = "cuda"
+            else:
+                logger.info("Using CPU for TTS generation")
+                device = "cpu"
             with suppress_stderr():
-                self.tts_model = TTS(self.config['tts_model'])
-            logger.info("TTS model initialized successfully")
+                # Initialize with performance optimizations
+                self.tts_model = TTS(model_name, gpu=use_gpu and gpu_available)
+            logger.info(f"TTS model initialized successfully on {device}")
         except Exception as e:
             logger.error(f"Failed to initialize TTS model: {e}")
             raise
