@@ -134,11 +134,14 @@ class BotOfTheSpecter_WebsocketServer:
         # Initialize SocketIO server
         self.sio = socketio.AsyncServer(
             logger=logger, 
-            engineio_logger=logger, 
+            engineio_logger=engineio_logger,
             cors_allowed_origins='*',
             ping_timeout=30,
             ping_interval=25
         )
+        # Create a separate logger for engineio with higher log level to reduce noise
+        engineio_logger = logging.getLogger('engineio')
+        engineio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from engineio
         # Update event handlers with the sio instance
         self.event_handler.sio = self.sio
         self.donation_handler.sio = self.sio
