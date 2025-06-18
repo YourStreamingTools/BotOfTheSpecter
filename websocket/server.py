@@ -131,17 +131,18 @@ class BotOfTheSpecter_WebsocketServer:
         self.tts_handler = TTSHandler(logger, self.ssh_manager)
         self.event_handler = EventHandler(None, logger, lambda: self.registered_clients)
         self.donation_handler = DonationEventHandler(None, logger, lambda: self.registered_clients)
+        socketio_logger = logging.getLogger('socketio')
+        socketio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from socketio
+        engineio_logger = logging.getLogger('engineio')
+        engineio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from engineio
         # Initialize SocketIO server
         self.sio = socketio.AsyncServer(
-            logger=logger, 
+            logger=socketio_logger, 
             engineio_logger=engineio_logger,
             cors_allowed_origins='*',
             ping_timeout=30,
             ping_interval=25
         )
-        # Create a separate logger for engineio with higher log level to reduce noise
-        engineio_logger = logging.getLogger('engineio')
-        engineio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from engineio
         # Update event handlers with the sio instance
         self.event_handler.sio = self.sio
         self.donation_handler.sio = self.sio
@@ -1064,7 +1065,20 @@ if __name__ == '__main__':
     args = parser.parse_args()
     log_level = {"DEBUG": logging.DEBUG, "INFO": logging.INFO, "WARNING": logging.WARNING, "ERROR": logging.ERROR, "CRITICAL": logging.CRITICAL}[args.loglevel]
     log_file = args.logfile if args.logfile else os.path.join(SCRIPT_DIR, "noti_server.log")
-    logging.basicConfig(filename=log_file, level=log_level, filemode="a", format="%(asctime)s - %(levelname)s - %(message)s")
-    logging.getLogger().addHandler(logging.StreamHandler())
+    # Create custom formatter with specific date format
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    # Configure file handler
+    file_handler = logging.FileHandler(log_file, mode="a")
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(log_level)
+    # Configure console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(log_level)
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
     server = BotOfTheSpecter_WebsocketServer(logging)
     server.run_app(host=args.host, port=args.port)
