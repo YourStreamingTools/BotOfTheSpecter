@@ -231,6 +231,16 @@ class TTSHandler:
             from scp import SCPClient
             with SCPClient(ssh_client.get_transport()) as scp:
                 scp.put(local_file_path, remote_file_path)
+            # Set correct ownership for web server access
+            chown_command = f"chown www-data:www-data '{remote_file_path}'"
+            self.logger.info(f"Setting file ownership: {chown_command}")
+            stdin, stdout, stderr = ssh_client.exec_command(chown_command)
+            exit_status = stdout.channel.recv_exit_status()
+            if exit_status == 0:
+                self.logger.info(f"File ownership set successfully")
+            else:
+                error_msg = stderr.read().decode().strip()
+                self.logger.warning(f"Failed to set ownership: {error_msg}")
             self.logger.info(f"File transferred successfully: {remote_file_path}")
             return remote_file_path
         except Exception as e:
