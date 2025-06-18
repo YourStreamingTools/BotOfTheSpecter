@@ -7356,7 +7356,7 @@ async def update_version_control():
         # Write the new version to the file
         with open(file_path, "w") as file:
             file.write(VERSION)
-        bot_logger.info(f"Version control file updated: {file_path}")
+        bot_logger.info(f"Version control updated")
     except Exception as e:
         bot_logger.error(f"An error occurred in update_version_control: {e}")
 
