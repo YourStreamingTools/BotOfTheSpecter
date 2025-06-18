@@ -19,6 +19,7 @@ import ast
 import signal
 import sys
 import traceback
+import threading
 
 # Third-party imports
 import aiohttp
@@ -35,7 +36,6 @@ from jokeapi import Jokes
 import websockets
 from pint import UnitRegistry
 import paramiko
-import threading
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
