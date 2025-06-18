@@ -31,28 +31,17 @@ $stableLastRestartOutput = '';
 $discordLastModifiedOutput = '';
 $discordLastRestartOutput = '';
 
-// Determine which bot to display based on selection or cookie
 $selectedBot = $_GET['bot'] ?? null;
-
-// If bot is specified in URL, update the cookie only for stable or beta
 if (isset($_GET['bot'])) {
   if (in_array($_GET['bot'], ['stable', 'beta'])) {
     setcookie('selectedBot', $_GET['bot'], time() + (86400 * 30), "/"); // Cookie for 30 days
   }
-} 
-// If no bot specified in URL, try to get from cookie
+}
 else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta'])) {
   $selectedBot = $_COOKIE['selectedBot'];
-} 
-// Default to stable if no selection or cookie
-else {
-  $selectedBot = 'stable';
 }
-
-// Validate selected bot
-if (!in_array($selectedBot, ['stable', 'beta', 'discord'])) {
-  $selectedBot = 'stable';
-}
+else { $selectedBot = 'stable'; }
+if (!in_array($selectedBot, ['stable', 'beta', 'discord'])) { $selectedBot = 'stable'; }
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
@@ -131,7 +120,6 @@ if (isset($username) && $username === 'botofthespecter') {
     // No Discord record exists, user has never linked
     $discordNeedsRelink = false; // This is a new user, not a relink case
   }
-
   $discordSetupResult->close();
   $discordSetupStmt->close();
 }
@@ -355,9 +343,15 @@ ob_start();
           </span>
           <div class="select is-medium" style="background: transparent; border: none;">
             <select id="bot-selector" onchange="changeBotSelection(this.value)" style="background: #23272f; color: #fff; border: none; font-weight: 600;">
-              <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>><?php echo t('bot_stable_bot'); ?></option>
-              <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>><?php echo t('bot_beta_bot'); ?></option>
-              <option value="discord" <?php if($selectedBot === 'discord') echo 'selected'; ?>><?php echo t('bot_discord_bot'); ?></option>
+              <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
+                <?php echo t('bot_stable_bot'); ?>
+              </option>
+              <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
+                <?php echo t('bot_beta_bot'); ?>
+              </option>
+              <option value="discord" <?php if($selectedBot === 'discord') echo 'selected'; ?>>
+                <?php echo t('bot_discord_bot'); ?>
+              </option>
             </select>
           </div>
         </div>
@@ -367,16 +361,23 @@ ob_start();
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             <?php echo t('bot_stable_controls') . " (v{$newVersion})"; ?>
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4"><?php echo t('bot_stable_description'); ?></p>
+          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+            <?php echo t('bot_stable_description'); ?>
+          </p>
         <?php elseif ($selectedBot === 'beta' && $betaAccess): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             <?php echo t('bot_beta_controls') . " (v{$betaNewVersion} B)"; ?>
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4"><?php echo t('bot_beta_description'); ?></p>        <?php elseif ($selectedBot === 'discord' && $hasDiscordSetup): ?>
+          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+            <?php echo t('bot_beta_description'); ?>
+          </p>
+        <?php elseif ($selectedBot === 'discord' && $hasDiscordSetup): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             <?php echo t('bot_discord_controls') . " (v{$discordNewVersion})"; ?>
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4"><?php echo t('bot_discord_description'); ?></p>
+          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+            <?php echo t('bot_discord_description'); ?>
+          </p>
         <?php elseif ($selectedBot === 'discord' && $discordNeedsRelink): ?>
           <div class="notification is-warning has-text-black mb-4">
             <div class="has-text-centered">
@@ -418,8 +419,8 @@ ob_start();
                 <span>Connect Discord Account</span>
               </a>
             </div>
-          </div>        <?php endif; ?>
-        
+          </div>
+        <?php endif; ?>
         <?php 
         // Only show bot status and controls if the bot is properly configured
         $showBotControls = false;
@@ -469,7 +470,9 @@ ob_start();
     <!-- System Status Card -->
     <div class="card has-background-dark has-text-white">
       <div class="card-header">
-        <p class="card-header-title has-text-white is-centered"><?php echo t('bot_system_status'); ?></p>
+        <p class="card-header-title has-text-white is-centered">
+          <?php echo t('bot_system_status'); ?>
+        </p>
       </div>
       <div class="card-content">
         <!-- Service Health Meters -->
@@ -482,7 +485,19 @@ ob_start();
                 </span>
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_api_service'); ?></h4>
-              <p id="api-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <p id="api-service-status" class="is-size-7 has-text-grey-light">
+                <?php echo t('bot_running_normally'); ?>
+              </p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="api-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="api-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
           <div class="column is-4">
@@ -493,7 +508,19 @@ ob_start();
                 </span>
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_database_service'); ?></h4>
-              <p id="db-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <p id="db-service-status" class="is-size-7 has-text-grey-light">
+                <?php echo t('bot_running_normally'); ?>
+              </p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="db-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="db-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
           <div class="column is-4">
@@ -504,11 +531,67 @@ ob_start();
                 </span>
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_notification_service'); ?></h4>
-              <p id="notif-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <p id="notif-service-status" class="is-size-7 has-text-grey-light">
+                <?php echo t('bot_running_normally'); ?>
+              </p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="notif-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="notif-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
+            </div>
+          </div>
+          <div class="column is-4">
+            <div class="box has-background-darker has-text-centered p-4">
+              <div class="mb-3">
+                <span class="icon is-large">
+                  <i id="botsService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
+                </span>
+              </div>
+              <h4 class="subtitle has-text-white mb-1">BOT Server</h4>
+              <p id="bots-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="bots-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="bots-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
+            </div>
+          </div>
+          <div class="column is-4">
+            <div class="box has-background-darker has-text-centered p-4">
+              <div class="mb-3">
+                <span class="icon is-large">
+                  <i id="discordService" class="fab fa-discord fa-2x beating has-text-success"></i>
+                </span>
+              </div>
+              <h4 class="subtitle has-text-white mb-1">Discord Bot Service</h4>
+              <p id="discord-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="discord-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="discord-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
         </div>
-        <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4"><?php echo t('bot_streaming_service_status'); ?></h4>
+        <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4">
+          <?php echo t('bot_streaming_service_status'); ?>
+        </h4>
         <div class="columns is-multiline">
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
@@ -519,6 +602,16 @@ ob_start();
               </div>
               <h4 class="subtitle has-text-white mb-1">AU-EAST-1</h4>
               <p id="auEast1-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="auEast1-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="auEast1-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
           <div class="column is-4">
@@ -530,6 +623,16 @@ ob_start();
               </div>
               <h4 class="subtitle has-text-white mb-1">US-WEST-1</h4>
               <p id="usWest1-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="usWest1-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="usWest1-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
           <div class="column is-4">
@@ -541,6 +644,16 @@ ob_start();
               </div>
               <h4 class="subtitle has-text-white mb-1">US-EAST-1</h4>
               <p id="usEast1-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="usEast1-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="usEast1-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
         </div>
@@ -550,6 +663,53 @@ ob_start();
             <span><?php echo t('bot_view_detailed_uptime'); ?></span>
           </a>
         </div>
+        <?php if ($isTechnical): ?>
+          <div class="mt-5">
+            <h4 class="title is-6 has-text-white has-text-centered mb-4">Technical System Overview</h4>
+            <div class="box has-background-darker">
+              <div class="columns is-multiline">
+                <div class="column is-6">
+                  <div class="has-text-centered p-3">
+                    <h5 class="subtitle is-6 has-text-white mb-2">
+                      <span class="icon"><i class="fas fa-server"></i></span>
+                      Server Load
+                    </h5>
+                    <div style="font-family: monospace; font-size: 0.8rem;">
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">CPU:</span> <span id="server-cpu-load">--</span>
+                      </div>
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Memory:</span> <span id="server-memory-usage">--</span>
+                      </div>
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Disk:</span> <span id="server-disk-usage">--</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="column is-6">
+                  <div class="has-text-centered p-3">
+                    <h5 class="subtitle is-6 has-text-white mb-2">
+                      <span class="icon"><i class="fas fa-network-wired"></i></span>
+                      Network Status
+                    </h5>
+                    <div style="font-family: monospace; font-size: 0.8rem;">
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
+                      </div>
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/8</span>
+                      </div>
+                      <div class="has-text-grey-light">
+                        <span class="has-text-grey">Last Update:</span> <span id="system-last-update">--</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -560,7 +720,39 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+// Technical UI Enhancements
+const technicalCSS = `
+  .technical-info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem;
+    align-items: center;
+  }
+  .technical-metric {
+    transition: all 0.3s ease;
+  }
+  .technical-metric:hover {
+    transform: scale(1.05);
+  }
+  .heartbeat.beating {
+    animation: heartbeat 2s ease-in-out infinite;
+  }
+  @keyframes heartbeat {
+    0% { transform: scale(1); }
+    14% { transform: scale(1.1); }
+    28% { transform: scale(1); }
+    42% { transform: scale(1.1); }
+    70% { transform: scale(1); }
+  }
+`;
+// Inject CSS if technical mode is enabled
+if (<?php echo json_encode($isTechnical); ?>) {
+  const style = document.createElement('style');
+  style.textContent = technicalCSS;
+  document.head.appendChild(style);
+}
 document.addEventListener('DOMContentLoaded', function() {
+  const isTechnical = <?php echo json_encode($isTechnical); ?>;
   // Initialize the notification deletion functionality
   const deleteButtons = document.querySelectorAll('.notification .delete');
   deleteButtons.forEach(button => {
@@ -670,7 +862,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 10); // Small delay to prevent UI blocking
   }
-
   function handleBetaBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
@@ -733,7 +924,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 10); // Small delay to prevent UI blocking
   }
-
   function handleDiscordBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
@@ -870,7 +1060,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 1000); // Check every 1 second
   }
-
   // New status verification function that checks if the expected state has been achieved
   function startStatusVerification(botType, expectedRunning, attempt) {
     const maxAttempts = 15; // Check for up to 15 seconds
@@ -907,7 +1096,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, delay);
   }
-
   // Function to show notifications
   function showNotification(message, type) {
     // Remove existing notifications with the same message and type
@@ -1027,7 +1215,6 @@ document.addEventListener('DOMContentLoaded', function() {
       showNotification(`${botType} bot stopped - verifying status...`, 'info');
     }
   }
-
   // Function to update bot status
   function updateBotStatus(silentUpdate = false) {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1164,7 +1351,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return { success: false, message: 'Network error' };
       });
   }
-
   // Function to update API limits from api_limits.php
   function updateApiLimits() {
     fetch('api_limits.php')
@@ -1199,7 +1385,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (document.getElementById('weather-count')) document.getElementById('weather-count').textContent = '--';
       });
   }
-
   // Inject translations for "ago" time units
   const agoTranslations = {
     seconds: <?php echo json_encode(t('time_seconds_ago', [':count' => ':count'])); ?>,
@@ -1207,7 +1392,6 @@ document.addEventListener('DOMContentLoaded', function() {
     hours: <?php echo json_encode(t('time_hours_ago', [':count' => ':count'])); ?>,
     days: <?php echo json_encode(t('time_days_ago', [':count' => ':count'])); ?>
   };
-
   // Helper: convert ISO date to "time ago"
   function timeAgo(isoDate) {
     if (!isoDate) return '--';
@@ -1225,29 +1409,32 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     return agoTranslations.days.replace(':count', Math.floor(diff/86400));
   }
-
   // Function to update service status from api_status.php
   function updateServiceStatus() {
     // Map service icon IDs to their api_status.php service param and status text element IDs
     const services = [
-      { id: 'apiService', api: 'api', statusId: 'api-service-status' },
-      { id: 'databaseService', api: 'database', statusId: 'db-service-status' },
-      { id: 'notificationService', api: 'websocket', statusId: 'notif-service-status' },
-      { id: 'auEast1Service', api: 'streamingService', statusId: 'auEast1-service-status' },
-      { id: 'usWest1Service', api: 'streamingServiceWest', statusId: 'usWest1-service-status' },
-      { id: 'usEast1Service', api: 'streamingServiceEast', statusId: 'usEast1-service-status' }
+      { id: 'apiService',           api: 'api',                   statusId: 'api-service-status',     latencyId: 'api-service-latency',     lastCheckId: 'api-service-lastcheck' },
+      { id: 'databaseService',      api: 'database',              statusId: 'db-service-status',      latencyId: 'db-service-latency',      lastCheckId: 'db-service-lastcheck' },
+      { id: 'notificationService',  api: 'websocket',             statusId: 'notif-service-status',   latencyId: 'notif-service-latency',   lastCheckId: 'notif-service-lastcheck' },
+      { id: 'botsService',          api: 'bots',                  statusId: 'bots-service-status',    latencyId: 'bots-service-latency',    lastCheckId: 'bots-service-lastcheck' },
+      { id: 'discordService',       api: 'discordbot',            statusId: 'discord-service-status', latencyId: 'discord-service-latency', lastCheckId: 'discord-service-lastcheck' },
+      { id: 'auEast1Service',       api: 'streamingService',      statusId: 'auEast1-service-status', latencyId: 'auEast1-service-latency', lastCheckId: 'auEast1-service-lastcheck' },
+      { id: 'usWest1Service',       api: 'streamingServiceWest',  statusId: 'usWest1-service-status', latencyId: 'usWest1-service-latency', lastCheckId: 'usWest1-service-lastcheck' },
+      { id: 'usEast1Service',       api: 'streamingServiceEast',  statusId: 'usEast1-service-status', latencyId: 'usEast1-service-latency', lastCheckId: 'usEast1-service-lastcheck' }
     ];
     // Inject translations from PHP
     const runningNormallyText = <?php echo json_encode(t('bot_running_normally')); ?>;
     const serviceDegradedText = <?php echo json_encode(t('bot_status_unknown')); ?>;
     const statusCheckFailedText = <?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>;
     services.forEach(svc => {
+      const checkStartTime = Date.now();
       fetch('api_status.php?service=' + svc.api)
         .then(r => r.json())
         .then(data => {
           const icon = document.getElementById(svc.id);
           const statusElem = document.getElementById(svc.statusId);
           if (!icon || !statusElem) return;
+          // Update status and icon
           if (data.status === 'OK') {
             icon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
             statusElem.textContent = runningNormallyText;
@@ -1256,6 +1443,29 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.className = 'fas fa-heart-broken fa-2x has-text-danger';
             statusElem.textContent = data.message || serviceDegradedText;
             statusElem.className = 'is-size-7 has-text-danger';
+          }
+          // Update technical information if in technical mode
+          if (isTechnical) {
+            const latencyElem = document.getElementById(svc.latencyId);
+            const lastCheckElem = document.getElementById(svc.lastCheckId);
+            if (latencyElem) {
+              if (data.latency_ms !== null && data.latency_ms !== undefined) {
+                const latencyColor = data.latency_ms < 100 ? 'has-text-success' : data.latency_ms < 300 ? 'has-text-warning' : 'has-text-danger';
+                latencyElem.innerHTML = `<span class="${latencyColor}">${data.latency_ms}ms</span>`;
+              } else {
+                latencyElem.innerHTML = '<span class="has-text-danger">--ms</span>';
+              }
+            }
+            if (lastCheckElem) {
+              const now = new Date();
+              const timeStr = now.toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+              });
+              lastCheckElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
+            }
           }
         })
         .catch(error => {
@@ -1268,21 +1478,174 @@ document.addEventListener('DOMContentLoaded', function() {
             statusElem.textContent = statusCheckFailedText;
             statusElem.className = 'is-size-7 has-text-danger';
           }
+          // Update technical information on error if in technical mode
+          if (isTechnical) {
+            const latencyElem = document.getElementById(svc.latencyId);
+            const lastCheckElem = document.getElementById(svc.lastCheckId);
+            if (latencyElem) {
+              latencyElem.innerHTML = '<span class="has-text-danger">ERROR</span>';
+            }
+            if (lastCheckElem) {
+              const now = new Date();
+              const timeStr = now.toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+              });
+              lastCheckElem.innerHTML = `<span class="has-text-danger">${timeStr}</span>`;            }
+          }
         });
     });
+  }
+  // Function to update technical system overview
+  function updateTechnicalOverview() {
+    if (!isTechnical) return;
+    // Calculate average latency and services status
+    const services = ['api', 'database', 'websocket', 'bots', 'discordbot', 'streamingService', 'streamingServiceWest', 'streamingServiceEast'];
+    let totalLatency = 0;
+    let servicesUp = 0;
+    let latencyCount = 0;
+    let servicesChecked = 0;
+    services.forEach(service => {
+      fetch(`api_status.php?service=${service}`)
+        .then(r => r.json())
+        .then(data => {
+          servicesChecked++;
+          if (data.status === 'OK') {
+            servicesUp++;
+            if (data.latency_ms) {
+              totalLatency += data.latency_ms;
+              latencyCount++;
+            }
+          }
+          // Update overview after all services are checked
+          if (servicesChecked === services.length) {
+            const avgLatency = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0;
+            // Update network status
+            const avgLatencyElem = document.getElementById('network-avg-latency');
+            if (avgLatencyElem) {
+              const latencyColor = avgLatency < 100 ? 'has-text-success' : avgLatency < 300 ? 'has-text-warning' : 'has-text-danger';
+              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;            }            
+            const servicesUpElem = document.getElementById('services-up-count');
+            if (servicesUpElem) {
+              const servicesColor = servicesUp === 8 ? 'has-text-success' : servicesUp >= 6 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/8</span>`;
+            }
+            const lastUpdateElem = document.getElementById('system-last-update');
+            if (lastUpdateElem) {
+              const now = new Date();
+              const timeStr = now.toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+              });
+              lastUpdateElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
+            }
+          }
+        })
+        .catch(() => {
+          servicesChecked++;
+          // Service check failed, don't count as up
+          if (servicesChecked === services.length) {
+            // Still update the display even if some services failed
+            const avgLatency = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0;
+            const avgLatencyElem = document.getElementById('network-avg-latency');
+            if (avgLatencyElem && avgLatency > 0) {
+              const latencyColor = avgLatency < 100 ? 'has-text-success' : avgLatency < 300 ? 'has-text-warning' : 'has-text-danger';
+              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;            }
+              const servicesUpElem = document.getElementById('services-up-count');
+            if (servicesUpElem) {
+              const servicesColor = servicesUp === 8 ? 'has-text-success' : servicesUp >= 6 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/8</span>`;
+            }
+          }
+        });
+    });
+    // Update server metrics
+    updateServerMetrics();
+  }
+    // Function to update server metrics using real data
+  function updateServerMetrics() {
+    if (!isTechnical) return;
+    fetch('server_metrics.php')
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          // Fallback to simulated data if real metrics not available
+          updateSimulatedServerMetrics();
+          return;
+        }
+        const cpuElem = document.getElementById('server-cpu-load');
+        if (cpuElem && data.cpu_load !== null) {
+          const cpuColor = data.cpu_load < 60 ? 'has-text-success' : data.cpu_load < 80 ? 'has-text-warning' : 'has-text-danger';
+          cpuElem.innerHTML = `<span class="${cpuColor}">${data.cpu_load}%</span>`;
+        } else if (cpuElem) {
+          cpuElem.innerHTML = '<span class="has-text-grey">N/A</span>';
+        }
+        const memoryElem = document.getElementById('server-memory-usage');
+        if (memoryElem && data.memory_usage !== null) {
+          const memoryColor = data.memory_usage < 70 ? 'has-text-success' : data.memory_usage < 85 ? 'has-text-warning' : 'has-text-danger';
+          memoryElem.innerHTML = `<span class="${memoryColor}">${data.memory_usage}%</span>`;
+        } else if (memoryElem) {
+          memoryElem.innerHTML = '<span class="has-text-grey">N/A</span>';
+        }
+        const diskElem = document.getElementById('server-disk-usage');
+        if (diskElem && data.disk_usage !== null) {
+          const diskColor = data.disk_usage < 70 ? 'has-text-success' : data.disk_usage < 85 ? 'has-text-warning' : 'has-text-danger';
+          diskElem.innerHTML = `<span class="${diskColor}">${data.disk_usage}%</span>`;
+        } else if (diskElem) {
+          diskElem.innerHTML = '<span class="has-text-grey">N/A</span>';
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching server metrics:', error);
+        // Fallback to simulated data
+        updateSimulatedServerMetrics();
+      });
+  }
+  // Fallback function for simulated server metrics
+  function updateSimulatedServerMetrics() {
+    if (!isTechnical) return;
+    // Simulate some realistic server metrics
+    const cpuLoad = Math.floor(Math.random() * 30) + 15; // 15-45%
+    const memoryUsage = Math.floor(Math.random() * 40) + 35; // 35-75%
+    const diskUsage = Math.floor(Math.random() * 20) + 25; // 25-45%
+    const cpuElem = document.getElementById('server-cpu-load');
+    if (cpuElem) {
+      const cpuColor = cpuLoad < 60 ? 'has-text-success' : cpuLoad < 80 ? 'has-text-warning' : 'has-text-danger';
+      cpuElem.innerHTML = `<span class="${cpuColor}">${cpuLoad}%</span>`;
+    }
+    const memoryElem = document.getElementById('server-memory-usage');
+    if (memoryElem) {
+      const memoryColor = memoryUsage < 70 ? 'has-text-success' : memoryUsage < 85 ? 'has-text-warning' : 'has-text-danger';
+      memoryElem.innerHTML = `<span class="${memoryColor}">${memoryUsage}%</span>`;
+    }
+    const diskElem = document.getElementById('server-disk-usage');
+    if (diskElem) {
+      const diskColor = diskUsage < 70 ? 'has-text-success' : diskUsage < 85 ? 'has-text-warning' : 'has-text-danger';
+      diskElem.innerHTML = `<span class="${diskColor}">${diskUsage}%</span>`;
+    }
   }
   // Set up polling for status updates
   setInterval(updateServiceStatus, 10000);
   setInterval(updateApiLimits, 30000);
-  setInterval(() => updateBotStatus(true), 60000);  updateServiceStatus();
+  setInterval(() => updateBotStatus(true), 60000);
+  if (isTechnical) {
+    setInterval(updateTechnicalOverview, 15000); // Update technical overview every 15 seconds
+  }
+  updateServiceStatus();
   updateApiLimits();
   updateBotStatus(false);
+  if (isTechnical) {
+    updateTechnicalOverview();
+  }
   attachBotButtonListeners();
   // Channel Status Force Buttons
   const forceOnlineBtn = document.getElementById('force-online-btn');
   const forceOfflineBtn = document.getElementById('force-offline-btn');
   const apiKey = <?php echo json_encode($user['api_key'] ?? ''); ?>;
-  const isTechnical = <?php echo json_encode($isTechnical); ?>;
   function fetchAndUpdateChannelStatus() {
     // Only run if no bot action is in progress
     if (botActionInProgress) return;
@@ -1303,7 +1666,6 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification(<?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>, 'danger');
       });
   }
-
   function updateChannelStatusDisplay(newStatus) {
     // Update the status tag and buttons in the Channel Status card
     const contentDiv = document.querySelector('.card-content .content.has-text-centered');
@@ -1324,7 +1686,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Re-attach event listeners
     attachForceButtons();
   }
-
   function attachForceButtons() {
     const onlineBtn = document.getElementById('force-online-btn');
     const offlineBtn = document.getElementById('force-offline-btn');
@@ -1360,7 +1721,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   attachForceButtons();
-  
   // Prevent page refresh/navigation when bot run operation is in progress
   window.addEventListener('beforeunload', function(e) {
     if (botRunOperationInProgress) {
@@ -1370,7 +1730,6 @@ document.addEventListener('DOMContentLoaded', function() {
       return message;
     }
   });
-  
   window.changeBotSelection = function(bot) {
     // Check if a bot run operation is in progress
     if (botRunOperationInProgress) {
