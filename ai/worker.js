@@ -1,8 +1,10 @@
 // Global variables to persist data between requests
 const recentResponses = new Map();
 const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
-const MAX_CONVERSATION_LENGTH = 20; // Maximum number of messages in history
+const MAX_CONVERSATION_LENGTH = 30; // Increased maximum number of messages in history
+const MAX_LONG_TERM_MEMORY = 100; // Maximum long-term memories per user
 const AI_CHARACTER_LIMIT = 490; // Adjusted to account for potential name prefix
+const MEMORY_DECAY_DAYS = 30; // Days before memories start to decay
 
 // Function to remove formatting from the text
 function removeFormatting(text) {
@@ -299,12 +301,235 @@ async function saveConversationHistory(channel, message_user, history, env) {
   }
 }
 
-// Function to get desired name from D1 SQL Database
-async function getDesiredName(user_id, env) {
-  const query = 'SELECT desired_name FROM user_preferences WHERE user_id = ?';
+// KV-based storage functions (since Workers can't connect directly to MySQL)
+async function executeQuery(query, params = [], env) {
+  // Since we can't directly connect to MySQL from Workers, everything goes to KV
+  console.log('Using KV storage for all operations (MySQL not directly accessible from Workers)');
+  return { success: false, error: 'Using KV storage fallback' };
+}
+
+// Fallback function to get memories from KV storage
+async function getMemoriesFromKV(user_id, channel, env, limit = 10) {
   try {
-    const result = await env.database.prepare(query).bind(user_id).first();
-    return result?.desired_name || null;
+    const keys = await env.namespace.list({ prefix: `memory_${user_id}_${channel}_` });
+    const memories = [];
+    for (const key of keys.keys.slice(0, limit)) {
+      const memory = await env.namespace.get(key.name);
+      if (memory) {
+        try {
+          memories.push(JSON.parse(memory));
+        } catch (e) {
+          console.error('Error parsing memory from KV:', e);
+        }
+      }
+    }
+    return memories.sort((a, b) => (b.importance || 5) - (a.importance || 5));
+  } catch (e) {
+    console.error('Error fetching memories from KV:', e);
+    return [];
+  }
+}
+
+// Enhanced KV storage functions for when database is unavailable
+async function saveToKV(key, data, env, ttl = 86400 * 30) {
+  try {
+    await env.namespace.put(key, JSON.stringify(data), { expirationTtl: ttl });
+    return true;
+  } catch (e) {
+    console.error('Error saving to KV:', e);
+    return false;
+  }
+}
+
+async function getFromKV(key, env) {
+  try {
+    const data = await env.namespace.get(key);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    console.error('Error getting from KV:', e);
+    return null;
+  }
+}
+
+async function searchKVMemories(user_id, channel, keywords, env, limit = 3) {
+  try {
+    const keys = await env.namespace.list({ prefix: `memory_${user_id}_${channel}_` });
+    const memories = [];
+    for (const key of keys.keys) {
+      const memory = await env.namespace.get(key.name);
+      if (memory) {
+        try {
+          const memoryData = JSON.parse(memory);
+          const content = memoryData.content?.toLowerCase() || '';
+          // Check if any keyword matches the memory content
+          if (keywords.some(keyword => content.includes(keyword))) {
+            memories.push(memoryData);
+          }
+        } catch (e) {
+          console.error('Error parsing memory for search:', e);
+        }
+      }
+    }
+    return memories
+      .sort((a, b) => (b.importance || 5) - (a.importance || 5))
+      .slice(0, limit);
+  } catch (e) {
+    console.error('Error searching KV memories:', e);
+    return [];
+  }
+}
+
+// Function to save long-term memory to KV storage
+async function saveLongTermMemory(user_id, channel, memory_type, content, importance = 5, env) {
+  const now = new Date().toISOString();
+  const key = `memory_${user_id}_${channel}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const memoryData = {
+    user_id, 
+    channel, 
+    memory_type, 
+    content, 
+    importance, 
+    created_at: now,
+    last_accessed: now,
+    access_count: 1
+  };
+  try {
+    await env.namespace.put(key, JSON.stringify(memoryData), { 
+      expirationTtl: 86400 * 30 // 30 days
+    });
+  } catch (e) {
+    console.error('Error saving long-term memory to KV:', e);
+  }
+}
+
+// Function to get long-term memories from KV storage
+async function getLongTermMemories(user_id, channel, env, limit = 10) {
+  try {
+    return await getMemoriesFromKV(user_id, channel, env, limit);
+  } catch (e) {
+    console.error('Error fetching long-term memories:', e);
+    return [];
+  }
+}
+
+// Function to update memory access time and importance in KV
+async function updateMemoryAccess(user_id, channel, content, env) {
+  // For KV storage, we'll just log the access
+  console.log(`Memory accessed: ${content.substring(0, 50)}...`);
+}
+
+// Function to extract and save important information from conversations
+async function extractImportantInfo(conversation, user_id, channel, env) {
+  // Look for patterns that might be worth remembering
+  const userMessages = conversation.filter(msg => msg.role === 'user').slice(-5); // Last 5 user messages
+  for (const message of userMessages) {
+    const content = message.content.toLowerCase();
+    // Extract preferences
+    if (content.includes('i like') || content.includes('i love') || content.includes('my favorite')) {
+      await saveLongTermMemory(user_id, channel, 'preference', message.content, 7, env);
+    }
+    // Extract personal info (non-sensitive)
+    if (content.includes('i am') || content.includes("i'm")) {
+      const personalInfo = message.content.replace(/i am|i'm/gi, '').trim();
+      if (personalInfo.length > 3 && !handleSensitiveQuestion(content)) {
+        await saveLongTermMemory(user_id, channel, 'personal', message.content, 6, env);
+      }
+    }
+    // Extract interests/topics
+    if (content.includes('about') || content.includes('interested in')) {
+      await saveLongTermMemory(user_id, channel, 'interest', message.content, 5, env);
+    }
+    // Extract repeated questions (FAQ patterns)
+    const questionWords = ['what', 'how', 'why', 'when', 'where', 'who'];
+    if (questionWords.some(word => content.startsWith(word))) {
+      await saveLongTermMemory(user_id, channel, 'question', message.content, 4, env);
+    }
+  }
+}
+
+// Function to clean old memories from KV storage
+async function cleanOldMemories(user_id, channel, env) {
+  try {
+    const keys = await env.namespace.list({ prefix: `memory_${user_id}_${channel}_` });
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - MEMORY_DECAY_DAYS);
+    for (const key of keys.keys) {
+      const memory = await env.namespace.get(key.name);
+      if (memory) {
+        try {
+          const memoryData = JSON.parse(memory);
+          const createdDate = new Date(memoryData.created_at);
+          // Delete old, low-importance memories
+          if (createdDate < cutoffDate && 
+              (memoryData.importance || 5) < 5 && 
+              (memoryData.access_count || 1) < 2) {
+            await env.namespace.delete(key.name);
+          }
+        } catch (e) {
+          console.error('Error parsing memory for cleanup:', e);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error cleaning old memories:', e);
+  }
+}
+
+// Function to get contextual memories from KV storage
+async function getContextualMemories(user_id, channel, currentMessage, env) {
+  const keywords = currentMessage.toLowerCase().split(' ').filter(word => word.length > 3);
+  if (keywords.length === 0) return [];
+  try {
+    return await searchKVMemories(user_id, channel, keywords, env, 3);
+  } catch (e) {
+    console.error('Error fetching contextual memories:', e);
+    return [];
+  }
+}
+
+// Function to save user interaction patterns to KV storage
+async function saveInteractionPattern(user_id, channel, pattern_type, pattern_data, env) {
+  try {
+    const key = `pattern_${user_id}_${channel}_${pattern_type}`;
+    await env.namespace.put(key, JSON.stringify(pattern_data), { 
+      expirationTtl: 86400 * 7 // 7 days
+    });
+  } catch (e) {
+    console.error('Error saving interaction pattern to KV:', e);
+  }
+}
+
+// Function to get user interaction patterns from KV storage
+async function getUserPatterns(user_id, channel, env) {
+  const patterns = {};
+  const patternTypes = ['communication_style', 'activity_times', 'preferences'];
+  try {
+    for (const pattern_type of patternTypes) {
+      const key = `pattern_${user_id}_${channel}_${pattern_type}`;
+      const pattern_data = await env.namespace.get(key);
+      if (pattern_data) {
+        try {
+          patterns[pattern_type] = JSON.parse(pattern_data);
+        } catch (e) {
+          console.error('Error parsing pattern data:', e);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching user patterns:', e);
+  }
+  return patterns;
+}
+
+// Function to get desired name from KV storage
+async function getDesiredName(user_id, env) {
+  try {
+    const cached = await env.namespace.get(`desired_name_${user_id}`);
+    if (cached) {
+      const data = JSON.parse(cached);
+      return data.desired_name || null;
+    }
+    return null;
   } catch (e) {
     console.error('Error fetching desired name:', e);
     return null;
@@ -402,23 +627,32 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
-    // Function to query predefined responses from the database
     async function getPredefinedResponse(question) {
       const query = 'SELECT response FROM predefined_responses WHERE question = ?';
       try {
-        const result = await env.database.prepare(query).bind(question).first();
-        return result?.response || null;
+        const result = await executeQuery(query, [question], env);
+        if (result.success && result.rows && result.rows.length > 0) {
+          return result.rows[0].response || null;
+        } else {
+          // Fallback to KV storage
+          const cached = await env.namespace.get(`predefined_${question}`);
+          return cached || null;
+        }
       } catch (e) {
         console.error('Error fetching predefined response:', e);
         return null;
       }
-    }
-    // Function to query insults from the database
+    }    // Function to query insults from your own database
     async function getInsults(env) {
       const query = 'SELECT insult FROM insults';
       try {
-        const results = await env.database.prepare(query).all();
-        return results.results.map(row => row.insult);
+        const result = await executeQuery(query, [], env);
+        if (result.success && result.rows) {
+          return result.rows.map(row => row.insult);
+        } else {
+          // Fallback to hardcoded list
+          return ['stupid', 'idiot', 'dumb', 'loser', 'moron'];
+        }
       } catch (e) {
         console.error('Error fetching insults:', e);
         return [];
@@ -529,6 +763,16 @@ export default {
         // Retrieve conversation history
         let conversationHistory = await getConversationHistory(channel, message_user, env);
         console.log('Original Conversation History:', conversationHistory);
+        // Get long-term memories and contextual information
+        const longTermMemories = await getLongTermMemories(message_user, channel, env, 5);
+        const contextualMemories = await getContextualMemories(message_user, channel, userMessage, env);
+        const userPatterns = await getUserPatterns(message_user, channel, env);
+        // Clean old memories periodically (10% chance)
+        if (Math.random() < 0.1) {
+          await cleanOldMemories(message_user, channel, env);
+        }
+        console.log('Long-term memories:', longTermMemories.length);
+        console.log('Contextual memories:', contextualMemories.length);
         // Strip any existing prefixes from assistant messages
         if (userPrefix) {
           conversationHistory = stripPrefixFromAssistantMessages(conversationHistory, userPrefix);
@@ -613,7 +857,37 @@ export default {
             headers: { 'content-type': 'text/plain' },
           });
         }
-        // Prepare the AI chat prompt with conversation history
+        // Prepare the AI chat prompt with conversation history and memory context
+        let memoryContext = '';
+        // Add long-term memory context
+        if (longTermMemories.length > 0) {
+          memoryContext += '\n\nIMPORTANT MEMORIES ABOUT THIS USER:\n';
+          longTermMemories.forEach(memory => {
+            memoryContext += `- ${memory.memory_type}: ${memory.content}\n`;
+          });
+        }
+        // Add contextual memories if different from long-term
+        if (contextualMemories.length > 0) {
+          const contextualContent = contextualMemories.filter(cm => 
+            !longTermMemories.some(lm => lm.content === cm.content)
+          );
+          if (contextualContent.length > 0) {
+            memoryContext += '\nRELEVANT CONTEXT:\n';
+            contextualContent.forEach(memory => {
+              memoryContext += `- ${memory.content}\n`;
+            });
+          }
+        }
+        // Add user patterns
+        if (Object.keys(userPatterns).length > 0) {
+          memoryContext += '\nUSER INTERACTION PATTERNS:\n';
+          if (userPatterns.communication_style) {
+            memoryContext += `- Communication style: ${userPatterns.communication_style.style}\n`;
+          }
+          if (userPatterns.activity_times) {
+            memoryContext += `- Usually active: ${userPatterns.activity_times.peak_hours}\n`;
+          }
+        }
         const chatPrompt = {
           messages: [
             {
@@ -623,23 +897,29 @@ export default {
                 You are BotOfTheSpecter, an advanced AI chatbot designed to assist and engage with users on Twitch.
                 You were custom-built by Lachlan, known by gfaUnDead online, using modern programming techniques and tools.
                 You operate within a controlled, secure environment to ensure reliability and efficiency.
+                MEMORY SYSTEM: You have access to long-term memory about users. Use this information to provide personalized responses while respecting privacy. Reference past conversations naturally when relevant.
+                ${memoryContext}
                 Here's what you should know about yourself:
                 - **Development Background:** 
                   - You were coded primarily in Python and JavaScript, combining the strengths of TwitchIO for chat interactions and custom APIs for additional features.
                   - Your logic and behavior are meticulously designed to handle real-time user engagement, Twitch command management, and API integrations (e.g., Spotify for music, Shazam for song recognition, and OpenWeather for weather queries).
                 - **Learning and Updates:**
-                  - While you don't "learn" in real-time, your developers regularly analyze feedback and performance to improve your capabilities through updates. These updates may include bug fixes, new features, and enhanced response logic.
+                  - You have an advanced memory system that remembers user preferences, past conversations, and interaction patterns.
+                  - Your developers regularly analyze feedback and performance to improve your capabilities through updates.
                 - **Core Features:**
                   - Twitch Chat Commands: You manage commands efficiently, handle user permissions, and respond dynamically based on context.
                   - API Integrations: You connect to multiple APIs, such as Spotify (for song requests and playback data), Shazam (for song identification), and weather services.
                   - Moderation: You assist with chat moderation by filtering inappropriate content and helping streamers manage their communities effectively.
+                  - Memory: You remember user preferences, past interactions, and can provide personalized responses.
                 - **Capabilities in Chat:**
                   - Respond to commands quickly and accurately.
                   - Fetch real-time data from integrated APIs.
+                  - Remember and reference past conversations appropriately.
                   - Provide concise, helpful information within a strict **255-character limit (spaces included)**.
                   - Offer follow-up information if users ask, always adhering to the response character limit.
                 - **Philosophy:**
                   - Respect privacy and individuality; never share personal or sensitive information.
+                  - Use your memory to enhance user experience while maintaining professionalism.
                   - Maintain professionalism and focus on clarity and helpfulness in every response.
                 Additional Context for Users:
                 - You can guide users on your features, such as using commands like !songrequest, understanding permissions, or managing interactions.
@@ -668,10 +948,26 @@ export default {
           // Remove any existing prefix from rawAiMessage (safety)
           if (userPrefix && rawAiMessage.startsWith(userPrefix)) {
             rawAiMessage = rawAiMessage.substring(userPrefix.length).trim();
-          }
-          // Add the raw AI message to the conversation history without prefix
+          }          // Add the raw AI message to the conversation history without prefix
           conversationHistory.push({ role: 'assistant', content: rawAiMessage });
           await saveConversationHistory(channel, message_user, conversationHistory, env);
+          // Extract and save important information from the conversation
+          await extractImportantInfo(conversationHistory, message_user, channel, env);
+          // Update user interaction patterns
+          const currentHour = new Date().getHours();
+          const communicationStyle = {
+            message_length: userMessage.length,
+            uses_questions: userMessage.includes('?'),
+            politeness_level: userMessage.toLowerCase().includes('please') || userMessage.toLowerCase().includes('thank') ? 'high' : 'normal',
+            timestamp: new Date().toISOString()
+          };
+          const activityPattern = {
+            peak_hours: `${currentHour}:00-${currentHour + 1}:00`,
+            last_active: new Date().toISOString(),
+            message_count: (userPatterns.activity_times?.message_count || 0) + 1
+          };
+          await saveInteractionPattern(message_user, channel, 'communication_style', communicationStyle, env);
+          await saveInteractionPattern(message_user, channel, 'activity_times', activityPattern, env);
           // Final AI response with user prefix
           const finalResponse = userPrefix ? `${userPrefix}${rawAiMessage}` : rawAiMessage;
           console.log('Final AI Response:', finalResponse);
