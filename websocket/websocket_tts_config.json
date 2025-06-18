@@ -8,7 +8,7 @@
         "port": 22
     },
     "remote_paths": {
-        "tts_directory": "/var/www/html/tts/",
+        "tts_directory": "/var/www/tts/",
         "temp_directory": "/tmp/tts/"
     },
     "audio_settings": {
