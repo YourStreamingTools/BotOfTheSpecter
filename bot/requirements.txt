@@ -29,3 +29,5 @@ psutil
 pyttsx3
 # For cryptographic operations
 PyNaCl
+# For SSH connections
+paramiko
