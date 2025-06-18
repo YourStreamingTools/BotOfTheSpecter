@@ -142,6 +142,9 @@ class BotOfTheSpecter_WebsocketServer:
         # Update event handlers with the sio instance
         self.event_handler.sio = self.sio
         self.donation_handler.sio = self.sio
+        # Update TTS handler with socketio instance and get_clients function
+        self.tts_handler.sio = self.sio
+        self.tts_handler.get_clients = lambda: self.registered_clients
         # Initialize web application with security middleware
         self.app = web.Application(middlewares=[self.security_manager.ip_restriction_middleware])
         self.app.on_startup.append(self.on_startup)
@@ -533,6 +536,11 @@ class BotOfTheSpecter_WebsocketServer:
     async def tts(self, sid, data):
         # Log the incoming TTS request
         self.logger.info(f"TTS event from SID [{sid}]: {data}")
+        # Get the registration code for this SID
+        code = self.get_code_by_sid(sid)
+        if not code:
+            self.logger.error(f"No registration code found for SID [{sid}]")
+            return
         # Extract required and optional parameters from the data
         text = data.get("text")
         language_code = data.get("language_code", None)
@@ -540,8 +548,8 @@ class BotOfTheSpecter_WebsocketServer:
         voice_name = data.get("voice_name", None)
         if text:
             # Add the TTS request to the queue with all parameters
-            await self.tts_handler.add_tts_request(text, sid, language_code, gender, voice_name)
-            self.logger.info(f"TTS request added to queue from SID [{sid}]: {text}")
+            await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name)
+            self.logger.info(f"TTS request added to queue from SID [{sid}] with code [{code}]: {text}")
         else:
             # Log an error if no text was provided
             self.logger.error(f"No text provided in TTS event from SID [{sid}]")
@@ -1035,6 +1043,13 @@ class BotOfTheSpecter_WebsocketServer:
         except Exception as e:
             self.logger.error(f"Error transferring file {local_file_path}: {e}")
             return None
+
+    def get_code_by_sid(self, sid):
+        for code, clients in self.registered_clients.items():
+            for client in clients:
+                if client['sid'] == sid:
+                    return code
+        return None
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
