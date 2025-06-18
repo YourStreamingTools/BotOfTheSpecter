@@ -65,3 +65,37 @@ async def channel_point_rewards(CHANNEL_ID, CHANNEL_NAME, CLIENT_ID, CHANNEL_AUT
         if sqldb:
             sqldb.close()
             await sqldb.ensure_closed()
+
+async def process_channel_point_rewards(CHANNEL_NAME, event_data, event_type, websocket_logger):
+    sqldb = await get_mysql_connection(CHANNEL_NAME)
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            reward_id = event_data.get("reward", {}).get("id")
+            user_login = event_data.get("user_login")
+            user_input = event_data.get("user_input", "")
+            # Check if there's a custom message for this reward
+            await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+            result = await cursor.fetchone()
+            if result and result.get("custom_message"):
+                # Send custom message to chat
+                custom_message = result["custom_message"]
+                # Replace placeholders if any
+                custom_message = custom_message.replace("{user}", user_login)
+                custom_message = custom_message.replace("{input}", user_input)
+                # Here you would send the message to chat
+                # This would need to be integrated with your chat system
+                websocket_logger.info(f"Channel point reward redeemed by {user_login}: {custom_message}")
+                # Send websocket notification
+                rewards_data = {
+                    "reward_id": reward_id,
+                    "user_login": user_login,
+                    "user_input": user_input,
+                    "custom_message": custom_message
+                }
+                # This would trigger the websocket notice
+                return rewards_data
+    except Exception as e:
+        websocket_logger.error(f"Error processing channel point reward: {e}")
+    finally:
+        await sqldb.ensure_closed()
+    return None
