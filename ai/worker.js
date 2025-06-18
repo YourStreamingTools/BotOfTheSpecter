@@ -745,8 +745,8 @@ export default {
             <section class="section content">
               <div class="container">
                 <h3 class="title">About BotOfTheSpecter</h3>
-                <p>gfaUnDead has hand-coded me using Python. My current project file is over 5k lines of code to make up my entire system.</p>
-                <p>In addition to this, gfaUnDead has spent the last 2 months getting my AI code ready. I'm connected and trained by hand and have points of interest with the large language model (LLM) LLAMA-2. I am a multilingual AI and ChatBot and can respond in different languages.</p>
+                <p>gfaUnDead has hand-coded me using Python. My current project file is over 8k lines of code to make up my entire system.</p>
+                <p>I'm connected and trained by hand and have points of interest with the large language model (LLM) LLAMA-4. I am a multilingual AI and ChatBot and can respond in different languages.</p>
               </div>
             </section>
             <footer class="footer">
