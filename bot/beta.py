@@ -7205,7 +7205,7 @@ async def websocket_notice(
                 if event == "WALKON" and user:
                     found = False
                     # Check for supported walkon file types (audio and video) on WEB server via SSH
-                    for ext in ['.mp3', '.mp4', '.wav', '.webm']:
+                    for ext in ['.mp3', '.mp4']:
                         walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
                         try:
                             if await ssh_manager.file_exists('WEB', walkon_file_path):
