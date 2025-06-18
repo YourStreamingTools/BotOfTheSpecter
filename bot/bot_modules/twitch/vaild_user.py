@@ -1,8 +1,8 @@
 import aiohttp
 
-# Function  to check if the user is a real user on Twitch
-async def is_valid_twitch_user(user_to_shoutout, CLIENT_ID, CHANNEL_AUTH):
-    url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
+# Function to check if the user is a real user on Twitch
+async def is_valid_twitch_user(user_name, CLIENT_ID, CHANNEL_AUTH):
+    url = f"https://api.twitch.tv/helix/users?login={user_name}"
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
