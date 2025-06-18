@@ -6,12 +6,133 @@ const MAX_LONG_TERM_MEMORY = 100; // Maximum long-term memories per user
 const AI_CHARACTER_LIMIT = 255; // Hard limit for Twitch chat compatibility
 const MEMORY_DECAY_DAYS = 30; // Days before memories start to decay
 
+// AutoRAG Configuration
+const AUTORAG_CONFIG = {
+  enabled: true, // Set to false to disable AutoRAG
+  ragName: 'specterai', // Your AutoRAG name
+  maxResults: 5, // Number of results to retrieve
+  scoreThreshold: 0.6, // Minimum relevance score
+  models: {
+    primary: '@cf/meta/llama-4-scout-17b-16e-instruct',
+    fallback: '@cf/meta/llama-3.3-70b-instruct-sd'
+  }
+};
+
+// Function to search AutoRAG for relevant context
+async function searchAutoRAG(query, env, options = {}) {
+  if (!AUTORAG_CONFIG.enabled) {
+    return null;
+  }
+  try {
+    const searchPayload = {
+      query: query,
+      model: options.model || AUTORAG_CONFIG.models.primary,
+      rewrite_query: options.rewrite_query || false,
+      max_num_results: options.max_num_results || AUTORAG_CONFIG.maxResults,
+      ranking_options: {
+        score_threshold: options.score_threshold || AUTORAG_CONFIG.scoreThreshold
+      },
+      stream: false // For simpler handling
+    };
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${env.ACCOUNT_ID}/autorag/rags/${AUTORAG_CONFIG.ragName}/ai-search`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}`
+        },
+        body: JSON.stringify(searchPayload)
+      }
+    );
+    if (!response.ok) {
+      console.warn('AutoRAG search failed:', await response.text());
+      return null;
+    }
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.warn('AutoRAG search error:', error);
+    return null;
+  }
+}
+
+// Function to format AutoRAG context for the AI prompt
+function formatAutoRAGContext(ragResult) {
+  if (!ragResult || !ragResult.result) {
+    return '';
+  }
+  let context = '\n\nRELEVANT KNOWLEDGE BASE:\n';
+  // If the result contains retrieved documents
+  if (ragResult.result.retrieved_documents) {
+    ragResult.result.retrieved_documents.forEach((doc, index) => {
+      if (doc.score >= AUTORAG_CONFIG.scoreThreshold) {
+        context += `- ${doc.content.substring(0, 200)}${doc.content.length > 200 ? '...' : ''}\n`;
+      }
+    });
+  }
+  // If the result contains a generated response, we can use it as additional context
+  if (ragResult.result.response) {
+    context += `\nRAG Response: ${ragResult.result.response}\n`;
+  }
+  return context;
+}
+
+// Enhanced function to get contextual information using both memory and AutoRAG
+async function getEnhancedContext(message, userId, channel, env) {
+  const context = {
+    memories: [],
+    ragContext: '',
+    ragResult: null
+  };
+  // Get traditional memories
+  context.memories = await getContextualMemories(userId, channel, message, env);
+  // Always try to get RAG context for every message
+  if (AUTORAG_CONFIG.enabled && validateAutoRAGConfig(env)) {
+    console.log('Searching AutoRAG for context...');
+    try {
+      const ragResult = await searchAutoRAG(message, env);
+      if (ragResult) {
+        context.ragResult = ragResult;
+        context.ragContext = formatAutoRAGContext(ragResult);
+        console.log('AutoRAG context retrieved:', context.ragContext.length, 'characters');
+      } else {
+        console.log('No relevant AutoRAG context found');
+      }
+    } catch (error) {
+      console.warn('AutoRAG search failed:', error);
+    }
+  }
+  return context;
+}
+
+// Function to remove version number references and links
+function removeVersionReferences(text) {
+  return text
+    // Remove version number references like "3.4.md", "v3.4.md", "version_3.4.md"
+    .replace(/\b(?:v(?:ersion)?[\s_-]?)?(\d+(?:\.\d+)*(?:\.\w+)?)\s*\.md\b/gi, '')
+    // Remove parenthetical version references like "(3.4.md)" or "(v3.4.md)"
+    .replace(/\s*\([^)]*\.md\)/gi, '')
+    // Remove explicit references to "Check release notes (X.X.md)"
+    .replace(/\s*[Cc]heck\s+release\s+notes\s*\([^)]*\.md\)[^.!?]*/gi, '')
+    // Remove references like "see 3.4.md" or "view v3.4.md"
+    .replace(/\s*(?:see|view|check)\s+(?:v(?:ersion)?[\s_-]?)?(\d+(?:\.\d+)*(?:\.\w+)?)\s*\.md\b/gi, '')
+    // Clean up extra spaces and punctuation
+    .replace(/\s+/g, ' ')
+    .replace(/\s*[.!?]+\s*$/, function(match) {
+      return match.trim();
+    })
+    .trim();
+}
+
 // Function to remove formatting from the text
 function removeFormatting(text) {
-  return text
+  let cleanText = text
     .replace(/\*\*|__/g, '') // Remove bold and italics markdown
     .replace(/<[^>]+>/g, '') // Remove HTML tags
     .replace(/\n/g, ' ');    // Replace line breaks with spaces
+  // Remove version number references and file links
+  return removeVersionReferences(cleanText);
 }
 
 // Normalize the user message
@@ -664,6 +785,45 @@ async function runAI(payload, env, timeout = 20000) {
   }
 }
 
+// Function to validate AutoRAG configuration
+function validateAutoRAGConfig(env) {
+  const required = ['ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'];
+  const missing = required.filter(key => !env[key]);
+  if (missing.length > 0) {
+    console.warn('AutoRAG disabled: Missing environment variables:', missing.join(', '));
+    return false;
+  }
+  return true;
+}
+
+// Enhanced AI function that can use AutoRAG for direct responses
+async function runAIWithAutoRAG(payload, env, query, ragResult = null, timeout = 20000) {
+  // If we have a high-quality RAG result, try using it directly first
+  if (AUTORAG_CONFIG.enabled && ragResult && ragResult.result) {
+    try {
+      // Check if RAG has a direct response and it's relevant/high quality
+      if (ragResult.result.response) {
+        const ragResponse = ragResult.result.response.trim();
+        // Check if we have highly relevant results (high score documents)
+        const hasHighQualityResults = ragResult.result.retrieved_documents && 
+          ragResult.result.retrieved_documents.some(doc => doc.score >= 0.7);
+        if (hasHighQualityResults && ragResponse.length <= AI_CHARACTER_LIMIT) {
+          console.log('Using high-quality AutoRAG direct response');
+          return { result: { response: ragResponse } };
+        } else if (hasHighQualityResults && ragResponse.length > AI_CHARACTER_LIMIT) {
+          console.log('AutoRAG response too long, using traditional AI with RAG context');
+        } else {
+          console.log('AutoRAG response quality not high enough, using as context for traditional AI');
+        }
+      }
+    } catch (error) {
+      console.warn('AutoRAG direct response processing failed:', error);
+    }
+  }
+  // Fallback to traditional AI (which will include RAG context in the prompt if available)
+  return await runAI(payload, env, timeout);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -803,17 +963,16 @@ export default {
         }
         // Retrieve conversation history
         let conversationHistory = await getConversationHistory(channel, message_user, env);
-        console.log('Original Conversation History:', conversationHistory);
-        // Get long-term memories and contextual information
+        console.log('Original Conversation History:', conversationHistory); // Get enhanced context including AutoRAG
+        const enhancedContext = await getEnhancedContext(userMessage, message_user, channel, env);
         const longTermMemories = await getLongTermMemories(message_user, channel, env, 5);
-        const contextualMemories = await getContextualMemories(message_user, channel, userMessage, env);
         const userPatterns = await getUserPatterns(message_user, channel, env);
         // Clean old memories periodically (10% chance)
-        if (Math.random() < 0.1) {
-          await cleanOldMemories(message_user, channel, env);
-        }
-        console.log('Long-term memories:', longTermMemories.length);
-        console.log('Contextual memories:', contextualMemories.length);
+        if (Math.random() < 0.1) { await cleanOldMemories(message_user, channel, env); }
+          console.log('Long-term memories:', longTermMemories.length);
+        console.log('Contextual memories:', enhancedContext.memories.length);
+        console.log('AutoRAG context available:', !!enhancedContext.ragContext);
+        if (enhancedContext.ragContext) { console.log('AutoRAG context length:', enhancedContext.ragContext.length); }
         // Strip any existing prefixes from assistant messages
         if (userPrefix) {
           conversationHistory = stripPrefixFromAssistantMessages(conversationHistory, userPrefix);
@@ -908,8 +1067,8 @@ export default {
           });
         }
         // Add contextual memories if different from long-term
-        if (contextualMemories.length > 0) {
-          const contextualContent = contextualMemories.filter(cm => 
+        if (enhancedContext.memories.length > 0) {
+          const contextualContent = enhancedContext.memories.filter(cm => 
             !longTermMemories.some(lm => lm.content === cm.content)
           );
           if (contextualContent.length > 0) {
@@ -919,6 +1078,8 @@ export default {
             });
           }
         }
+        // Add AutoRAG context if available
+        if (enhancedContext.ragContext) { memoryContext += enhancedContext.ragContext; }
         // Add user patterns
         if (Object.keys(userPatterns).length > 0) {
           memoryContext += '\nUSER INTERACTION PATTERNS:\n';
@@ -939,7 +1100,16 @@ export default {
                 You were custom-built by Lachlan, known by gfaUnDead online, using modern programming techniques and tools.
                 You operate within a controlled, secure environment to ensure reliability and efficiency.
                 MEMORY SYSTEM: You have access to long-term memory about users. Use this information to provide personalized responses while respecting privacy. Reference past conversations naturally when relevant.
+                KNOWLEDGE BASE: When available, you have access to a comprehensive knowledge base through AutoRAG that contains documentation, guides, troubleshooting information, and detailed explanations about your features and capabilities. Use this information to provide accurate, helpful responses to user questions.
                 ${memoryContext}
+                RESPONSE GUIDELINES:
+                - If knowledge base information is available, prioritize it for accuracy
+                - Combine knowledge base info with your conversational abilities
+                - For technical questions, refer to the knowledge base context when available
+                - Always stay within the 255-character limit
+                - If the knowledge base has relevant info, use it; otherwise, use your general knowledge
+                - NEVER include version file references (like "3.4.md", "v2.1.md", "Check release notes (X.X.md)") in your responses
+                - Do not mention specific documentation files or suggest users check specific .md files
                 Here's what you should know about yourself:
                 - **Development Background:** 
                   - You were coded primarily in Python and JavaScript, combining the strengths of TwitchIO for chat interactions and custom APIs for additional features.
@@ -978,7 +1148,7 @@ export default {
           let attempt = 0;
           const MAX_ATTEMPTS = 3; // Prevent infinite loops
           do {
-            const chatResponse = await runAI(chatPrompt, env); // Pass env to runAI
+            const chatResponse = await runAIWithAutoRAG(chatPrompt, env, userMessage, enhancedContext.ragResult); // Enhanced AI with AutoRAG
             console.log('AI response:', chatResponse);
             rawAiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
             rawAiMessage = removeFormatting(rawAiMessage);
@@ -987,6 +1157,8 @@ export default {
               console.log(`Message too long (${rawAiMessage.length} chars), summarizing...`);
               rawAiMessage = await intelligentSummarize(rawAiMessage, AI_CHARACTER_LIMIT, env);
             }
+            // Remove version references from the AI message
+            rawAiMessage = removeVersionReferences(rawAiMessage);
             attempt++;
           } while (isRecentResponse(rawAiMessage) && attempt < MAX_ATTEMPTS);
           // Remove any existing prefix from rawAiMessage (safety)
