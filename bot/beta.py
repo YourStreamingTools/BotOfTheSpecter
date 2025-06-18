@@ -1568,7 +1568,6 @@ class TwitchBot(commands.Bot):
                 already_seen_today = seen_today_result is not None
                 # Skip further handling for broadcaster
                 if is_broadcaster:
-                    chat_logger.info(f"Skipping welcome for broadcaster: {messageAuthor}")
                     return
                 # Check if the user is new or returning
                 await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
@@ -1638,17 +1637,12 @@ class TwitchBot(commands.Bot):
                         await self.send_message_to_channel(message_to_send)
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
                         asyncio.create_task(safe_walkon(messageAuthor))
-                    else:
-                        chat_logger.info(f"Welcome message not sent for {messageAuthor} — disabled or opted out.")
-                else:
-                    chat_logger.info(f"{messageAuthor} already seen today, skipping insertion and welcome.")
-                # Send walkon notice safely
-                async def safe_walkon(user):
-                    try:
-                        await websocket_notice(event="WALKON", user=user)
-                        chat_logger.info(f"Sent WALKON notice for {user}")
-                    except Exception as e:
-                        chat_logger.error(f"Failed to send WALKON for {user}: {e}")
+                        async def safe_walkon(user):
+                            try:
+                                await websocket_notice(event="WALKON", user=user)
+                                chat_logger.info(f"Sent WALKON notice for {user}")
+                            except Exception as e:
+                                chat_logger.error(f"Failed to send WALKON for {user}: {e}")
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
@@ -7265,14 +7259,8 @@ async def process_channel_point_rewards(event_data, event_type):
                                 current_streak = 1
                                 await cursor.execute("INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
                             await sqldb.commit()
-                            # Fetch updated streak for the specific user
-                            await cursor.execute("SELECT streak FROM reward_streaks WHERE reward_id = %s AND `current_user` = %s", (reward_id, user_name))
-                            streak_row = await cursor.fetchone()
-                            if streak_row and 'streak' in streak_row:
-                                current_streak = streak_row['streak']
-                                custom_message = custom_message.replace('(userstreak)', str(current_streak))
-                            else:
-                                custom_message = custom_message.replace('(userstreak)', "1")
+                            # Use the calculated current_streak value directly
+                            custom_message = custom_message.replace('(userstreak)', str(current_streak))
                         except Exception as e:
                             chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
                             custom_message = custom_message.replace('(userstreak)', "Error")
