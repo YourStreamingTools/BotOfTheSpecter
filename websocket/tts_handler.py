@@ -243,17 +243,35 @@ class TTSHandler:
             return
         try:
             registered_clients = self.get_clients()
+            self.logger.info(f"Attempting to emit TTS event for code: {code}")
+            self.logger.info(f"Registered clients: {registered_clients}")
             if code in registered_clients:
+                clients_for_code = registered_clients[code]
+                self.logger.info(f"Clients for code {code}: {clients_for_code}")
                 # Construct the audio file URL
                 audio_url = f"https://tts.botofthespecter.com/{audio_filename}"
                 # Prepare the TTS event data
                 tts_data = {"audio_file": audio_url,"text": text,"filename": audio_filename}
+                self.logger.info(f"TTS data to emit: {tts_data}")
                 # Emit to all clients registered with this code
-                for sid in registered_clients[code]:
-                    await self.sio.emit('TTS', tts_data, to=sid)
-                    self.logger.info(f"TTS event sent to SID {sid} with audio: {audio_url}")
-                self.logger.info(f"TTS event emitted to {len(registered_clients[code])} clients for code {code}")
+                if isinstance(clients_for_code, list):
+                    for client in clients_for_code:
+                        if isinstance(client, dict) and 'sid' in client:
+                            sid = client['sid']
+                        else:
+                            sid = client  # Assume it's directly the SID
+                        try:
+                            await self.sio.emit('TTS', tts_data, to=sid)
+                            self.logger.info(f"TTS event sent to SID {sid} with audio: {audio_url}")
+                        except Exception as emit_error:
+                            self.logger.error(f"Failed to emit to SID {sid}: {emit_error}")
+                    self.logger.info(f"TTS event emitted to {len(clients_for_code)} clients for code {code}")
+                else:
+                    self.logger.error(f"Expected list of clients but got: {type(clients_for_code)} - {clients_for_code}")
             else:
                 self.logger.warning(f"No registered clients found for code {code}")
+                self.logger.info(f"Available codes: {list(registered_clients.keys())}")
         except Exception as e:
             self.logger.error(f"Error emitting TTS event: {e}")
+            import traceback
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
