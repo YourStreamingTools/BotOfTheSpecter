@@ -70,11 +70,30 @@ class EventHandler:
         self.logger.info(f"Walkon event from SID [{sid}]: {data}")
         channel = data.get('channel')
         user = data.get('user')
-        ext = data.get('ext', 'mp3')
+        ext = data.get('ext', '.mp3')
         if not channel or not user:
             self.logger.error('Missing channel or user information for WALKON event')
             return
-        walkon_data = {'channel': channel,'user': user,'ext': ext}
+        # Validate and normalize file extension
+        if ext and not ext.startswith('.'):
+            ext = '.' + ext
+        # Validate supported file types
+        supported_extensions = ['.mp3', '.mp4', '.wav', '.webm']
+        if ext not in supported_extensions:
+            self.logger.warning(f"Unsupported walkon file extension '{ext}' for user {user}. Supported: {supported_extensions}")
+            ext = '.mp3'  # Default fallback
+        # Determine media type for frontend
+        audio_extensions = ['.mp3', '.wav']
+        video_extensions = ['.mp4', '.webm']
+        media_type = 'audio' if ext in audio_extensions else 'video' if ext in video_extensions else None
+        walkon_data = {
+            'channel': channel,
+            'user': user,
+            'ext': ext,
+            'media_type': media_type,
+            'file_url': f"https://walkons.botofthespecter.com/{channel}/{user}{ext}"
+        }
+        self.logger.info(f"Broadcasting WALKON event for {user} with {media_type} file ({ext})")
         # Broadcast the walkon event to all clients
         await self.sio.emit("WALKON", walkon_data)
 
