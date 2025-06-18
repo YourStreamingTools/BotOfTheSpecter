@@ -7,9 +7,11 @@ import shutil
 from pathlib import Path
 
 class TTSHandler:
-    def __init__(self, logger, ssh_manager):
+    def __init__(self, logger, ssh_manager, sio=None, get_clients=None):
         self.logger = logger
         self.ssh_manager = ssh_manager
+        self.sio = sio
+        self.get_clients = get_clients
         self.tts_dir = "/home/botofthespecter/tts"
         self.tts_config = self.load_tts_config()
         self.tts_queue = asyncio.Queue()
@@ -41,10 +43,10 @@ class TTSHandler:
             self.processing_task = None
             self.logger.info("TTS queue processing stopped")
 
-    async def add_tts_request(self, text, session_id, language_code=None, gender=None, voice_name=None):
+    async def add_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
         await self.tts_queue.put({
             "text": text,
-            "session_id": session_id,
+            "code": code,
             "language_code": language_code,
             "gender": gender,
             "voice_name": voice_name
@@ -56,15 +58,13 @@ class TTSHandler:
             try:
                 # Wait for the next TTS request in the queue
                 request_data = await self.tts_queue.get()
-                # Unpack the data
                 text = request_data.get('text')
-                session_id = request_data.get('session_id')
+                code = request_data.get('code')
                 language_code = request_data.get('language_code')
                 gender = request_data.get('gender')
                 voice_name = request_data.get('voice_name')
                 # Process the TTS request
-                await self.process_tts_request(text, session_id, language_code, gender, voice_name)
-                # Mark the task as done
+                await self.process_tts_request(text, code, language_code, gender, voice_name) # Mark the task as done
                 self.tts_queue.task_done()
             except asyncio.CancelledError:
                 break
@@ -84,8 +84,11 @@ class TTSHandler:
             remote_path = await self.move_file_to_remote(audio_file, remote_filename)
             if remote_path:
                 self.logger.info(f"TTS file transferred to remote server: {remote_path}")
+                # Emit TTS event to registered clients
+                await self.emit_tts_event(code, remote_filename, text)
         except Exception as e:
             self.logger.error(f"Error transferring TTS file: {e}")
+            return
         # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_audio_duration(audio_file, text)
         self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
@@ -233,3 +236,24 @@ class TTSHandler:
         except Exception as e:
             self.logger.error(f"Error transferring file {local_file_path}: {e}")
             return None
+
+    async def emit_tts_event(self, code, audio_filename, text):
+        if not self.sio or not self.get_clients:
+            self.logger.warning("Cannot emit TTS event: socketio or get_clients not available")
+            return
+        try:
+            registered_clients = self.get_clients()
+            if code in registered_clients:
+                # Construct the audio file URL
+                audio_url = f"https://tts.botofthespecter.com/{audio_filename}"
+                # Prepare the TTS event data
+                tts_data = {"audio_file": audio_url,"text": text,"filename": audio_filename}
+                # Emit to all clients registered with this code
+                for sid in registered_clients[code]:
+                    await self.sio.emit('TTS', tts_data, to=sid)
+                    self.logger.info(f"TTS event sent to SID {sid} with audio: {audio_url}")
+                self.logger.info(f"TTS event emitted to {len(registered_clients[code])} clients for code {code}")
+            else:
+                self.logger.warning(f"No registered clients found for code {code}")
+        except Exception as e:
+            self.logger.error(f"Error emitting TTS event: {e}")
