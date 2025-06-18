@@ -78,14 +78,14 @@ class EventHandler:
         if ext and not ext.startswith('.'):
             ext = '.' + ext
         # Validate supported file types
-        supported_extensions = ['.mp3', '.mp4', '.wav', '.webm']
+        supported_extensions = ['.mp3', '.mp4']
         if ext not in supported_extensions:
             self.logger.warning(f"Unsupported walkon file extension '{ext}' for user {user}. Supported: {supported_extensions}")
             ext = '.mp3'  # Default fallback
         # Determine media type for frontend
-        audio_extensions = ['.mp3', '.wav']
-        video_extensions = ['.mp4', '.webm']
-        media_type = 'audio' if ext in audio_extensions else 'video' if ext in video_extensions else None
+        audio_extensions = ['.mp3']
+        video_extensions = ['.mp4']
+        media_type = 'audio' if ext in audio_extensions else 'video'
         walkon_data = {
             'channel': channel,
             'user': user,
