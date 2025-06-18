@@ -1731,8 +1731,7 @@ class TwitchBot(commands.Bot):
                         try:
                             await cursor.execute(
                                 "INSERT INTO everyone (username, group_name) VALUES (%s, %s) "
-                                "ON DUPLICATE KEY UPDATE group_name = %s",
-                                (messageAuthor, name, name)
+                                "ON DUPLICATE KEY UPDATE group_name = %s", (messageAuthor, name, name)
                             )
                             await sqldb.commit()
                             #bot_logger.info(f"User '{messageAuthor}' assigned to group '{name}' successfully.")
@@ -1753,7 +1752,7 @@ class TwitchBot(commands.Bot):
             await ctx.send(f"Command '{command_name}' not found.")
 
     async def handle_ai_response(self, user_message, user_id, message_author_name):
-        ai_response = await self.get_ai_response(user_message, user_id)
+        ai_response = await self.get_ai_response(user_message, user_id, message_author_name)
         # Split the response if it's longer than 255 characters
         messages = [ai_response[i:i+255] for i in range(0, len(ai_response), 255)]
         # Send each part of the response as a separate message
@@ -1764,10 +1763,12 @@ class TwitchBot(commands.Bot):
         channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         await channel.send(message)
 
-    async def get_ai_response(self, user_message, user_id):
+    async def get_ai_response(self, user_message, user_id, message_author_name):
+        global bot_owner
         premium_tier = await check_premium_feature()
-        if premium_tier in (2000, 3000, 4000):
-            # Premium feature access granted
+        # Allow bot owner access even without premium subscription
+        if premium_tier in (2000, 3000, 4000) or message_author_name.lower() == bot_owner.lower():
+            # Premium feature access granted or bot owner access
             try:
                 async with aiohttp.ClientSession() as session:
                     payload = {
@@ -1784,7 +1785,7 @@ class TwitchBot(commands.Bot):
                 bot_logger.error(f"Error getting AI response: {e}")
                 return "Sorry, I could not understand your request."
         else:
-            # No premium access
+            # No premium access and not the bot owner
             return "This channel doesn't have a premium subscription to use this feature."
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
