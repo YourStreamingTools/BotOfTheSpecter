@@ -289,6 +289,7 @@ class TTSRequest(BaseModel):
 
 class WalkonRequest(BaseModel):
     user: str
+    ext: str = ".mp3"
 
 class DeathsRequest(BaseModel):
     death: str
@@ -918,17 +919,20 @@ async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
 @app.get(
     "/websocket/walkon",
     summary="Trigger Walkon via API",
-    description="Trigger the 'Walkon' event for a specified user via the WebSocket server.",
+    description="Trigger the 'Walkon' event for a specified user via the WebSocket server. Supports .mp3 (audio) and .mp4 (video) walkons.",
     tags=["Websocket"],
     operation_id="trigger_websocket_walkon"
 )
-async def websocket_walkon(api_key: str = Query(...), user: str = Query(...)):
+async def websocket_walkon(api_key: str = Query(...), user: str = Query(...), ext: str = Query(".mp3", description="File extension (.mp3 or .mp4)")):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     channel = valid
+    # Validate extension
+    if ext not in [".mp3", ".mp4"]:
+        raise HTTPException(status_code=400, detail="Invalid extension. Only .mp3 and .mp4 are supported")
     # Trigger the WebSocket event
-    params = {"event": "WALKON", "channel": channel, "user": user}
+    params = {"event": "WALKON", "channel": channel, "user": user, "ext": ext}
     await websocket_notice("WALKON", params, api_key)
     return {"status": "success"}
 
