@@ -3,7 +3,7 @@ const recentResponses = new Map();
 const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_CONVERSATION_LENGTH = 30; // Increased maximum number of messages in history
 const MAX_LONG_TERM_MEMORY = 100; // Maximum long-term memories per user
-const AI_CHARACTER_LIMIT = 490; // Adjusted to account for potential name prefix
+const AI_CHARACTER_LIMIT = 255; // Hard limit for Twitch chat compatibility
 const MEMORY_DECAY_DAYS = 30; // Days before memories start to decay
 
 // Function to remove formatting from the text
@@ -19,12 +19,53 @@ function normalizeMessage(message) {
   return message.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
 }
 
-// Function to enforce character limit
+// Function to enforce character limit with AI summarization
 function enforceCharacterLimit(text, limit) {
   if (text.length <= limit) {
     return text;
   }
-  return text.substring(0, limit);
+  // Simple truncation with smart ending
+  let truncated = text.substring(0, limit - 3);
+  // Try to end at a complete word
+  const lastSpace = truncated.lastIndexOf(' ');
+  if (lastSpace > limit * 0.8) { // Only if we don't lose too much
+    truncated = truncated.substring(0, lastSpace);
+  }
+  return truncated + '...';
+}
+
+// Enhanced function to intelligently summarize long responses using AI
+async function intelligentSummarize(text, limit, env) {
+  if (text.length <= limit) {
+    return text;
+  }
+  try {
+    const summarizePrompt = {
+      messages: [
+        {
+          role: 'system',
+          content: `You are a text summarizer. Summarize the following text to be under ${limit} characters while keeping the most important information and maintaining the original tone. Do not add any new information.`
+        },
+        {
+          role: 'user',
+          content: `Summarize this to under ${limit} characters: "${text}"`
+        }
+      ]
+    };
+    const summaryResponse = await runAI(summarizePrompt, env, 10000); // 10 second timeout
+    let summary = summaryResponse.result?.response?.trim() || '';
+    // Remove any formatting and ensure it's under limit
+    summary = removeFormatting(summary);
+    if (summary.length > 0 && summary.length <= limit) {
+      return summary;
+    }
+    // Fallback to simple truncation if AI summary fails or is too long
+    return enforceCharacterLimit(text, limit);
+  } catch (error) {
+    console.error('Error in AI summarization:', error);
+    // Fallback to simple truncation
+    return enforceCharacterLimit(text, limit);
+  }
 }
 
 // Function to check and store recent responses with expiration
@@ -941,14 +982,18 @@ export default {
             console.log('AI response:', chatResponse);
             rawAiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
             rawAiMessage = removeFormatting(rawAiMessage);
-            // Enforce adjusted character limit
-            rawAiMessage = enforceCharacterLimit(rawAiMessage, AI_CHARACTER_LIMIT);
+            // Use intelligent summarization if message is too long
+            if (rawAiMessage.length > AI_CHARACTER_LIMIT) {
+              console.log(`Message too long (${rawAiMessage.length} chars), summarizing...`);
+              rawAiMessage = await intelligentSummarize(rawAiMessage, AI_CHARACTER_LIMIT, env);
+            }
             attempt++;
           } while (isRecentResponse(rawAiMessage) && attempt < MAX_ATTEMPTS);
           // Remove any existing prefix from rawAiMessage (safety)
           if (userPrefix && rawAiMessage.startsWith(userPrefix)) {
             rawAiMessage = rawAiMessage.substring(userPrefix.length).trim();
-          }          // Add the raw AI message to the conversation history without prefix
+          }
+          // Add the raw AI message to the conversation history without prefix
           conversationHistory.push({ role: 'assistant', content: rawAiMessage });
           await saveConversationHistory(channel, message_user, conversationHistory, env);
           // Extract and save important information from the conversation
