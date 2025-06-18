@@ -132,14 +132,30 @@ class TTSGenerator:
             if result.returncode != 0:
                 logger.warning("FFmpeg not found. Audio will remain in WAV format.")
                 return wav_path
-            # Convert to MP3
-            cmd = [
-                'ffmpeg', '-i', wav_path, 
+            # Get voice processing settings
+            voice_processing = self.config.get('voice_processing', {})
+            pitch_shift = voice_processing.get('pitch_shift', 0)
+            speed_adjustment = voice_processing.get('speed_adjustment', 1.0)
+            # Build ffmpeg command with voice processing
+            cmd = ['ffmpeg', '-i', wav_path]
+            # Apply pitch shift and speed adjustment if configured
+            if pitch_shift != 0 or speed_adjustment != 1.0:
+                # Use rubberband filter for pitch and tempo adjustment
+                filter_parts = []
+                if pitch_shift != 0:
+                    filter_parts.append(f"rubberband=pitch={pitch_shift}")
+                if speed_adjustment != 1.0:
+                    filter_parts.append(f"atempo={speed_adjustment}")
+                
+                if filter_parts:
+                    cmd.extend(['-af', ','.join(filter_parts)])
+            cmd.extend([
                 '-acodec', 'mp3', 
                 '-ab', '128k',
                 '-y',  # Overwrite output file
                 mp3_path
-            ]
+            ])
+            logger.info(f"Converting to MP3 with voice processing: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode == 0:
                 logger.info(f"Successfully converted to MP3: {mp3_path}")
@@ -148,6 +164,19 @@ class TTSGenerator:
                 return mp3_path
             else:
                 logger.error(f"FFmpeg conversion failed: {result.stderr}")
+                # If advanced processing fails, try simple conversion
+                logger.info("Trying simple conversion without voice processing...")
+                simple_cmd = [
+                    'ffmpeg', '-i', wav_path, 
+                    '-acodec', 'mp3', 
+                    '-ab', '128k',
+                    '-y', mp3_path
+                ]
+                simple_result = subprocess.run(simple_cmd, capture_output=True, text=True)
+                if simple_result.returncode == 0:
+                    logger.info(f"Simple conversion successful: {mp3_path}")
+                    os.remove(wav_path)
+                    return mp3_path
                 return wav_path
         except Exception as e:
             logger.error(f"Error converting to MP3: {e}")
@@ -260,13 +289,14 @@ def main():
         keep_local=args.keep_local,
         custom_filename=args.filename
     )
-    if result['success']:
+    if result and result.get('success'):
         print(f"TTS generation successful!")
         print(f"Remote file: {result['remote_path']}")
         if result.get('local_path'):
             print(f"Local copy: {result['local_path']}")
     else:
-        print(f"TTS generation failed: {result.get('error', 'Unknown error')}")
+        error_msg = result.get('error', 'Unknown error') if result else 'Failed to generate TTS'
+        print(f"TTS generation failed: {error_msg}")
         sys.exit(1)
 
 if __name__ == "__main__":
