@@ -32,11 +32,9 @@
                 if (audioQueue.length === 0) {
                     currentAudio = null;
                     return;
-                }
-
-                const url = audioQueue.shift();
+                }                const url = audioQueue.shift();
                 currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
-                currentAudio.volume = 0.8;
+                currentAudio.volume = 0.3;  // Reduced volume to 30%
 
                 currentAudio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
@@ -49,7 +47,22 @@
 
                 currentAudio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
-                    alert('Failed to load audio file');
+                    console.error('Audio source:', currentAudio.src);
+                    console.error('Audio error code:', currentAudio.error ? currentAudio.error.code : 'Unknown');
+                    console.error('Audio error message:', currentAudio.error ? currentAudio.error.message : 'Unknown');
+                    // Try to fetch the URL to see if it's accessible
+                    fetch(url, { method: 'HEAD' })
+                        .then(response => {
+                            console.log('File fetch status:', response.status);
+                            console.log('Content-Type:', response.headers.get('content-type'));
+                            if (!response.ok) {
+                                console.error('File not accessible via HTTP:', response.status, response.statusText);
+                            }
+                        })
+                        .catch(fetchError => {
+                            console.error('Failed to fetch file:', fetchError);
+                        });
+                    alert('Failed to load audio file - check console for details');
                     currentAudio = null;
                     playNextAudio();
                 });
