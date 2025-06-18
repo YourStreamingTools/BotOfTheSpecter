@@ -1922,7 +1922,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='version')
     async def version_command(self, ctx):
-        global bot_owner
+        global bot_owner, bot_started
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1937,13 +1937,15 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        global bot_started
+                        # Check premium feature status
+                        premium_tier = await check_premium_feature()
                         uptime = datetime.now() - bot_started
                         uptime_days = uptime.days
                         uptime_hours, remainder = divmod(uptime.seconds, 3600)
                         uptime_minutes, _ = divmod(remainder, 60)
                         # Build the message
-                        message = f"The version that is currently running is V{VERSION} {SYSTEM}. Bot has been running for: "
+                        message = f"The version that I'm currently running is V{VERSION} {SYSTEM}. "
+                        message += "I've been running for: "
                         if uptime_days == 1:
                             message += f"1 day, "
                         elif uptime_days > 1:
@@ -1956,7 +1958,18 @@ class TwitchBot(commands.Bot):
                             message += f"1 minute, "
                         elif uptime_minutes > 1 or (uptime_days == 0 and uptime_hours == 0):
                             message += f"{uptime_minutes} minutes, "
-                        await ctx.send(f"{message[:-2]}")
+                        # Add premium status information
+                        if premium_tier == 4000:
+                            premium_status = "Premium Features: Beta User Access"
+                        elif premium_tier == 3000:
+                            premium_status = "Premium Features: Tier 3 Subscriber"
+                        elif premium_tier == 2000:
+                            premium_status = "Premium Features: Tier 2 Subscriber"
+                        elif premium_tier == 1000:
+                            premium_status = "Premium Features: Tier 1 Subscriber"
+                        else:
+                            premium_status = "Premium Features: None"
+                        await ctx.send(f"{message[:-2]}. {premium_status}")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the version command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4843,7 +4856,7 @@ class TwitchBot(commands.Bot):
                         return
                 try:
                     startwitch = ["€", "$", "£", "¥", "₹", "₣", "₽", "₺", "₩", "₼", "₱", "₪", "₴", "₭", "₨", "฿", "₮", "₳", "₵", "ƒ", "៛", "﷼", "R$"]
-                    if len(args) == 3 and (args[0].startswith(symbol) for symbol in startwitch):
+                    if len(args) == 3 and any(args[0].startswith(symbol) for symbol in startwitch):
                         # Handle currency conversion
                         amount_str = args[0]
                         amount = float(amount_str[1:])
@@ -4856,12 +4869,26 @@ class TwitchBot(commands.Bot):
                         # Handle unit conversion
                         amount_str = args[0]
                         amount = float(amount_str)
-                        from_unit = args[1]
-                        to_unit = args[2]
+                        from_unit = args[1].lower()
+                        to_unit = args[2].lower()
+                        # Handle common temperature unit aliases
+                        unit_aliases = {
+                            'c': 'celsius',
+                            'f': 'fahrenheit',
+                            'k': 'kelvin',
+                            'celsius': 'celsius',
+                            'fahrenheit': 'fahrenheit',
+                            'kelvin': 'kelvin'
+                        }
+                        # Convert unit aliases to proper pint units
+                        if from_unit in unit_aliases:
+                            from_unit = unit_aliases[from_unit]
+                        if to_unit in unit_aliases:
+                            to_unit = unit_aliases[to_unit]
                         quantity = amount * ureg(from_unit)
                         converted_quantity = quantity.to(to_unit)
                         formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
-                        await ctx.send(f"{amount_str} {from_unit} in {to_unit} is {formatted_converted_quantity} {converted_quantity.units}")
+                        await ctx.send(f"{amount_str} {args[1]} in {args[2]} is {formatted_converted_quantity} {converted_quantity.units}")
                     else:
                         await ctx.send("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except Exception as e:
