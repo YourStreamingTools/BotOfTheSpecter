@@ -109,12 +109,16 @@ class TTSGenerator:
             if not self.tts_model:
                 self.initialize_tts()
             logger.info(f"Generating TTS for text: {text[:50]}...")
+            # Use provided voice or default from config
+            speaker = voice or self.config.get('default_speaker')
             # Generate TTS with stderr suppression to hide NNPACK warnings
             with suppress_stderr():
-                if voice:
-                    # If voice is specified and model supports it
-                    self.tts_model.tts_to_file(text=text, file_path=output_path, speaker=voice)
+                if speaker:
+                    # If speaker is specified and model supports it
+                    logger.info(f"Using speaker: {speaker}")
+                    self.tts_model.tts_to_file(text=text, file_path=output_path, speaker=speaker)
                 else:
+                    logger.info("Using default model voice")
                     self.tts_model.tts_to_file(text=text, file_path=output_path)
             logger.info(f"TTS generated successfully: {output_path}")
             return True
