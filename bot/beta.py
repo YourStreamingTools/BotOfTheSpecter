@@ -34,6 +34,8 @@ from geopy.geocoders import Nominatim
 from jokeapi import Jokes
 import websockets
 from pint import UnitRegistry
+import paramiko
+import threading
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -79,6 +81,19 @@ SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
+SSH_USERNAME = os.getenv('SSH_USERNAME')
+SSH_PASSWORD = os.getenv('SSH_PASSWORD')
+SSH_HOSTS = {
+    'API': os.getenv('API-HOST'),
+    'WEBSOCKET': os.getenv('WEBSOCKET-HOST'),
+    'BOT-SRV': os.getenv('BOT-SRV-HOST'),
+    'SQL': os.getenv('SQL-HOST'),
+    'STREAM-US-EAST-1': os.getenv('STREAM-US-EAST-1-HOST'),
+    'STREAM-US-WEST-1': os.getenv('STREAM-US-WEST-1-HOST'),
+    'STREAM-AU-EAST-1': os.getenv('STREAM-AU-EAST-1-HOST'),
+    'WEB': os.getenv('WEB-HOST'),
+    'BILLING': os.getenv('BILLING-HOST')
+}
 builtin_commands = {
     "commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime", "stoptimer",
     "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping",
@@ -119,7 +134,7 @@ def setup_logger(name, log_file, level=logging.INFO):
         backupCount=5,
         encoding='utf-8'
     )
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger
@@ -208,6 +223,7 @@ SPOTIFY_ERROR_MESSAGES = {
 async def signal_handler(sig, frame):
     bot_logger.info("Received termination signal. Shutting down gracefully...")
     await specterSocket.disconnect() # Disconnect the SocketClient
+    ssh_manager.close_all_connections()  # Close all SSH connections
     for task in scheduled_tasks:
         task.cancel()
     for task in looped_tasks:
@@ -1202,6 +1218,90 @@ class GameNotFoundException(Exception):
 
 class GameUpdateFailedException(Exception):
     pass
+
+class SSHConnectionManager:
+    def __init__(self, logger, timeout_minutes=5):
+        self.logger = logger
+        self.timeout_seconds = timeout_minutes * 60
+        self.connections = {}  # server_name -> connection info
+        self.lock = threading.Lock()
+    async def get_connection(self, server_name):
+        if not SSH_USERNAME or not SSH_PASSWORD:
+            raise ValueError("SSH_USERNAME and SSH_PASSWORD must be set in environment")
+        if server_name not in SSH_HOSTS or not SSH_HOSTS[server_name]:
+            raise ValueError(f"Invalid server name '{server_name}' or host not configured")
+        hostname = SSH_HOSTS[server_name]
+        with self.lock:
+            # Check if we have an active connection
+            if server_name in self.connections:
+                conn_info = self.connections[server_name]
+                # Check if connection is still valid and not timed out
+                if (time.time() - conn_info['last_used'] < self.timeout_seconds and 
+                    self._is_connection_alive(conn_info['client'])):
+                    conn_info['last_used'] = time.time()
+                    self.logger.debug(f"Reusing SSH connection to {server_name} ({hostname})")
+                    return conn_info['client']
+                else:
+                    # Connection expired or dead, clean it up
+                    self._cleanup_connection(server_name)
+            # Create new connection
+            return await self._create_connection(server_name, hostname)
+    def _is_connection_alive(self, ssh_client):
+        try:
+            transport = ssh_client.get_transport()
+            return transport and transport.is_active()
+        except:
+            return False
+    async def _create_connection(self, server_name, hostname):
+        try:
+            self.logger.info(f"Creating new SSH connection to {server_name} ({hostname})")
+            ssh_client = paramiko.SSHClient()
+            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # Connect with credentials
+            connect_kwargs = {'hostname': hostname,'port': 22,'username': SSH_USERNAME,'password': SSH_PASSWORD,'timeout': 30}
+            # Run connection in thread to avoid blocking
+            await asyncio.get_event_loop().run_in_executor(None, lambda: ssh_client.connect(**connect_kwargs))
+            # Store connection info
+            self.connections[server_name] = {'client': ssh_client,'last_used': time.time(),'hostname': hostname}
+            self.logger.info(f"SSH connection established to {server_name} ({hostname})")
+            return ssh_client
+        except Exception as e:
+            self.logger.error(f"Failed to create SSH connection to {server_name} ({hostname}): {e}")
+            raise
+    def _cleanup_connection(self, server_name):
+        if server_name in self.connections:
+            try:
+                self.connections[server_name]['client'].close()
+                self.logger.debug(f"Closed SSH connection to {server_name}")
+            except:
+                pass
+            finally:
+                del self.connections[server_name]
+    async def execute_command(self, server_name, command):
+        ssh_client = await self.get_connection(server_name)
+        try:
+            # Execute command in thread to avoid blocking
+            stdin, stdout, stderr = await asyncio.get_event_loop().run_in_executor(None, ssh_client.exec_command, command)
+            # Read output in thread
+            stdout_data = await asyncio.get_event_loop().run_in_executor(None, stdout.read)
+            stderr_data = await asyncio.get_event_loop().run_in_executor(None, stderr.read)
+            return_code = stdout.channel.recv_exit_status()
+            return {'stdout': stdout_data.decode('utf-8'),'stderr': stderr_data.decode('utf-8'),'return_code': return_code}
+        except Exception as e:
+            self.logger.error(f"Error executing command on {server_name}: {e}")
+            raise
+    async def file_exists(self, server_name, file_path):
+        try:
+            result = await self.execute_command(server_name, f'test -f "{file_path}" && echo "exists" || echo "not_exists"')
+            return result['stdout'].strip() == 'exists'
+        except Exception as e:
+            self.logger.error(f"Error checking file existence on {server_name}: {e}")
+            return False
+    def close_all_connections(self):
+        with self.lock:
+            for server_name in list(self.connections.keys()):
+                self._cleanup_connection(server_name)
+            self.logger.info("All SSH connections closed")
 
 class TwitchBot(commands.Bot):
     # Event Message to get the bot ready
@@ -7104,17 +7204,21 @@ async def websocket_notice(
                 # Event-specific parameter handling
                 if event == "WALKON" and user:
                     found = False
-                    for ext in ['.mp3', '.mp4']:
+                    # Check for supported walkon file types (audio and video) on WEB server via SSH
+                    for ext in ['.mp3', '.mp4', '.wav', '.webm']:
                         walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
-                        if os.path.exists(walkon_file_path):
-                            params['channel'] = CHANNEL_NAME
-                            params['user'] = user
-                            params['ext'] = ext
-                            websocket_logger.info(f"WALKON triggered for {user}: found file {walkon_file_path}")
-                            found = True
-                            break
+                        try:
+                            if await ssh_manager.file_exists('WEB', walkon_file_path):
+                                params['channel'] = CHANNEL_NAME
+                                params['user'] = user
+                                params['ext'] = ext
+                                websocket_logger.info(f"WALKON triggered for {user}: found file {walkon_file_path} on WEB server")
+                                found = True
+                                break
+                        except Exception as e:
+                            websocket_logger.error(f"Error checking walkon file {walkon_file_path} on WEB server: {e}")
                     if not found:
-                        websocket_logger.warning(f"WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/")
+                        websocket_logger.warning(f"WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/ on WEB server")
                 elif event == "DEATHS" and death and game:
                     params['death-text'] = death
                     params['game'] = game
@@ -8358,6 +8462,9 @@ BOTS_TWITCH_BOT = TwitchBot(
     prefix='!',
     channel_name=CHANNEL_NAME
 )
+
+# Initialize SSH Connection Manager
+ssh_manager = SSHConnectionManager(bot_logger)
 
 # Run the bot
 def start_bot():
