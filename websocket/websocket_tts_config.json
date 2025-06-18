@@ -1,5 +1,6 @@
 {
-    "tts_model": "tts_models/en/ljspeech/tacotron2-DDC",
+    "tts_model": "tts_models/en/vctk/vits",
+    "default_speaker": "p225",
     "ssh_config": {
         "hostname": "your-server.com",
         "username": "your-username",
