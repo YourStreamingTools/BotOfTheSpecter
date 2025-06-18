@@ -1,4 +1,5 @@
 import os
+import json
 import aiomysql
 from bot_modules.database import get_mysql_connection
 from aiohttp import ClientSession
@@ -6,9 +7,9 @@ from urllib.parse import urlencode
 
 # Unified function to connect to the websocket server and push notices
 async def websocket_notice(
-    CHANNEL_NAME, API_TOKEN, bot_logger, event, user=None, death=None, game=None, weather=None, cheer_amount=None,
+    CHANNEL_NAME, API_TOKEN, websocket_logger, event, user=None, death=None, game=None, weather=None, cheer_amount=None,
     sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
-    video=None, additional_data=None
+    video=None, additional_data=None, rewards_data=None
 ):
     sqldb = await get_mysql_connection(CHANNEL_NAME)
     try:
@@ -20,11 +21,18 @@ async def websocket_notice(
                 }
                 # Event-specific parameter handling
                 if event == "WALKON" and user:
-                    walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}.mp3"
-                    if os.path.exists(walkon_file_path):
-                        params['channel'] = CHANNEL_NAME
-                        params['user'] = user
-                    else:
+                    found = False
+                    for ext in ['.mp3', '.mp4']:
+                        walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
+                        if os.path.exists(walkon_file_path):
+                            params['channel'] = CHANNEL_NAME
+                            params['user'] = user
+                            params['ext'] = ext
+                            websocket_logger.info(f"WALKON triggered for {user}: found file {walkon_file_path}")
+                            found = True
+                            break
+                    if not found:
+                        websocket_logger.warning(f"WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/")
                         return
                 elif event == "DEATHS" and death and game:
                     params['death-text'] = death
@@ -45,6 +53,8 @@ async def websocket_notice(
                 elif event == "TWITCH_RAID" and user and raid_viewers:
                     params['twitch-username'] = user
                     params['twitch-raid'] = raid_viewers
+                elif event == "TWITCH_CHANNELPOINTS" and rewards_data:
+                    params['rewards'] = json.dumps(rewards_data)
                 elif event == "TTS" and text:
                     # Make a database query to fetch additional information for TTS
                     try:
@@ -58,7 +68,7 @@ async def websocket_notice(
                             params['voice'] = 'default'
                             params['language'] = 'en'
                     except aiomysql.Error as e:
-                        bot_logger.error(f"Database error while fetching TTS settings for user '{user}': {e}")
+                        websocket_logger.error(f"Database error while fetching TTS settings for the channel: {e}")
                         params['voice'] = 'default'
                         params['language'] = 'en'
                     params['text'] = text
@@ -66,14 +76,14 @@ async def websocket_notice(
                     if additional_data:
                         params.update(additional_data)
                     else:
-                        bot_logger.error(f"Event '{event}' requires additional parameters.")
+                        websocket_logger.error(f"Event '{event}' requires additional parameters.")
                         return
                 elif event == "SOUND_ALERT" and sound:
                     params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
                 elif event == "VIDEO_ALERT" and video:
                     params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
                 else:
-                    bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
+                    websocket_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
                     return
                 # URL-encode the parameters
                 encoded_params = urlencode(params)
@@ -81,10 +91,10 @@ async def websocket_notice(
                 # Send the HTTP request
                 async with session.get(url) as response:
                     if response.status == 200:
-                        bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
+                        websocket_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
                     else:
-                        bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+                        websocket_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
     except Exception as e:
-        bot_logger.error(f"Error while processing websocket notice: {e}")
+        websocket_logger.error(f"Error while processing websocket notice: {e}")
     finally:
         await sqldb.ensure_closed()
