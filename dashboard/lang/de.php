@@ -34,6 +34,8 @@ return [
     'api_access_title' => 'API-Zugang',
     'api_access_help' => 'Ihr API-Schlüssel wird verwendet, um externe Dienste mit BotOfTheSpecter zu authentifizieren.',
     'api_key_label' => 'API-Schlüssel',
+    'copy_api_key' => 'API-Schlüssel kopieren',
+    'api_key_copied' => 'API-Schlüssel in die Zwischenablage kopiert!',
     'show_hide_api_key' => 'API-Schlüssel anzeigen/ausblenden',
     'regenerate_api_key' => 'API-Schlüssel neu generieren',
     'storage_usage_title' => 'Speichernutzung',
