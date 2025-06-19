@@ -535,10 +535,19 @@ ob_start();
     <!-- System Status Card -->
     <div class="card has-background-dark has-text-white">
       <div class="card-header">
-        <p class="card-header-title has-text-white is-centered">
+        <p class="card-header-title title is-5 has-text-white is-centered">
           <?php echo t('bot_system_status'); ?>
         </p>
       </div>
+      <div class="has-text-centered is-fullwidth mt-5">
+        <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link has-text-weight-bold">
+          <span class="icon"><i class="fas fa-chart-line"></i></span>
+          <span><?php echo t('bot_view_detailed_uptime'); ?></span>
+        </a>
+      </div>
+      <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4">
+        <?php echo t('bot_generic_services'); ?>
+      </h4>
       <div class="card-content">
         <!-- Service Health Meters -->
         <div class="columns is-multiline">
@@ -721,12 +730,6 @@ ob_start();
               <?php endif; ?>
             </div>
           </div>
-        </div>
-        <div class="has-text-centered mt-5">
-          <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link is-fullwidth has-text-weight-bold">
-            <span class="icon"><i class="fas fa-chart-line"></i></span>
-            <span><?php echo t('bot_view_detailed_uptime'); ?></span>
-          </a>
         </div>
         <?php if ($isTechnical): ?>
           <div class="mt-5">
