@@ -253,7 +253,7 @@ if (isset($username) && $username !== '') {
   // Optional debug information for technical users
   if ($isTechnical) {
     $debugInfo = '<div class="has-text-grey is-size-7 mt-1">';
-    $debugInfo .= 'DB: ' . ($dbStatus ?? 'null') . ' | SSH: ' . ($sshStatus ?? 'null') . ' | Final: ' . ($finalStatus ?? 'null');
+    $debugInfo .= 'Check 1: ' . ($dbStatus ?? 'null') . ' | Check 2: ' . ($sshStatus ?? 'null') . ' | Final: ' . ($finalStatus ?? 'null');
     $debugInfo .= '</div>';
     $userOnlineStatus .= $debugInfo;
   }
