@@ -710,6 +710,28 @@ input[type="range"].modern-volume::-ms-tooltip {
     100% { opacity: 1; }
 }
 
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
 /* Responsive styles */
 @media (max-width: 720px) {
     .se-api-token-row {
