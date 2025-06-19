@@ -534,16 +534,30 @@ ob_start();
     </div>
     <!-- System Status Card -->
     <div class="card has-background-dark has-text-white">
-      <div class="card-header">
-        <p class="card-header-title title is-5 has-text-white is-centered">
-          <?php echo t('bot_system_status'); ?>
-        </p>
-      </div>
-      <div class="has-text-centered is-fullwidth mt-5">
-        <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link has-text-weight-bold">
+      <div class="card-header" style="position: relative;">
+        <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link has-text-weight-bold is-small" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); z-index: 1;">
           <span class="icon"><i class="fas fa-chart-line"></i></span>
           <span><?php echo t('bot_view_detailed_uptime'); ?></span>
         </a>
+        <p class="card-header-title title is-5 has-text-white is-centered">
+          <?php echo t('bot_system_status'); ?>
+        </p>
+        <?php if ($isTechnical): ?>
+        <div style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); z-index: 1; text-align: right;">
+          <div style="font-family: monospace; font-size: 0.75rem;">
+            <div class="has-text-white-ter" style="font-weight: 600; margin-bottom: 2px;">
+              <span class="icon is-small"><i class="fas fa-network-wired"></i></span>
+              Network Status
+            </div>
+            <div class="has-text-grey-light">
+              <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
+            </div>
+            <div class="has-text-grey-light">
+              <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/8</span>
+            </div>
+          </div>
+        </div>
+        <?php endif; ?>
       </div>
       <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4">
         <?php echo t('bot_generic_services'); ?>
@@ -731,53 +745,6 @@ ob_start();
             </div>
           </div>
         </div>
-        <?php if ($isTechnical): ?>
-          <div class="mt-5">
-            <h4 class="title is-6 has-text-white has-text-centered mb-4">Technical System Overview</h4>
-            <div class="box has-background-darker">
-              <div class="columns is-multiline">
-                <div class="column is-6">
-                  <div class="has-text-centered p-3">
-                    <h5 class="subtitle is-6 has-text-white mb-2">
-                      <span class="icon"><i class="fas fa-server"></i></span>
-                      Server Load
-                    </h5>
-                    <div style="font-family: monospace; font-size: 0.8rem;">
-                      <div class="has-text-grey-light">
-                        <span class="has-text-grey">CPU:</span> <span id="server-cpu-load">--</span>
-                      </div>
-                      <div class="has-text-grey-light">
-                        <span class="has-text-grey">Memory:</span> <span id="server-memory-usage">--</span>
-                      </div>
-                      <div class="has-text-grey-light">
-                        <span class="has-text-grey">Disk:</span> <span id="server-disk-usage">--</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="column is-6">
-                  <div class="has-text-centered p-3">
-                    <h5 class="subtitle is-6 has-text-white mb-2">
-                      <span class="icon"><i class="fas fa-network-wired"></i></span>
-                      Network Status
-                    </h5>
-                    <div style="font-family: monospace; font-size: 0.8rem;">
-                      <div class="has-text-grey-light">
-                        <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
-                      </div>
-                      <div class="has-text-grey-light">
-                        <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/8</span>
-                      </div>
-                      <div class="has-text-grey-light">
-                        <span class="has-text-grey">Last Update:</span> <span id="system-last-update">--</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        <?php endif; ?>
       </div>
     </div>
   </div>
