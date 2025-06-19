@@ -47,6 +47,7 @@ if (!in_array($selectedBot, ['stable', 'beta', 'discord'])) { $selectedBot = 'st
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include '/var/www/config/discord.php';
+include '/var/www/config/ssh.php';
 include 'userdata.php';
 include 'bot_control.php';
 include "mod_access.php";
@@ -175,23 +176,53 @@ if (($stableRunning || $betaRunning) && $selectedBot !== 'discord') {
 // Check if the bot "knows" the user is online
 $tagClass = 'tag is-large is-fullwidth is-medium mb-2 has-text-weight-bold has-text-centered';
 $userOnlineStatus = null;
-$status = null;
+$dbStatus = null;
+$sshStatus = null;
+$finalStatus = null;
+
 if (isset($username) && $username !== '') {
+  // Check database status
   $stmt = $db->prepare("SELECT status FROM stream_status");
   $stmt->execute();
-  $stmt->bind_result($status);
+  $stmt->bind_result($dbStatus);
   if ($stmt->fetch()) {
-    if ($status === 'True') {
-      $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-success" style="width:100%;">' . t('bot_status_online') . '</span>';
-    } elseif ($status === 'False') {
-      $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_offline') . '</span>';
-    } else {
-      $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_unknown') . '</span>';
-    }
+    // Database status retrieved
   } else {
-    $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_na') . '</span>';
+    $dbStatus = null;
   }
   $stmt->close();
+  // Check SSH file status
+  $sshStatus = checkSSHFileStatus($username);
+  // Determine final status - prioritize "True" from either source
+  if ($dbStatus === 'True' || $sshStatus === 'True') {
+    $finalStatus = 'True';
+  } elseif ($dbStatus === 'False' && $sshStatus === 'False') {
+    $finalStatus = 'False';
+  } elseif ($dbStatus === 'False' && $sshStatus === null) {
+    $finalStatus = 'False';
+  } elseif ($dbStatus === null && $sshStatus === 'False') {
+    $finalStatus = 'False';
+  } elseif ($dbStatus === null && $sshStatus === null) {
+    $finalStatus = null;
+  } else {
+    // If one is False and the other is unknown, default to False
+    $finalStatus = 'False';
+  }
+  // Generate status display based on final status
+  if ($finalStatus === 'True') {
+    $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-success" style="width:100%;">' . t('bot_status_online') . '</span>';
+  } elseif ($finalStatus === 'False') {
+    $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_offline') . '</span>';
+  } else {
+    $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_unknown') . '</span>';
+  }
+  // Optional debug information for technical users
+  if ($isTechnical) {
+    $debugInfo = '<div class="has-text-grey is-size-7 mt-1">';
+    $debugInfo .= 'DB: ' . ($dbStatus ?? 'null') . ' | SSH: ' . ($sshStatus ?? 'null') . ' | Final: ' . ($finalStatus ?? 'null');
+    $debugInfo .= '</div>';
+    $userOnlineStatus .= $debugInfo;
+  }
 } else {
   $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_na') . '</span>';
 }
@@ -1526,7 +1557,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const avgLatencyElem = document.getElementById('network-avg-latency');
             if (avgLatencyElem) {
               const latencyColor = avgLatency < 100 ? 'has-text-success' : avgLatency < 300 ? 'has-text-warning' : 'has-text-danger';
-              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;            }            
+              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;
+            }            
             const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
               const servicesColor = servicesUp === 8 ? 'has-text-success' : servicesUp >= 6 ? 'has-text-warning' : 'has-text-danger';
