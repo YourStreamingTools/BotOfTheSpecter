@@ -35,6 +35,8 @@ return [
     'api_access_title' => 'API Access',
     'api_access_help' => 'Your API key is used to authenticate external services with BotOfTheSpecter.',
     'api_key_label' => 'API Key',
+    'copy_api_key' => 'Copy API Key',
+    'api_key_copied' => 'API Key copied to clipboard!',
     'show_hide_api_key' => 'Show/Hide API Key',
     'regenerate_api_key' => 'Regenerate API Key',
     'storage_usage_title' => 'Storage Usage',
