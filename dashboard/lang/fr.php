@@ -35,6 +35,8 @@ return [
     'api_access_title' => "Accès à l'API",
     'api_access_help' => "Votre clé API est utilisée pour authentifier les services externes avec BotOfTheSpecter.",
     'api_key_label' => 'Clé API',
+    'copy_api_key' => 'Copier la clé API',
+    'api_key_copied' => 'Clé API copiée dans le presse-papiers !',
     'show_hide_api_key' => 'Afficher/Masquer la clé API',
     'regenerate_api_key' => 'Régénérer la clé API',
     'storage_usage_title' => 'Utilisation du stockage',
