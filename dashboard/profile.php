@@ -491,6 +491,9 @@ ob_start();
                 <div class="control">
                     <div class="is-flex">
                         <input class="input" type="text" value="<?php echo $user['api_key'] ?? ''; ?>" id="api-key-field" readonly>
+                        <button class="button ml-2" onclick="copyApiKey()" title="<?php echo t('copy_api_key'); ?>" id="copy-api-key-btn" disabled style="height: 2.5em; width: 2.5em; display: flex; align-items: center; justify-content: center;">
+                            <span class="icon is-medium"><i class="fas fa-copy" id="copy-icon"></i></span>
+                        </button>
                         <button class="button ml-2" onclick="toggleApiKeyVisibility()" title="<?php echo t('show_hide_api_key'); ?>" style="height: 2.5em; width: 2.5em; display: flex; align-items: center; justify-content: center;">
                             <span class="icon is-medium"><i class="fas fa-eye" id="visibility-icon"></i></span>
                         </button>
@@ -714,9 +717,88 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+function copyApiKey() {
+    const apiKeyField = document.getElementById('api-key-field');
+    const copyBtn = document.getElementById('copy-api-key-btn');
+    if (apiKeyField.type === 'password') {
+        return; // Don't copy if key is hidden
+    }
+    // Try modern clipboard API first, fall back to older method
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(apiKeyField.value).then(() => {
+            showCopyNotification();
+            showCopyFeedback();
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            fallbackCopy();
+        });
+    } else {
+        fallbackCopy();
+    }
+    function fallbackCopy() {
+        // Create a temporary textarea to copy the text
+        const tempTextarea = document.createElement('textarea');
+        tempTextarea.value = apiKeyField.value;
+        tempTextarea.style.position = 'fixed';
+        tempTextarea.style.left = '-999999px';
+        tempTextarea.style.top = '-999999px';
+        document.body.appendChild(tempTextarea);
+        tempTextarea.focus();
+        tempTextarea.select();
+        try {
+            document.execCommand('copy');
+            showCopyNotification();
+            showCopyFeedback();
+        } catch (err) {
+            console.error('Fallback copy failed: ', err);
+        }
+        
+        document.body.removeChild(tempTextarea);
+    }
+    function showCopyFeedback() {
+        // Visual feedback on button
+        const copyIcon = document.getElementById('copy-icon');
+        copyIcon.classList.remove('fa-copy');
+        copyIcon.classList.add('fa-check');
+        copyBtn.classList.add('is-success');
+        setTimeout(() => {
+            copyIcon.classList.remove('fa-check');
+            copyIcon.classList.add('fa-copy');
+            copyBtn.classList.remove('is-success');
+        }, 2000);
+    }
+}
+
+function showCopyNotification() {
+    // Remove any existing notifications
+    const existingNotifications = document.querySelectorAll('.copy-notification');
+    existingNotifications.forEach(notification => notification.remove());
+    // Create notification
+    const notification = document.createElement('div');
+    notification.className = 'notification is-success is-light copy-notification';
+    notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px; animation: slideInRight 0.3s ease-out;';
+    notification.innerHTML = `
+        <button class="delete" onclick="this.parentElement.remove()"></button>
+        <strong><i class="fas fa-check-circle mr-2"></i><?php echo t('api_key_copied'); ?></strong>
+    `;
+    document.body.appendChild(notification);
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.style.animation = 'slideOutRight 0.3s ease-in';
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 300);
+        }
+    }, 3000);
+}
+
 function toggleApiKeyVisibility() {
     const apiKeyField = document.getElementById('api-key-field');
     const visibilityIcon = document.getElementById('visibility-icon');
+    const copyBtn = document.getElementById('copy-api-key-btn');
     if (apiKeyField.type === 'password') {
         Swal.fire({
             title: <?php echo json_encode(t('sensitive_info_title')); ?>,
@@ -730,12 +812,14 @@ function toggleApiKeyVisibility() {
                 apiKeyField.type = 'text';
                 visibilityIcon.classList.remove('fa-eye');
                 visibilityIcon.classList.add('fa-eye-slash');
+                copyBtn.disabled = false; // Enable copy button
             }
         });
     } else {
         apiKeyField.type = 'password';
         visibilityIcon.classList.remove('fa-eye-slash');
         visibilityIcon.classList.add('fa-eye');
+        copyBtn.disabled = true; // Disable copy button
     }
 }
 
