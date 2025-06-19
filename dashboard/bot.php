@@ -63,6 +63,40 @@ $stmt->close();
 date_default_timezone_set($timezone);
 $isTechnical = isset($user['is_technical']) ? (bool)$user['is_technical'] : false;
 
+function checkSSHFileStatus($username) {
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    // Check if SSH extension is available
+    if (!extension_loaded('ssh2')) {
+        error_log("SSH2 extension not loaded - cannot check SSH file status");
+        return null;
+    }
+    // Check if SSH config variables are set
+    if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password)) {
+        error_log("SSH configuration incomplete - cannot check SSH file status");
+        return null;
+    }
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        if (!$connection) {
+            return null;
+        }
+        $filePath = "/home/botofthespecter/logs/online/" . escapeshellarg($username) . ".txt";
+        $command = "cat " . $filePath . " 2>/dev/null";
+        $output = SSHConnectionManager::executeCommand($connection, $command);
+        if ($output !== false) {
+            $status = trim($output);
+            // Return the status if it's either 'True' or 'False'
+            if ($status === 'True' || $status === 'False') {
+                return $status;
+            }
+        }
+        return null;
+    } catch (Exception $e) {
+        error_log("SSH status check failed for user {$username}: " . $e->getMessage());
+        return null;
+    }
+}
+
 // Check if Discord is properly setup for this user with valid tokens
 $hasDiscordSetup = false;
 $discordNeedsRelink = false;
