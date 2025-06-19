@@ -297,7 +297,7 @@ include_once __DIR__ . '/lang/i18n.php';
         </div>
         <div style="max-width: 1500px;" class="is-hidden-tablet">
             &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-            <span class="tag is-info is-light mt-2">Dashboard Version: 2.0.0</span><br>
+            <span class="tag is-info is-light mt-2">Dashboard Version: 2.0.4</span><br>
             BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
             This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
             All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
