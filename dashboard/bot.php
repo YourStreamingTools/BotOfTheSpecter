@@ -250,10 +250,14 @@ if (isset($username) && $username !== '') {
   } else {
     $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_unknown') . '</span>';
   }
-  // Optional debug information for technical users
   if ($isTechnical) {
+    $formatStatus = function($status) {
+      if ($status === 'True') return 'Online';
+      if ($status === 'False') return 'Offline';
+      return $status ?? 'null';
+    };
     $debugInfo = '<div class="has-text-grey is-size-7 mt-1">';
-    $debugInfo .= 'Check 1: ' . ($dbStatus ?? 'null') . ' | Check 2: ' . ($sshStatus ?? 'null') . ' | Final: ' . ($finalStatus ?? 'null');
+    $debugInfo .= 'Check 1: ' . $formatStatus($dbStatus) . ' | Check 2: ' . $formatStatus($sshStatus) . ' | Final: ' . $formatStatus($finalStatus);
     $debugInfo .= '</div>';
     $userOnlineStatus .= $debugInfo;
   }
