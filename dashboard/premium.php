@@ -63,6 +63,24 @@ $plans = [
     ],
 ];
 
+// Check beta access from database
+$betaAccess = false; // Default to false
+if (isset($twitchDisplayName) && !empty($twitchDisplayName)) {
+    try {
+        $stmt = $conn->prepare("SELECT beta_access FROM users WHERE twitch_display_name = ?");
+        if ($stmt) {
+            $stmt->bind_param("s", $twitchDisplayName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result && $row = $result->fetch_assoc()) { $betaAccess = ($row['beta_access'] == 1); } // Set beta access based on database value
+            $stmt->close();
+        }
+    } catch (Exception $e) {
+        // Log error but continue with default beta access = false
+        error_log("Error checking beta access for user $twitchDisplayName: " . $e->getMessage());
+    }
+}
+
 // Check Twitch subscription tier
 $currentPlan = 'free'; // Default to free
 $error_message = ''; // Initialize error message
@@ -72,9 +90,7 @@ if (!$betaAccess) {
     if ($twitchSubTier) {
         // Ensure the tier is treated as a string for comparison
         $twitchSubTierString = (string) $twitchSubTier;
-        if (array_key_exists($twitchSubTierString, $plans)) {
-            $currentPlan = $twitchSubTierString; 
-        }
+        if (array_key_exists($twitchSubTierString, $plans)) { $currentPlan = $twitchSubTierString;  }
     } else {
         // Handle the case where no subscription was found or any error occurred
         $error_message = !empty($error_message) ? $error_message : "Unable to determine your subscription status.";
@@ -82,44 +98,39 @@ if (!$betaAccess) {
 }
 // Updated fetch function to return both tier and check if it's a gift
 function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_message) {
+    // Validate input parameters
+    if (empty($access_token) || empty($twitchUserId)) { $error_message = "Missing required parameters for subscription check."; return false; }
     $url = "https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id=$twitchUserId";
-    $headers = [
-        "Authorization: Bearer $access_token",
-        "Client-ID: mrjucsmsnri89ifucl66jj1n35jkj8",
-    ];
+    $headers = ["Authorization: Bearer $access_token","Client-ID: mrjucsmsnri89ifucl66jj1n35jkj8",];
     $ch = curl_init();
+    if (!$ch) { $error_message = "Failed to initialize curl."; return false; }
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Add timeout
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5); // Add connection timeout
     $response = curl_exec($ch);
     // Check for cURL errors
-    if (curl_errno($ch)) {
-        $error_message = curl_error($ch); // Capture the error message
-        curl_close($ch);
-        return false; // Return false if an error occurred
-    }
+    if (curl_errno($ch)) { $error_message = "Connection error: " . curl_error($ch); curl_close($ch); return false; }
     $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    // Validate response
+    if ($response === false) { $error_message = "Failed to get response from Twitch API."; return false; }
     $data = json_decode($response, true);
+    // Check for JSON decode errors
+    if (json_last_error() !== JSON_ERROR_NONE) { $error_message = "Invalid response format from Twitch API."; return false; }
     // Check if the HTTP status is 404 (user not subscribed)
     if ($http_status == 404 && isset($data['message']) && strpos($data['message'], 'does not subscribe') !== false) {
-        $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; // Set an error message
-        return false; // No subscription found
+        $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; return false;
     }
+    // Check for other HTTP errors
+    if ($http_status >= 400) { $error_message = "API error (HTTP $http_status): " . ($data['message'] ?? 'Unknown error'); return false; }
     // Check if there's a subscription
-    if (isset($data['data']) && count($data['data']) > 0) {
-        return $data['data'][0]['tier']; // Return the subscription tier
-    }
+    if (isset($data['data']) && is_array($data['data']) && count($data['data']) > 0) { return $data['data'][0]['tier']; } // Return the subscription tier
     // Handle if no subscription found
-    $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; // Set an error message
-    return false; // No subscription found
+    $error_message = "You are not subscribed or we couldn't find a subscription on Twitch.";
+    return false;
 }
-
-// Load beta users from the JSON file
-$betaUsersJson = file_get_contents('/var/www/api/authusers.json');
-$betaUsersData = json_decode($betaUsersJson, true);
-$betaUsers = $betaUsersData['users'] ?? [];
-$betaAccess = in_array($twitchDisplayName, $betaUsers);
 
 // Start output buffering for layout
 ob_start();
@@ -156,12 +167,16 @@ ob_start();
             <div class="card h-100 is-flex is-flex-direction-column" style="width:100%;">
                 <div class="card-content">
                     <h2 class="subtitle has-text-centered mb-4">
-                        <?php echo $planDetails['name']; ?><br>
-                        <span class="has-text-weight-bold"><?php echo $planDetails['price']; ?></span>
+                        <?php echo htmlspecialchars($planDetails['name']); ?><br>
+                        <span class="has-text-weight-bold">
+                            <?php echo htmlspecialchars($planDetails['price']); ?>
+                        </span>
                     </h2>
                     <ul>
                         <?php foreach ($planDetails['features'] as $feature): ?>
-                            <li title="<?php echo $feature['tip']; ?>"><?php echo $feature['text']; ?></li>
+                            <li title="<?php echo htmlspecialchars($feature['tip']); ?>">
+                                <?php echo htmlspecialchars($feature['text']); ?>
+                            </li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
