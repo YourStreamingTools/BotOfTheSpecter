@@ -92,7 +92,16 @@ if ($twitchSubTier) {
     $twitchSubTierString = (string) $twitchSubTier;
     if (array_key_exists($twitchSubTierString, $plans)) { 
         $currentPlan = $twitchSubTierString;  
-        if ($betaAccess) { $subscription_message = "You have beta access and are also subscribed at tier $twitchSubTierString."; }
+        if ($betaAccess) { 
+            // Convert tier code to user-friendly name
+            $tierName = match($twitchSubTierString) {
+                '1000' => 'Tier 1',
+                '2000' => 'Tier 2', 
+                '3000' => 'Tier 3',
+                default => "Tier $twitchSubTierString"
+            };
+            $subscription_message = "You have beta access and are also subscribed at $tierName."; 
+        }
     }
 } else {
     // Handle the case where no subscription was found or any error occurred
@@ -147,7 +156,7 @@ ob_start();
         </div>
     </div>
 <?php endif; ?>
-<div class="hero is-light is-small mb-6">
+<div class="hero is-small mb-6">
     <div class="hero-body has-text-centered">
         <div class="container">
             <h1 class="title is-2 has-text-weight-bold mb-3">
@@ -244,9 +253,9 @@ ob_start();
             $planColors = ['1000' => 'has-text-info', '2000' => 'has-text-warning', '3000' => 'has-text-danger'];
             ?>
             <div class="column is-12-mobile is-6-tablet is-3-desktop">
-                <div class="card has-shadow is-shadowless-mobile <?php echo $isCurrentPlan ? 'has-background-primary-light' : ''; ?>" style="height: 100%; border-radius: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; <?php echo $isCurrentPlan ? 'border: 2px solid #00d1b2;' : ''; ?>">
+                <div class="card has-shadow is-shadowless-mobile" style="height: 100%; border-radius: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; <?php echo $isCurrentPlan ? 'border: 3px solid #00d1b2; box-shadow: 0 8px 16px rgba(0, 209, 178, 0.2);' : ''; ?> position: relative;">
                     <?php if ($isCurrentPlan): ?>
-                        <div class="ribbon is-primary" style="position: absolute; top: 10px; right: -5px; background: #00d1b2; color: white; padding: 5px 15px; font-size: 0.75rem; font-weight: bold; transform: rotate(15deg); z-index: 10;">
+                        <div class="ribbon is-primary" style="position: absolute; top: 15px; right: -10px; background: linear-gradient(45deg, #00d1b2, #00c4a7); color: white; padding: 8px 20px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; transform: rotate(12deg); z-index: 10; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); border-radius: 4px;">
                             CURRENT
                         </div>
                     <?php endif; ?>
