@@ -329,46 +329,48 @@ ob_start();
                     </div>
                 </div>
             </div>
-        <?php endforeach; ?>        
-        <!-- Special Beta Plan Card (if beta user) -->
-        <?php if ($betaAccess): ?>
-            <div class="column is-12">
-                <div class="card has-shadow is-shadowless-mobile" style="border-radius: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-top: 2rem;">
-                    <div class="card-content has-text-centered">
-                        <div class="icon is-large has-text-white mb-3">
-                            <i class="fas fa-flask fa-3x"></i>
-                        </div>
-                        <h3 class="title is-3 has-text-white has-text-weight-bold mb-2">
-                            <?php echo t('premium_beta_plan_name'); ?>
-                        </h3>
-                        <p class="subtitle is-4 has-text-white-ter mb-4">
-                            <?php echo t('premium_beta_plan_price'); ?>
-                        </p>
-                        <div class="columns is-variable is-3">
-                            <div class="column">
-                                <div class="box has-background-white-ter" style="border-radius: 8px;">
-                                    <ul class="is-size-6 has-text-dark" style="list-style: none; padding-left: 0;">
-                                        <li class="mb-2" title="<?php echo t('premium_beta_plan_feature_all_tip'); ?>">
-                                            <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                            <?php echo t('premium_beta_plan_feature_all'); ?>
-                                        </li>
-                                        <li class="mb-2" title="<?php echo t('premium_beta_plan_feature_storage_tip'); ?>">
-                                            <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                            <?php echo t('premium_beta_plan_feature_storage'); ?>
-                                        </li>
-                                    </ul>
-                                </div>
+        <?php endforeach; ?>
+    </div>
+    <!-- Special Beta Plan Card (if beta user) -->
+    <?php if ($betaAccess): ?>
+    <div class="columns is-centered mt-5">
+        <div class="column is-12-mobile is-6-tablet is-3-desktop">
+            <div class="card has-shadow is-shadowless-mobile" style="height: 100%; border-radius: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <div class="card-content" style="height: 100%; display: flex; flex-direction: column;">
+                        <div class="has-text-centered mb-4">
+                            <div class="icon is-large has-text-white mb-2">
+                                <i class="fas fa-flask fa-2x"></i>
                             </div>
+                            <h3 class="title is-4 has-text-white has-text-weight-bold mb-2">
+                                <?php echo t('premium_beta_plan_name'); ?>
+                            </h3>
+                            <p class="subtitle is-5 has-text-white-ter has-text-weight-semibold">
+                                <?php echo t('premium_beta_plan_price'); ?>
+                            </p>
                         </div>
-                        <span class="button is-light is-large is-rounded has-text-weight-bold" style="background: rgba(255,255,255,0.9); color: #667eea;">
-                            <span class="icon"><i class="fas fa-crown"></i></span>
-                            <span><?php echo t('premium_beta_plan_footer'); ?></span>
-                        </span>
+                        <div class="content" style="flex-grow: 1;">
+                            <ul class="is-size-6" style="list-style: none; padding-left: 0;">
+                                <li class="mb-2" title="<?php echo t('premium_beta_plan_feature_all_tip'); ?>">
+                                    <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                    <?php echo t('premium_beta_plan_feature_all'); ?>
+                                </li>
+                                <li class="mb-2" title="<?php echo t('premium_beta_plan_feature_storage_tip'); ?>">
+                                    <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                    <?php echo t('premium_beta_plan_feature_storage'); ?>
+                                </li>
+                            </ul>
+                        </div>
+                        <footer class="mt-4 has-text-centered">
+                            <span class="is-fullwidth is-rounded has-text-weight-semibold" style="cursor: default; pointer-events: none; opacity: 0.8; white-space: normal; height: auto; min-height: 2.5em; padding: 0.75em;">
+                                <span><?php echo t('premium_beta_plan_footer'); ?></span>
+                            </span>
+                        </footer>
                     </div>
                 </div>
             </div>
-        <?php endif; ?>
+        </div>
     </div>
+    <?php endif; ?>
 </div>
 <?php
 $content = ob_get_clean();
