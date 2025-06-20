@@ -84,17 +84,20 @@ if (isset($twitchDisplayName) && !empty($twitchDisplayName)) {
 // Check Twitch subscription tier
 $currentPlan = 'free'; // Default to free
 $error_message = ''; // Initialize error message
-// Only fetch subscription tier if the user is not a beta user
-if (!$betaAccess) {
-    $twitchSubTier = fetchTwitchSubscriptionTier($access_token, $twitchUserId, $error_message);
-    if ($twitchSubTier) {
-        // Ensure the tier is treated as a string for comparison
-        $twitchSubTierString = (string) $twitchSubTier;
-        if (array_key_exists($twitchSubTierString, $plans)) { $currentPlan = $twitchSubTierString;  }
-    } else {
-        // Handle the case where no subscription was found or any error occurred
-        $error_message = !empty($error_message) ? $error_message : "Unable to determine your subscription status.";
+$subscription_message = ''; // Initialize subscription message
+// Always fetch subscription tier to show accurate status
+$twitchSubTier = fetchTwitchSubscriptionTier($access_token, $twitchUserId, $error_message);
+if ($twitchSubTier) {
+    // Ensure the tier is treated as a string for comparison
+    $twitchSubTierString = (string) $twitchSubTier;
+    if (array_key_exists($twitchSubTierString, $plans)) { 
+        $currentPlan = $twitchSubTierString;  
+        if ($betaAccess) { $subscription_message = "You have beta access and are also subscribed at tier $twitchSubTierString."; }
     }
+} else {
+    // Handle the case where no subscription was found or any error occurred
+    if ($betaAccess) { $subscription_message = "You have beta access but are not currently subscribed on Twitch."; }
+    else { $error_message = !empty($error_message) ? $error_message : "Unable to determine your subscription status."; }
 }
 // Updated fetch function to return both tier and check if it's a gift
 function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_message) {
@@ -135,98 +138,243 @@ function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_messa
 // Start output buffering for layout
 ob_start();
 ?>
-<?php if (isset($error_message) && !$betaAccess): ?>
-    <div class="notification is-warning is-light mb-5">
-        <?php echo htmlspecialchars($error_message); ?>
+<?php if (isset($error_message) && !empty($error_message) && !$betaAccess): ?>
+    <div class="columns is-centered mb-3">
+        <div class="column is-8-desktop is-10-tablet">
+            <div class="notification is-warning is-light is-size-6 py-3">
+                <?php echo htmlspecialchars($error_message); ?>
+            </div>
+        </div>
     </div>
 <?php endif; ?>
-<h1 class="title has-text-centered mb-6"><?php echo t('premium_features_title'); ?></h1>
-<div class="columns is-multiline is-variable is-6 card-container is-flex is-flex-wrap-wrap">
-    <!-- Free Plan -->
-    <div class="column is-12-mobile is-6-tablet is-3-desktop is-flex">
-        <div class="card h-100 is-flex is-flex-direction-column" style="width:100%;">
-            <div class="card-content">
-                <h2 class="subtitle has-text-centered mb-4"><?php echo t('premium_plan_free_name'); ?><br><span class="has-text-weight-bold"><?php echo t('premium_plan_free_price'); ?></span></h2>
-                <ul>
-                    <li title="<?php echo t('premium_plan_free_feature_basic_commands_tip'); ?>"><?php echo t('premium_plan_free_feature_basic_commands'); ?></li>
-                    <li title="<?php echo t('premium_plan_free_feature_support_tip'); ?>"><?php echo t('premium_plan_free_feature_support'); ?></li>
-                    <li title="<?php echo t('premium_plan_free_feature_storage_tip'); ?>"><?php echo t('premium_plan_free_feature_storage'); ?></li>
-                    <li title="<?php echo t('premium_plan_free_feature_shared_bot_tip'); ?>"><?php echo t('premium_plan_free_feature_shared_bot'); ?></li>
-                </ul>
+<div class="hero is-light is-small mb-6">
+    <div class="hero-body has-text-centered">
+        <div class="container">
+            <h1 class="title is-2 has-text-weight-bold mb-3">
+                <?php echo t('premium_features_title'); ?>
+            </h1>
+            
+            <!-- Inline Status Badges -->
+            <div class="field is-grouped is-grouped-centered">
+                <?php if (isset($subscription_message) && !empty($subscription_message)): ?>
+                    <div class="control">
+                        <span class="tag is-info is-medium has-text-weight-semibold">
+                            <span class="icon is-small">
+                                <i class="fas fa-crown"></i>
+                            </span>
+                            <span><?php echo htmlspecialchars($subscription_message); ?></span>
+                        </span>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (isset($error_message) && !empty($error_message) && !$betaAccess): ?>
+                    <div class="control">
+                        <span class="tag is-warning is-medium has-text-weight-semibold">
+                            <span class="icon is-small">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </span>
+                            <span><?php echo htmlspecialchars($error_message); ?></span>
+                        </span>
+                    </div>
+                <?php endif; ?>
             </div>
-            <?php if ($currentPlan === 'free' && !$betaAccess): ?>
-                <footer class="card-footer mt-auto">
-                    <span class="card-footer-item has-text-success has-text-weight-semibold"><?php echo t('premium_current_plan'); ?></span>
-                </footer>
-            <?php endif; ?>
         </div>
     </div>
-    <?php foreach ($plans as $planKey => $planDetails): ?>
-        <?php $trimmedCurrentPlan = trim((string)$currentPlan); $trimmedPlanKey = trim((string)$planKey); ?>
-        <div class="column is-12-mobile is-6-tablet is-3-desktop is-flex">
-            <div class="card h-100 is-flex is-flex-direction-column" style="width:100%;">
-                <div class="card-content">
-                    <h2 class="subtitle has-text-centered mb-4">
-                        <?php echo htmlspecialchars($planDetails['name']); ?><br>
-                        <span class="has-text-weight-bold">
-                            <?php echo htmlspecialchars($planDetails['price']); ?>
-                        </span>
-                    </h2>
-                    <ul>
-                        <?php foreach ($planDetails['features'] as $feature): ?>
-                            <li title="<?php echo htmlspecialchars($feature['tip']); ?>">
-                                <?php echo htmlspecialchars($feature['text']); ?>
+</div>
+
+<!-- Modern Card Grid -->
+<div class="container">
+    <div class="columns is-multiline is-variable is-5">
+        <!-- Free Plan Card -->
+        <div class="column is-12-mobile is-6-tablet is-3-desktop">
+            <div class="card has-shadow is-shadowless-mobile" style="height: 100%; border-radius: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease;">
+                <div class="card-content" style="height: 100%; display: flex; flex-direction: column;">
+                    <div class="has-text-centered mb-4">
+                        <div class="icon is-large has-text-grey-light mb-2">
+                            <i class="fas fa-rocket fa-2x"></i>
+                        </div>
+                        <h3 class="title is-4 has-text-weight-bold mb-2">
+                            <?php echo t('premium_plan_free_name'); ?>
+                        </h3>
+                        <p class="subtitle is-5 has-text-weight-semibold has-text-primary">
+                            <?php echo t('premium_plan_free_price'); ?>
+                        </p>
+                    </div>
+                    
+                    <div class="content" style="flex-grow: 1;">
+                        <ul class="is-size-6" style="list-style: none; padding-left: 0;">
+                            <li class="mb-2" title="<?php echo t('premium_plan_free_feature_basic_commands_tip'); ?>">
+                                <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                <?php echo t('premium_plan_free_feature_basic_commands'); ?>
                             </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-                <footer class="card-footer mt-auto">
-                    <?php if ($betaAccess): ?>
-                        <span class="card-footer-item has-text-info"><?php echo t('premium_beta_no_subscription'); ?></span>
-                    <?php else: ?>
-                        <?php if ($trimmedCurrentPlan === $trimmedPlanKey): ?>
-                            <span class="card-footer-item">
-                                <span class="button is-primary is-light is-fullwidth"><?php echo t('premium_current_plan'); ?></span>
-                            </span>
-                        <?php else: ?>
-                            <span class="card-footer-item">
-                                <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="button is-primary is-fullwidth">
-                                    <?php
-                                    if ($currentPlan === 'free') {
-                                        echo t('premium_subscribe');
-                                    } elseif ((int)$currentPlan < (int)$planKey) {
-                                        echo t('premium_upgrade');
-                                    } else {
-                                        echo t('premium_downgrade');
-                                    }
-                                    ?>
-                                </a>
-                            </span>
-                        <?php endif; ?>
+                            <li class="mb-2" title="<?php echo t('premium_plan_free_feature_support_tip'); ?>">
+                                <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                <?php echo t('premium_plan_free_feature_support'); ?>
+                            </li>
+                            <li class="mb-2" title="<?php echo t('premium_plan_free_feature_storage_tip'); ?>">
+                                <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                <?php echo t('premium_plan_free_feature_storage'); ?>
+                            </li>
+                            <li class="mb-2" title="<?php echo t('premium_plan_free_feature_shared_bot_tip'); ?>">
+                                <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                <?php echo t('premium_plan_free_feature_shared_bot'); ?>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <?php if ($currentPlan === 'free'): ?>
+                        <footer class="mt-4">
+                            <?php if ($betaAccess): ?>
+                                <span class="button is-info is-fullwidth is-rounded has-text-weight-semibold">
+                                    <span class="icon"><i class="fas fa-flask"></i></span>
+                                    <span>Beta Access</span>
+                                </span>
+                            <?php else: ?>
+                                <span class="button is-success is-fullwidth is-rounded has-text-weight-semibold">
+                                    <span class="icon"><i class="fas fa-check-circle"></i></span>
+                                    <span><?php echo t('premium_current_plan'); ?></span>
+                                </span>
+                            <?php endif; ?>
+                        </footer>
                     <?php endif; ?>
-                </footer>
-            </div>
-        </div>
-    <?php endforeach; ?>
-    <!-- Show a special plan for beta users -->
-    <?php if ($betaAccess): ?>
-        <div class="column is-12 is-flex is-justify-content-center is-align-items-center" style="flex-basis:100%;padding-top:2rem;">
-            <div class="card h-100 is-flex is-flex-direction-column" style="width:350px;max-width:100%;">
-                <div class="card-content">
-                    <h2 class="subtitle has-text-centered mb-4"><?php echo t('premium_beta_plan_name'); ?><br>
-                        <span class="has-text-weight-bold"><?php echo t('premium_beta_plan_price'); ?></span>
-                    </h2>
-                    <ul>
-                        <li title="<?php echo t('premium_beta_plan_feature_all_tip'); ?>"><?php echo t('premium_beta_plan_feature_all'); ?></li>
-                        <li title="<?php echo t('premium_beta_plan_feature_storage_tip'); ?>"><?php echo t('premium_beta_plan_feature_storage'); ?></li>
-                    </ul>
                 </div>
-                <footer class="card-footer mt-auto">
-                    <span class="card-footer-item has-text-success has-text-centered"><?php echo t('premium_beta_plan_footer'); ?></span>
-                </footer>
             </div>
-        </div>
-    <?php endif; ?>
+        </div>        
+        <!-- Premium Plans -->
+        <?php foreach ($plans as $planKey => $planDetails): ?>
+            <?php 
+            $trimmedCurrentPlan = trim((string)$currentPlan); 
+            $trimmedPlanKey = trim((string)$planKey);
+            $isCurrentPlan = ($trimmedCurrentPlan === $trimmedPlanKey);
+            $planIcons = ['1000' => 'fas fa-star', '2000' => 'fas fa-crown', '3000' => 'fas fa-gem'];
+            $planColors = ['1000' => 'has-text-info', '2000' => 'has-text-warning', '3000' => 'has-text-danger'];
+            ?>
+            <div class="column is-12-mobile is-6-tablet is-3-desktop">
+                <div class="card has-shadow is-shadowless-mobile <?php echo $isCurrentPlan ? 'has-background-primary-light' : ''; ?>" 
+                     style="height: 100%; border-radius: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; <?php echo $isCurrentPlan ? 'border: 2px solid #00d1b2;' : ''; ?>">
+                    
+                    <?php if ($isCurrentPlan): ?>
+                        <div class="ribbon is-primary" style="position: absolute; top: 10px; right: -5px; background: #00d1b2; color: white; padding: 5px 15px; font-size: 0.75rem; font-weight: bold; transform: rotate(15deg); z-index: 10;">
+                            CURRENT
+                        </div>
+                    <?php endif; ?>
+                    
+                    <div class="card-content" style="height: 100%; display: flex; flex-direction: column;">
+                        <div class="has-text-centered mb-4">
+                            <div class="icon is-large <?php echo $planColors[$planKey] ?? 'has-text-primary'; ?> mb-2">
+                                <i class="<?php echo $planIcons[$planKey] ?? 'fas fa-star'; ?> fa-2x"></i>
+                            </div>
+                            <h3 class="title is-4 has-text-weight-bold mb-2">
+                                <?php echo htmlspecialchars($planDetails['name']); ?>
+                            </h3>
+                            <p class="subtitle is-5 has-text-weight-semibold has-text-primary">
+                                <?php echo htmlspecialchars($planDetails['price']); ?>
+                            </p>
+                        </div>
+                        
+                        <div class="content" style="flex-grow: 1;">
+                            <ul class="is-size-6" style="list-style: none; padding-left: 0;">
+                                <?php foreach ($planDetails['features'] as $feature): ?>
+                                    <li class="mb-2" title="<?php echo htmlspecialchars($feature['tip']); ?>">
+                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                        <?php echo htmlspecialchars($feature['text']); ?>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                        
+                        <footer class="mt-4">
+                            <?php if ($betaAccess): ?>
+                                <?php if ($isCurrentPlan): ?>
+                                    <span class="button is-success is-fullwidth is-rounded has-text-weight-semibold">
+                                        <span class="icon"><i class="fas fa-check-circle"></i></span>
+                                        <span><?php echo t('premium_current_plan'); ?> + Beta</span>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="button is-info is-fullwidth is-rounded has-text-weight-semibold">
+                                        <span class="icon"><i class="fas fa-flask"></i></span>
+                                        <span><?php echo $currentPlan === 'free' ? 'Beta Access' : 'Beta Access'; ?></span>
+                                    </span>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <?php if ($isCurrentPlan): ?>
+                                    <span class="button is-success is-fullwidth is-rounded has-text-weight-semibold">
+                                        <span class="icon"><i class="fas fa-check-circle"></i></span>
+                                        <span><?php echo t('premium_current_plan'); ?></span>
+                                    </span>
+                                <?php else: ?>
+                                    <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" 
+                                       class="button is-primary is-fullwidth is-rounded has-text-weight-semibold"
+                                       style="transition: all 0.2s ease;">
+                                        <span class="icon">
+                                            <?php if ($currentPlan === 'free'): ?>
+                                                <i class="fas fa-plus-circle"></i>
+                                            <?php elseif ((int)$currentPlan < (int)$planKey): ?>
+                                                <i class="fas fa-arrow-up"></i>
+                                            <?php else: ?>
+                                                <i class="fas fa-arrow-down"></i>
+                                            <?php endif; ?>
+                                        </span>
+                                        <span>
+                                            <?php
+                                            if ($currentPlan === 'free') {
+                                                echo t('premium_subscribe');
+                                            } elseif ((int)$currentPlan < (int)$planKey) {
+                                                echo t('premium_upgrade');
+                                            } else {
+                                                echo t('premium_downgrade');
+                                            }
+                                            ?>
+                                        </span>
+                                    </a>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </footer>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>        
+        <!-- Special Beta Plan Card (if beta user) -->
+        <?php if ($betaAccess): ?>
+            <div class="column is-12">
+                <div class="card has-shadow is-shadowless-mobile" style="border-radius: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-top: 2rem;">
+                    <div class="card-content has-text-centered">
+                        <div class="icon is-large has-text-white mb-3">
+                            <i class="fas fa-flask fa-3x"></i>
+                        </div>
+                        <h3 class="title is-3 has-text-white has-text-weight-bold mb-2">
+                            <?php echo t('premium_beta_plan_name'); ?>
+                        </h3>
+                        <p class="subtitle is-4 has-text-white-ter mb-4">
+                            <?php echo t('premium_beta_plan_price'); ?>
+                        </p>
+                        
+                        <div class="columns is-variable is-3">
+                            <div class="column">
+                                <div class="box has-background-white-ter" style="border-radius: 8px;">
+                                    <ul class="is-size-6 has-text-dark" style="list-style: none; padding-left: 0;">
+                                        <li class="mb-2" title="<?php echo t('premium_beta_plan_feature_all_tip'); ?>">
+                                            <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                            <?php echo t('premium_beta_plan_feature_all'); ?>
+                                        </li>
+                                        <li class="mb-2" title="<?php echo t('premium_beta_plan_feature_storage_tip'); ?>">
+                                            <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                            <?php echo t('premium_beta_plan_feature_storage'); ?>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <span class="button is-light is-large is-rounded has-text-weight-bold" style="background: rgba(255,255,255,0.9); color: #667eea;">
+                            <span class="icon"><i class="fas fa-crown"></i></span>
+                            <span><?php echo t('premium_beta_plan_footer'); ?></span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
 </div>
 <?php
 $content = ob_get_clean();
