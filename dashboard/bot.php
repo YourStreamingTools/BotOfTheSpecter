@@ -318,10 +318,10 @@ ob_start();
           <?php echo $userOnlineStatus; ?>
           <div class="mt-3">
             <?php
-              if ($status === 'True') {
+              if ($finalStatus === 'True') {
                 echo '<button id="force-offline-btn" class="button is-warning is-medium is-fullwidth has-text-black has-text-weight-bold mt-2">'
                   . t('bot_force_offline') . '</button>';
-              } elseif ($status === 'False' || $status === null || $status === 'N/A') {
+              } elseif ($finalStatus === 'False' || $finalStatus === null || $finalStatus === 'N/A') {
                 echo '<button id="force-online-btn" class="button is-success is-medium is-fullwidth has-text-black has-text-weight-bold mt-2">'
                   . t('bot_force_online') . '</button>';
               }
