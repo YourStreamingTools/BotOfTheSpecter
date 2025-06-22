@@ -282,6 +282,8 @@ return [
     'timed_messages_no_remove' => 'Aucun message programmé à supprimer.',
     'timed_messages_message_id' => 'ID du message :',
     'timed_messages_char_limit_alert' => 'Le message dépasse la limite de 255 caractères',
+    'timed_messages_variables_title' => 'Variables personnalisées pour les messages programmés',
+    'timed_messages_var_game' => 'Affiche le jeu en cours.',
     // Edit Counters Page
     'edit_counters_title' => 'Modifier et gérer les compteurs',
     'edit_counters_edit_user_typos' => 'Modifier les fautes utilisateur',
