@@ -8,7 +8,7 @@ include '/var/www/config/twitch.php';
 
 // Always use SSH config and log reading function for log retrieval
 include_once "/var/www/config/ssh.php";
-function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
+function read_bot_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
     if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect($bots_ssh_host, 22);
@@ -67,6 +67,9 @@ function read_apache2_log_over_ssh($remote_path, $lines = 200, $startLine = null
     return ['linesTotal' => $linesTotal,'logContent' => $logContent];
 }
 
+function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
+    return;
+}
 // Helper function to highlight log dates in a string, add <br> at end of each line, and reverse order
 function highlight_log_dates($text) {
     $style = 'style="color: #e67e22; font-weight: bold;"';
@@ -151,7 +154,7 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     $logType = $_GET['admin_log_type'];
     $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
     $logPath = "/home/botofthespecter/logs/logs/$logType/$selectedUser.txt";
-    $result = read_log_over_ssh($logPath, 200, $since);
+    $result = read_bot_log_over_ssh($logPath, 200, $since);
     if (isset($result['error'])) {
         if ($result['error'] === 'not_found') { echo json_encode(['error' => 'not_found']); }
         else { echo json_encode(['error' => 'connection_failed']); }
@@ -170,14 +173,8 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
 
 // Function to read local log files directly
 function read_local_log($filePath, $lines = 200, $startLine = null) {
-    if (!file_exists($filePath)) {
-        return ['error' => 'not_found'];
-    }
-    
-    if (!is_readable($filePath)) {
-        return ['error' => 'permission_denied'];
-    }
-    
+    if (!file_exists($filePath)) { return ['error' => 'not_found']; }
+    if (!is_readable($filePath)) { return ['error' => 'permission_denied']; }
     // Count total lines
     $linesTotal = 0;
     $handle = fopen($filePath, 'r');
@@ -188,15 +185,8 @@ function read_local_log($filePath, $lines = 200, $startLine = null) {
         }
         fclose($handle);
     }
-    
-    if ($linesTotal === 0) {
-        return ['linesTotal' => 0, 'logContent' => '', 'empty' => true];
-    }
-    
-    if ($startLine === null) {
-        $startLine = max(0, $linesTotal - $lines);
-    }
-    
+    if ($linesTotal === 0) { return ['linesTotal' => 0, 'logContent' => '', 'empty' => true]; }
+    if ($startLine === null) { $startLine = max(0, $linesTotal - $lines); }
     // Read the specified lines
     $logLines = [];
     $handle = fopen($filePath, 'r');
@@ -214,7 +204,6 @@ function read_local_log($filePath, $lines = 200, $startLine = null) {
         }
         fclose($handle);
     }
-    
     return [
         'linesTotal' => $linesTotal,
         'logContent' => implode("\n", $logLines)
@@ -239,11 +228,12 @@ if (isset($_GET['admin_system_log_type'])) {
             $logPath = "/var/log/apache2/other_vhosts_access.log";
             $result = read_apache2_log_over_ssh($logPath, 200, $since);
             break;
-            
-        // Apache2 Access Logs        case 'beta.dashboard.botofthespecter.com_access':
+        // Apache2 Access Logs
+        case 'beta.dashboard.botofthespecter.com_access':
             $logPath = "/var/log/apache2/beta.dashboard.botofthespecter.com_access.log";
             $result = read_apache2_log_over_ssh($logPath, 200, $since);
-            break;        case 'botofthespecter.com_access':
+            break;
+        case 'botofthespecter.com_access':
             $logPath = "/var/log/apache2/botofthespecter.com_access.log";
             $result = read_apache2_log_over_ssh($logPath, 200, $since);
             break;
@@ -278,7 +268,8 @@ if (isset($_GET['admin_system_log_type'])) {
         case 'walkons.botofthespecter.com_access':
             $logPath = "/var/log/apache2/walkons.botofthespecter.com_access.log";
             $result = read_apache2_log_over_ssh($logPath, 200, $since);
-            break;        // Apache2 Error Logs
+            break;
+        // Apache2 Error Logs
         case 'beta.dashboard.botofthespecter.com_error':
             $logPath = "/var/log/apache2/beta.dashboard.botofthespecter.com_error.log";
             $result = read_apache2_log_over_ssh($logPath, 200, $since);
@@ -539,12 +530,9 @@ categorySelect.addEventListener('change', function() {
             '<option value="walkons.botofthespecter.com_error">Walkons Errors</option>' +
             '</optgroup>' +
             '<optgroup label="Other System Logs">' +
-            '<option value="application">Application Log</option>' +
-            '<option value="error">Error Log</option>' +
-            '<option value="access">Access Log</option>' +
-            '<option value="security">Security Log</option>' +
             '<option value="database">Database Log</option>' +
-            '<option value="performance">Performance Log</option>' +
+            '<option value="websocket">Websocket Log</option>' +
+            '<option value="api">API Log</option>' +
             '</optgroup>';
     } else {
         // No category selected - disable everything
@@ -559,7 +547,6 @@ categorySelect.addEventListener('change', function() {
 userSelect.addEventListener('change', function() {
     adminLogUser = this.value;
     resetLogContent();
-    
     if (adminLogCategory === 'user') {
         // For user logs, enable log type dropdown when user is selected
         typeSelect.disabled = !adminLogUser;
@@ -575,7 +562,8 @@ userSelect.addEventListener('change', function() {
             fetchSystemLog();
             reloadBtn.disabled = false;
             loadMoreBtn.disabled = false;
-        } else {            reloadBtn.disabled = true;
+        } else {
+            reloadBtn.disabled = true;
             loadMoreBtn.disabled = true;
         }
     }
