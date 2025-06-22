@@ -8422,7 +8422,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time):
         return last_notification_time, last_ad_time
 
 async def check_next_ad_after_completion(channel, ads_api_url, headers):
-    await asyncio.sleep(10)  # Wait 10 seconds after ad completion
+    await asyncio.sleep(300)  # Wait 5 minutes after ad completion
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
