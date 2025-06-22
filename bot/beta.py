@@ -6149,10 +6149,8 @@ async def update_timed_messages():
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             # Fetch all enabled messages
             await cursor.execute("""
-                SELECT id, interval_count, chat_line_trigger, chat_line_delay_mins, 
-                       message, message_type, status 
-                FROM timed_messages 
-                WHERE status = 'Enabled'
+                SELECT id, interval_count, message, status, chat_line_trigger
+                FROM timed_messages WHERE status = 'Enabled'
             """)
             current_messages = await cursor.fetchall()
             # Convert to dictionary for easy lookup
