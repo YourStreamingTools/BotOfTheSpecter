@@ -147,6 +147,21 @@ ob_start();
                         </span>
                     </header>
                     <div class="card-content">
+                        <!-- Variables Information Card -->
+                        <div class="columns is-desktop is-multiline is-centered mb-5">
+                            <div class="column is-fullwidth" style="max-width: 1200px;">
+                                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                                    <div class="card-content">
+                                        <h5 class="title is-6 mb-2"><span class="icon"><i class="fas fa-info-circle"></i></span> <?php echo t('timed_messages_variables_title') ?: 'Available Variables'; ?></h5>
+                                        <ul class="mb-0" style="list-style: disc inside;">
+                                            <li><code>(game)</code> – <?php echo t('timed_messages_var_game') ?: 'Displays the current game being played (NEW).'; ?></li>
+                                            <!-- Add more variables here as needed -->
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- End Variables Information Card -->
                         <div class="notification is-info mb-5">
                             <span class="icon"><i class="fas fa-info-circle"></i></span>
                             <?php echo t('timed_messages_info'); ?>
