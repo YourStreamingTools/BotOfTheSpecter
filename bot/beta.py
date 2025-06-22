@@ -2773,9 +2773,22 @@ class TwitchBot(commands.Bot):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
             headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
-            url = "https://api.spotify.com/v1/me/player/next"
+            device_url = "https://api.spotify.com/v1/me/player/devices"
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers) as response:
+                async with session.get(device_url, headers=headers) as response:
+                    if response.status != 200:
+                        active_devices = response.json()
+                        current_active_devices = active_devices.get("devices", [])
+                        if not current_active_devices:
+                            await ctx.send("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
+                            return
+                        for device in current_active_devices:
+                            current_device = device["is_active"] == True
+                            if current_device:
+                                device_id = device["id"]
+                                break
+                next_url = f"https://api.spotify.com/v1/me/player/next?device_id={device_id}"
+                async with session.post(next_url, headers=headers) as response:
                     if response.status == 204:
                         api_logger.info(f"Song skipped successfully by {ctx.message.author.name}")
                         await ctx.send("Song skipped successfully.")
