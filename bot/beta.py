@@ -6162,10 +6162,7 @@ async def update_timed_messages():
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             # Fetch all enabled messages
-            await cursor.execute("""
-                SELECT id, interval_count, message, status, chat_line_trigger
-                FROM timed_messages WHERE status = 'Enabled'
-            """)
+            await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger FROM timed_messages WHERE status = 'Enabled'")
             current_messages = await cursor.fetchall()
             # Convert to dictionary for easy lookup
             current_message_dict = {row["id"]: row for row in current_messages}
@@ -6315,7 +6312,10 @@ async def handle_chat_message(messageAuthor, messageContent=""):
                 chat_logger.info(f"Chat count with delay trigger reached for message ID: {message_id}, will send in {delay_mins} minutes")
 
 async def send_interval_message(message_id, message, interval_seconds):
-    global stream_online, scheduled_tasks
+    global stream_online, current_game, scheduled_tasks
+    switchs = ["(game)",]
+    if message and any(switch in message for switch in switchs):
+        message = message.replace("(game)", current_game or "Unknown Game")
     while stream_online:
         await asyncio.sleep(interval_seconds)
         if stream_online:
