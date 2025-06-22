@@ -731,9 +731,6 @@ class BotOfTheSpecter_WebsocketServer:
         # Check for Let's Encrypt certificates first
         letsencrypt_cert = f'/etc/letsencrypt/live/{domain}/fullchain.pem'
         letsencrypt_key = f'/etc/letsencrypt/live/{domain}/privkey.pem'
-        # Local certificate paths as fallback
-        local_cert = '/home/botofthespecter/ssl/fullchain.pem'
-        local_key = '/home/botofthespecter/ssl/privkey.pem'
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         # Try Let's Encrypt certificates first
         if os.path.exists(letsencrypt_cert) and os.path.exists(letsencrypt_key):
@@ -745,16 +742,6 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.warning(f"Failed to load Let's Encrypt certificates: {e}")
         else:
             self.logger.info("Let's Encrypt certificates not found, checking local certificates...")
-        # Fallback to local certificates
-        if os.path.exists(local_cert) and os.path.exists(local_key):
-            try:
-                ssl_context.load_cert_chain(certfile=local_cert, keyfile=local_key)
-                self.logger.info("✓ Using local SSL certificates")
-                return ssl_context
-            except Exception as e:
-                self.logger.error(f"Failed to load local certificates: {e}")
-        else:
-            self.logger.warning("Local SSL certificates not found")
         # No SSL certificates available
         self.logger.error("✗ No SSL certificates found. Server will not start with SSL.")
         return None
