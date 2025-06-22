@@ -20,7 +20,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
-$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt = $db->prepare("SELECT timezone FROM `profile`");
 $stmt->execute();
 $result = $stmt->get_result();
 $channelData = $result->fetch_assoc();
@@ -37,16 +37,13 @@ $logPath = "/home/botofthespecter/logs/logs";
 include_once "/var/www/config/ssh.php";
 
 // Helper function to read log file via SSH
-function read_log_file($file_path, $lines = 200, $startLine = null) {
+function read_log_file($file_path) {
   global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
   try {
-    // Use SSH connection manager for persistent connections
     $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-    // Check if file exists using escapeshellarg for safety
     $checkCommand = "test -f " . escapeshellarg($file_path) . " && echo '1' || echo '0'";
     $checkResult = SSHConnectionManager::executeCommand($connection, $checkCommand);
     if (trim($checkResult) !== '1') {
-      // Also check if directory exists for debugging
       $dirname = dirname($file_path);
       $dirCheckCommand = "test -d " . escapeshellarg($dirname) . " && echo '1' || echo '0'";
       $dirCheckResult = SSHConnectionManager::executeCommand($connection, $dirCheckCommand);
@@ -55,27 +52,14 @@ function read_log_file($file_path, $lines = 200, $startLine = null) {
       }
       return ['error' => "Log file not found: $file_path"];
     }
-    // Get total line count
-    $countCommand = "wc -l < " . escapeshellarg($file_path);
-    $lineCountResult = SSHConnectionManager::executeCommand($connection, $countCommand);
-    $linesTotal = intval(trim($lineCountResult));
-    if ($linesTotal === 0) {
-      return [
-        'linesTotal' => 0,
-        'logContent' => '',
-        'empty' => true
-      ];
-    }
-    // Calculate start line (using 0-based indexing like admin function)
-    if ($startLine === null) {
-      $startLine = max(0, $linesTotal - $lines);
-    }
-    // Use tail and head for efficient reading
-    $readCommand = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($file_path) . " | head -n $lines";
+    // Read the entire file
+    $readCommand = "cat " . escapeshellarg($file_path);
     $logContent = SSHConnectionManager::executeCommand($connection, $readCommand);
     if ($logContent === false) {
       return ['error' => 'Failed to read log file'];
     }
+    $lines = explode("\n", $logContent);
+    $linesTotal = count($lines);
     return [
       'linesTotal' => $linesTotal,
       'logContent' => $logContent
@@ -104,24 +88,36 @@ if (isset($_GET['log'])) {
   // Suppress warnings/notices for clean JSON output
   error_reporting(E_ERROR | E_PARSE);
   header('Content-Type: application/json');
+  // Prevent browser/proxy caching
+  header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+  header('Expires: 0');
+  header('Pragma: no-cache');
   $logType = $_GET['log'];
-  $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;  $currentUser = $_SESSION['username'] ?? '';
+  $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
+  $currentUser = $_SESSION['username'];
   $log = "$logPath/$logType/$currentUser.txt";
   // Read the log file via SSH
-  $result = read_log_file($log, 200, $since);
+  $result = read_log_file($log);
   if (isset($result['error'])) {
     echo json_encode(['error' => $result['error']]);
     exit();
   }
   $logContent = $result['logContent'];
   $linesTotal = $result['linesTotal'];
+  // Only send the last 200 lines, reversed, to the frontend
+  $lines = explode("\n", $logContent);
+  $lines = array_reverse($lines);
+  $last200 = array_slice($lines, 0, 200);
+  $last200 = array_reverse($last200); // Put back in correct order
+  $logContent = implode("\n", $last200);
   $logContent = highlight_log_dates($logContent);
   echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
   exit();
 }
 
 if (isset($_GET['logType'])) {
-  $logType = $_GET['logType'];  $currentUser = $_SESSION['username'] ?? '';
+  $logType = $_GET['logType'];
+  $currentUser = $_SESSION['username'];
   $log = "$logPath/$logType/$currentUser.txt";
   // Read the log file via SSH
   $result = read_log_file($log, 200);  if (isset($result['error'])) {
@@ -252,7 +248,8 @@ async function fetchLogData(logname, loadMore = false) {
     last_line = 0;
   }
   try {
-    const response = await fetch(`logs.php?log=${logname}&since=${last_line}`);
+    // Add cache-busting timestamp to URL
+    const response = await fetch(`logs.php?log=${logname}&since=${last_line}&_=${Date.now()}`);
     const json = await response.json();
       // Check for errors first
     if (json.error) {
@@ -281,7 +278,8 @@ async function fetchLogData(logname, loadMore = false) {
 async function autoUpdateLog() {
   if (autoRefresh && currentLogName !== '') {
     try {
-      const response = await fetch(`logs.php?log=${currentLogName}`);
+      // Add cache-busting timestamp to URL
+      const response = await fetch(`logs.php?log=${currentLogName}&_=${Date.now()}`);
       const json = await response.json();
       // Check for errors
       if (json.error) {
