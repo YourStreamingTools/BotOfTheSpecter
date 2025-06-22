@@ -256,7 +256,7 @@ return [
     'custom_commands_error_generic' => 'An error occurred. Please try again later.',
     // Timed Message Page
     'timed_messages_title' => 'Timed Messages',
-    'timed_messages_info' => 'Timed messages are sent automatically by the bot at set intervals and chat activity. You can add, edit, or remove timed messages below.',
+    'timed_messages_info' => 'Timed messages are sent automatically by the bot at set intervals and chat activity.<br>Users of Beta 5.4: This has been changed to automatically send timed messages from the bot in three stages:<br>1. Message sent after X interval<br>2. Message sent after C chat messages (line triggers)<br>3. Message sent after C chat messages on an X interval delay<br>All three work together to ensure that your chat never misses these timed messages.',
     'timed_messages_add_title' => 'Add a Timed Message',
     'timed_messages_edit_title' => 'Edit a Timed Message',
     'timed_messages_remove_title' => 'Remove a Timed Message',
@@ -283,7 +283,7 @@ return [
     'timed_messages_message_id' => 'Message ID:',
     'timed_messages_char_limit_alert' => 'Message exceeds 255 character limit',
     'timed_messages_variables_title' => 'Custom Variables for Timed Messages',
-    'timed_messages_var_game' => 'Displays the current game being played.',
+    'timed_messages_var_game' => 'Displays the current game being played on the channel.',
     // Edit Counters Page
     'edit_counters_title' => 'Edit and Manage Counters',
     'edit_counters_edit_user_typos' => 'Edit User Typos',
