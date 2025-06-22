@@ -8319,24 +8319,24 @@ async def remove_shoutout_user(username: str, delay: int):
 
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
-    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online
+    global CHANNEL_NAME, stream_online
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
-    headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
     last_notification_time = None
     last_ad_time = None
     while stream_online:
         try:
             last_notification_time, last_ad_time = await check_and_handle_ads(
-                channel, ads_api_url, headers, last_notification_time, last_ad_time
+                channel, last_notification_time, last_ad_time
             )
             await asyncio.sleep(60)  # Check every minute
         except Exception as e:
             api_logger.error(f"Error in handle_upcoming_ads loop: {e}")
             await asyncio.sleep(60)
 
-async def check_and_handle_ads(channel, ads_api_url, headers, last_notification_time, last_ad_time):
-    global stream_online
+async def check_and_handle_ads(channel, last_notification_time, last_ad_time):
+    global stream_online, CHANNEL_ID, CLIENT_ID, CHANNEL_AUTH
+    ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+    headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
     if not stream_online:
         return last_notification_time, last_ad_time
     try:
@@ -8352,16 +8352,16 @@ async def check_and_handle_ads(channel, ads_api_url, headers, last_notification_
                     return last_notification_time, last_ad_time
                 ad_info = ads_data[0]
                 next_ad_at = ad_info.get("next_ad_at")
-                duration = ad_info.get("duration")
-                preroll_free_time = ad_info.get("preroll_free_time", 0)
-                snooze_count = ad_info.get("snooze_count", 0)
+                duration = int(ad_info.get("duration"))
+                preroll_free_time = int(ad_info.get("preroll_free_time", 0))
+                snooze_count = int(ad_info.get("snooze_count", 0))
                 last_ad_at = ad_info.get("last_ad_at")
                 api_logger.debug(f"Ad info - next_ad_at: {next_ad_at}, duration: {duration}, preroll_free_time: {preroll_free_time}")
                 # Check if we have a scheduled ad
                 if next_ad_at:
                     try:
                         # Parse the next ad time
-                        next_ad_datetime = datetime.fromisoformat(next_ad_at.replace('Z', '+00:00'))
+                        next_ad_datetime = datetime.fromisoformat(next_ad_at)
                         current_time = datetime.now(pytz.UTC)
                         # Notify if ad is coming up in exactly 5 minutes and we haven't notified recently
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
