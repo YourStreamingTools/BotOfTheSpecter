@@ -1738,13 +1738,7 @@ class TwitchBot(commands.Bot):
                                     message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
                         await self.send_message_to_channel(message_to_send)
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
-                        asyncio.create_task(safe_walkon(messageAuthor))
-                        async def safe_walkon(user):
-                            try:
-                                await websocket_notice(event="WALKON", user=user)
-                                chat_logger.info(f"Sent WALKON notice for {user}")
-                            except Exception as e:
-                                chat_logger.error(f"Failed to send WALKON for {user}: {e}")
+                        asyncio.create_task(self.safe_walkon(messageAuthor))
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
@@ -1752,6 +1746,13 @@ class TwitchBot(commands.Bot):
             await self.user_points(messageAuthor, messageAuthorID)
             await self.user_grouping(messageAuthor, messageAuthorID)
             await handle_chat_message(messageAuthor, messageContent)
+
+    async def safe_walkon(self, user):
+        try:
+            await websocket_notice(event="WALKON", user=user)
+            chat_logger.info(f"Sent WALKON notice for {user}")
+        except Exception as e:
+            chat_logger.error(f"Failed to send WALKON for {user}: {e}")
 
     async def user_points(self, messageAuthor, messageAuthorID):
         sqldb = await get_mysql_connection()
