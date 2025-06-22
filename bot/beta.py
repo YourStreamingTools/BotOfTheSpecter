@@ -1365,6 +1365,8 @@ class TwitchBot(commands.Bot):
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
         sqldb = await get_mysql_connection()
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (message.author.name, message.content))
+            await sqldb.commit()
             channel = message.channel
             messageAuthor = ""
             messageAuthorID = ""

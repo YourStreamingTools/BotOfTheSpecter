@@ -430,6 +430,13 @@ try {
             CREATE TABLE IF NOT EXISTS stream_status (
                 status VARCHAR(255),
                 UNIQUE (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'chat_history' => "
+            CREATE TABLE IF NOT EXISTS chat_history (
+                author VARCHAR(255),
+                message TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (author)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)
