@@ -8361,7 +8361,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time):
                 if next_ad_at:
                     try:
                         # Parse the next ad time
-                        next_ad_datetime = datetime.fromisoformat(next_ad_at)
+                        next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), pytz.UTC)
                         current_time = datetime.now(pytz.UTC)
                         # Notify if ad is coming up in exactly 5 minutes and we haven't notified recently
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
@@ -8424,7 +8424,7 @@ async def check_next_ad_after_completion(channel, ads_api_url, headers):
                 if next_ad_at:
                     try:
                         # Parse the next ad time
-                        next_ad_datetime = datetime.fromisoformat(next_ad_at.replace('Z', '+00:00'))
+                        next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), pytz.UTC)
                         current_time = datetime.now(pytz.UTC)
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
                         api_logger.info(f"Next ad scheduled in {time_until_ad} seconds ({time_until_ad/60:.1f} minutes)")
