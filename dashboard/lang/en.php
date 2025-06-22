@@ -282,6 +282,8 @@ return [
     'timed_messages_no_remove' => 'No timed messages to remove.',
     'timed_messages_message_id' => 'Message ID:',
     'timed_messages_char_limit_alert' => 'Message exceeds 255 character limit',
+    'timed_messages_variables_title' => 'Custom Variables for Timed Messages',
+    'timed_messages_var_game' => 'Displays the current game being played.',
     // Edit Counters Page
     'edit_counters_title' => 'Edit and Manage Counters',
     'edit_counters_edit_user_typos' => 'Edit User Typos',
