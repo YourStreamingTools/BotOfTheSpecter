@@ -84,6 +84,24 @@ button.is-link {
     border-radius: 8px 8px 0 0;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    position: relative;
+}
+
+.header-left, .header-right {
+    flex: 0 0 auto;
+    min-width: 150px;
+    display: flex;
+    align-items: center;
+}
+
+.header-left {
+    justify-content: flex-start;
+}
+
+.header-right {
+    justify-content: flex-end;
 }
 
 .card-footer {
@@ -921,27 +939,47 @@ input[type="range"].modern-volume::-ms-tooltip {
 }
 
 .uptime-monitors-btn {
-    position: absolute;
-    left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
     z-index: 1;
 }
 
+.network-status-container {
+    text-align: right;
+}
+
 @media screen and (max-width: 768px) {
-    .uptime-monitors-btn {
-        position: relative;
-        left: 0;
-        top: 0;
-        transform: none;
-        margin: 0.75rem auto;
-        display: block;
-    }
     .card-header {
         flex-direction: column;
-        padding-bottom: 0.5rem;
+        padding: 0.75rem 0.5rem;
     }
-    .card-header-title.title.is-5.has-text-white.is-centered {
-        margin-top: 0;
+    .header-left, 
+    .header-right, 
+    .card-header-title {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+        margin: 0.5rem 0;
+    }
+    .header-left {
+        margin-top: 1rem;
+    }
+    .card-header-title {
+        order: 1;
+        padding: 0;
+    }
+    .header-right {
+        order: 2;
+    }
+    .header-left {
+        order: 3;
+    }
+    .network-status-container {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+    .network-status-container > div {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
     }
 }
