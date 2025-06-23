@@ -310,6 +310,14 @@ if (isset($_GET['admin_system_log_type'])) {
             $logPath = "/var/log/apache2/walkons.botofthespecter.com_error.log";
             $result = read_apache2_log_over_ssh($logPath, 200, $since);
             break;
+        case 'specterbot.app_error':
+            $logPath = "/var/log/apache2/specterbot.app_error.log";
+            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            break;
+        case 'specterbot.app_access':
+            $logPath = "/var/log/apache2/specterbot.app_access.log";
+            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            break;
         default:
             // Other system logs in custom directory (use SSH)
             $logPath = "/home/botofthespecter/logs/system/$logType.txt";
@@ -419,6 +427,8 @@ ob_start();
                                 <option value="tts.botofthespecter.com_error">TTS Error</option>
                                 <option value="videoalerts.botofthespecter.com_error">Video Alerts Error</option>
                                 <option value="walkons.botofthespecter.com_error">Walkons Error</option>
+                                <option value="specterbot.app_error">Specterbot App Error</option>
+                                <option value="specterbot.app_access">Specterbot App Access</option>
                             </optgroup>
                             <optgroup label="Custom System Logs">
                                 <option value="application">Application Log</option>
@@ -528,6 +538,8 @@ categorySelect.addEventListener('change', function() {
             '<option value="tts.botofthespecter.com_error">TTS Errors</option>' +
             '<option value="videoalerts.botofthespecter.com_error">Video Alerts Errors</option>' +
             '<option value="walkons.botofthespecter.com_error">Walkons Errors</option>' +
+            '<option value="specterbot.app_error">Specterbot App Error</option>' +
+            '<option value="specterbot.app_access">Specterbot App Access</option>' +
             '</optgroup>' +
             '<optgroup label="Other System Logs">' +
             '<option value="database">Database Log</option>' +
