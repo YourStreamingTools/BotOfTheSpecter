@@ -105,6 +105,11 @@ $serviceMap = [
         'name' => 'US-EAST-1 Streaming Service',
         'host' => 'us-east-1.botofthespecter.video',
         'port' => 1935
+    ],
+    'web1' => [
+        'name' => 'Web1 Service',
+        'host' => 'botofthespecter.com',
+        'port' => 443
     ]
 ];
 
