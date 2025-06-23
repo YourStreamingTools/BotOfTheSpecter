@@ -159,6 +159,7 @@ return [
     'bot_stop' => 'Stop Bot',
     'bot_run' => 'Run Bot',
     'bot_system_status' => 'System Status',
+    'bot_web_service' => 'Web Service',
     'bot_api_service' => 'API Service',
     'bot_database_service' => 'Database Service',
     'bot_notification_service' => 'Notification Service',
