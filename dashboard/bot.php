@@ -580,7 +580,7 @@ ob_start();
                   <i id="web1Service" class="fas fa-globe fa-2x beating has-text-success"></i>
                 </span>
               </div>
-              <h4 class="subtitle has-text-white mb-1">Web Service</h4>
+              <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_web_service'); ?></h4>
               <p id="web1-service-status" class="is-size-7 has-text-grey-light">
                 <?php echo t('bot_running_normally'); ?>
               </p>
