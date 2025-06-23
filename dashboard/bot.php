@@ -538,20 +538,26 @@ ob_start();
     </div>
     <!-- System Status Card -->
     <div class="card has-background-dark has-text-white">
-      <div class="card-header" style="position: relative;">
-        <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link has-text-weight-bold is-small" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); z-index: 1;">
-          <span class="icon"><i class="fas fa-chart-line"></i></span>
-          <span><?php echo t('bot_view_detailed_uptime'); ?></span>
-        </a>
+      <div class="card-header">
+        <!-- Left side: Uptime Monitors button -->
+        <div class="header-left">
+          <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link has-text-weight-bold is-small uptime-monitors-btn">
+            <span class="icon"><i class="fas fa-chart-line"></i></span>
+            <span><?php echo t('bot_view_detailed_uptime'); ?></span>
+          </a>
+        </div>
+        <!-- Center: Title -->
         <p class="card-header-title title is-5 has-text-white is-centered">
           <?php echo t('bot_system_status'); ?>
         </p>
+        <!-- Right side: Network Status -->
         <?php if ($isTechnical): ?>
-        <div style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); z-index: 1; text-align: right;">
-          <div style="font-family: monospace; font-size: 0.75rem;">
-            <div class="has-text-white-ter" style="font-weight: 600; margin-bottom: 2px;">
-              <span class="icon is-small"><i class="fas fa-network-wired"></i></span>
-              Network Status
+        <div class="header-right">
+          <div class="network-status-container">
+            <div class="network-status-inner" style="font-family: monospace; font-size: 0.75rem;">
+              <div class="has-text-white-ter" style="font-weight: 600; margin-bottom: 2px;">
+                <span class="icon is-small"><i class="fas fa-network-wired"></i></span>
+                Network Status
             </div>
             <div class="has-text-grey-light">
               <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
@@ -561,14 +567,44 @@ ob_start();
             </div>
           </div>
         </div>
+        <?php else: ?>
+        <div class="header-right header-placeholder"></div>
         <?php endif; ?>
       </div>
-      <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4">
-        <?php echo t('bot_generic_services'); ?>
-      </h4>
-      <div class="card-content">
+      <?php if ($isTechnical): ?>
+        <div class="notification is-info has-text-centered" style="width: 100%; margin: 0 auto;">
+          All latency and service status results below are measured from our Australian datacenter.
+        </div>
+      <?php endif; ?>
+      <div class="card-content pt-0">
+        <h4 class="title is-5 has-text-white has-text-centered mt-4 mb-4">
+          <?php echo t('bot_generic_services'); ?>
+        </h4>
         <!-- Service Health Meters -->
         <div class="columns is-multiline">
+          <div class="column is-4">
+            <div class="box has-background-darker has-text-centered p-4">
+              <div class="mb-3">
+                <span class="icon is-large">
+                  <i id="web1Service" class="fas fa-globe fa-2x beating has-text-success"></i>
+                </span>
+              </div>
+              <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_web_service'); ?></h4>
+              <p id="web1-service-status" class="is-size-7 has-text-grey-light">
+                <?php echo t('bot_running_normally'); ?>
+              </p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="web1-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="web1-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
+            </div>
+          </div>
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
@@ -1457,6 +1493,7 @@ document.addEventListener('DOMContentLoaded', function() {
       { id: 'notificationService',  api: 'websocket',             statusId: 'notif-service-status',   latencyId: 'notif-service-latency',   lastCheckId: 'notif-service-lastcheck' },
       { id: 'botsService',          api: 'bots',                  statusId: 'bots-service-status',    latencyId: 'bots-service-latency',    lastCheckId: 'bots-service-lastcheck' },
       { id: 'discordService',       api: 'discordbot',            statusId: 'discord-service-status', latencyId: 'discord-service-latency', lastCheckId: 'discord-service-lastcheck' },
+      { id: 'web1Service',          api: 'web1',                  statusId: 'web1-service-status',    latencyId: 'web1-service-latency',    lastCheckId: 'web1-service-lastcheck' },
       { id: 'auEast1Service',       api: 'streamingService',      statusId: 'auEast1-service-status', latencyId: 'auEast1-service-latency', lastCheckId: 'auEast1-service-lastcheck' },
       { id: 'usWest1Service',       api: 'streamingServiceWest',  statusId: 'usWest1-service-status', latencyId: 'usWest1-service-latency', lastCheckId: 'usWest1-service-lastcheck' },
       { id: 'usEast1Service',       api: 'streamingServiceEast',  statusId: 'usEast1-service-status', latencyId: 'usEast1-service-latency', lastCheckId: 'usEast1-service-lastcheck' }
