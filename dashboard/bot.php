@@ -573,14 +573,27 @@ ob_start();
       </h4>
       <div class="card-content">
         <!-- Service Health Meters -->
-        <div class="columns is-multiline">
-          <div class="column is-4">
+        <div class="columns is-multiline">          <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
-              <!-- Web1 Service -->
-              <span id="web1Service" class="icon"><i class="fas fa-globe"></i></span>
-              <div id="web1-service-status" class="is-size-7 has-text-success"><strong>Running</strong> (of course!)</div>
-              <div id="web1-service-latency" class="is-size-7 has-text-grey-light">You're literally viewing this page from here.</div>
-              <div id="web1-service-lastcheck" class="is-size-7 has-text-grey-light">This is the web server you're connected to right now.</div>
+              <div class="mb-3">
+                <span class="icon is-large">
+                  <i id="web1Service" class="fas fa-globe fa-2x beating has-text-success"></i>
+                </span>
+              </div>
+              <h4 class="subtitle has-text-white mb-1">Web Service</h4>
+              <p id="web1-service-status" class="is-size-7 has-text-grey-light">
+                <?php echo t('bot_running_normally'); ?>
+              </p>
+              <?php if ($isTechnical): ?>
+                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Latency:</span> <span id="web1-service-latency">--ms</span>
+                  </div>
+                  <div class="has-text-grey-light">
+                    <span class="has-text-grey">Last Check:</span> <span id="web1-service-lastcheck">--</span>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
           <div class="column is-4">
