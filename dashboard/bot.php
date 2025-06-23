@@ -567,6 +567,8 @@ ob_start();
             </div>
           </div>
         </div>
+        <?php else: ?>
+        <div class="header-right header-placeholder"></div>
         <?php endif; ?>
       </div>
       <?php if ($isTechnical): ?>
@@ -574,12 +576,13 @@ ob_start();
           All latency and service status results below are measured from our Australian datacenter.
         </div>
       <?php endif; ?>
-      <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4">
-        <?php echo t('bot_generic_services'); ?>
-      </h4>
-      <div class="card-content">
+      <div class="card-content pt-0">
+        <h4 class="title is-5 has-text-white has-text-centered mt-4 mb-4">
+          <?php echo t('bot_generic_services'); ?>
+        </h4>
         <!-- Service Health Meters -->
-        <div class="columns is-multiline">          <div class="column is-4">
+        <div class="columns is-multiline">
+          <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
                 <span class="icon is-large">

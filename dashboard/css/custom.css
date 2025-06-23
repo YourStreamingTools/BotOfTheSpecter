@@ -104,6 +104,10 @@ button.is-link {
     justify-content: flex-end;
 }
 
+.header-placeholder {
+    visibility: hidden;
+}
+
 .card-header-title {
     flex: 1;
     text-align: center;
