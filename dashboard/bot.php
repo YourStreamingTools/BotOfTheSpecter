@@ -539,7 +539,7 @@ ob_start();
     <!-- System Status Card -->
     <div class="card has-background-dark has-text-white">
       <div class="card-header" style="position: relative;">
-        <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link has-text-weight-bold is-small" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); z-index: 1;">
+        <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link has-text-weight-bold is-small uptime-monitors-btn">
           <span class="icon"><i class="fas fa-chart-line"></i></span>
           <span><?php echo t('bot_view_detailed_uptime'); ?></span>
         </a>

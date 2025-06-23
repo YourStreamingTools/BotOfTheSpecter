@@ -917,3 +917,25 @@ input[type="range"].modern-volume::-ms-tooltip {
         box-shadow: 0 2px 8px rgba(0,0,0,0.18);
     }
 }
+
+.uptime-monitors-btn {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+}
+
+@media screen and (max-width: 768px) {
+    .uptime-monitors-btn {
+        position: static;
+        margin: 0.5rem auto;
+        transform: none;
+        display: block;
+        width: fit-content;
+    }
+    
+    .card-header-title.title.is-5.has-text-white.is-centered {
+        margin-top: 2.5rem;
+    }
+}
