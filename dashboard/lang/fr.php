@@ -256,7 +256,7 @@ return [
     'custom_commands_error_generic' => 'Une erreur est survenue. Veuillez réessayer plus tard.',
     // Timed Message Page
     'timed_messages_title' => 'Messages programmés',
-    'timed_messages_info' => 'Les messages programmés sont envoyés automatiquement par le bot à des intervalles définis et selon l\'activité du chat. Vous pouvez ajouter, modifier ou supprimer des messages programmés ci-dessous.',
+    'timed_messages_info' => "Les messages programmés sont envoyés automatiquement par le bot à des intervalles définis et selon l'activité du chat.<br>Pour les utilisateurs de la Beta 5.4 : ceci a été modifié pour envoyer automatiquement les messages programmés du bot en trois étapes :<br>1. Message envoyé après X intervalle<br>2. Message envoyé après C messages de chat (déclencheurs de ligne)<br>3. Message envoyé après C messages de chat avec un délai d'intervalle X<br>Les trois méthodes fonctionnent ensemble pour garantir que votre chat ne manque jamais ces messages programmés.",
     'timed_messages_add_title' => 'Ajouter un message programmé',
     'timed_messages_edit_title' => 'Modifier un message programmé',
     'timed_messages_remove_title' => 'Supprimer un message programmé',
@@ -283,7 +283,7 @@ return [
     'timed_messages_message_id' => 'ID du message :',
     'timed_messages_char_limit_alert' => 'Le message dépasse la limite de 255 caractères',
     'timed_messages_variables_title' => 'Variables personnalisées pour les messages programmés',
-    'timed_messages_var_game' => 'Affiche le jeu en cours.',
+    'timed_messages_var_game' => 'Affiche le jeu actuellement joué sur la chaîne.',
     // Edit Counters Page
     'edit_counters_title' => 'Modifier et gérer les compteurs',
     'edit_counters_edit_user_typos' => 'Modifier les fautes utilisateur',
