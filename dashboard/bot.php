@@ -1471,6 +1471,7 @@ document.addEventListener('DOMContentLoaded', function() {
       { id: 'notificationService',  api: 'websocket',             statusId: 'notif-service-status',   latencyId: 'notif-service-latency',   lastCheckId: 'notif-service-lastcheck' },
       { id: 'botsService',          api: 'bots',                  statusId: 'bots-service-status',    latencyId: 'bots-service-latency',    lastCheckId: 'bots-service-lastcheck' },
       { id: 'discordService',       api: 'discordbot',            statusId: 'discord-service-status', latencyId: 'discord-service-latency', lastCheckId: 'discord-service-lastcheck' },
+      { id: 'web1Service',          api: 'web1',                  statusId: 'web1-service-status',    latencyId: 'web1-service-latency',    lastCheckId: 'web1-service-lastcheck' },
       { id: 'auEast1Service',       api: 'streamingService',      statusId: 'auEast1-service-status', latencyId: 'auEast1-service-latency', lastCheckId: 'auEast1-service-lastcheck' },
       { id: 'usWest1Service',       api: 'streamingServiceWest',  statusId: 'usWest1-service-status', latencyId: 'usWest1-service-latency', lastCheckId: 'usWest1-service-lastcheck' },
       { id: 'usEast1Service',       api: 'streamingServiceEast',  statusId: 'usEast1-service-status', latencyId: 'usEast1-service-latency', lastCheckId: 'usEast1-service-lastcheck' }
