@@ -554,7 +554,7 @@ ob_start();
         <?php if ($isTechnical): ?>
         <div class="header-right">
           <div class="network-status-container">
-            <div style="font-family: monospace; font-size: 0.75rem;">
+            <div class="network-status-inner" style="font-family: monospace; font-size: 0.75rem;">
               <div class="has-text-white-ter" style="font-weight: 600; margin-bottom: 2px;">
                 <span class="icon is-small"><i class="fas fa-network-wired"></i></span>
                 Network Status
