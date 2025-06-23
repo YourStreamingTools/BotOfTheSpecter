@@ -309,11 +309,6 @@ ob_start();
 <?php if($subscriptionWarning): ?>
   <?php echo $subscriptionWarning; ?>
 <?php endif; ?>
-<?php if ($isTechnical): ?>
-  <div class="notification is-info is-light is-size-7 mb-3">
-    <strong>Note:</strong> All latency and service status results below are measured from our Australian datacenter. Your actual latency may differ depending on your location.
-  </div>
-<?php endif; ?>
 <div class="columns is-variable is-6">
   <div class="column is-4">
     <div class="card has-background-dark has-text-white mb-4">
@@ -568,12 +563,26 @@ ob_start();
         </div>
         <?php endif; ?>
       </div>
+      <?php if ($isTechnical): ?>
+        <div class="notification has-text-centered is-info">
+          All latency and service status results below are measured from our Australian datacenter.
+        </div>
+      <?php endif; ?>
       <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4">
         <?php echo t('bot_generic_services'); ?>
       </h4>
       <div class="card-content">
         <!-- Service Health Meters -->
         <div class="columns is-multiline">
+          <div class="column is-4">
+            <div class="box has-background-darker has-text-centered p-4">
+              <!-- Web1 Service -->
+              <span id="web1Service" class="icon"><i class="fas fa-globe"></i></span>
+              <div id="web1-service-status" class="is-size-7 has-text-success"><strong>Running</strong> (of course!)</div>
+              <div id="web1-service-latency" class="is-size-7 has-text-grey-light">You're literally viewing this page from here.</div>
+              <div id="web1-service-lastcheck" class="is-size-7 has-text-grey-light">This is the web server you're connected to right now.</div>
+            </div>
+          </div>
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
