@@ -349,6 +349,58 @@ if (isset($_GET['admin_system_log_type'])) {
     exit();
 }
 
+// Define system log types in a single PHP array for both PHP and JS
+$systemLogTypes = [
+    [
+        'label' => 'Standard Apache2 Logs',
+        'options' => [
+            ['value' => 'apache2-access', 'label' => 'Apache2 Access Log (Combined)'],
+            ['value' => 'apache2-error', 'label' => 'Apache2 Error Log (Combined)'],
+            ['value' => 'other_vhosts_access', 'label' => 'Other Virtual Hosts Access'],
+        ]
+    ],
+    [
+        'label' => 'Apache2 Access Logs',
+        'options' => [
+            ['value' => 'beta.dashboard.botofthespecter.com_access', 'label' => 'Beta Dashboard Access'],
+            ['value' => 'botofthespecter.com_access', 'label' => 'Main Site Access'],
+            ['value' => 'cdn.botofthespecter.com_access', 'label' => 'CDN Access'],
+            ['value' => 'dashboard.botofthespecter.com_access', 'label' => 'Dashboard Access'],
+            ['value' => 'members.botofthespecter.com_access', 'label' => 'Members Access'],
+            ['value' => 'overlay.botofthespecter.com_access', 'label' => 'Overlay Access'],
+            ['value' => 'soundalerts.botofthespecter.com_access', 'label' => 'Sound Alerts Access'],
+            ['value' => 'tts.botofthespecter.com_access', 'label' => 'TTS Access'],
+            ['value' => 'videoalerts.botofthespecter.com_access', 'label' => 'Video Alerts Access'],
+            ['value' => 'walkons.botofthespecter.com_access', 'label' => 'Walkons Access'],
+            ['value' => 'specterbot.app_access', 'label' => 'Specterbot App Access'],
+        ]
+    ],
+    [
+        'label' => 'Apache2 Error Logs',
+        'options' => [
+            ['value' => 'beta.dashboard.botofthespecter.com_error', 'label' => 'Beta Dashboard Errors'],
+            ['value' => 'botofthespecter.com_error', 'label' => 'Main Site Errors'],
+            ['value' => 'cdn.botofthespecter.com_error', 'label' => 'CDN Errors'],
+            ['value' => 'dashboard.botofthespecter.com_error', 'label' => 'Dashboard Errors'],
+            ['value' => 'members.botofthespecter.com_error', 'label' => 'Members Errors'],
+            ['value' => 'overlay.botofthespecter.com_error', 'label' => 'Overlay Errors'],
+            ['value' => 'soundalerts.botofthespecter.com_error', 'label' => 'Sound Alerts Errors'],
+            ['value' => 'tts.botofthespecter.com_error', 'label' => 'TTS Errors'],
+            ['value' => 'videoalerts.botofthespecter.com_error', 'label' => 'Video Alerts Errors'],
+            ['value' => 'walkons.botofthespecter.com_error', 'label' => 'Walkons Errors'],
+            ['value' => 'specterbot.app_error', 'label' => 'Specterbot App Error'],
+        ]
+    ],
+    [
+        'label' => 'Other System Logs',
+        'options' => [
+            ['value' => 'database', 'label' => 'Database Log'],
+            ['value' => 'websocket', 'label' => 'Websocket Log'],
+            ['value' => 'api', 'label' => 'API Log'],
+        ]
+    ],
+];
+
 // Fetch all users for dropdown
 $users = [];
 $res = $conn->query("SELECT username FROM users ORDER BY username ASC");
@@ -399,45 +451,15 @@ ob_start();
                     <div class="select">
                         <select id="admin-system-log-type-select" disabled>
                             <option value="">Select System Log Type</option>
-                            <optgroup label="Standard Apache2 Logs">
-                                <option value="apache2-access">Apache2 Access Log</option>
-                                <option value="apache2-error">Apache2 Error Log</option>
-                                <option value="other_vhosts_access">Other VHosts Access Log</option>
-                            </optgroup>
-                            <optgroup label="Virtual Host Access Logs">
-                                <option value="beta.dashboard.botofthespecter.com_access">Beta Dashboard Access</option>
-                                <option value="botofthespecter.com_access">Main Site Access</option>
-                                <option value="cdn.botofthespecter.com_access">CDN Access</option>
-                                <option value="dashboard.botofthespecter.com_access">Dashboard Access</option>
-                                <option value="members.botofthespecter.com_access">Members Access</option>
-                                <option value="overlay.botofthespecter.com_access">Overlay Access</option>
-                                <option value="soundalerts.botofthespecter.com_access">Sound Alerts Access</option>
-                                <option value="tts.botofthespecter.com_access">TTS Access</option>
-                                <option value="videoalerts.botofthespecter.com_access">Video Alerts Access</option>
-                                <option value="walkons.botofthespecter.com_access">Walkons Access</option>
-                            </optgroup>
-                            <optgroup label="Virtual Host Error Logs">
-                                <option value="beta.dashboard.botofthespecter.com_error">Beta Dashboard Error</option>
-                                <option value="botofthespecter.com_error">Main Site Error</option>
-                                <option value="cdn.botofthespecter.com_error">CDN Error</option>
-                                <option value="dashboard.botofthespecter.com_error">Dashboard Error</option>
-                                <option value="members.botofthespecter.com_error">Members Error</option>
-                                <option value="overlay.botofthespecter.com_error">Overlay Error</option>
-                                <option value="soundalerts.botofthespecter.com_error">Sound Alerts Error</option>
-                                <option value="tts.botofthespecter.com_error">TTS Error</option>
-                                <option value="videoalerts.botofthespecter.com_error">Video Alerts Error</option>
-                                <option value="walkons.botofthespecter.com_error">Walkons Error</option>
-                                <option value="specterbot.app_error">Specterbot App Error</option>
-                                <option value="specterbot.app_access">Specterbot App Access</option>
-                            </optgroup>
-                            <optgroup label="Custom System Logs">
-                                <option value="application">Application Log</option>
-                                <option value="error">Error Log</option>
-                                <option value="access">Access Log</option>
-                                <option value="security">Security Log</option>
-                                <option value="database">Database Log</option>
-                                <option value="performance">Performance Log</option>
-                            </optgroup>
+                            <?php
+                            foreach ($systemLogTypes as $group) {
+                                echo '<optgroup label="' . htmlspecialchars($group['label']) . '">';
+                                foreach ($group['options'] as $opt) {
+                                    echo '<option value="' . htmlspecialchars($opt['value']) . '">' . htmlspecialchars($opt['label']) . '</option>';
+                                }
+                                echo '</optgroup>';
+                            }
+                            ?>
                         </select>
                     </div>
                 </div>
@@ -461,115 +483,77 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-let adminLogLastLine = 0;
-let adminLogUser = '';
-let adminLogType = '';
-let adminLogCategory = '';
-const categorySelect = document.getElementById('admin-log-category-select');
-const userSelect = document.getElementById('admin-log-user-select');
-const userLogTypeControl = document.getElementById('user-log-type-control');
-const typeSelect = document.getElementById('admin-log-type-select');
-const systemLogTypeControl = document.getElementById('system-log-type-control');
-const systemTypeSelect = document.getElementById('admin-system-log-type-select');
-const reloadBtn = document.getElementById('admin-log-reload');
-const loadMoreBtn = document.getElementById('admin-log-load-more');
-const logTextarea = document.getElementById('admin-log-textarea');
-
-// Handle category selection (User or System logs)
-categorySelect.addEventListener('change', function() {
-    adminLogCategory = this.value;
-    console.log('Category selected:', adminLogCategory);
-    console.log('User select element:', userSelect);
-    console.log('User select disabled before:', userSelect.disabled);
-    
-    resetLogContent(); // Only reset content, not the interface state
-    adminLogUser = '';
-    adminLogType = '';
-    userSelect.value = '';
-    typeSelect.value = '';
-    typeSelect.disabled = true;
-    reloadBtn.disabled = true;
-    loadMoreBtn.disabled = true;
-      if (adminLogCategory === 'user') {
-        // Enable user dropdown and show user log types
-        console.log('Setting user select disabled to false');
-        userSelect.disabled = false;
-        console.log('User select disabled after:', userSelect.disabled);
-        userLogTypeControl.style.display = 'block';
-        systemLogTypeControl.style.display = 'none';
-        // Reset user dropdown to show users
-        userSelect.innerHTML = '<option value="">Choose a User</option>';
-        <?php foreach ($users as $u): ?>
-        userSelect.innerHTML += '<option value="<?php echo htmlspecialchars($u); ?>"><?php echo htmlspecialchars($u); ?></option>';
-        <?php endforeach; ?>
-        console.log('User dropdown innerHTML updated');
-    } else if (adminLogCategory === 'system') {
-        // For system logs, use the user dropdown to select system log type directly
-        userSelect.disabled = false;
-        userLogTypeControl.style.display = 'none';
-        systemLogTypeControl.style.display = 'none';
-        // Change user dropdown to show system log types
-        userSelect.innerHTML = '<option value="">Choose System Log Type</option>' +
-            '<optgroup label="Standard Apache2 Logs">' +
-            '<option value="apache2-access">Apache2 Access Log (Combined)</option>' +
-            '<option value="apache2-error">Apache2 Error Log (Combined)</option>' +
-            '<option value="other_vhosts_access">Other Virtual Hosts Access</option>' +
-            '</optgroup>' +
-            '<optgroup label="Apache2 Access Logs">' +
-            '<option value="beta.dashboard.botofthespecter.com_access">Beta Dashboard Access</option>' +
-            '<option value="botofthespecter.com_access">Main Site Access</option>' +
-            '<option value="cdn.botofthespecter.com_access">CDN Access</option>' +
-            '<option value="dashboard.botofthespecter.com_access">Dashboard Access</option>' +
-            '<option value="members.botofthespecter.com_access">Members Access</option>' +
-            '<option value="overlay.botofthespecter.com_access">Overlay Access</option>' +
-            '<option value="soundalerts.botofthespecter.com_access">Sound Alerts Access</option>' +
-            '<option value="tts.botofthespecter.com_access">TTS Access</option>' +
-            '<option value="videoalerts.botofthespecter.com_access">Video Alerts Access</option>' +
-            '<option value="walkons.botofthespecter.com_access">Walkons Access</option>' +
-            '</optgroup>' +
-            '<optgroup label="Apache2 Error Logs">' +
-            '<option value="beta.dashboard.botofthespecter.com_error">Beta Dashboard Errors</option>' +
-            '<option value="botofthespecter.com_error">Main Site Errors</option>' +
-            '<option value="cdn.botofthespecter.com_error">CDN Errors</option>' +
-            '<option value="dashboard.botofthespecter.com_error">Dashboard Errors</option>' +
-            '<option value="members.botofthespecter.com_error">Members Errors</option>' +
-            '<option value="overlay.botofthespecter.com_error">Overlay Errors</option>' +
-            '<option value="soundalerts.botofthespecter.com_error">Sound Alerts Errors</option>' +
-            '<option value="tts.botofthespecter.com_error">TTS Errors</option>' +
-            '<option value="videoalerts.botofthespecter.com_error">Video Alerts Errors</option>' +
-            '<option value="walkons.botofthespecter.com_error">Walkons Errors</option>' +
-            '<option value="specterbot.app_error">Specterbot App Error</option>' +
-            '<option value="specterbot.app_access">Specterbot App Access</option>' +
-            '</optgroup>' +
-            '<optgroup label="Other System Logs">' +
-            '<option value="database">Database Log</option>' +
-            '<option value="websocket">Websocket Log</option>' +
-            '<option value="api">API Log</option>' +
-            '</optgroup>';
-    } else {
-        // No category selected - disable everything
-        userSelect.disabled = true;
-        userLogTypeControl.style.display = 'none';
-        systemLogTypeControl.style.display = 'none';
-        userSelect.innerHTML = '<option value="">Select Log Category First</option>';
-    }
-});
-
-// Handle user/system selection based on category
-userSelect.addEventListener('change', function() {
-    adminLogUser = this.value;
-    resetLogContent();
-    if (adminLogCategory === 'user') {
-        // For user logs, enable log type dropdown when user is selected
-        typeSelect.disabled = !adminLogUser;
-        if (!adminLogUser) {
-            typeSelect.value = '';
-            reloadBtn.disabled = true;
-            loadMoreBtn.disabled = true;
+document.addEventListener('DOMContentLoaded', function() {
+    const userSelect = document.getElementById('admin-log-user-select');
+    const userSelectControl = userSelect.closest('.control');
+    const userLogTypeControl = document.getElementById('user-log-type-control');
+    const typeSelect = document.getElementById('admin-log-type-select');
+    const systemLogTypeControl = document.getElementById('system-log-type-control');
+    const systemTypeSelect = document.getElementById('admin-system-log-type-select');
+    const reloadBtn = document.getElementById('admin-log-reload');
+    const loadMoreBtn = document.getElementById('admin-log-load-more');
+    const logTextarea = document.getElementById('admin-log-textarea');
+    const categorySelect = document.getElementById('admin-log-category-select');
+    const systemLogTypes = <?php echo json_encode($systemLogTypes); ?>;
+    categorySelect.addEventListener('change', function() {
+        adminLogCategory = this.value;
+        resetLogContent();
+        adminLogUser = '';
+        adminLogType = '';
+        userSelect.value = '';
+        typeSelect.value = '';
+        typeSelect.disabled = true;
+        reloadBtn.disabled = true;
+        loadMoreBtn.disabled = true;
+        if (adminLogCategory === 'user') {
+            userSelectControl.style.display = '';
+            userSelect.disabled = false;
+            userLogTypeControl.style.display = 'block';
+            systemLogTypeControl.style.display = 'none';
+            systemTypeSelect.disabled = true;
+            userSelect.innerHTML = '<option value="">Choose a User</option>';
+            <?php foreach ($users as $u): ?>
+            userSelect.innerHTML += '<option value="<?php echo htmlspecialchars($u); ?>"><?php echo htmlspecialchars($u); ?></option>';
+            <?php endforeach; ?>
+        } else if (adminLogCategory === 'system') {
+            userSelectControl.style.display = 'none';
+            userLogTypeControl.style.display = 'none';
+            systemLogTypeControl.style.display = 'block';
+            systemTypeSelect.disabled = false;
+            let html = '<option value="">Select System Log Type</option>';
+            for (const group of systemLogTypes) {
+                html += `<optgroup label="${group.label}">`;
+                for (const opt of group.options) {
+                    html += `<option value="${opt.value}">${opt.label}</option>`;
+                }
+                html += '</optgroup>';
+            }
+            systemTypeSelect.innerHTML = html;
+        } else {
+            userSelectControl.style.display = '';
+            userSelect.disabled = true;
+            userLogTypeControl.style.display = 'none';
+            systemLogTypeControl.style.display = 'none';
+            userSelect.innerHTML = '<option value="">Select Log Category First</option>';
+            systemTypeSelect.innerHTML = '<option value="">Select Log Category First</option>';
+            systemTypeSelect.disabled = true;
         }
-    } else if (adminLogCategory === 'system') {
-        // For system logs, treat the user dropdown selection as the log type
+    });
+    userSelect.addEventListener('change', function() {
+        adminLogUser = this.value;
+        resetLogContent();
+        if (adminLogCategory === 'user') {
+            typeSelect.disabled = !adminLogUser;
+            if (!adminLogUser) {
+                typeSelect.value = '';
+                reloadBtn.disabled = true;
+                loadMoreBtn.disabled = true;
+            }
+        }
+    });
+    systemTypeSelect.addEventListener('change', function() {
         adminLogType = this.value;
+        resetLogContent();
         if (adminLogType) {
             fetchSystemLog();
             reloadBtn.disabled = false;
@@ -578,121 +562,104 @@ userSelect.addEventListener('change', function() {
             reloadBtn.disabled = true;
             loadMoreBtn.disabled = true;
         }
-    }
-});
-
-// When user log type is chosen, fetch log
-typeSelect.addEventListener('change', function() {
-    adminLogType = this.value;
-    if (adminLogUser && adminLogType) {
-        fetchAdminLog();
-        reloadBtn.disabled = false;
-        loadMoreBtn.disabled = false;
-    } else {
-        resetLogContent();
-        reloadBtn.disabled = true;
-        loadMoreBtn.disabled = true;
-    }
-});
-
-reloadBtn.addEventListener('click', function() {
-    if (adminLogCategory === 'user') {
-        fetchAdminLog();
-    } else if (adminLogCategory === 'system') {
-        fetchSystemLog();
-    }
-});
-
-loadMoreBtn.addEventListener('click', function() {
-    if (adminLogCategory === 'user') {
-        fetchAdminLog(true);
-    } else if (adminLogCategory === 'system') {
-        fetchSystemLog(true);
-    }
-});
-
-function resetLogInterface() {
-    resetLogContent();
-    adminLogUser = '';
-    adminLogType = '';
-    userSelect.value = '';
-    typeSelect.value = '';
-    typeSelect.disabled = true;
-    reloadBtn.disabled = true;
-    loadMoreBtn.disabled = true;
-}
-
-function resetLogContent() {
-    logTextarea.innerHTML = '';
-    adminLogLastLine = 0;
-}
-
-async function fetchAdminLog(loadMore = false) {
-    if (!adminLogUser || !adminLogType) return;
-    if (loadMore && adminLogLastLine <= 0) return;
-    let since = loadMore ? Math.max(0, adminLogLastLine - 200) : 0;
-    try {
-        const resp = await fetch(`admin_logs.php?admin_log_user=${encodeURIComponent(adminLogUser)}&admin_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
-        const json = await resp.json();
-        if (json.error) {
-            if (json.error === "not_found") {
-                logTextarea.innerHTML = "Log file not found.";
-            } else if (json.error === "connection_failed") {
-                logTextarea.innerHTML = "Unable to connect to the logging system.";
-            } else {
-                logTextarea.innerHTML = "An unknown error occurred.";
-            }
-            return;
-        }
-        adminLogLastLine = json.last_line;
-        if (json.empty) {
-            logTextarea.innerHTML = "(log file is empty)";
-        } else if (!json.data || json.data.trim() === "") {
-            logTextarea.innerHTML = "(log is empty or not found)";
-        } else if (loadMore) {
-            logTextarea.innerHTML = json.data + logTextarea.innerHTML;
+    });
+    typeSelect.addEventListener('change', function() {
+        adminLogType = this.value;
+        if (adminLogUser && adminLogType) {
+            fetchAdminLog();
+            reloadBtn.disabled = false;
+            loadMoreBtn.disabled = false;
         } else {
-            logTextarea.innerHTML = json.data;
+            resetLogContent();
+            reloadBtn.disabled = true;
+            loadMoreBtn.disabled = true;
         }
-    } catch (e) {
-        logTextarea.innerHTML = "Unable to connect to the logging system.";
-        console.error(e);
+    });
+    reloadBtn.addEventListener('click', function() {
+        if (adminLogCategory === 'user') {
+            fetchAdminLog();
+        } else if (adminLogCategory === 'system') {
+            fetchSystemLog();
+        }
+    });
+    loadMoreBtn.addEventListener('click', function() {
+        if (adminLogCategory === 'user') {
+            fetchAdminLog(true);
+        } else if (adminLogCategory === 'system') {
+            fetchSystemLog(true);
+        }
+    });
+    function resetLogContent() {
+        logTextarea.innerHTML = '';
+        adminLogLastLine = 0;
     }
-}
-
-async function fetchSystemLog(loadMore = false) {
-    if (!adminLogType) return;
-    if (loadMore && adminLogLastLine <= 0) return;
-    let since = loadMore ? Math.max(0, adminLogLastLine - 200) : 0;
-    try {
-        const resp = await fetch(`admin_logs.php?admin_system_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
-        const json = await resp.json();        if (json.error) {
-            if (json.error === "not_found") {
-                logTextarea.innerHTML = "System log file not found.";
-            } else if (json.error === "permission_denied") {
-                logTextarea.innerHTML = "Permission denied: Unable to read the log file. Please check file permissions.";
-            } else if (json.error === "connection_failed") {
-                logTextarea.innerHTML = "Unable to connect to the logging system.";
-            } else {
-                logTextarea.innerHTML = "An unknown error occurred.";
+    async function fetchAdminLog(loadMore = false) {
+        if (!adminLogUser || !adminLogType) return;
+        if (loadMore && adminLogLastLine <= 0) return;
+        let since = loadMore ? Math.max(0, adminLogLastLine - 200) : 0;
+        try {
+            const resp = await fetch(`admin_logs.php?admin_log_user=${encodeURIComponent(adminLogUser)}&admin_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
+            const json = await resp.json();
+            if (json.error) {
+                if (json.error === "not_found") {
+                    logTextarea.innerHTML = "Log file not found.";
+                } else if (json.error === "connection_failed") {
+                    logTextarea.innerHTML = "Unable to connect to the logging system.";
+                } else {
+                    logTextarea.innerHTML = "An unknown error occurred.";
+                }
+                return;
             }
-            return;
+            adminLogLastLine = json.last_line;
+            if (json.empty) {
+                logTextarea.innerHTML = "(log file is empty)";
+            } else if (!json.data || json.data.trim() === "") {
+                logTextarea.innerHTML = "(log is empty or not found)";
+            } else if (loadMore) {
+                logTextarea.innerHTML = json.data + logTextarea.innerHTML;
+            } else {
+                logTextarea.innerHTML = json.data;
+            }
+        } catch (e) {
+            logTextarea.innerHTML = "Unable to connect to the logging system.";
+            console.error(e);
         }
-        adminLogLastLine = json.last_line;
-        if (json.empty) {
-            logTextarea.innerHTML = "(system log file is empty)";
-        } else if (!json.data || json.data.trim() === "") {
-            logTextarea.innerHTML = "(system log is empty or not found)";
-        } else if (loadMore) {
-            logTextarea.innerHTML = json.data + logTextarea.innerHTML;
-        } else {
-            logTextarea.innerHTML = json.data;
-        }
-    } catch (e) {
-        logTextarea.innerHTML = "Unable to connect to the logging system.";
-        console.error(e);
     }
-}
+    async function fetchSystemLog(loadMore = false) {
+        if (!adminLogType) return;
+        if (loadMore && adminLogLastLine <= 0) return;
+        let since = loadMore ? Math.max(0, adminLogLastLine - 200) : 0;
+        try {
+            const resp = await fetch(`admin_logs.php?admin_system_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
+            const json = await resp.json();
+            if (json.error) {
+                if (json.error === "not_found") {
+                    logTextarea.innerHTML = "System log file not found.";
+                } else if (json.error === "permission_denied") {
+                    logTextarea.innerHTML = "Permission denied: Unable to read the log file. Please check file permissions.";
+                } else if (json.error === "connection_failed") {
+                    logTextarea.innerHTML = "Unable to connect to the logging system.";
+                } else {
+                    logTextarea.innerHTML = "An unknown error occurred.";
+                }
+                return;
+            }
+            adminLogLastLine = json.last_line;
+            if (json.empty) {
+                logTextarea.innerHTML = "(system log file is empty)";
+            } else if (!json.data || json.data.trim() === "") {
+                logTextarea.innerHTML = "(system log is empty or not found)";
+            } else if (loadMore) {
+                logTextarea.innerHTML = json.data + logTextarea.innerHTML;
+            } else {
+                logTextarea.innerHTML = json.data;
+            }
+        } catch (e) {
+            logTextarea.innerHTML = "Unable to connect to the logging system.";
+            console.error(e);
+        }
+    }
+});
 </script>
 <?php
 $scripts = ob_get_clean();
