@@ -572,7 +572,7 @@ ob_start();
         <?php endif; ?>
       </div>
       <?php if ($isTechnical): ?>
-        <div class="notification has-text-centered is-info">
+        <div class="notification is-info has-text-centered" style="width: 100%; margin: 0 auto;">
           All latency and service status results below are measured from our Australian datacenter.
         </div>
       <?php endif; ?>
