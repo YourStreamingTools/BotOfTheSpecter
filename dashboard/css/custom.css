@@ -82,6 +82,8 @@ button.is-link {
     padding: 0.75rem;
     border-bottom: 1px solid #333;
     border-radius: 8px 8px 0 0;
+    display: flex;
+    align-items: center;
 }
 
 .card-footer {
@@ -928,14 +930,18 @@ input[type="range"].modern-volume::-ms-tooltip {
 
 @media screen and (max-width: 768px) {
     .uptime-monitors-btn {
-        position: static;
-        margin: 0.5rem auto;
+        position: relative;
+        left: 0;
+        top: 0;
         transform: none;
+        margin: 0.75rem auto;
         display: block;
-        width: fit-content;
     }
-    
+    .card-header {
+        flex-direction: column;
+        padding-bottom: 0.5rem;
+    }
     .card-header-title.title.is-5.has-text-white.is-centered {
-        margin-top: 2.5rem;
+        margin-top: 0;
     }
 }
