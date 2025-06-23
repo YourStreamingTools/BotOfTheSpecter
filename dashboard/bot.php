@@ -309,6 +309,11 @@ ob_start();
 <?php if($subscriptionWarning): ?>
   <?php echo $subscriptionWarning; ?>
 <?php endif; ?>
+<?php if ($isTechnical): ?>
+  <div class="notification is-info is-light is-size-7 mb-3">
+    <strong>Note:</strong> All latency and service status results below are measured from our Australian datacenter. Your actual latency may differ depending on your location.
+  </div>
+<?php endif; ?>
 <div class="columns is-variable is-6">
   <div class="column is-4">
     <div class="card has-background-dark has-text-white mb-4">
