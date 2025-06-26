@@ -36,6 +36,9 @@ $broadcasterID = $twitchUserId;
 $authToken = $access_token;
 
 $_SESSION['user_id'] = $user_id;
+$_SESSION['username'] = $username;
 $_SESSION['twitchUserId'] = $twitchUserId;
+$_SESSION['api_key'] = $api_key;
+$_SESSION['refresh_token'] = $refreshToken;
 $_SESSION['user_data'] = $user;
 ?>
