@@ -15,13 +15,11 @@ if (!isset($_SESSION['access_token'])) {
 $pageTitle = t('bot_management_title');
 $statusOutput = '';
 $betaStatusOutput = '';
-// $discordStatusOutput = '';
-// $pid = '';
-// $versionRunning = '';
-// $betaVersionRunning = '';
-// $discordVersionRunning = '';
-// $BotIsMod = false;
-// $BotModMessage = "";
+$pid = '';
+$versionRunning = '';
+$betaVersionRunning = '';
+$BotIsMod = false;
+$BotModMessage = "";
 $setupMessage = "";
 $showButtons = false;
 $lastModifiedOutput = '';
@@ -41,12 +39,11 @@ else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_CO
   $selectedBot = $_COOKIE['selectedBot'];
 }
 else { $selectedBot = 'stable'; }
-if (!in_array($selectedBot, ['stable', 'beta', 'discord'])) { $selectedBot = 'stable'; }
+if (!in_array($selectedBot, ['stable', 'beta'])) { $selectedBot = 'stable'; }
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include '/var/www/config/discord.php';
 include '/var/www/config/ssh.php';
 include 'userdata.php';
 include 'bot_control.php';
@@ -95,68 +92,6 @@ function checkSSHFileStatus($username) {
         error_log("SSH status check failed for user {$username}: " . $e->getMessage());
         return null;
     }
-}
-
-// Check if Discord is properly setup for this user with valid tokens
-$hasDiscordSetup = false;
-$discordNeedsRelink = false;
-// Override for bot user "botofthespecter" - allow old system
-if (isset($username) && $username === 'botofthespecter') {
-  // For the bot user, use the old simple existence check
-  $discordSetupStmt = $conn->prepare("SELECT 1 FROM discord_users WHERE user_id = ? LIMIT 1");
-  $discordSetupStmt->bind_param("i", $user_id);
-  $discordSetupStmt->execute();
-  $discordSetupStmt->store_result();
-  if ($discordSetupStmt->num_rows > 0) {
-    $hasDiscordSetup = true;
-  }
-  $discordSetupStmt->close();
-} else {
-  // For all other users, use the new robust token validation
-  $discordSetupStmt = $conn->prepare("SELECT access_token, refresh_token, expires_in FROM discord_users WHERE user_id = ? LIMIT 1");
-  $discordSetupStmt->bind_param("i", $user_id);
-  $discordSetupStmt->execute();
-  $discordSetupResult = $discordSetupStmt->get_result();
-  if ($discordSetupResult->num_rows > 0) {
-    $discordData = $discordSetupResult->fetch_assoc();
-    // Check if we have ALL required token data: access_token, refresh_token, and expires_in
-    if (!empty($discordData['access_token']) && 
-        !empty($discordData['refresh_token']) && 
-        !empty($discordData['expires_in'])) {
-      // Validate token using /oauth2/@me endpoint
-      $auth_url = 'https://discord.com/api/oauth2/@me';
-      $token = $discordData['access_token'];
-      $auth_options = array(
-        'http' => array(
-          'header' => "Authorization: Bearer $token\r\n",
-          'method' => 'GET'
-        )
-      );
-      $auth_context = stream_context_create($auth_options);
-      $auth_response = @file_get_contents($auth_url, false, $auth_context);
-      if ($auth_response !== false) {
-        $auth_data = json_decode($auth_response, true);
-        if (isset($auth_data['user'])) {
-          // Token is valid, Discord is properly set up
-          $hasDiscordSetup = true;
-        } else {
-          // Token is invalid, needs relink
-          $discordNeedsRelink = true;
-        }
-      } else {
-        // API call failed, token might be invalid, needs relink
-        $discordNeedsRelink = true;
-      }
-    } else {
-      // Missing required token data, needs relink
-      $discordNeedsRelink = true;
-    }
-  } else {
-    // No Discord record exists, user has never linked
-    $discordNeedsRelink = false; // This is a new user, not a relink case
-  }
-  $discordSetupResult->close();
-  $discordSetupStmt->close();
 }
 
 // Check Beta Access
@@ -278,25 +213,12 @@ if ($selectedBot === 'stable') {
   if ($betaBotSystemStatus) {
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
   }
-} elseif ($selectedBot === 'discord') {
-  // Use global version file and service for Discord bot
-  $discordVersionFilePath = '/var/www/logs/version/discord_version_control.txt';
-  $discordVersionRunning = file_exists($discordVersionFilePath) ? trim(file_get_contents($discordVersionFilePath)) : '';
-  // Status check (assume status script uses global service)
-  $discordStatusOutput = getBotsStatus($statusScriptPath, '', 'discord');
-  $discordBotSystemStatus = strpos($discordStatusOutput, 'PID') !== false;
-  // if ($discordBotSystemStatus) {
-  //   $discordRunning = "<div class='status-message'>Discord bot is running.</div>";
-  // } else {
-  //   $discordRunning = "<div class='status-message error'>Discord bot is not running.</div>";
-  // }
 }
 
 // Get last modified time of the bot script files using SSH
 require_once 'bot_control_functions.php';
 $stableBotScriptPath = "/home/botofthespecter/bot.py";
 $betaBotScriptPath = "/home/botofthespecter/beta.py";
-$discordBotScriptPath = "/home/botofthespecter/discordbot.py";
 
 if ($backup_system == true) {
   $showButtons = true;
@@ -356,8 +278,6 @@ ob_start();
               <?php echo t('bot_stable_version_info'); ?>
             <?php elseif ($selectedBot === 'beta'): ?>
               <?php echo t('bot_beta_version_info'); ?>
-            <?php elseif ($selectedBot === 'discord'): ?>
-              <?php echo t('bot_discord_version_info'); ?>
             <?php endif; ?>
           </p>
           <div class="version-meta">
@@ -371,7 +291,7 @@ ob_start();
                 <?php 
                   echo $selectedBot === 'stable' ? $stableLastRestartOutput : 
                        ($selectedBot === 'beta' ? $lastRestartOutput : 
-                       ($selectedBot === 'discord' ? $discordLastRestartOutput : 'Unknown'));
+                       'Unknown');
                 ?>
               </span>
             </p>
@@ -431,9 +351,6 @@ ob_start();
               <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
                 <?php echo t('bot_beta_bot'); ?>
               </option>
-              <option value="discord" <?php if($selectedBot === 'discord') echo 'selected'; ?>>
-                <?php echo t('bot_discord_bot'); ?>
-              </option>
             </select>
           </div>
         </div>
@@ -453,30 +370,13 @@ ob_start();
           <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
             <?php echo t('bot_beta_description'); ?>
           </p>
-        <?php elseif ($selectedBot === 'discord'): ?>
-          <h3 class="title is-4 has-text-white has-text-centered mb-2">
-            <?php echo t('bot_discord_controls'); ?>
-          </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
-            <?php echo t('bot_discord_description'); ?>
-          </p>
-          <div class="notification is-success has-text-black has-text-centered mb-4">
-            <!--<span class="icon"><i class="fas fa-check-circle"></i></span>
-            <?php echo t('bot_discord_service_running'); ?>
-            <br>-->
-            <span class="is-size-6">This Discord bot is managed as a persistent service on the server and does not require manual start/stop.</span>
-            <br>
-            <span class="is-size-6">Current Version: <strong><?php echo htmlspecialchars($discordVersionRunning); ?></strong></span>
-          </div>
         <?php endif; ?>
         <?php 
         // Only show bot status and controls if the bot is properly configured
         $showBotControls = false;
         if ($selectedBot === 'stable' || $selectedBot === 'beta') {
           $showBotControls = true;
-        } elseif ($selectedBot === 'discord' && $hasDiscordSetup) {
-          $showBotControls = false; // Don't show controls for Discord bot
-        }
+        } 
         ?>
         <?php if ($showBotControls): ?>
         <div class="is-flex is-justify-content-center is-align-items-center mb-4" style="gap: 2rem;">
@@ -812,7 +712,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const bot = getCurrentBotType();
         if (bot === 'stable') handleStableBotAction('stop');
         else if (bot === 'beta') handleBetaBotAction('stop');
-        else handleDiscordBotAction('stop');
       });
     }
     if (runBotBtn) {
@@ -820,7 +719,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const bot = getCurrentBotType();
         if (bot === 'stable') handleStableBotAction('run');
         else if (bot === 'beta') handleBetaBotAction('run');
-        else handleDiscordBotAction('run');
       });
     }
   }
@@ -930,68 +828,6 @@ document.addEventListener('DOMContentLoaded', function() {
               currentBotBeingStarted = null;
             }
             showNotification(`Failed to ${action} beta bot: ${data.message}`, 'danger');
-            // Always restore button state
-            btn.innerHTML = originalContent;
-            btn.disabled = false;
-          }
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          // Reset flag on error
-          if (action === 'run') {
-            botRunOperationInProgress = false;
-            currentBotBeingStarted = null;
-          }
-          showNotification(`Error processing request: ${error}`, 'danger');
-          // Always restore button state
-          btn.innerHTML = originalContent;
-          btn.disabled = false;
-        });
-    }, 10); // Small delay to prevent UI blocking
-  }
-  function handleDiscordBotAction(action) {
-    const btn = action === 'stop' ? stopBotBtn : runBotBtn;
-    const originalContent = btn.innerHTML;
-    // Show immediate feedback that action was initiated
-    showNotification(`Discord bot ${action} command sent...`, 'info');
-    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
-    btn.disabled = true;
-    // Set global flag for run operations
-    if (action === 'run') {
-      botRunOperationInProgress = true;
-      currentBotBeingStarted = 'discord';
-    }
-    // Use setTimeout to avoid blocking the UI
-    setTimeout(() => {
-      fetch('bot_action.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=${encodeURIComponent(action)}&bot=discord`
-      })
-        .then(response => response.json())
-        .then(data => {
-          console.log('Discord bot action response:', data);
-          if (data.success) {
-            // Immediately update UI optimistically
-            const expectedRunning = (action === 'run');
-            updateUIOptimistically(expectedRunning, 'Discord');
-            // Reset button state
-            btn.innerHTML = originalContent;
-            btn.disabled = false;
-            // Start polling to verify the actual state change
-            startStatusVerification('discord', expectedRunning, 0);
-            // Reset flag on success
-            if (action === 'run') {
-              botRunOperationInProgress = false;
-              currentBotBeingStarted = null;
-            }
-          } else {
-            // Reset flag on failure
-            if (action === 'run') {
-              botRunOperationInProgress = false;
-              currentBotBeingStarted = null;
-            }
-            showNotification(`Failed to ${action} discord bot: ${data.message}`, 'danger');
             // Always restore button state
             btn.innerHTML = originalContent;
             btn.disabled = false;
@@ -1392,7 +1228,6 @@ document.addEventListener('DOMContentLoaded', function() {
       { id: 'databaseService',      api: 'database',              statusId: 'db-service-status',      latencyId: 'db-service-latency',      lastCheckId: 'db-service-lastcheck' },
       { id: 'notificationService',  api: 'websocket',             statusId: 'notif-service-status',   latencyId: 'notif-service-latency',   lastCheckId: 'notif-service-lastcheck' },
       { id: 'botsService',          api: 'bots',                  statusId: 'bots-service-status',    latencyId: 'bots-service-latency',    lastCheckId: 'bots-service-lastcheck' },
-      { id: 'discordService',       api: 'discordbot',            statusId: 'discord-service-status', latencyId: 'discord-service-latency', lastCheckId: 'discord-service-lastcheck' },
       { id: 'auEast1Service',       api: 'streamingService',      statusId: 'auEast1-service-status', latencyId: 'auEast1-service-latency', lastCheckId: 'auEast1-service-lastcheck' },
       { id: 'usWest1Service',       api: 'streamingServiceWest',  statusId: 'usWest1-service-status', latencyId: 'usWest1-service-latency', lastCheckId: 'usWest1-service-lastcheck' },
       { id: 'usEast1Service',       api: 'streamingServiceEast',  statusId: 'usEast1-service-status', latencyId: 'usEast1-service-latency', lastCheckId: 'usEast1-service-lastcheck' }
@@ -1472,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateTechnicalOverview() {
     if (!isTechnical) return;
     // Calculate average latency and services status
-    const services = ['api', 'database', 'websocket', 'bots', 'discordbot', 'streamingService', 'streamingServiceWest', 'streamingServiceEast'];
+    const services = ['api', 'database', 'websocket', 'bots', 'streamingService', 'streamingServiceWest', 'streamingServiceEast'];
     let totalLatency = 0;
     let servicesUp = 0;
     let latencyCount = 0;
