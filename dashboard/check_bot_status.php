@@ -16,7 +16,7 @@ if (!isset($_GET['bot'])) {
 }
 
 $bot = $_GET['bot'];
-if (!in_array($bot, ['stable', 'beta', 'discord'])) {
+if (!in_array($bot, ['stable', 'beta'])) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Invalid bot type']);
   exit();
@@ -25,19 +25,14 @@ if (!in_array($bot, ['stable', 'beta', 'discord'])) {
 require_once 'bot_control_functions.php';
 $username = $_SESSION['username'] ?? '';
 
-// Fix: Only require username for stable/beta bots
-if (($bot === 'stable' || $bot === 'beta') && empty($username)) {
+// Require username for bot status checks
+if (empty($username)) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Username not found in session']);
   exit();
 }
 
-// For Discord bot, do not pass username
-if ($bot === 'discord') {
-  $botStatus = ['running' => true]; // Simplified response
-} else {
-  $botStatus = checkBotRunning($username, $bot);
-}
+$botStatus = checkBotRunning($username, $bot);
 
 // Only fetch version info from API
 $versionApiUrl = 'https://api.botofthespecter.com/versions';
@@ -49,16 +44,12 @@ if ($versionApiData !== false) {
     $latestVersion = $versionInfo['stable_version'] ?? '';
   } elseif ($bot === 'beta') {
     $latestVersion = $versionInfo['beta_version'] ?? '';
-  } elseif ($bot === 'discord') {
-    $latestVersion = $versionInfo['discord_bot'] ?? '';
   }
 } else {
   if ($bot === 'stable') {
     $latestVersion = '5.2';
   } elseif ($bot === 'beta') {
     $latestVersion = '5.4';
-  } elseif ($bot === 'discord') {
-    $latestVersion = '2.1';
   }
 }
 
@@ -68,8 +59,6 @@ if ($bot === 'stable') {
   $remoteVersionFile .= "{$username}_version_control.txt";
 } elseif ($bot === 'beta') {
   $remoteVersionFile .= "{$username}_beta_version_control.txt";
-} elseif ($bot === 'discord') {
-  $remoteVersionFile .= "{$username}_discord_version_control.txt";
 }
 
 // Function to get remote file mtime via SSH

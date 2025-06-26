@@ -8,21 +8,14 @@ include_once "/var/www/config/ssh.php";
 /**
     * Check if a bot is running
     * @param string $username - The username of the bot owner
-    * @param string $botType - Type of bot (stable, beta, discord)
+    * @param string $botType - Type of bot (stable, beta)
     * @return array - Status information including running state, PID, and version
 */
 function checkBotRunning($username, $botType = 'stable') {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
     $statusScriptPath = "/home/botofthespecter/status.py";
-    if ($botType === 'discord') {
-        // Use global service for Discord bot
-        $statusScriptPath = '/var/www/bot/scripts/status.sh'; // Example path
-        $output = getBotsStatus($statusScriptPath, '', 'discord');
-        return (strpos($output, 'PID') !== false);
-    } else {
-        $versionFilePath = "/var/www/logs/version/{$username}_" . ($botType === 'beta' ? "beta_" : "") . "version_control.txt";
-        $botScriptPath = "/home/botofthespecter/" . ($botType === 'beta' ? "beta.py" : "bot.py");
-    }
+    $versionFilePath = "/var/www/logs/version/{$username}_" . ($botType === 'beta' ? "beta_" : "") . "version_control.txt";
+    $botScriptPath = "/home/botofthespecter/" . ($botType === 'beta' ? "beta.py" : "bot.py");
     // Initialize result
     $result = [
         'success' => false,
@@ -47,9 +40,7 @@ function checkBotRunning($username, $botType = 'stable') {
         // SSH connection successful - now check bot status
         $result['success'] = true;
         // Get PID of the running bot
-        $command = $botType === 'discord'
-            ? "python $statusScriptPath -system discord"
-            : "python $statusScriptPath -system $botType -channel $username";
+        $command = "python $statusScriptPath -system $botType -channel $username";
         $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
         if ($statusOutput !== false) {
             $statusOutput = trim($statusOutput);
@@ -98,7 +89,7 @@ function checkBotRunning($username, $botType = 'stable') {
 /**
     * Perform an action on the bot (start, stop)
     * @param string $action - The action to perform (run, stop)
-    * @param string $botType - The type of bot to control (stable, beta, discord)
+    * @param string $botType - The type of bot to control (stable, beta)
     * @param array $params - Additional parameters including username, tokens, etc.
     * @return array - Result of the operation
 */
@@ -112,22 +103,16 @@ function performBotAction($action, $botType, $params) {
     $apiKey = $params['api_key'] ?? '';
     // Define paths
     $statusScriptPath = "/home/botofthespecter/status.py";
-    if ($botType === 'discord') {
-        $botScriptPath = "/home/botofthespecter/discordbot.py";
-        $versionFilePath = '/var/www/logs/version/discord_version_control.txt';
-        $username = null; // Ignore username for global Discord bot
-    } else {
-        $botScriptPath = "/home/botofthespecter/" . ($botType === 'beta' ? "beta.py" : "bot.py");
-        $versionFilePath = "/var/www/logs/version/{$username}_" . ($botType === 'beta' ? "beta_" : "") . "version_control.txt";
-    }
+    $botScriptPath = "/home/botofthespecter/" . ($botType === 'beta' ? "beta.py" : "bot.py");
+    $versionFilePath = "/var/www/logs/version/{$username}_" . ($botType === 'beta' ? "beta_" : "") . "version_control.txt";
+    
     // Get version information from API
     $versionApiUrl = 'https://api.botofthespecter.com/versions';
     $versionInfo = json_decode(@file_get_contents($versionApiUrl), true);
     $newVersion = '';
     if ($versionInfo) {
         $newVersion = $botType === 'stable' ? ($versionInfo['stable_version'] ?? '5.2') : 
-                     ($botType === 'beta' ? ($versionInfo['beta_version'] ?? '5.4') : 
-                     ($botType === 'discord' ? ($versionInfo['discord_bot'] ?? '2.1') : ''));
+                     ($botType === 'beta' ? ($versionInfo['beta_version'] ?? '5.4') : '5.2');
     }
     $result = [
         'success' => false,
@@ -141,9 +126,7 @@ function performBotAction($action, $botType, $params) {
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         // Check current bot status
-        $command = $botType === 'discord'
-            ? "python $statusScriptPath -system discord"
-            : "python $statusScriptPath -system $botType -channel $username";
+        $command = "python $statusScriptPath -system $botType -channel $username";
         $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
         if ($statusOutput === false) { throw new Exception('Unable to check bot status. Please try again later.'); }
         $statusOutput = trim($statusOutput);
@@ -159,16 +142,25 @@ function performBotAction($action, $botType, $params) {
                     $result['message'] = "Bot is running (v{$newVersion})";
                     $result['pid'] = $currentPid;
                     $result['success'] = true;
+                    // Ensure directory exists before writing version file
+                    $versionDir = dirname($versionFilePath);
+                    if (!is_dir($versionDir)) {
+                        mkdir($versionDir, 0755, true);
+                    }
                     file_put_contents($versionFilePath, $newVersion);
                 } else {
-                    if ($botType === 'discord') {
-                        $startCommand = "python $botScriptPath 2>&1 &";
-                    } else {
-                        $startCommand = "python $botScriptPath -channel $username 2>&1 &";
+                    // Validate required parameters for bot start
+                    if (empty($username) || empty($twitchUserId) || empty($authToken) || empty($refreshToken) || empty($apiKey)) {
+                        $result['message'] = 'Missing required bot parameters (username, tokens, etc.)';
+                        break;
                     }
-                    $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true);
+                    
+                    // Construct proper bot start command with all required parameters
+                    $startCommand = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey &";
+                    
+                    $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand);
                     if ($startOutput === false) {
-                        $result['message'] = 'Failed to start bot.';
+                        $result['message'] = 'Failed to start bot - SSH command execution failed.';
                     } else {
                         sleep(3);
                         $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
@@ -176,13 +168,20 @@ function performBotAction($action, $botType, $params) {
                             if (preg_match('/process ID:\s*(\\d+)/i', $statusOutput, $matches) || preg_match('/PID\\s+(\\d+)/i', $statusOutput, $matches)) {
                                 $result['pid'] = intval($matches[1]);
                                 $result['success'] = true;
-                                $result['message'] = "Bot started (v{$newVersion})";
+                                $result['message'] = "Bot started successfully (v{$newVersion})";
+                                // Ensure directory exists before writing version file
+                                $versionDir = dirname($versionFilePath);
+                                if (!is_dir($versionDir)) {
+                                    mkdir($versionDir, 0755, true);
+                                }
                                 file_put_contents($versionFilePath, $newVersion);
                             } else {
-                                $result['message'] = 'Bot started but PID not found.';
+                                $result['message'] = 'Bot started but PID not found after 3 seconds.';
+                                $result['success'] = true; // Still consider it a success since the command executed
                             }
                         } else {
-                            $result['message'] = 'Failed to check bot status after start.';
+                            $result['message'] = 'Bot start command executed but status check failed.';
+                            $result['success'] = true; // Still consider it a success since the command executed
                         }
                     }
                 }

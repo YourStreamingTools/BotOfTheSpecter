@@ -34,29 +34,40 @@ if (!in_array($action, ['run', 'stop', 'status'])) {
   exit();
 }
 
-if (!in_array($bot, ['stable', 'beta', 'discord'])) {
+if (!in_array($bot, ['stable', 'beta'])) {
   ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Invalid bot type']);
   exit();
 }
 
-// Include bot control functions
+// Include necessary files
+require_once "/var/www/config/db_connect.php";
+require_once "/var/www/config/ssh.php";
 require_once 'bot_control_functions.php';
+include 'userdata.php';
 
 // Map action to function action (stop -> kill)
 $actionMap = [ 'run' => 'run', 'stop' => 'stop' ];
 
-// Get user information
+// Get user information - ensure we have all required data
 $username = $_SESSION['username'] ?? '';
 $twitchUserId = $_SESSION['twitchUserId'] ?? '';
 $authToken = $_SESSION['access_token'] ?? '';
 $refreshToken = $_SESSION['refresh_token'] ?? '';
 $apiKey = $_SESSION['api_key'] ?? '';
 
+// Validate required session data
+if (empty($username)) {
+  ob_clean();
+  header('Content-Type: application/json');
+  echo json_encode(['success' => false, 'message' => 'Username not found in session']);
+  exit();
+}
+
 // Prepare parameters
 $params = [
-  'username' => $bot === 'discord' ? null : $username,
+  'username' => $username,
   'twitch_user_id' => $twitchUserId,
   'auth_token' => $authToken,
   'refresh_token' => $refreshToken,
@@ -64,21 +75,10 @@ $params = [
 ];
 
 // Perform the bot action
-if ($bot === 'discord') {
-    // Only allow status/version checks for Discord bot
-    if ($action === 'status') {
-        echo json_encode(['status' => 'running']); // Simplified response
-        exit;
-    }
-    // No start/stop actions for Discord bot
-    echo json_encode(['error' => 'Action not allowed for Discord bot.']);
-    exit;
-} else {
-    $result = performBotAction($actionMap[$action], $bot, $params);
-}
+$result = performBotAction($actionMap[$action], $bot, $params);
 
 // Add some debugging information
-error_log("Bot action performed - Bot: $bot, Action: $action, Result: " . json_encode($result));
+error_log("Bot action performed - Bot: $bot, Action: $action, Username: $username, Result: " . json_encode($result));
 
 // Return response
 ob_clean(); // Clear any accidental output
