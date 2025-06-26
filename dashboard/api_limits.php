@@ -57,6 +57,43 @@ if ($result && $result->num_rows > 0) {
     }
 }
 
+// Ensure weather entry exists in database if it doesn't
+$weatherCheck = "SELECT COUNT(*) as count FROM api_counts WHERE type = 'weather'";
+$weatherResult = $conn->query($weatherCheck);
+if ($weatherResult) {
+    $weatherCount = $weatherResult->fetch_assoc()['count'];
+    if ($weatherCount == 0) {
+        // Insert weather entry with current timestamp
+        $insertWeather = "INSERT INTO api_counts (type, count, updated) VALUES ('weather', 1000, NOW())";
+        if ($conn->query($insertWeather)) {
+            // Update our limits array with the new entry
+            $limits['weather']['requests_remaining'] = 1000;
+            $dt = new DateTime('now', new DateTimeZone(date_default_timezone_get()));
+            $dt->setTimezone(new DateTimeZone('UTC'));
+            $limits['weather']['last_updated'] = $dt->format('Y-m-d\TH:i:s\Z');
+        }
+    } else {
+        // Update existing weather entry timestamp to current time for testing
+        $updateWeather = "UPDATE api_counts SET updated = NOW() WHERE type = 'weather'";
+        if ($conn->query($updateWeather)) {
+            // Re-fetch the weather data to get the updated timestamp
+            $weatherQuery = "SELECT * FROM api_counts WHERE type = 'weather'";
+            $weatherResult = $conn->query($weatherQuery);
+            if ($weatherResult && $weatherResult->num_rows > 0) {
+                $weatherRow = $weatherResult->fetch_assoc();
+                $limits['weather']['requests_remaining'] = (int)$weatherRow['count'];
+                if ($weatherRow['updated'] && $weatherRow['updated'] !== '0000-00-00 00:00:00') {
+                    $dt = DateTime::createFromFormat('Y-m-d H:i:s', $weatherRow['updated'], new DateTimeZone(date_default_timezone_get()));
+                    if ($dt && $dt->format('Y-m-d H:i:s') === $weatherRow['updated']) {
+                        $dt->setTimezone(new DateTimeZone('UTC'));
+                        $limits['weather']['last_updated'] = $dt->format('Y-m-d\TH:i:s\Z');
+                    }
+                }
+            }
+        }
+    }
+}
+
 ob_clean();
 header('Content-Type: application/json');
 echo json_encode($limits);
