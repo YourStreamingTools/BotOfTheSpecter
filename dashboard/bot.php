@@ -26,8 +26,7 @@ $lastModifiedOutput = '';
 $lastRestartOutput = '';
 $stableLastModifiedOutput = '';
 $stableLastRestartOutput = '';
-$discordLastModifiedOutput = '';
-$discordLastRestartOutput = '';
+
 
 $selectedBot = $_GET['bot'] ?? null;
 if (isset($_GET['bot'])) {
@@ -133,10 +132,9 @@ if ($selectedBot === 'beta' && !$betaAccess) {
 // Check running status for all bots to prevent conflicts
 $stableRunning = false; // Will be determined by JavaScript
 $betaRunning = false;   // Will be determined by JavaScript
-// $discordBotSystemStatus = false; // Will be determined by JavaScript
 $runningBotCount = 0;
 $multiBotWarning = '';
-if (($stableRunning || $betaRunning) && $selectedBot !== 'discord') {
+if ($stableRunning || $betaRunning) {
   $multiBotWarning = '<div class="notification is-danger has-text-black has-text-weight-bold">'
     . t('bot_multi_bot_warning')
     . '</div>';
