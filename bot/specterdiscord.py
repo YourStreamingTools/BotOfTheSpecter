@@ -86,7 +86,7 @@ class ChannelMapping:
         self.mappings = {}  # channel_code -> {guild_id, channel_id, channel_name}
         self.load_mappings()
     def load_mappings(self):
-        mapping_file = "/home/botofthespecter/discord_channel_mappings.json"
+        mapping_file = f"{discord_logs}/discord_channel_mappings.json"
         try:
             if os.path.exists(mapping_file):
                 with open(mapping_file, 'r') as f:
@@ -94,7 +94,7 @@ class ChannelMapping:
         except Exception as e:
             print(f"Error loading channel mappings: {e}")
     def save_mappings(self):
-        mapping_file = "/home/botofthespecter/discord_channel_mappings.json"
+        mapping_file = f"{discord_logs}/discord_channel_mappings.json"
         try:
             with open(mapping_file, 'w') as f:
                 json.dump(self.mappings, f, indent=2)
