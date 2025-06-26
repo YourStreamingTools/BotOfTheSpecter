@@ -108,6 +108,14 @@ class BotOfTheSpecter(commands.Bot):
         if not os.path.exists(self.processed_messages_file):
             open(self.processed_messages_file, 'w').close()
 
+    def read_stream_status(self, channel_name):
+        status_file_path = f"/home/botofthespecter/logs/online/{channel_name}.txt"
+        if os.path.exists(status_file_path):
+            with open(status_file_path, "r") as file:
+                status = file.read().strip()
+                return status.lower() == "true"
+        return False
+
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
@@ -119,7 +127,16 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.info(f"Updated Discord bot version file: {DISCORD_BOT_SERVICE_VERSION}")
         except Exception as e:
             self.logger.error(f"Failed to update Discord bot version file: {e}")
-        # Set the initial presence
+        # Set the initial presence and check stream status for each guild
+        for guild in self.guilds:
+            channel_name = guild.name.replace(' ', '').lower()
+            stream_online = self.read_stream_status(channel_name)
+            if stream_online:
+                self.logger.info(f"Stream for {channel_name} is online.")
+                # You can add logic here to update channel status or presence
+            else:
+                self.logger.info(f"Stream for {channel_name} is offline.")
+                # You can add logic here to update channel status or presence
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
@@ -231,7 +248,6 @@ class BotOfTheSpecter(commands.Bot):
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
 
     async def connect_to_websocket(self):
-        import socketio
         self.websocket_client = socketio.AsyncClient(logger=False, engineio_logger=False)
         admin_key = os.getenv("ADMIN_KEY")
         websocket_url = "wss://websocket.botofthespecter.com"
