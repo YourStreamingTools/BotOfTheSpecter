@@ -380,7 +380,7 @@ ob_start();
         ?>
         <?php if ($showBotControls): ?>
         <div class="is-flex is-justify-content-center is-align-items-center mb-4" style="gap: 2rem;">
-          <span class="icon is-large">
+          <span class="icon is-large" id="botStatusIcon">
             <?php
               // Determine running status for the selected bot only
               $isRunning = false;
@@ -395,7 +395,7 @@ ob_start();
             ?>
           </span>
           <span class="is-size-5" style="font-weight:600;">
-            <?php echo t('bot_status_label') . " <span class='has-text-info'>Fetching status...</span>"; ?>
+            <?php echo t('bot_status_label'); ?> <span id="bot-status-text" class="has-text-info">Fetching status...</span>
             <?php if ($isTechnical): ?>
             <?php endif; ?>
           </span>
@@ -436,7 +436,7 @@ ob_start();
               <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
             </div>
             <div class="has-text-grey-light">
-              <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/8</span>
+              <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/7</span>
             </div>
           </div>
         </div>
@@ -1100,6 +1100,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     const statusText = data.running ? 'ONLINE' : 'OFFLINE';
                     const statusClass = data.running ? 'success' : 'danger';
+                    
+                    // Update status text
+                    const statusTextElement = document.getElementById('bot-status-text');
+                    if (statusTextElement) {
+                        statusTextElement.innerHTML = `<span class="has-text-${statusClass}">${statusText}</span>`;
+                    }
+                    
+                    // Update heart icon
                     const heartIconContainer = document.getElementById('botStatusIcon');
                     if (heartIconContainer) {
                         if (data.running) {
@@ -1108,11 +1116,37 @@ document.addEventListener('DOMContentLoaded', function() {
                             heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
                         }
                     }
-                    const latencyElement = document.getElementById('stable-service-latency');
-                    const lastCheckElement = document.getElementById('stable-service-lastcheck');
+                    
+                    // Update buttons based on status
+                    const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
+                    if (buttonContainer) {
+                        if (data.running) {
+                            // Show Stop button
+                            buttonContainer.innerHTML = `
+                                <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3">
+                                    <span class="icon"><i class="fas fa-stop"></i></span>
+                                    <span><?php echo addslashes(t('bot_stop')); ?></span>
+                                </button>
+                            `;
+                        } else {
+                            // Show Run button
+                            buttonContainer.innerHTML = `
+                                <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3">
+                                    <span class="icon"><i class="fas fa-play"></i></span>
+                                    <span><?php echo addslashes(t('bot_run')); ?></span>
+                                </button>
+                            `;
+                        }
+                        // Re-attach event listeners
+                        attachBotButtonListeners();
+                    }
+                    
+                    // Update technical info if available
+                    const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
+                    const lastCheckElement = document.getElementById(`${selectedBot}-service-lastcheck`);
                     if (latencyElement && lastCheckElement) {
-                      latencyElement.textContent = `${data.latency || '--'}ms`;
-                      lastCheckElement.textContent = data.lastRun || '--';
+                        latencyElement.textContent = `${data.latency || '--'}ms`;
+                        lastCheckElement.textContent = data.lastRun || '--';
                     }
                 } else {
                     console.error('Bot status API returned error:', data);
@@ -1335,8 +1369,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }            
             const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === 8 ? 'has-text-success' : servicesUp >= 6 ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/8</span>`;
+              const servicesColor = servicesUp === 7 ? 'has-text-success' : servicesUp >= 5 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/7</span>`;
             }
             const lastUpdateElem = document.getElementById('system-last-update');
             if (lastUpdateElem) {
@@ -1363,8 +1397,8 @@ document.addEventListener('DOMContentLoaded', function() {
               avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;            }
               const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === 8 ? 'has-text-success' : servicesUp >= 6 ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/8</span>`;
+              const servicesColor = servicesUp === 7 ? 'has-text-success' : servicesUp >= 5 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/7</span>`;
             }
           }
         });
