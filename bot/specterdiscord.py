@@ -17,7 +17,7 @@ import socketio
 load_dotenv()
 
 # Define logging directory
-logs_directory = "/var/www/logs"
+logs_directory = "/home/botofthespecter/logs/"
 discord_logs = os.path.join(logs_directory, "specterdiscord")
 
 # Ensure directory exists
