@@ -1272,11 +1272,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
                         }
                     }
-                    const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
-                    const lastCheckElement = document.getElementById(`${selectedBot}-service-lastcheck`);
+                    const latencyElement = document.getElementById('stable-service-latency');
+                    const lastCheckElement = document.getElementById('stable-service-lastcheck');
                     if (latencyElement && lastCheckElement) {
-                        latencyElement.textContent = `${data.latency || '--'}ms`;
-                        lastCheckElement.textContent = data.lastCheck || '--';
+                      latencyElement.textContent = `${data.latency || '--'}ms`;
+                      lastCheckElement.textContent = data.lastRun || '--';
                     }
                 } else {
                     console.error('Bot status API returned error:', data);
