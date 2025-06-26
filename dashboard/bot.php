@@ -737,11 +737,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Use setTimeout to avoid blocking the UI
     setTimeout(() => {
-      fetch('bot_action.php', {
+      fetchWithTimeout('bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `action=${encodeURIComponent(action)}&bot=stable`
-      })
+      }, 15000)
         .then(response => response.json())
         .then(data => {
           console.log('Stable bot action response:', data);
@@ -799,11 +799,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Use setTimeout to avoid blocking the UI
     setTimeout(() => {
-      fetch('bot_action.php', {
+      fetchWithTimeout('bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `action=${encodeURIComponent(action)}&bot=beta`
-      })
+      }, 15000)
         .then(response => response.json())
         .then(data => {
           console.log('Beta bot action response:', data);
@@ -871,7 +871,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification(`Checking ${botType} bot status... (${currentAttempt}/${maxAttempts})`, 'info');
       }
       // Make the status check request
-      fetch(`check_bot_status.php?bot=${botType}&_t=${Date.now()}`)
+      fetchWithTimeout(`check_bot_status.php?bot=${botType}&_t=${Date.now()}`, {}, 8000)
         .then(async response => {
           const text = await response.text();
           console.log(`Bot status check attempt ${currentAttempt} for ${botType}:`, text);
@@ -1091,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedBot = urlParams.get('bot');
     if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
     if (!selectedBot) { selectedBot = 'stable'; }
-    return fetch(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`)
+    return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 8000)
         .then(async response => {
             const text = await response.text();
             try {
@@ -1161,7 +1161,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Function to update API limits from api_limits.php
   function updateApiLimits() {
-    fetch('api_limits.php')
+    fetchWithTimeout('api_limits.php', {}, 8000)
       .then(response => response.json())
       .then(data => {
         // Shazam
@@ -1186,13 +1186,10 @@ document.addEventListener('DOMContentLoaded', function() {
           let weatherUpdated = data.weather.last_updated;
           if (weatherUpdated) {
             try {
-              // Ensure timestamp is properly formatted for Date parsing
-              if (typeof weatherUpdated === 'string' && weatherUpdated.length === 19 && weatherUpdated.indexOf('T') === -1) {
-                weatherUpdated = weatherUpdated.replace(' ', 'T') + '+10:00';
-              }
               const parsedDate = new Date(weatherUpdated);
               if (!isNaN(parsedDate.getTime())) {
-                document.getElementById('weather-updated').textContent = timeAgo(parsedDate.toISOString());
+                const timeAgoText = timeAgo(weatherUpdated);
+                document.getElementById('weather-updated').textContent = timeAgoText;
               } else {
                 console.warn('Invalid weather timestamp:', weatherUpdated);
                 document.getElementById('weather-updated').textContent = '--';
@@ -1234,19 +1231,51 @@ document.addEventListener('DOMContentLoaded', function() {
       let safeDate = isoDate.replace(' ', 'T');
       then = new Date(safeDate);
     }
-    
     // Check if the date is valid
     if (isNaN(then.getTime())) {
       return '--';
     }
-    
-    let diff = Math.floor((now - then) / 1000);
-    
-    // Check if diff is NaN or invalid
-    if (isNaN(diff) || diff < 0) {
+    // Special handling for same-day weather timestamps with timezone issues
+    const nowDate = now.toDateString();
+    const thenDate = then.toDateString();
+    let diff;
+    // Check if we have a timezone offset issue (around 10 hours difference)
+    const rawDiff = Math.floor((now - then) / 1000);
+    const hoursDiff = Math.abs(rawDiff) / 3600;
+    if (hoursDiff >= 9 && hoursDiff <= 11 && nowDate === thenDate) {
+      // Likely a timezone issue - calculate based on just the time components
+      const nowHours = now.getHours();
+      const nowMinutes = now.getMinutes();
+      const thenHours = then.getHours();
+      const thenMinutes = then.getMinutes();
+      // Convert both to minutes since midnight
+      const nowTotalMinutes = nowHours * 60 + nowMinutes;
+      const thenTotalMinutes = thenHours * 60 + thenMinutes;
+      // Calculate difference in seconds
+      diff = (nowTotalMinutes - thenTotalMinutes) * 60;
+      // If negative, it means the timestamp is later in the day
+      if (diff < 0) {
+        diff = Math.abs(diff);
+      }
+    } else {
+      // Normal calculation
+      diff = Math.floor((now - then) / 1000);
+    }
+    // Check if diff is NaN
+    if (isNaN(diff)) {
       return '--';
     }
-    
+    // If negative but small (< 5 minutes), treat as "just now"
+    // If larger negative (timezone issues), try to handle gracefully
+    if (diff < 0) {
+      if (diff > -300) { // Less than 5 minutes in the future
+        diff = 0;
+      } else if (diff > -43200) { // Less than 12 hours in the future (timezone issue)
+        diff = Math.abs(diff); // Convert to positive for display
+      } else {
+        return '--';
+      }
+    }
     if (diff < 60) {
       return agoTranslations.seconds.replace(':count', diff);
     }
@@ -1607,6 +1636,32 @@ document.addEventListener('DOMContentLoaded', function() {
     url.searchParams.set('bot', bot);
     window.location.href = url.toString();
   };
+  // Fetch wrapper with timeout to prevent message port errors
+  function fetchWithTimeout(url, options = {}, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new Error('Request timeout'));
+      }, timeout);
+      fetch(url, {
+        ...options,
+        signal: controller.signal
+      })
+      .then(response => {
+        clearTimeout(timeoutId);
+        resolve(response);
+      })
+      .catch(error => {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          reject(new Error('Request timeout'));
+        } else {
+          reject(error);
+        }
+      });
+    });
+  }
 });
 // updateApiLimits();
 </script>
