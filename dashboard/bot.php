@@ -1239,25 +1239,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const nowDate = now.toDateString();
     const thenDate = then.toDateString();
     let diff;
-    
     // Check if we have a timezone offset issue (around 10 hours difference)
     const rawDiff = Math.floor((now - then) / 1000);
     const hoursDiff = Math.abs(rawDiff) / 3600;
-    
     if (hoursDiff >= 9 && hoursDiff <= 11 && nowDate === thenDate) {
       // Likely a timezone issue - calculate based on just the time components
       const nowHours = now.getHours();
       const nowMinutes = now.getMinutes();
       const thenHours = then.getHours();
       const thenMinutes = then.getMinutes();
-      
       // Convert both to minutes since midnight
       const nowTotalMinutes = nowHours * 60 + nowMinutes;
       const thenTotalMinutes = thenHours * 60 + thenMinutes;
-      
       // Calculate difference in seconds
       diff = (nowTotalMinutes - thenTotalMinutes) * 60;
-      
       // If negative, it means the timestamp is later in the day
       if (diff < 0) {
         diff = Math.abs(diff);
