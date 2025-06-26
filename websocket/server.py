@@ -123,13 +123,21 @@ class BotOfTheSpecter_WebsocketServer:
         self.ip = self.get_own_ip()
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
         self.registered_clients = {}
+        # Global listeners that receive events from all channels
+        self.global_listeners = []
+        # Load admin code from environment variable
+        self.admin_code = os.getenv("ADMIN_KEY")
+        if not self.admin_code:
+            self.logger.warning("ADMIN_KEY not set - global listeners will not be available")
+        else:
+            self.logger.info("Admin key loaded for global listener authentication")
         # Initialize modular components
         self.ssh_manager = SSHConnectionManager(logger, timeout_minutes=2)
         self.security_manager = SecurityManager(logger)
         self.database_manager = DatabaseManager(logger)
         self.settings_manager = SettingsManager(logger)
         self.tts_handler = TTSHandler(logger, self.ssh_manager)
-        self.event_handler = EventHandler(None, logger, lambda: self.registered_clients)
+        self.event_handler = EventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid)
         self.donation_handler = DonationEventHandler(None, logger, lambda: self.registered_clients)
         socketio_logger = logging.getLogger('socketio')
         socketio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from socketio
@@ -256,28 +264,85 @@ class BotOfTheSpecter_WebsocketServer:
     async def disconnect(self, sid):
         # Handle the disconnect event for SocketIO.
         self.logger.info(f"Disconnect event: {sid}")
-        # Iterate through all registered clients and remove the disconnected SID
-        for code, sids in list(self.registered_clients.items()):
-            if sid in sids:
-                sids.remove(sid)
-                self.logger.info(f"Unregistered SID [{sid}] from code [{code}]")
-                if not sids:
-                    del self.registered_clients[code]
-                    self.logger.info(f"No more clients for code [{code}]. Removed code from registered clients.")
+        
+        # Check if it's a global listener
+        global_listener_removed = False
+        for listener in list(self.global_listeners):
+            if listener['sid'] == sid:
+                self.global_listeners.remove(listener)
+                self.logger.info(f"Removed global listener [{sid}] - {listener['name']}")
+                global_listener_removed = True
                 break
-        else:
-            self.logger.info(f"SID [{sid}] not found in registered clients.")
+        
+        # If not a global listener, check regular clients
+        if not global_listener_removed:
+            # Iterate through all registered clients and remove the disconnected SID
+            for code, clients in list(self.registered_clients.items()):
+                for client in list(clients):
+                    if client['sid'] == sid:
+                        clients.remove(client)
+                        self.logger.info(f"Unregistered SID [{sid}] from code [{code}]")
+                        if not clients:
+                            del self.registered_clients[code]
+                            self.logger.info(f"No more clients for code [{code}]. Removed code from registered clients.")
+                        break
+                else:
+                    continue
+                break
+            else:
+                self.logger.info(f"SID [{sid}] not found in registered clients.")
+        
         # Log the current state of registered clients after disconnect
         self.logger.info(f"Current registered clients: {self.registered_clients}")
+        self.logger.info(f"Current global listeners: {len(self.global_listeners)}")
 
     async def register(self, sid, data):
         # Handle the register event for SocketIO.
         code = data.get("code")
         channel = str(data.get("channel", "Unknown-Channel"))
         sid_name = data.get("name", f"Unnamed-{sid}")
-        self.logger.info(f"Register event received from SID {sid} with code: '{code}', channel: '{channel}', name: '{sid_name}'")
+        is_global_listener = data.get("global_listener", False)
+        
+        self.logger.info(f"Register event received from SID {sid} with code: '{code}', channel: '{channel}', name: '{sid_name}', global_listener: {is_global_listener}")
         name = f"{channel} - {sid_name}"
-        if code:
+        
+        # Handle global listener registration
+        if is_global_listener:
+            # Validate admin code for global listeners
+            if not self.admin_code:
+                self.logger.warning(f"Global listener registration denied for SID [{sid}] - admin key not configured")
+                await self.sio.emit("ERROR", {"message": "Global listener registration not available - admin key not configured"}, to=sid)
+                return
+            
+            if code != self.admin_code:
+                self.logger.warning(f"Global listener registration denied for SID [{sid}] - invalid admin key provided: '{code}'")
+                await self.sio.emit("ERROR", {"message": "Global listener registration denied - invalid admin key"}, to=sid)
+                return
+            
+            # Check if there's already a global listener with the same name
+            for listener in list(self.global_listeners):
+                if listener['name'] == name:
+                    # Disconnect the old session
+                    old_sid = listener['sid']
+                    self.logger.info(f"Disconnecting old global listener [{old_sid}] for name [{name}] before registering new session [{sid}]")
+                    await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate global listener for name {name}"}, to=old_sid)
+                    await self.sio.disconnect(old_sid)
+                    # Remove the old listener
+                    self.global_listeners.remove(listener)
+                    break
+            
+            # Register the new global listener
+            listener_data = {"sid": sid, "name": name, "admin_authenticated": True}
+            self.global_listeners.append(listener_data)
+            self.logger.info(f"Global listener [{sid}] with name [{name}] registered successfully with admin authentication")
+            await self.sio.emit("SUCCESS", {"message": "Global listener registration successful", "name": name, "admin_authenticated": True}, to=sid)
+            self.logger.info(f"Total global listeners: {len(self.global_listeners)}")
+            
+        elif code:
+            # Handle regular client registration
+            # Check if this is admin key being used for regular registration
+            is_admin = (code == self.admin_code) if self.admin_code else False
+            
             # Initialize the list for the code if it doesn't exist
             if code not in self.registered_clients:
                 self.registered_clients[code] = []
@@ -292,17 +357,24 @@ class BotOfTheSpecter_WebsocketServer:
                     # Remove the old client
                     self.registered_clients[code] = [c for c in self.registered_clients[code] if c['sid'] != old_sid]
                     break # Register the new client
-            client_data = {"sid": sid, "name": name}
+            client_data = {"sid": sid, "name": name, "is_admin": is_admin}
             self.registered_clients[code].append(client_data)
-            self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
-            # Send success message to the new client
-            await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
+            
+            if is_admin:
+                self.logger.info(f"Admin client [{sid}] with name [{name}] registered with admin key: {code}")
+                await self.sio.emit("SUCCESS", {"message": "Admin registration successful", "code": code, "name": name, "admin_authenticated": True}, to=sid)
+            else:
+                self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
+                await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
+            
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
         else:
-            self.logger.warning("Code not provided during registration")
-            await self.sio.emit("ERROR", {"message": "Registration failed: code missing"}, to=sid)
+            self.logger.warning("Code not provided and not a global listener during registration")
+            await self.sio.emit("ERROR", {"message": "Registration failed: code missing and not global listener"}, to=sid)
+        
         # Log the current state of registered clients after registration
         self.logger.info(f"Current registered clients: {self.registered_clients}")
+        self.logger.info(f"Current global listeners: {len(self.global_listeners)}")
 
     async def index(self, request):
         # Redirect to the main page
@@ -326,6 +398,36 @@ class BotOfTheSpecter_WebsocketServer:
         # Handle the LIST_CLIENTS event for SocketIO.
         self.logger.info(f"LIST_CLIENTS event from SID [{sid}]")
         await self.sio.emit("LIST_CLIENTS", self.registered_clients, to=sid)
+
+    async def broadcast_event_with_globals(self, event_name, data, code=None):
+        """
+        Broadcast event to both regular clients (for specific code) and global listeners
+        """
+        count = 0
+        
+        # Broadcast to specific code clients if code is provided
+        if code and code in self.registered_clients:
+            for client in self.registered_clients[code]:
+                await self.sio.emit(event_name, {**data, "channel_code": code}, to=client['sid'])
+                count += 1
+        
+        # Broadcast to all global listeners
+        for listener in self.global_listeners:
+            await self.sio.emit(event_name, {**data, "channel_code": code or "unknown"}, to=listener['sid'])
+            count += 1
+        
+        self.logger.info(f"Broadcasted {event_name} to {count} clients (code: {code})")
+        return count
+
+    def get_code_by_sid(self, sid):
+        """
+        Get the channel code for a given SID
+        """
+        for code, clients in self.registered_clients.items():
+            for client in clients:
+                if client['sid'] == sid:
+                    return code
+        return None
 
     async def notify_http(self, request):
         # Extract query parameters
@@ -1036,6 +1138,9 @@ class BotOfTheSpecter_WebsocketServer:
             return None
 
     def get_code_by_sid(self, sid):
+        """
+        Get the channel code for a given SID
+        """
         for code, clients in self.registered_clients.items():
             for client in clients:
                 if client['sid'] == sid:
