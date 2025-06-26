@@ -469,7 +469,7 @@ ob_start();
         ?>
         <?php if ($showBotControls): ?>
         <div class="is-flex is-justify-content-center is-align-items-center mb-4" style="gap: 2rem;">
-          <span class="icon is-large" id="botStatusIcon">
+          <span class="icon is-large">
             <?php
               // Determine running status for the selected bot only
               $isRunning = false;
@@ -1195,7 +1195,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const statusText = expectedRunning ? 'ONLINE' : 'OFFLINE';
     const statusClass = expectedRunning ? 'success' : 'danger';
     // Update the heartbeat icon
-    const heartIconContainer = document.getElementById('botStatusIcon');
+    const heartIconContainer = document.querySelector('.icon.is-large');
     if (heartIconContainer) {
       if (expectedRunning) {
         heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
@@ -1269,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const statusText = data.running ? 'ONLINE' : 'OFFLINE';
             const statusClass = data.running ? 'success' : 'danger';
             // Update the heartbeat icon for the selected bot only
-            const heartIconContainer = document.getElementById('botStatusIcon');
+            const heartIconContainer = document.querySelector('.icon.is-large');
             if (heartIconContainer) {
               if (data.running) { 
                 heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>'; 
@@ -1448,14 +1448,35 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Function to update service status from api_status.php
   function updateServiceStatus() {
-    // Map service icon IDs to their api_status.php service param and status text element IDs
+    const webIcon = document.getElementById('web1Service');
+    const webStatusElem = document.getElementById('web1-service-status');
+    const webLatencyElem = document.getElementById('web1-service-latency');
+    const webLastCheckElem = document.getElementById('web1-service-lastcheck');
+    if (webIcon) webIcon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
+    if (webStatusElem) {
+      webStatusElem.textContent = 'Running normally';
+      webStatusElem.className = 'is-size-7 has-text-grey-light';
+    }
+    if (webLatencyElem) {
+      webLatencyElem.innerHTML = '<span class="has-text-success">1ms</span>';
+    }
+    if (webLastCheckElem) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      webLastCheckElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
+    }
+    // All other services (excluding web1Service)
     const services = [
       { id: 'apiService',           api: 'api',                   statusId: 'api-service-status',     latencyId: 'api-service-latency',     lastCheckId: 'api-service-lastcheck' },
       { id: 'databaseService',      api: 'database',              statusId: 'db-service-status',      latencyId: 'db-service-latency',      lastCheckId: 'db-service-lastcheck' },
       { id: 'notificationService',  api: 'websocket',             statusId: 'notif-service-status',   latencyId: 'notif-service-latency',   lastCheckId: 'notif-service-lastcheck' },
       { id: 'botsService',          api: 'bots',                  statusId: 'bots-service-status',    latencyId: 'bots-service-latency',    lastCheckId: 'bots-service-lastcheck' },
       { id: 'discordService',       api: 'discordbot',            statusId: 'discord-service-status', latencyId: 'discord-service-latency', lastCheckId: 'discord-service-lastcheck' },
-      { id: 'web1Service',          api: 'web1',                  statusId: 'web1-service-status',    latencyId: 'web1-service-latency',    lastCheckId: 'web1-service-lastcheck' },
       { id: 'auEast1Service',       api: 'streamingService',      statusId: 'auEast1-service-status', latencyId: 'auEast1-service-latency', lastCheckId: 'auEast1-service-lastcheck' },
       { id: 'usWest1Service',       api: 'streamingServiceWest',  statusId: 'usWest1-service-status', latencyId: 'usWest1-service-latency', lastCheckId: 'usWest1-service-lastcheck' },
       { id: 'usEast1Service',       api: 'streamingServiceEast',  statusId: 'usEast1-service-status', latencyId: 'usEast1-service-latency', lastCheckId: 'usEast1-service-lastcheck' }
@@ -1465,32 +1486,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const serviceDegradedText = <?php echo json_encode(t('bot_status_unknown')); ?>;
     const statusCheckFailedText = <?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>;
     services.forEach(svc => {
-      if (svc.id === 'web1Service') {
-        // Hard code Web Service as always online
-        const icon = document.getElementById(svc.id);
-        const statusElem = document.getElementById(svc.statusId);
-        const latencyElem = document.getElementById(svc.latencyId);
-        const lastCheckElem = document.getElementById(svc.lastCheckId);
-        if (icon) icon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
-        if (statusElem) {
-          statusElem.textContent = 'Running normally';
-          statusElem.className = 'is-size-7 has-text-grey-light';
-        }
-        if (latencyElem) {
-          latencyElem.innerHTML = '<span class="has-text-success">1ms</span>';
-        }
-        if (lastCheckElem) {
-          const now = new Date();
-          const timeStr = now.toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          });
-          lastCheckElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
-        }
-        return; // Skip API call for web1Service
-      }
       fetch('api_status.php?service=' + svc.api)
         .then(r => r.json())
         .then(data => {
