@@ -25,14 +25,19 @@ if (!in_array($bot, ['stable', 'beta', 'discord'])) {
 require_once 'bot_control_functions.php';
 $username = $_SESSION['username'] ?? '';
 
-// Check if username is available
-if (empty($username)) {
+// Fix: Only require username for stable/beta bots
+if (($bot === 'stable' || $bot === 'beta') && empty($username)) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Username not found in session']);
   exit();
 }
 
-$botStatus = checkBotRunning($username, $bot);
+// For Discord bot, do not pass username
+if ($bot === 'discord') {
+  $botStatus = checkBotRunning('discord');
+} else {
+  $botStatus = checkBotRunning($username, $bot);
+}
 
 // Only fetch version info from API
 $versionApiUrl = 'https://api.botofthespecter.com/versions';

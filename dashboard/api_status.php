@@ -113,6 +113,10 @@ $serviceMap = [
     ]
 ];
 
+// Discord bot global status/version
+$discordVersionFilePath = '/var/www/logs/version/discord_version_control.txt';
+$discordVersion = file_exists($discordVersionFilePath) ? trim(file_get_contents($discordVersionFilePath)) : '';
+
 // Check status
 if (isset($serviceMap[$service])) {
     $svc = $serviceMap[$service];
@@ -137,7 +141,8 @@ if (isset($serviceMap[$service])) {
             'service' => $svc['service_name'],
             'timestamp' => date('c'),
             'checked_at' => time(),
-            'message' => $result['status'] === 'OK' ? t('bot_running_normally') : $result['message']
+            'message' => $result['status'] === 'OK' ? t('bot_running_normally') : $result['message'],
+            'version' => $discordVersion
         ];
     } else {
         // Regular port check

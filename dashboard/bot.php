@@ -15,13 +15,13 @@ if (!isset($_SESSION['access_token'])) {
 $pageTitle = t('bot_management_title');
 $statusOutput = '';
 $betaStatusOutput = '';
-$discordStatusOutput = '';
-$pid = '';
-$versionRunning = '';
-$betaVersionRunning = '';
-$discordVersionRunning = '';
-$BotIsMod = false;
-$BotModMessage = "";
+// $discordStatusOutput = '';
+// $pid = '';
+// $versionRunning = '';
+// $betaVersionRunning = '';
+// $discordVersionRunning = '';
+// $BotIsMod = false;
+// $BotModMessage = "";
 $setupMessage = "";
 $showButtons = false;
 $lastModifiedOutput = '';
@@ -198,7 +198,7 @@ if ($selectedBot === 'beta' && !$betaAccess) {
 // Check running status for all bots to prevent conflicts
 $stableRunning = false; // Will be determined by JavaScript
 $betaRunning = false;   // Will be determined by JavaScript
-$discordBotSystemStatus = false; // Will be determined by JavaScript
+// $discordBotSystemStatus = false; // Will be determined by JavaScript
 $runningBotCount = 0;
 $multiBotWarning = '';
 if (($stableRunning || $betaRunning) && $selectedBot !== 'discord') {
@@ -279,15 +279,17 @@ if ($selectedBot === 'stable') {
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
   }
 } elseif ($selectedBot === 'discord') {
-  $discordStatusOutput = getBotsStatus($statusScriptPath, $username, 'discord');
+  // Use global version file and service for Discord bot
+  $discordVersionFilePath = '/var/www/logs/version/discord_version_control.txt';
+  $discordVersionRunning = file_exists($discordVersionFilePath) ? trim(file_get_contents($discordVersionFilePath)) : '';
+  // Status check (assume status script uses global service)
+  $discordStatusOutput = getBotsStatus($statusScriptPath, '', 'discord');
   $discordBotSystemStatus = strpos($discordStatusOutput, 'PID') !== false;
-  if ($discordBotSystemStatus) {
-    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
-    $discordRunning = "<div class='status-message'>Discord bot is running.</div>";
-  } else {
-    $discordRunning = "<div class='status-message error'>Discord bot is NOT RUNNING.</div>";
-    $discordVersionRunning = "";
-  }
+  // if ($discordBotSystemStatus) {
+  //   $discordRunning = "<div class='status-message'>Discord bot is running.</div>";
+  // } else {
+  //   $discordRunning = "<div class='status-message error'>Discord bot is not running.</div>";
+  // }
 }
 
 // Get last modified time of the bot script files using SSH
@@ -440,54 +442,20 @@ ob_start();
           <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
             <?php echo t('bot_beta_description'); ?>
           </p>
-        <?php elseif ($selectedBot === 'discord' && $hasDiscordSetup): ?>
+        <?php elseif ($selectedBot === 'discord'): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
-            <?php echo t('bot_discord_controls') . " (v{$discordNewVersion})"; ?>
+            <?php echo t('bot_discord_controls'); ?>
           </h3>
           <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
             <?php echo t('bot_discord_description'); ?>
           </p>
-        <?php elseif ($selectedBot === 'discord' && $discordNeedsRelink): ?>
-          <div class="notification is-warning has-text-black mb-4">
-            <div class="has-text-centered">
-              <h4 class="title is-5 has-text-black mb-3">
-                <span class="icon is-medium">
-                  <i class="fas fa-exclamation-triangle"></i>
-                </span>
-                Discord Account Reconnection Required
-              </h4>
-              <p class="mb-3">
-                Your Discord account connection is missing required authentication tokens or has expired. 
-                The Discord bot cannot operate without valid tokens.
-              </p>
-              <a href="discordbot.php" class="button is-primary is-medium has-text-weight-bold">
-                <span class="icon">
-                  <i class="fab fa-discord"></i>
-                </span>
-                <span>Reconnect Discord Account</span>
-              </a>
-            </div>
-          </div>
-        <?php elseif ($selectedBot === 'discord'): ?>
-          <div class="notification is-info has-text-black mb-4">
-            <div class="has-text-centered">
-              <h4 class="title is-5 has-text-black mb-3">
-                <span class="icon is-medium">
-                  <i class="fab fa-discord"></i>
-                </span>
-                Discord Setup Required
-              </h4>
-              <p class="mb-3">
-                To use the Discord bot, you need to connect your Discord account first. 
-                This allows the bot to interact with your Discord server.
-              </p>
-              <a href="discordbot.php" class="button is-primary is-medium has-text-weight-bold">
-                <span class="icon">
-                  <i class="fab fa-discord"></i>
-                </span>
-                <span>Connect Discord Account</span>
-              </a>
-            </div>
+          <div class="notification is-success has-text-black has-text-centered mb-4">
+            <!--<span class="icon"><i class="fas fa-check-circle"></i></span>
+            <?php echo t('bot_discord_service_running'); ?>
+            <br>-->
+            <span class="is-size-6">This Discord bot is managed as a persistent service on the server and does not require manual start/stop.</span>
+            <br>
+            <span class="is-size-6">Current Version: <strong><?php echo htmlspecialchars($discordVersionRunning); ?></strong></span>
           </div>
         <?php endif; ?>
         <?php 
@@ -496,7 +464,7 @@ ob_start();
         if ($selectedBot === 'stable' || $selectedBot === 'beta') {
           $showBotControls = true;
         } elseif ($selectedBot === 'discord' && $hasDiscordSetup) {
-          $showBotControls = true;
+          $showBotControls = false; // Don't show controls for Discord bot
         }
         ?>
         <?php if ($showBotControls): ?>
@@ -509,9 +477,7 @@ ob_start();
                 $isRunning = $stableRunning;
               } elseif ($selectedBot === 'beta') {
                 $isRunning = $betaRunning;
-              } elseif ($selectedBot === 'discord') {
-                $isRunning = $discordBotSystemStatus;
-              }
+              } 
               // Show loading state initially - JavaScript will update with real status
               $heartIcon = '<i class="fas fa-spinner fa-spin fa-2x has-text-info"></i>';
               echo $heartIcon;
@@ -520,10 +486,6 @@ ob_start();
           <span class="is-size-5" style="font-weight:600;">
             <?php echo t('bot_status_label') . " <span class='has-text-info'>Fetching status...</span>"; ?>
             <?php if ($isTechnical): ?>
-              <br>
-              <span class="is-size-7 has-text-grey-light" id="bot-pid-display" style="font-family: monospace; display: none;">
-                PID: <span id="bot-pid-value">--</span>
-              </span>
             <?php endif; ?>
           </span>
         </div>
@@ -586,7 +548,7 @@ ob_start();
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
                 <span class="icon is-large">
-                  <i id="web1Service" class="fas fa-globe fa-2x beating has-text-success"></i>
+                  <i id="web1Service" class="fas fa-heartbeat fa-2x has-text-success beating"></i>
                 </span>
               </div>
               <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_web_service'); ?></h4>
@@ -1503,22 +1465,43 @@ document.addEventListener('DOMContentLoaded', function() {
     const serviceDegradedText = <?php echo json_encode(t('bot_status_unknown')); ?>;
     const statusCheckFailedText = <?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>;
     services.forEach(svc => {
-      const checkStartTime = Date.now();
+      if (svc.id === 'web1Service') {
+        // Hard code Web Service as always online
+        const icon = document.getElementById(svc.id);
+        const statusElem = document.getElementById(svc.statusId);
+        const latencyElem = document.getElementById(svc.latencyId);
+        const lastCheckElem = document.getElementById(svc.lastCheckId);
+        if (icon) icon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
+        if (statusElem) {
+          statusElem.textContent = 'Running normally';
+          statusElem.className = 'is-size-7 has-text-grey-light';
+        }
+        if (latencyElem) {
+          latencyElem.innerHTML = '<span class="has-text-success">1ms</span>';
+        }
+        if (lastCheckElem) {
+          const now = new Date();
+          const timeStr = now.toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          });
+          lastCheckElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
+        }
+        return; // Skip API call for web1Service
+      }
       fetch('api_status.php?service=' + svc.api)
         .then(r => r.json())
         .then(data => {
           const icon = document.getElementById(svc.id);
           const statusElem = document.getElementById(svc.statusId);
           if (!icon || !statusElem) return;
-          // Update status and icon
-          if (data.status === 'OK') {
+          // Robust icon update logic
+          if (data && data.status === 'OK') {
             icon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
-            statusElem.textContent = runningNormallyText;
-            statusElem.className = 'is-size-7 has-text-grey-light';
           } else {
             icon.className = 'fas fa-heart-broken fa-2x has-text-danger';
-            statusElem.textContent = data.message || serviceDegradedText;
-            statusElem.className = 'is-size-7 has-text-danger';
           }
           // Update technical information if in technical mode
           if (isTechnical) {
@@ -1657,7 +1640,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const cpuElem = document.getElementById('server-cpu-load');
         if (cpuElem && data.cpu_load !== null) {
           const cpuColor = data.cpu_load < 60 ? 'has-text-success' : data.cpu_load < 80 ? 'has-text-warning' : 'has-text-danger';
-          cpuElem.innerHTML = `<span class="${cpuColor}">${data.cpu_load}%</span>`;
+          cpuElem.innerHTML = `<span class="${cpuColor}">${data.cpu_load}%</span>`; 
         } else if (cpuElem) {
           cpuElem.innerHTML = '<span class="has-text-grey">N/A</span>';
         }

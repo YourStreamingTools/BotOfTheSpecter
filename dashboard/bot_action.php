@@ -27,7 +27,7 @@ $action = $_POST['action'];
 $bot = $_POST['bot'];
 
 // Validate action and bot type
-if (!in_array($action, ['run', 'stop'])) {
+if (!in_array($action, ['run', 'stop', 'status'])) {
   ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Invalid action']);
@@ -56,7 +56,7 @@ $apiKey = $_SESSION['api_key'] ?? '';
 
 // Prepare parameters
 $params = [
-  'username' => $username,
+  'username' => $bot === 'discord' ? null : $username,
   'twitch_user_id' => $twitchUserId,
   'auth_token' => $authToken,
   'refresh_token' => $refreshToken,
@@ -64,7 +64,19 @@ $params = [
 ];
 
 // Perform the bot action
-$result = performBotAction($actionMap[$action], $bot, $params);
+if ($bot === 'discord') {
+    // Only allow status/version checks for Discord bot
+    if ($action === 'status') {
+        $result = checkBotRunning('discord');
+        echo json_encode(['status' => $result]);
+        exit;
+    }
+    // No start/stop actions for Discord bot
+    echo json_encode(['error' => 'Action not allowed for Discord bot.']);
+    exit;
+} else {
+    $result = performBotAction($actionMap[$action], $bot, $params);
+}
 
 // Add some debugging information
 error_log("Bot action performed - Bot: $bot, Action: $action, Result: " . json_encode($result));
