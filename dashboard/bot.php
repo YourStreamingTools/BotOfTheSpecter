@@ -302,6 +302,17 @@ if ($backup_system == true) {
   $showButtons = true;
 };
 
+function dbTimeToUserTime($dbDatetime, $userTimezone = 'UTC') {
+    if (!$dbDatetime) return '';
+    try {
+        $dt = new DateTime($dbDatetime, new DateTimeZone('Australia/Sydney'));
+        $dt->setTimezone(new DateTimeZone($userTimezone));
+        return $dt->format('Y-m-d H:i:s');
+    } catch (Exception $e) {
+        return $dbDatetime; // fallback to raw if error
+    }
+}
+
 // Start output buffering for layout template
 ob_start();
 ?>
@@ -1412,7 +1423,12 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('weather-count').textContent = data.weather.requests_remaining;
           document.getElementById('weather-progress').value = data.weather.requests_remaining;
           document.getElementById('weather-progress').max = data.weather.requests_limit;
-          document.getElementById('weather-updated').textContent = timeAgo(data.weather.last_updated);
+          let weatherUpdated = data.weather.last_updated;
+          if (weatherUpdated && typeof weatherUpdated === 'string' && weatherUpdated.length === 19 && weatherUpdated.indexOf('T') === -1) {
+            weatherUpdated += '+10:00'; // force as Sydney time (no DST check, but fixes main issue)
+            weatherUpdated = weatherUpdated.replace(' ', 'T');
+          }
+          document.getElementById('weather-updated').textContent = timeAgo(weatherUpdated);
         }
       })
       .catch(() => {
