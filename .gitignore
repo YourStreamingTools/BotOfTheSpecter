@@ -30,6 +30,7 @@ stream/stream_server.log
 websocket/noti_server.log
 logs/*
 dashboard/logs/*
+bot/logs/*
 
 # Cache files
 dashboard/moderator/cache/*.json
