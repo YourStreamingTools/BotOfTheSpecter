@@ -1,13 +1,17 @@
+# Standard library
 import asyncio
 import logging
 import os
 import signal
+import json
+# Third-party libraries
 import aiohttp
 import discord
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
 import aiomysql
+import socketio
 
 # Load environment variables from .env file
 load_dotenv()
@@ -31,6 +35,42 @@ def setup_logger(name, log_file, level=logging.INFO):
     logger.addHandler(handler)
     return logger
 
+# Channel mapping class to manage multiple Discord servers
+class ChannelMapping:
+    def __init__(self):
+        self.mappings = {}  # channel_code -> {guild_id, channel_id, channel_name}
+        self.load_mappings()
+    def load_mappings(self):
+        mapping_file = "/home/botofthespecter/discord_channel_mappings.json"
+        try:
+            if os.path.exists(mapping_file):
+                with open(mapping_file, 'r') as f:
+                    self.mappings = json.load(f)
+        except Exception as e:
+            print(f"Error loading channel mappings: {e}")
+    def save_mappings(self):
+        mapping_file = "/home/botofthespecter/discord_channel_mappings.json"
+        try:
+            with open(mapping_file, 'w') as f:
+                json.dump(self.mappings, f, indent=2)
+        except Exception as e:
+            print(f"Error saving channel mappings: {e}")
+    def add_mapping(self, channel_code, guild_id, channel_id, channel_name):
+        self.mappings[channel_code] = {
+            "guild_id": guild_id,
+            "channel_id": channel_id,
+            "channel_name": channel_name
+        }
+        self.save_mappings()
+    def get_mapping(self, channel_code):
+        return self.mappings.get(channel_code)
+    def remove_mapping(self, channel_code):
+        if channel_code in self.mappings:
+            del self.mappings[channel_code]
+            self.save_mappings()
+            return True
+        return False
+
 # Global configuration class
 class Config:
     def __init__(self):
@@ -42,6 +82,10 @@ config = Config()
 # Define the bot information
 BOT_VERSION = "2.0"
 BOT_COLOR = 0x001C1D
+
+# Discord Bot Service Version
+DISCORD_BOT_SERVICE_VERSION = "5.0.0"
+DISCORD_VERSION_FILE = "/var/www/logs/version/discord_version_control.txt"
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
@@ -55,6 +99,8 @@ class BotOfTheSpecter(commands.Bot):
         self.processed_messages_file = f"/home/botofthespecter/logs/discord/messages.txt"
         self.version = BOT_VERSION
         self.pool = None  # Initialize the pool attribute
+        self.channel_mapping = ChannelMapping()
+        self.websocket_client = None
         # Ensure the log directory and file exist
         messages_dir = os.path.dirname(self.processed_messages_file)
         if not os.path.exists(messages_dir):
@@ -65,11 +111,23 @@ class BotOfTheSpecter(commands.Bot):
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
+        # Update the global version file for dashboard display
+        try:
+            os.makedirs(os.path.dirname(DISCORD_VERSION_FILE), exist_ok=True)
+            with open(DISCORD_VERSION_FILE, "w") as f:
+                f.write(DISCORD_BOT_SERVICE_VERSION + "\n")
+            self.logger.info(f"Updated Discord bot version file: {DISCORD_BOT_SERVICE_VERSION}")
+        except Exception as e:
+            self.logger.error(f"Failed to update Discord bot version file: {e}")
         # Set the initial presence
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
+        await self.add_cog(ChannelManagementCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
+        # Start websocket listener in the background
+        self.websocket_listener = WebsocketListener(self, self.logger)
+        asyncio.create_task(self.websocket_listener.start())
 
     async def setup_hook(self):
         # Sync the slash commands when the bot starts
@@ -171,6 +229,121 @@ class BotOfTheSpecter(commands.Bot):
         while not self.is_closed():
             await self.update_presence()  # Update the presence
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
+
+    async def connect_to_websocket(self):
+        import socketio
+        self.websocket_client = socketio.AsyncClient(logger=False, engineio_logger=False)
+        admin_key = os.getenv("ADMIN_KEY")
+        websocket_url = "wss://websocket.botofthespecter.com"
+        @self.websocket_client.event
+        async def connect():
+            self.logger.info("Connected to websocket server")
+            await self.websocket_client.emit("REGISTER", {
+                "code": admin_key,
+                "global_listener": True,
+                "channel": "Global",
+                "name": "Discord Bot Global Listener"
+            })
+        @self.websocket_client.event
+        async def disconnect():
+            self.logger.info("Disconnected from websocket server")
+        @self.websocket_client.event
+        async def SUCCESS(data):
+            self.logger.info(f"Websocket registration successful: {data}")
+        @self.websocket_client.event
+        async def ERROR(data):
+            self.logger.error(f"Websocket error: {data}")
+        @self.websocket_client.event
+        async def TWITCH_FOLLOW(data):
+            await self.handle_twitch_event("FOLLOW", data)
+        @self.websocket_client.event
+        async def TWITCH_SUB(data):
+            await self.handle_twitch_event("SUBSCRIPTION", data)
+        @self.websocket_client.event
+        async def TWITCH_CHEER(data):
+            await self.handle_twitch_event("CHEER", data)
+        @self.websocket_client.event
+        async def TWITCH_RAID(data):
+            await self.handle_twitch_event("RAID", data)
+        @self.websocket_client.event
+        async def STREAM_ONLINE(data):
+            await self.handle_stream_event("ONLINE", data)
+        @self.websocket_client.event
+        async def STREAM_OFFLINE(data):
+            await self.handle_stream_event("OFFLINE", data)
+        await self.websocket_client.connect(websocket_url)
+
+    async def handle_twitch_event(self, event_type, data):
+        channel_code = data.get("channel_code", "unknown")
+        mapping = self.channel_mapping.get_mapping(channel_code)
+        if not mapping:
+            self.logger.warning(f"No Discord mapping found for channel code: {channel_code}")
+            return
+        guild = self.get_guild(mapping["guild_id"])
+        if not guild:
+            self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel {channel_code}")
+            return
+        channel = guild.get_channel(mapping["channel_id"])
+        if not channel:
+            self.logger.warning(f"Channel {mapping['channel_id']} not found in guild {guild.name}")
+            return
+        message = self.format_twitch_message(event_type, data)
+        if message:
+            await channel.send(message)
+            self.logger.info(f"Sent {event_type} notification to {guild.name}#{channel.name}")
+
+    async def handle_stream_event(self, event_type, data):
+        resolver = DiscordChannelResolver(self.logger)
+        code = data.get("channel_code", "unknown")
+        user_id = await resolver.get_user_id_from_api_key(code)
+        if not user_id:
+            self.logger.warning(f"No user_id found for api_key/code: {code}")
+            return
+        discord_info = await resolver.get_discord_info_from_user_id(user_id)
+        if not discord_info:
+            self.logger.warning(f"No discord info found for user_id: {user_id}")
+            return
+        guild = self.get_guild(int(discord_info["guild_id"]))
+        if not guild:
+            self.logger.warning(f"Bot not in guild {discord_info['guild_id']} for user_id {user_id}")
+            return
+        channel = guild.get_channel(int(discord_info["live_channel_id"]))
+        if not channel:
+            self.logger.warning(f"Channel {discord_info['live_channel_id']} not found in guild {guild.name}")
+            return
+        if event_type == "ONLINE":
+            message = discord_info["online_text"] or "🟢 Stream is now LIVE!"
+        else:
+            message = discord_info["offline_text"] or "🔴 Stream is now OFFLINE"
+        await channel.send(message)
+        self.logger.info(f"Sent stream {event_type} notification to {guild.name}#{channel.name}")
+
+    def format_twitch_message(self, event_type, data):
+        username = data.get("username", "Unknown User")
+        if event_type == "FOLLOW":
+            return f"💙 **{username}** just followed the stream!"
+        elif event_type == "SUBSCRIPTION":
+            months = data.get("months", 1)
+            tier = data.get("tier", "1")
+            message_text = data.get("message", "")
+            msg = f"⭐ **{username}** just subscribed"
+            if months > 1:
+                msg += f" for {months} months"
+            msg += f" (Tier {tier})!"
+            if message_text:
+                msg += f"\n> {message_text}"
+            return msg
+        elif event_type == "CHEER":
+            bits = data.get("bits", 0)
+            message_text = data.get("message", "")
+            msg = f"💎 **{username}** cheered {bits} bits!"
+            if message_text:
+                msg += f"\n> {message_text}"
+            return msg
+        elif event_type == "RAID":
+            viewers = data.get("viewers", 0)
+            return f"🚀 **{username}** raided with {viewers} viewers!"
+        return None
 
 class QuoteCog(commands.Cog, name='Quote'):
     def __init__(self, bot: BotOfTheSpecter, api_token: str, logger=None):
@@ -812,6 +985,164 @@ class TicketCog(commands.Cog, name='Tickets'):
                     )
             self.logger.info(f"Auto-saved comment for ticket {ticket_id} from {message.author}")
 
+class ChannelManagementCog(commands.Cog, name='Channel Management'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger
+
+    @app_commands.command(name="map_channel", description="Map a Twitch channel code to this Discord channel")
+    @app_commands.describe(channel_code="The Twitch channel code to map to this Discord channel")
+    async def map_channel(self, interaction: discord.Interaction, channel_code: str):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
+        self.bot.channel_mapping.add_mapping(
+            channel_code,
+            interaction.guild.id,
+            interaction.channel.id,
+            interaction.channel.name
+        )
+        embed = discord.Embed(
+            title="✅ Channel Mapped Successfully",
+            description=f"Twitch channel code `{channel_code}` is now mapped to {interaction.channel.mention}",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed)
+        if self.logger:
+            self.logger.info(f"Mapped channel code {channel_code} to {interaction.guild.name}#{interaction.channel.name}")
+
+    @app_commands.command(name="unmap_channel", description="Remove the mapping for a Twitch channel code")
+    @app_commands.describe(channel_code="The Twitch channel code to unmap")
+    async def unmap_channel(self, interaction: discord.Interaction, channel_code: str):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
+        if self.bot.channel_mapping.remove_mapping(channel_code):
+            embed = discord.Embed(
+                title="✅ Channel Unmapped Successfully",
+                description=f"Twitch channel code `{channel_code}` has been unmapped",
+                color=discord.Color.green()
+            )
+            if self.logger:
+                self.logger.info(f"Unmapped channel code {channel_code}")
+        else:
+            embed = discord.Embed(
+                title="❌ Channel Not Found",
+                description=f"No mapping found for channel code `{channel_code}`",
+                color=discord.Color.red()
+            )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="list_mappings", description="List all channel mappings for this server")
+    async def list_mappings(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
+        guild_mappings = []
+        for code, mapping in self.bot.channel_mapping.mappings.items():
+            if mapping["guild_id"] == interaction.guild.id:
+                channel = interaction.guild.get_channel(mapping["channel_id"])
+                channel_mention = channel.mention if channel else f"#{mapping['channel_name']} (deleted)"
+                guild_mappings.append(f"`{code}` → {channel_mention}")
+        if guild_mappings:
+            embed = discord.Embed(
+                title="📋 Channel Mappings",
+                description="\n".join(guild_mappings),
+                color=BOT_COLOR
+            )
+        else:
+            embed = discord.Embed(
+                title="📋 Channel Mappings",
+                description="No channel mappings found for this server.",
+                color=BOT_COLOR
+            )
+        await interaction.response.send_message(embed=embed)
+
+class MySQLHelper:
+    def __init__(self, logger=None):
+        self.logger = logger
+    async def get_connection(self, database_name):
+        sql_host = os.getenv('SQL_HOST')
+        sql_user = os.getenv('SQL_USER')
+        sql_password = os.getenv('SQL_PASSWORD')
+        if not sql_host or not sql_user or not sql_password:
+            if self.logger:
+                self.logger.error("Missing SQL connection parameters. Please check the .env file.")
+            return None
+        try:
+            conn = await aiomysql.connect(
+                host=sql_host,
+                user=sql_user,
+                password=sql_password,
+                db=database_name
+            )
+            return conn
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error connecting to MySQL: {e}")
+            return None
+    async def fetchone(self, query, params=None, database_name='website', dict_cursor=False):
+        conn = await self.get_connection(database_name)
+        if not conn:
+            return None
+        try:
+            cursor_type = aiomysql.DictCursor if dict_cursor else None
+            async with conn.cursor(cursor_type) as cursor:
+                await cursor.execute(query, params)
+                row = await cursor.fetchone()
+                return row
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"MySQL fetchone error: {e}")
+            return None
+        finally:
+            conn.close()
+    async def fetchall(self, query, params=None, database_name='website', dict_cursor=False):
+        conn = await self.get_connection(database_name)
+        if not conn:
+            return None
+        try:
+            cursor_type = aiomysql.DictCursor if dict_cursor else None
+            async with conn.cursor(cursor_type) as cursor:
+                await cursor.execute(query, params)
+                rows = await cursor.fetchall()
+                return rows
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"MySQL fetchall error: {e}")
+            return None
+        finally:
+            conn.close()
+    async def execute(self, query, params=None, database_name='website'):
+        conn = await self.get_connection(database_name)
+        if not conn:
+            return None
+        try:
+            async with conn.cursor() as cursor:
+                await cursor.execute(query, params)
+                await conn.commit()
+                return cursor.rowcount
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"MySQL execute error: {e}")
+            return None
+        finally:
+            conn.close()
+
+class DiscordChannelResolver:
+    def __init__(self, logger=None, mysql_helper=None):
+        self.logger = logger
+        self.mysql = mysql_helper or MySQLHelper(logger)
+    async def get_user_id_from_api_key(self, api_key):
+        row = await self.mysql.fetchone(
+            "SELECT id FROM users WHERE api_key = %s", (api_key,), database_name='website')
+        return row[0] if row else None
+    async def get_discord_info_from_user_id(self, user_id):
+        row = await self.mysql.fetchone(
+            "SELECT guild_id, live_channel_id, online_text, offline_text FROM discord_users WHERE user_id = %s",
+            (user_id,), database_name='website', dict_cursor=True)
+        return row if row else None
+
 class DiscordBotRunner:
     def __init__(self, discord_logger):
         self.logger = discord_logger
@@ -863,3 +1194,42 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+class WebsocketListener:
+    def __init__(self, bot, logger=None):
+        self.bot = bot
+        self.logger = logger
+        self.sio = None
+    async def start(self):
+        self.sio = socketio.AsyncClient(logger=False, engineio_logger=False)
+        admin_key = os.getenv("ADMIN_KEY")
+        websocket_url = "wss://websocket.botofthespecter.com"
+        @self.sio.event
+        async def connect():
+            if self.logger:
+                self.logger.info("Connected to websocket server")
+            await self.sio.emit("REGISTER", {
+                "code": admin_key,
+                "global_listener": True,
+                "channel": "Global",
+                "name": "Discord Bot Global Listener"
+            })
+        @self.sio.event
+        async def disconnect():
+            if self.logger:
+                self.logger.info("Disconnected from websocket server")
+        @self.sio.event
+        async def SUCCESS(data):
+            if self.logger:
+                self.logger.info(f"Websocket registration successful: {data}")
+        @self.sio.event
+        async def ERROR(data):
+            if self.logger:
+                self.logger.error(f"Websocket error: {data}")
+        @self.sio.event
+        async def STREAM_ONLINE(data):
+            await self.bot.handle_stream_event("ONLINE", data)
+        @self.sio.event
+        async def STREAM_OFFLINE(data):
+            await self.bot.handle_stream_event("OFFLINE", data)
+        await self.sio.connect(websocket_url)
