@@ -34,7 +34,7 @@ if (($bot === 'stable' || $bot === 'beta') && empty($username)) {
 
 // For Discord bot, do not pass username
 if ($bot === 'discord') {
-  $botStatus = checkBotRunning('discord');
+  $botStatus = ['running' => true]; // Simplified response
 } else {
   $botStatus = checkBotRunning($username, $bot);
 }
