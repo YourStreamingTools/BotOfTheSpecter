@@ -63,11 +63,6 @@ function checkSSHService($host, $username, $password, $serviceName, $timeout = 5
 
 // Map services to host/port
 $serviceMap = [
-    'web1' => [
-        'name' => 'Web1 Service',
-        'host' => 'botofthespecter.com',
-        'port' => 443
-    ],
     'api' => [
         'name' => 'API Service',
         'host' => 'api.botofthespecter.com',
