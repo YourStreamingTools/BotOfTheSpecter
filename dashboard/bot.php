@@ -1433,8 +1433,17 @@ document.addEventListener('DOMContentLoaded', function() {
   function timeAgo(isoDate) {
     if (!isoDate) return '--';
     const now = new Date();
-    const then = new Date(isoDate);
-    const diff = Math.floor((now - then) / 1000);
+    let then;
+    if (typeof isoDate === 'number' || /^\d+$/.test(isoDate)) {
+      // Handle Unix timestamp (seconds or ms)
+      then = new Date((isoDate.toString().length > 10 ? Number(isoDate) : Number(isoDate) * 1000));
+    } else {
+      // Handle MySQL datetime string by replacing space with 'T'
+      let safeDate = isoDate.replace(' ', 'T');
+      then = new Date(safeDate);
+    }
+    let diff = Math.floor((now - then) / 1000);
+    if (diff < 0) diff = 0;
     if (diff < 60) {
       return agoTranslations.seconds.replace(':count', diff);
     }
