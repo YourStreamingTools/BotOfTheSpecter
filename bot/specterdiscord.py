@@ -35,6 +35,45 @@ def setup_logger(name, log_file, level=logging.INFO):
     logger.addHandler(handler)
     return logger
 
+class WebsocketListener:
+    def __init__(self, bot, logger=None):
+        self.bot = bot
+        self.logger = logger
+        self.sio = None
+    async def start(self):
+        self.sio = socketio.AsyncClient(logger=False, engineio_logger=False)
+        admin_key = os.getenv("ADMIN_KEY")
+        websocket_url = "wss://websocket.botofthespecter.com"
+        @self.sio.event
+        async def connect():
+            if self.logger:
+                self.logger.info("Connected to websocket server")
+            await self.sio.emit("REGISTER", {
+                "code": admin_key,
+                "global_listener": True,
+                "channel": "Global",
+                "name": "Discord Bot Global Listener"
+            })
+        @self.sio.event
+        async def disconnect():
+            if self.logger:
+                self.logger.info("Disconnected from websocket server")
+        @self.sio.event
+        async def SUCCESS(data):
+            if self.logger:
+                self.logger.info(f"Websocket registration successful: {data}")
+        @self.sio.event
+        async def ERROR(data):
+            if self.logger:
+                self.logger.error(f"Websocket error: {data}")
+        @self.sio.event
+        async def STREAM_ONLINE(data):
+            await self.bot.handle_stream_event("ONLINE", data)
+        @self.sio.event
+        async def STREAM_OFFLINE(data):
+            await self.bot.handle_stream_event("OFFLINE", data)
+        await self.sio.connect(websocket_url)
+
 # Channel mapping class to manage multiple Discord servers
 class ChannelMapping:
     def __init__(self):
@@ -80,11 +119,9 @@ class Config:
 config = Config()
 
 # Define the bot information
-BOT_VERSION = "2.0"
 BOT_COLOR = 0x001C1D
-
-# Discord Bot Service Version
 DISCORD_BOT_SERVICE_VERSION = "5.0.0"
+BOT_VERSION = DISCORD_BOT_SERVICE_VERSION
 DISCORD_VERSION_FILE = "/var/www/logs/version/discord_version_control.txt"
 
 # Bot class
@@ -1134,42 +1171,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-class WebsocketListener:
-    def __init__(self, bot, logger=None):
-        self.bot = bot
-        self.logger = logger
-        self.sio = None
-    async def start(self):
-        self.sio = socketio.AsyncClient(logger=False, engineio_logger=False)
-        admin_key = os.getenv("ADMIN_KEY")
-        websocket_url = "wss://websocket.botofthespecter.com"
-        @self.sio.event
-        async def connect():
-            if self.logger:
-                self.logger.info("Connected to websocket server")
-            await self.sio.emit("REGISTER", {
-                "code": admin_key,
-                "global_listener": True,
-                "channel": "Global",
-                "name": "Discord Bot Global Listener"
-            })
-        @self.sio.event
-        async def disconnect():
-            if self.logger:
-                self.logger.info("Disconnected from websocket server")
-        @self.sio.event
-        async def SUCCESS(data):
-            if self.logger:
-                self.logger.info(f"Websocket registration successful: {data}")
-        @self.sio.event
-        async def ERROR(data):
-            if self.logger:
-                self.logger.error(f"Websocket error: {data}")
-        @self.sio.event
-        async def STREAM_ONLINE(data):
-            await self.bot.handle_stream_event("ONLINE", data)
-        @self.sio.event
-        async def STREAM_OFFLINE(data):
-            await self.bot.handle_stream_event("OFFLINE", data)
-        await self.sio.connect(websocket_url)
