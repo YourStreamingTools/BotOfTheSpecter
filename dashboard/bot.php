@@ -281,17 +281,11 @@ ob_start();
           <div class="version-meta">
             <p>
               <span class="has-text-grey-light"><?php echo t('bot_last_updated'); ?></span>
-              <span id="last-updated" class="has-text-info"></span>
+              <span id="last-updated" class="has-text-info">Loading...</span>
             </p>
             <p>
               <span class="has-text-grey-light"><?php echo t('bot_last_run'); ?></span>
-              <span id="last-run" class="has-text-info">
-                <?php 
-                  echo $selectedBot === 'stable' ? $stableLastRestartOutput : 
-                       ($selectedBot === 'beta' ? $lastRestartOutput : 
-                       'Unknown');
-                ?>
-              </span>
+              <span id="last-run" class="has-text-info">Loading...</span>
             </p>
           </div>
           <p class="is-size-7 mt-3 has-text-grey-light">
@@ -1096,15 +1090,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 const data = JSON.parse(text);
                 console.log('updateBotStatus parsed data:', data);
                 if (data.success) {
+                    console.log('Bot status data received:', {
+                        bot: data.bot,
+                        running: data.running,
+                        version: data.version,
+                        lastModified: data.lastModified,
+                        lastRun: data.lastRun
+                    });
                     const statusText = data.running ? 'ONLINE' : 'OFFLINE';
                     const statusClass = data.running ? 'success' : 'danger';
-                    
                     // Update status text
                     const statusTextElement = document.getElementById('bot-status-text');
                     if (statusTextElement) {
                         statusTextElement.innerHTML = `<span class="has-text-${statusClass}">${statusText}</span>`;
                     }
-                    
                     // Update heart icon
                     const heartIconContainer = document.getElementById('botStatusIcon');
                     if (heartIconContainer) {
@@ -1114,7 +1113,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
                         }
                     }
-                    
                     // Update buttons based on status
                     const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
                     if (buttonContainer) {
@@ -1138,7 +1136,17 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Re-attach event listeners
                         attachBotButtonListeners();
                     }
-                    
+                    // Update version info card
+                    const lastUpdatedElement = document.getElementById('last-updated');
+                    const lastRunElement = document.getElementById('last-run');
+                    if (lastUpdatedElement) {
+                        lastUpdatedElement.textContent = data.lastModified || 'Unknown';
+                        console.log('Updated last-updated to:', data.lastModified || 'Unknown');
+                    }
+                    if (lastRunElement) {
+                        lastRunElement.textContent = data.lastRun || 'Never';
+                        console.log('Updated last-run to:', data.lastRun || 'Never');
+                    }
                     // Update technical info if available
                     const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
                     const lastCheckElement = document.getElementById(`${selectedBot}-service-lastcheck`);
@@ -1148,13 +1156,40 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 } else {
                     console.error('Bot status API returned error:', data);
+                    // Set fallback values if API fails
+                    const lastUpdatedElement = document.getElementById('last-updated');
+                    const lastRunElement = document.getElementById('last-run');
+                    if (lastUpdatedElement) {
+                        lastUpdatedElement.textContent = 'Error loading';
+                    }
+                    if (lastRunElement) {
+                        lastRunElement.textContent = 'Error loading';
+                    }
                 }
             } catch (e) {
                 console.error('Error parsing bot status JSON:', e);
+                // Set fallback values if JSON parsing fails
+                const lastUpdatedElement = document.getElementById('last-updated');
+                const lastRunElement = document.getElementById('last-run');
+                if (lastUpdatedElement) {
+                    lastUpdatedElement.textContent = 'Error loading';
+                }
+                if (lastRunElement) {
+                    lastRunElement.textContent = 'Error loading';
+                }
             }
         })
         .catch(error => {
             console.error('Error fetching bot status:', error);
+            // Set fallback values if fetch fails
+            const lastUpdatedElement = document.getElementById('last-updated');
+            const lastRunElement = document.getElementById('last-run');
+            if (lastUpdatedElement) {
+                lastUpdatedElement.textContent = 'Error loading';
+            }
+            if (lastRunElement) {
+                lastRunElement.textContent = 'Error loading';
+            }
         });
   }
   // Function to update API limits from api_limits.php

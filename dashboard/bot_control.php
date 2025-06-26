@@ -6,12 +6,12 @@ include_once __DIR__ . '/lang/i18n.php';
 include_once "/var/www/config/ssh.php";
 
 // Define variables for standard bot
-$versionFilePath = '/var/www/logs/version/' . $username . '_version_control.txt';
+$versionFilePath = '/home/botofthespecter/logs/version/' . $username . '_version_control.txt';
 $botScriptPath = "/home/botofthespecter/bot.py";
 $statusScriptPath = "/home/botofthespecter/status.py";
 
 // Define variables for beta bot
-$betaVersionFilePath = '/var/www/logs/version/' . $username . '_beta_version_control.txt';
+$betaVersionFilePath = '/home/botofthespecter/logs/version/' . $username . '_beta_version_control.txt';
 $BetaBotScriptPath = "/home/botofthespecter/beta.py";
 
 // Fetch all versions from the API ONCE at the top
@@ -149,9 +149,18 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
 
 // Add new function to update version file with latest version
 function updateVersionFile($versionFilePath, $newVersion) {
-    // Create the file if it doesn't exist and write the new version to it
-    file_put_contents($versionFilePath, $newVersion);
-    return true;
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        $versionDir = dirname($versionFilePath);
+        $createDirCmd = "mkdir -p " . escapeshellarg($versionDir);
+        SSHConnectionManager::executeCommand($connection, $createDirCmd);
+        $writeVersionCmd = "echo " . escapeshellarg($newVersion) . " > " . escapeshellarg($versionFilePath);
+        SSHConnectionManager::executeCommand($connection, $writeVersionCmd);
+        return true;
+    } catch (Exception $e) {
+        return false;
+    }
 }
 
 function getBotsStatus($statusScriptPath, $username, $system = 'stable') {
@@ -269,10 +278,17 @@ if ($betaBotSystemStatus) {
 }
 
 function getRunningVersion($versionFilePath, $newVersion, $type = '') {
-    if (file_exists($versionFilePath)) {
-        $output = trim(file_get_contents($versionFilePath));
-        return $output;
-    } else {
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        $versionCmd = "cat " . escapeshellarg($versionFilePath);
+        $output = SSHConnectionManager::executeCommand($connection, $versionCmd);
+        if ($output !== false) {
+            return trim($output);
+        } else {
+            return $newVersion;
+        }
+    } catch (Exception $e) {
         return $newVersion;
     }
 }
