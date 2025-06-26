@@ -558,7 +558,7 @@ ob_start();
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
-                <span class="icon is-large">
+                <span class="icon is-large" id="botStatusIcon">
                   <i id="apiService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
                 </span>
               </div>
@@ -581,7 +581,7 @@ ob_start();
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
-                <span class="icon is-large">
+                <span class="icon is-large" id="botStatusIcon">
                   <i id="databaseService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
                 </span>
               </div>
@@ -604,7 +604,7 @@ ob_start();
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
-                <span class="icon is-large">
+                <span class="icon is-large" id="botStatusIcon">
                   <i id="notificationService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
                 </span>
               </div>
@@ -627,7 +627,7 @@ ob_start();
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
-                <span class="icon is-large">
+                <span class="icon is-large" id="botStatusIcon">
                   <i id="botsService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
                 </span>
               </div>
@@ -648,7 +648,7 @@ ob_start();
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
-                <span class="icon is-large">
+                <span class="icon is-large" id="botStatusIcon">
                   <i id="discordService" class="fab fa-discord fa-2x beating has-text-success"></i>
                 </span>
               </div>
@@ -674,7 +674,7 @@ ob_start();
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-2">
-                <span class="icon is-large">
+                <span class="icon is-large" id="botStatusIcon">
                   <i id="auEast1Service" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
                 </span>
               </div>
@@ -695,7 +695,7 @@ ob_start();
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-2">
-                <span class="icon is-large">
+                <span class="icon is-large" id="botStatusIcon">
                   <i id="usWest1Service" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
                 </span>
               </div>
@@ -716,7 +716,7 @@ ob_start();
           <div class="column is-4">
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-2">
-                <span class="icon is-large">
+                <span class="icon is-large" id="botStatusIcon">
                   <i id="usEast1Service" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
                 </span>
               </div>
@@ -1192,7 +1192,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const statusText = expectedRunning ? 'ONLINE' : 'OFFLINE';
     const statusClass = expectedRunning ? 'success' : 'danger';
     // Update the heartbeat icon
-    const heartIconContainer = document.querySelector('.icon.is-large');
+    const heartIconContainer = document.getElementById('botStatusIcon');
     if (heartIconContainer) {
       if (expectedRunning) {
         heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
@@ -1256,134 +1256,38 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
     if (!selectedBot) { selectedBot = 'stable'; }
     return fetch(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`)
-      .then(async response => {
-        const text = await response.text();
-        try {
-          const data = JSON.parse(text);
-          console.log('updateBotStatus parsed data:', data);
-          if (data.success) {
-            // Update status icon and text
-            const statusText = data.running ? 'ONLINE' : 'OFFLINE';
-            const statusClass = data.running ? 'success' : 'danger';
-            // Update the heartbeat icon for the selected bot only
-            const heartIconContainer = document.querySelector('.icon.is-large');
-            if (heartIconContainer) {
-              if (data.running) { 
-                heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>'; 
-              } else { 
-                heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>'; 
-              }
-            }
-            // Update status text
-            const statusSpan = document.querySelector('.is-size-5 span[class*="has-text-"]');
-            if (statusSpan) {
-              statusSpan.textContent = statusText;
-              statusSpan.className = `has-text-${statusClass}`;
-            }
-            // Update PID display if technical mode is enabled
-            if (isTechnical) {
-              const pidDisplay = document.getElementById('bot-pid-display');
-              const pidValue = document.getElementById('bot-pid-value');
-              if (pidDisplay && pidValue) {
-                if (data.running && data.pid) {
-                  pidDisplay.style.display = '';
-                  pidValue.textContent = data.pid;
+        .then(async response => {
+            const text = await response.text();
+            try {
+                const data = JSON.parse(text);
+                console.log('updateBotStatus parsed data:', data);
+                if (data.success) {
+                    const statusText = data.running ? 'ONLINE' : 'OFFLINE';
+                    const statusClass = data.running ? 'success' : 'danger';
+                    const heartIconContainer = document.getElementById('botStatusIcon');
+                    if (heartIconContainer) {
+                        if (data.running) {
+                            heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
+                        } else {
+                            heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
+                        }
+                    }
+                    const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
+                    const lastCheckElement = document.getElementById(`${selectedBot}-service-lastcheck`);
+                    if (latencyElement && lastCheckElement) {
+                        latencyElement.textContent = `${data.latency || '--'}ms`;
+                        lastCheckElement.textContent = data.lastCheck || '--';
+                    }
                 } else {
-                  pidDisplay.style.display = 'none';
+                    console.error('Bot status API returned error:', data);
                 }
-              }
+            } catch (e) {
+                console.error('Error parsing bot status JSON:', e);
             }
-            // Update buttons by replacing the entire button container
-            const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
-            if (buttonContainer) {
-              if (data.running) {
-                // Show Stop button
-                buttonContainer.innerHTML = `
-                  <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3">
-                    <span class="icon"><i class="fas fa-stop"></i></span>
-                    <span><?php echo addslashes(t('bot_stop')); ?></span>
-                  </button>
-                `;
-              } else {
-                // Show Run button
-                buttonContainer.innerHTML = `
-                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3">
-                    <span class="icon"><i class="fas fa-play"></i></span>
-                    <span><?php echo addslashes(t('bot_run')); ?></span>
-                  </button>
-                `;
-              }
-              // Re-attach event listeners after updating the DOM
-              attachBotButtonListeners();
-            }
-            // Update last modified and last run if elements exist
-            const lastUpdatedElement = document.getElementById('last-updated');
-            if (lastUpdatedElement) {
-              lastUpdatedElement.textContent = data.lastModified;
-            }
-            const lastRunElement = document.getElementById('last-run');
-            if (lastRunElement) {
-              lastRunElement.textContent = data.lastRun;
-            }
-            // Clear any existing error messages since this was successful
-            let errorElement = document.querySelector('.bot-status-error');
-            if (errorElement) {
-              errorElement.style.display = 'none';
-            }
-            // Only show confirmation message if not a silent update
-            if (!silentUpdate) {
-              // Clear any existing info messages 
-              let infoElement = document.querySelector('.bot-status-info');
-              if (infoElement) {
-                infoElement.style.display = 'none';
-              }
-            }
-            return data; // Return the data for further processing
-          } else {
-            console.error('Bot status API returned error:', data);
-            if (!silentUpdate) {
-              // Clear any existing info messages since this is an error
-              let infoElement = document.querySelector('.bot-status-info');
-              if (infoElement) {
-                infoElement.style.display = 'none';
-              }
-            }
-            // Display error message to user if available
-            if (data.message) {
-              // Try to find an error display element or create one
-              let errorElement = document.querySelector('.bot-status-error');
-              if (!errorElement) {
-                errorElement = document.createElement('div');
-                errorElement.className = 'notification is-danger bot-status-error';
-                errorElement.style.margin = '10px 0';
-                // Try to insert after the status heading
-                const statusContainer = document.querySelector('.is-size-5');
-                if (statusContainer && statusContainer.parentNode) {
-                  statusContainer.parentNode.insertBefore(errorElement, statusContainer.nextSibling);
-                }
-              }
-              errorElement.style.display = 'block';
-              // Customize error message based on type
-              if (data.message.includes('SSH connection failed')) {
-                errorElement.innerHTML = `<strong>Connection Error:</strong> ${data.message}. Please check server connectivity or contact support.`;
-              } else if (data.message.includes('SSH authentication failed')) {
-                errorElement.innerHTML = `<strong>Authentication Error:</strong> ${data.message}. Please contact support.`;
-              } else if (data.message.includes('SSH2 PHP extension')) {
-                errorElement.innerHTML = `<strong>Server Configuration Error:</strong> ${data.message}. Please contact support.`;
-              } else {
-                errorElement.innerHTML = `<strong>Bot Status Error:</strong> ${data.message}`;              }
-            }
-            return data; // Return the error data too
-          }
-        } catch (e) {
-          console.error('Error parsing bot status JSON:', e, text);
-          return { success: false, message: 'Failed to parse status response' };
-        }
-      })
-      .catch(error => {
-        console.error('Error fetching bot status:', error);
-        return { success: false, message: 'Network error' };
-      });
+        })
+        .catch(error => {
+            console.error('Error fetching bot status:', error);
+        });
   }
   // Function to update API limits from api_limits.php
   function updateApiLimits() {
@@ -1410,10 +1314,25 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('weather-progress').value = data.weather.requests_remaining;
           document.getElementById('weather-progress').max = data.weather.requests_limit;
           let weatherUpdated = data.weather.last_updated;
-          if (weatherUpdated && typeof weatherUpdated === 'string' && weatherUpdated.length === 19 && weatherUpdated.indexOf('T') === -1) {
-            weatherUpdated = weatherUpdated.replace(' ', 'T') + '+10:00';
+          if (weatherUpdated) {
+            // Ensure timestamp is properly formatted
+            if (typeof weatherUpdated === 'string' && weatherUpdated.length === 19 && weatherUpdated.indexOf('T') === -1) {
+              weatherUpdated = weatherUpdated.replace(' ', 'T') + '+10:00';
+            }
+            try {
+              const parsedDate = new Date(weatherUpdated);
+              if (!isNaN(parsedDate.getTime())) {
+                document.getElementById('weather-updated').textContent = timeAgo(parsedDate.toISOString());
+              } else {
+                document.getElementById('weather-updated').textContent = '--';
+              }
+            } catch (error) {
+              console.error('Error parsing weather timestamp:', error);
+              document.getElementById('weather-updated').textContent = '--';
+            }
+          } else {
+            document.getElementById('weather-updated').textContent = '--';
           }
-          document.getElementById('weather-updated').textContent = timeAgo(weatherUpdated);
         }
       })
       .catch(() => {
