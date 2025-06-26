@@ -15,8 +15,8 @@ $betaVersionFilePath = '/var/www/logs/version/' . $username . '_beta_version_con
 $BetaBotScriptPath = "/home/botofthespecter/beta.py";
 
 // Define variables for Discord bot
-$discordVersionFilePath = '/var/www/logs/version/' . $username . '_discord_version_control.txt';
-$discordBotScriptPath = "/home/botofthespecter/discordbot.py";
+$discordVersionFilePath = '/var/www/logs/version/discord_version_control.txt';
+$discordVersion = file_exists($discordVersionFilePath) ? trim(file_get_contents($discordVersionFilePath)) : '';
 
 // Fetch all versions from the API ONCE at the top
 $versionApiUrl = 'https://api.botofthespecter.com/versions';
@@ -86,39 +86,19 @@ if (isset($_POST['killBetaBot'])) {
     $betaVersionRunning = "";
 }
 
-// Handle Discord bot actions
-if (isset($_POST['runDiscordBot'])) {
-    $waited = 0;
-    while (checkBotsRunning($statusScriptPath, $username, 'discord') && $waited < $shutdownTimeoutSeconds) {
-        sleep(1);
-        $waited++;
-    }
-    if ($waited >= $shutdownTimeoutSeconds) { /* timeout warning */ }
-    $discordStatusOutput = handleDiscordBotAction('run', $discordBotScriptPath, $statusScriptPath, $username);
-    // Get the updated version running after action is performed
-    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
-}
-
-// Handling Discord bot stop
-if (isset($_POST['killDiscordBot'])) {
-    $discordStatusOutput = handleDiscordBotAction('kill', $discordBotScriptPath, $statusScriptPath, $username);
-    $discordVersionRunning = "";
-}
-
 // Function to handle Discord bot actions
 function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPath, $username) {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password, $discordVersionFilePath, $discordNewVersion;
     try {
-        // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        // Get PID of the running bot
-        $command = "python $statusScriptPath -system discord -channel $username";
+        // Always use the global Discord bot, ignore $username
+        $command = "python $statusScriptPath -system discord";
         $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
         if ($statusOutput === false) { throw new Exception('Failed to get bot status'); }
         $statusOutput = trim($statusOutput);
-        if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+        if (preg_match('/process ID:\s*(\\d+)/i', $statusOutput, $matches)) {
             $pid = intval($matches[1]);
-        } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+        } elseif (preg_match('/PID\\s+(\\d+)/i', $statusOutput, $matches)) {
             $pid = intval($matches[1]);
         } else { $pid = 0; }
         $message = '';
@@ -129,10 +109,10 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
                     // Ensure version file is up to date even if the bot is already running
                     updateVersionFile($discordVersionFilePath, $discordNewVersion);
                 } else {
-                    startDiscordBot($discordBotScriptPath, $username);
+                    startDiscordBot($discordBotScriptPath, null);
                     sleep(2);
                     // Check status again using connection manager
-                    $statusOutput = SSHConnectionManager::executeCommand($connection, "python $statusScriptPath -system discord -channel $username");
+                    $statusOutput = SSHConnectionManager::executeCommand($connection, "python $statusScriptPath -system discord");
                     if ($statusOutput !== false) {
                         $statusOutput = trim($statusOutput);
                         if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
@@ -367,7 +347,6 @@ if ($betaBotSystemStatus) {
 
 if ($discordBotSystemStatus) {
     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
-    // Remove hardcoded English, use translation for status
     $discordRunning = "<div class='status-message'>" . t('bot_status_online') . "</div>";
 } else {
     $discordRunning = "<div class='status-message error'>" . t('bot_status_offline') . "</div>";
@@ -376,19 +355,10 @@ if ($discordBotSystemStatus) {
 
 function getRunningVersion($versionFilePath, $newVersion, $type = '') {
     if (file_exists($versionFilePath)) {
-        $versionContent = file_get_contents($versionFilePath);
-        if ($versionContent === false) {
-            return "<div class='status-message error'>Failed to read version information.</div>";
-        }
-        $versionContent = trim($versionContent);
-        $output = "<div class='status-message'>" . ucfirst($type) . " Running Version: $versionContent</div>";
-        if ($versionContent !== $newVersion) {
-            $output .= "<div class='status-message'>Update (V$newVersion) is available.</div>";
-        }
+        $output = trim(file_get_contents($versionFilePath));
         return $output;
     } else {
-        // If file doesn't exist, just show N/A
-        return "<div class='status-message'>" . ucfirst($type) . " Running Version: N/A</div>";
+        return $newVersion;
     }
 }
 
