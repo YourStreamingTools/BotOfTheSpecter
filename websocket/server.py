@@ -476,7 +476,12 @@ class BotOfTheSpecter_WebsocketServer:
                     await self.sio.emit(event, data, to=sid)
                     self.logger.info(f"Emitted event '{event}' to client {sid}")
                     count += 1
-            self.logger.info(f"Broadcasted event to {count} clients")
+            # Broadcast to all global listeners as well
+            for listener in self.global_listeners:
+                await self.sio.emit(event, {**data, "channel_code": code or "unknown"}, to=listener['sid'])
+                self.logger.info(f"Emitted event '{event}' to global listener SID [{listener['sid']}] (name: {listener['name']})")
+                count += 1
+            self.logger.info(f"Broadcasted event to {count} clients (including global listeners)")
         # Return a JSON response indicating success
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
 
