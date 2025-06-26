@@ -14,7 +14,7 @@ include_once "/var/www/config/ssh.php";
 function checkBotRunning($username, $botType = 'stable') {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
     $statusScriptPath = "/home/botofthespecter/status.py";
-    $versionFilePath = "/var/www/logs/version/{$username}_" . ($botType === 'beta' ? "beta_" : "") . "version_control.txt";
+    $versionFilePath = "/home/botofthespecter/logs/version/{$username}_" . ($botType === 'beta' ? "beta_" : "") . "version_control.txt";
     $botScriptPath = "/home/botofthespecter/" . ($botType === 'beta' ? "beta.py" : "bot.py");
     // Initialize result
     $result = [
@@ -57,8 +57,15 @@ function checkBotRunning($username, $botType = 'stable') {
             }
         }
         // Get version information if the bot is running
-        if ($result['running'] && file_exists($versionFilePath)) {
-            $result['version'] = trim(file_get_contents($versionFilePath));
+        if ($result['running']) {
+            // Try to read version file via SSH
+            $versionCmd = "cat " . escapeshellarg($versionFilePath);
+            $versionOutput = SSHConnectionManager::executeCommand($connection, $versionCmd);
+            if ($versionOutput !== false) {
+                $result['version'] = trim($versionOutput);
+            } else {
+                $result['version'] = '';
+            }
         } else {
             $result['version'] = '';
         }
@@ -104,8 +111,7 @@ function performBotAction($action, $botType, $params) {
     // Define paths
     $statusScriptPath = "/home/botofthespecter/status.py";
     $botScriptPath = "/home/botofthespecter/" . ($botType === 'beta' ? "beta.py" : "bot.py");
-    $versionFilePath = "/var/www/logs/version/{$username}_" . ($botType === 'beta' ? "beta_" : "") . "version_control.txt";
-    
+    $versionFilePath = "/home/botofthespecter/logs/version/{$username}_" . ($botType === 'beta' ? "beta_" : "") . "version_control.txt";
     // Get version information from API
     $versionApiUrl = 'https://api.botofthespecter.com/versions';
     $versionInfo = json_decode(@file_get_contents($versionApiUrl), true);
@@ -142,22 +148,20 @@ function performBotAction($action, $botType, $params) {
                     $result['message'] = "Bot is running (v{$newVersion})";
                     $result['pid'] = $currentPid;
                     $result['success'] = true;
-                    // Ensure directory exists before writing version file
+                    // Create version file via SSH
                     $versionDir = dirname($versionFilePath);
-                    if (!is_dir($versionDir)) {
-                        mkdir($versionDir, 0755, true);
-                    }
-                    file_put_contents($versionFilePath, $newVersion);
+                    $createDirCmd = "mkdir -p " . escapeshellarg($versionDir);
+                    SSHConnectionManager::executeCommand($connection, $createDirCmd);
+                    $writeVersionCmd = "echo " . escapeshellarg($newVersion) . " > " . escapeshellarg($versionFilePath);
+                    SSHConnectionManager::executeCommand($connection, $writeVersionCmd);
                 } else {
                     // Validate required parameters for bot start
                     if (empty($username) || empty($twitchUserId) || empty($authToken) || empty($refreshToken) || empty($apiKey)) {
                         $result['message'] = 'Missing required bot parameters (username, tokens, etc.)';
                         break;
                     }
-                    
                     // Construct proper bot start command with all required parameters
                     $startCommand = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey &";
-                    
                     $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand);
                     if ($startOutput === false) {
                         $result['message'] = 'Failed to start bot - SSH command execution failed.';
@@ -169,12 +173,12 @@ function performBotAction($action, $botType, $params) {
                                 $result['pid'] = intval($matches[1]);
                                 $result['success'] = true;
                                 $result['message'] = "Bot started successfully (v{$newVersion})";
-                                // Ensure directory exists before writing version file
+                                // Create version file via SSH
                                 $versionDir = dirname($versionFilePath);
-                                if (!is_dir($versionDir)) {
-                                    mkdir($versionDir, 0755, true);
-                                }
-                                file_put_contents($versionFilePath, $newVersion);
+                                $createDirCmd = "mkdir -p " . escapeshellarg($versionDir);
+                                SSHConnectionManager::executeCommand($connection, $createDirCmd);
+                                $writeVersionCmd = "echo " . escapeshellarg($newVersion) . " > " . escapeshellarg($versionFilePath);
+                                SSHConnectionManager::executeCommand($connection, $writeVersionCmd);
                             } else {
                                 $result['message'] = 'Bot started but PID not found after 3 seconds.';
                                 $result['success'] = true; // Still consider it a success since the command executed
