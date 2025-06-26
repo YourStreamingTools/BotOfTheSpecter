@@ -52,10 +52,10 @@ $dashboardVersion = '2.0.4';
     <!-- Top Navigation Bar -->
     <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
-            <a class="navbar-item" href="bot.php">
+            <div class="navbar-item">
                 <img src="https://cdn.botofthespecter.com/logo.png" width="28" height="28" alt="BotOfTheSpecter Logo">
                 <strong class="ml-2">BotOfTheSpecter</strong>
-            </a>
+            </div>
             <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMain">
                 <span aria-hidden="true"></span>
                 <span aria-hidden="true"></span>
