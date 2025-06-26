@@ -549,10 +549,10 @@ ob_start();
               <?php if ($isTechnical): ?>
                 <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
                   <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="discord-service-latency">--ms</span>
+                    <span class="has-text-grey">Latency:</span> <span id="discord-service-latency">Not Recorded</span>
                   </div>
                   <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="discord-service-lastcheck">--</span>
+                    <span class="has-text-grey">Last Check:</span> <span id="discord-service-lastcheck">Not Recorded</span>
                   </div>
                 </div>
               <?php endif; ?>
