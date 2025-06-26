@@ -41,10 +41,15 @@ if ($result && $result->num_rows > 0) {
         $type = strtolower($row['type']);
         if (isset($limits[$type])) {
             $limits[$type]['requests_remaining'] = (int)$row['count'];
-            $dt = DateTime::createFromFormat('Y-m-d H:i:s', $row['updated'], new DateTimeZone(date_default_timezone_get()));
-            if ($dt) {
-                $dt->setTimezone(new DateTimeZone('UTC'));
-                $limits[$type]['last_updated'] = $dt->format('Y-m-d\TH:i:s\Z');
+            // Handle both null and invalid timestamp cases
+            if ($row['updated'] && $row['updated'] !== '0000-00-00 00:00:00') {
+                $dt = DateTime::createFromFormat('Y-m-d H:i:s', $row['updated'], new DateTimeZone(date_default_timezone_get()));
+                if ($dt && $dt->format('Y-m-d H:i:s') === $row['updated']) {
+                    $dt->setTimezone(new DateTimeZone('UTC'));
+                    $limits[$type]['last_updated'] = $dt->format('Y-m-d\TH:i:s\Z');
+                } else {
+                    $limits[$type]['last_updated'] = null;
+                }
             } else {
                 $limits[$type]['last_updated'] = null;
             }

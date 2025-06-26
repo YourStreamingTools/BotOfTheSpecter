@@ -1180,27 +1180,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         // Weather
         if (document.getElementById('weather-count')) {
-          document.getElementById('weather-count').textContent = data.weather.requests_remaining;
-          document.getElementById('weather-progress').value = data.weather.requests_remaining;
+          document.getElementById('weather-count').textContent = data.weather.requests_remaining || '--';
+          document.getElementById('weather-progress').value = data.weather.requests_remaining || 0;
           document.getElementById('weather-progress').max = data.weather.requests_limit;
           let weatherUpdated = data.weather.last_updated;
           if (weatherUpdated) {
-            // Ensure timestamp is properly formatted
-            if (typeof weatherUpdated === 'string' && weatherUpdated.length === 19 && weatherUpdated.indexOf('T') === -1) {
-              weatherUpdated = weatherUpdated.replace(' ', 'T') + '+10:00';
-            }
             try {
+              // Ensure timestamp is properly formatted for Date parsing
+              if (typeof weatherUpdated === 'string' && weatherUpdated.length === 19 && weatherUpdated.indexOf('T') === -1) {
+                weatherUpdated = weatherUpdated.replace(' ', 'T') + '+10:00';
+              }
               const parsedDate = new Date(weatherUpdated);
               if (!isNaN(parsedDate.getTime())) {
                 document.getElementById('weather-updated').textContent = timeAgo(parsedDate.toISOString());
               } else {
+                console.warn('Invalid weather timestamp:', weatherUpdated);
                 document.getElementById('weather-updated').textContent = '--';
               }
             } catch (error) {
-              console.error('Error parsing weather timestamp:', error);
+              console.error('Error parsing weather timestamp:', error, weatherUpdated);
               document.getElementById('weather-updated').textContent = '--';
             }
           } else {
+            console.warn('No weather timestamp provided');
             document.getElementById('weather-updated').textContent = '--';
           }
         }
@@ -1232,8 +1234,19 @@ document.addEventListener('DOMContentLoaded', function() {
       let safeDate = isoDate.replace(' ', 'T');
       then = new Date(safeDate);
     }
+    
+    // Check if the date is valid
+    if (isNaN(then.getTime())) {
+      return '--';
+    }
+    
     let diff = Math.floor((now - then) / 1000);
-    if (diff < 0) diff = 0;
+    
+    // Check if diff is NaN or invalid
+    if (isNaN(diff) || diff < 0) {
+      return '--';
+    }
+    
     if (diff < 60) {
       return agoTranslations.seconds.replace(':count', diff);
     }
