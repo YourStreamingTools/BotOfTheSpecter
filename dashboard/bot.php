@@ -436,7 +436,7 @@ ob_start();
               <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
             </div>
             <div class="has-text-grey-light">
-              <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/8</span>
+              <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/7</span>
             </div>
           </div>
         </div>
@@ -1335,8 +1335,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }            
             const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === 8 ? 'has-text-success' : servicesUp >= 6 ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/8</span>`;
+              const servicesColor = servicesUp === 7 ? 'has-text-success' : servicesUp >= 5 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/7</span>`;
             }
             const lastUpdateElem = document.getElementById('system-last-update');
             if (lastUpdateElem) {
@@ -1363,8 +1363,8 @@ document.addEventListener('DOMContentLoaded', function() {
               avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;            }
               const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === 8 ? 'has-text-success' : servicesUp >= 6 ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/8</span>`;
+              const servicesColor = servicesUp === 7 ? 'has-text-success' : servicesUp >= 5 ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/7</span>`;
             }
           }
         });
