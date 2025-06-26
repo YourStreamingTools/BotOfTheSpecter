@@ -370,11 +370,21 @@ class BotOfTheSpecter(commands.Bot):
         if not channel:
             self.logger.warning(f"Channel {discord_info['live_channel_id']} not found in guild {guild.name}")
             return
+        # Set message and channel name based on event_type
         if event_type == "ONLINE":
-            message = discord_info["online_text"] or "🟢 Stream is now LIVE!"
+            message = discord_info["online_text"] or "Stream is now LIVE!"
+            channel_update = f"🟢 {message}"
         else:
-            message = discord_info["offline_text"] or "🔴 Stream is now OFFLINE"
+            message = discord_info["offline_text"] or "Stream is now OFFLINE"
+            channel_update = f"🔴 {message}"
         await channel.send(message)
+        # Attempt to update the channel name if it is different
+        if channel.name != channel_update:
+            try:
+                await channel.edit(name=channel_update)
+                self.logger.info(f"Updated channel name to '{channel_update}' for stream {event_type}")
+            except Exception as e:
+                self.logger.error(f"Failed to update channel name: {e}")
         self.logger.info(f"Sent stream {event_type} notification to {guild.name}#{channel.name}")
 
     def format_twitch_message(self, event_type, data):
