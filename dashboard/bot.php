@@ -469,7 +469,7 @@ ob_start();
         ?>
         <?php if ($showBotControls): ?>
         <div class="is-flex is-justify-content-center is-align-items-center mb-4" style="gap: 2rem;">
-          <span class="icon is-large">
+          <span class="icon is-large" id="botStatusIcon">
             <?php
               // Determine running status for the selected bot only
               $isRunning = false;
@@ -1195,7 +1195,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const statusText = expectedRunning ? 'ONLINE' : 'OFFLINE';
     const statusClass = expectedRunning ? 'success' : 'danger';
     // Update the heartbeat icon
-    const heartIconContainer = document.querySelector('.icon.is-large');
+    const heartIconContainer = document.getElementById('botStatusIcon');
     if (heartIconContainer) {
       if (expectedRunning) {
         heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
@@ -1269,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const statusText = data.running ? 'ONLINE' : 'OFFLINE';
             const statusClass = data.running ? 'success' : 'danger';
             // Update the heartbeat icon for the selected bot only
-            const heartIconContainer = document.querySelector('.icon.is-large');
+            const heartIconContainer = document.getElementById('botStatusIcon');
             if (heartIconContainer) {
               if (data.running) { 
                 heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>'; 
