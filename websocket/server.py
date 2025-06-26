@@ -391,31 +391,39 @@ class BotOfTheSpecter_WebsocketServer:
         return response
 
     async def list_clients(self, request):
-        # List the registered clients.
-        return web.json_response(self.registered_clients)
+        # List the registered clients and global listeners.
+        output = {
+            "clients": self.registered_clients,
+            "global_listeners": [
+                {"sid": l["sid"], "name": l["name"], "admin_authenticated": l.get("admin_authenticated", False)}
+                for l in self.global_listeners
+            ]
+        }
+        return web.json_response(output)
 
     async def list_clients_event(self, sid):
         # Handle the LIST_CLIENTS event for SocketIO.
         self.logger.info(f"LIST_CLIENTS event from SID [{sid}]")
-        await self.sio.emit("LIST_CLIENTS", self.registered_clients, to=sid)
+        output = {
+            "clients": self.registered_clients,
+            "global_listeners": [
+                {"sid": l["sid"], "name": l["name"], "admin_authenticated": l.get("admin_authenticated", False)}
+                for l in self.global_listeners
+            ]
+        }
+        await self.sio.emit("LIST_CLIENTS", output, to=sid)
 
     async def broadcast_event_with_globals(self, event_name, data, code=None):
-        """
-        Broadcast event to both regular clients (for specific code) and global listeners
-        """
         count = 0
-        
         # Broadcast to specific code clients if code is provided
         if code and code in self.registered_clients:
             for client in self.registered_clients[code]:
                 await self.sio.emit(event_name, {**data, "channel_code": code}, to=client['sid'])
                 count += 1
-        
         # Broadcast to all global listeners
         for listener in self.global_listeners:
             await self.sio.emit(event_name, {**data, "channel_code": code or "unknown"}, to=listener['sid'])
             count += 1
-        
         self.logger.info(f"Broadcasted {event_name} to {count} clients (code: {code})")
         return count
 
