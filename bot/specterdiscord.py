@@ -1069,11 +1069,16 @@ class MySQLHelper:
         if not conn:
             return None
         try:
-            cursor_type = aiomysql.DictCursor if dict_cursor else None
-            async with conn.cursor(cursor_type) as cursor:
-                await cursor.execute(query, params)
-                row = await cursor.fetchone()
-                return row
+            if dict_cursor:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(query, params)
+                    row = await cursor.fetchone()
+                    return row
+            else:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(query, params)
+                    row = await cursor.fetchone()
+                    return row
         except Exception as e:
             if self.logger:
                 self.logger.error(f"MySQL fetchone error: {e}")
@@ -1085,11 +1090,16 @@ class MySQLHelper:
         if not conn:
             return None
         try:
-            cursor_type = aiomysql.DictCursor if dict_cursor else None
-            async with conn.cursor(cursor_type) as cursor:
-                await cursor.execute(query, params)
-                rows = await cursor.fetchall()
-                return rows
+            if dict_cursor:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(query, params)
+                    rows = await cursor.fetchall()
+                    return rows
+            else:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(query, params)
+                    rows = await cursor.fetchall()
+                    return rows
         except Exception as e:
             if self.logger:
                 self.logger.error(f"MySQL fetchall error: {e}")
@@ -1117,8 +1127,17 @@ class DiscordChannelResolver:
         self.logger = logger
         self.mysql = mysql_helper or MySQLHelper(logger)
     async def get_user_id_from_api_key(self, api_key):
+        if self.logger:
+            self.logger.info(f"Looking up user_id for api_key/code: {api_key}")
         row = await self.mysql.fetchone(
             "SELECT id FROM users WHERE api_key = %s", (api_key,), database_name='website')
+        if self.logger:
+            self.logger.info(f"Query result for api_key/code {api_key}: {row}")
+        if not row and self.logger:
+            # Extra debug: list all api_keys in the table
+            all_keys = await self.mysql.fetchall(
+                "SELECT api_key FROM users", database_name='website')
+            self.logger.warning(f"All api_keys in users table: {[k[0] for k in all_keys]}")
         return row[0] if row else None
     async def get_discord_info_from_user_id(self, user_id):
         row = await self.mysql.fetchone(
