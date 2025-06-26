@@ -559,29 +559,6 @@ ob_start();
             <div class="box has-background-darker has-text-centered p-4">
               <div class="mb-3">
                 <span class="icon is-large">
-                  <i id="web1Service" class="fas fa-heartbeat fa-2x has-text-success beating"></i>
-                </span>
-              </div>
-              <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_web_service'); ?></h4>
-              <p id="web1-service-status" class="is-size-7 has-text-grey-light">
-                <?php echo t('bot_running_normally'); ?>
-              </p>
-              <?php if ($isTechnical): ?>
-                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="web1-service-latency">--ms</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="web1-service-lastcheck">--</span>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
-          </div>
-          <div class="column is-4">
-            <div class="box has-background-darker has-text-centered p-4">
-              <div class="mb-3">
-                <span class="icon is-large">
                   <i id="apiService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
                 </span>
               </div>
@@ -1195,6 +1172,15 @@ document.addEventListener('DOMContentLoaded', function() {
       }, autoRemoveTime);
     }
   }
+  setInterval(function() {
+    var webIcon = document.getElementById('web1Service');
+    var webStatusElem = document.getElementById('web1-service-status');
+    if (webIcon) webIcon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
+    if (webStatusElem) {
+      webStatusElem.textContent = 'Running normally';
+      webStatusElem.className = 'is-size-7 has-text-grey-light';
+    }
+  }, 2000);
   function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -1425,8 +1411,7 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('weather-progress').max = data.weather.requests_limit;
           let weatherUpdated = data.weather.last_updated;
           if (weatherUpdated && typeof weatherUpdated === 'string' && weatherUpdated.length === 19 && weatherUpdated.indexOf('T') === -1) {
-            weatherUpdated += '+10:00'; // force as Sydney time (no DST check, but fixes main issue)
-            weatherUpdated = weatherUpdated.replace(' ', 'T');
+            weatherUpdated = weatherUpdated.replace(' ', 'T') + '+10:00';
           }
           document.getElementById('weather-updated').textContent = timeAgo(weatherUpdated);
         }
@@ -1481,19 +1466,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (webStatusElem) {
       webStatusElem.textContent = 'Running normally';
       webStatusElem.className = 'is-size-7 has-text-grey-light';
-    }
-    if (webLatencyElem) {
-      webLatencyElem.innerHTML = '<span class="has-text-success">1ms</span>';
-    }
-    if (webLastCheckElem) {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-      webLastCheckElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
     }
     // All other services (excluding web1Service)
     const services = [
