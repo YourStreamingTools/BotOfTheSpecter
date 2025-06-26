@@ -68,10 +68,16 @@ class WebsocketListener:
                 self.logger.error(f"Websocket error: {data}")
         @self.sio.event
         async def STREAM_ONLINE(data):
+            self.logger.info(f"Received STREAM_ONLINE event: {data}")
             await self.bot.handle_stream_event("ONLINE", data)
         @self.sio.event
         async def STREAM_OFFLINE(data):
+            self.logger.info(f"Received STREAM_OFFLINE event: {data}")
             await self.bot.handle_stream_event("OFFLINE", data)
+        # Log all other events generically
+        @self.sio.on('*')
+        async def catch_all(event, data):
+            self.logger.info(f"Received websocket event '{event}': {data}")
         await self.sio.connect(websocket_url)
 
 # Channel mapping class to manage multiple Discord servers
