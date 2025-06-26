@@ -407,22 +407,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.MOD_CHANNEL_ID = 1103695077928345683       # Moderator Channel ID
 
     async def init_ticket_database(self):
-        # First create a connection without specifying a database
-        temp_pool = await aiomysql.create_pool(
-            host=os.getenv('SQL_HOST'),
-            user=os.getenv('SQL_USER'),
-            password=os.getenv('SQL_PASSWORD'),
-            autocommit=True
-        )
-        try:
-            # Create database if it doesn't exist
-            async with temp_pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("CREATE DATABASE IF NOT EXISTS tickets")
-            # Close the temporary pool
-            temp_pool.close()
-            await temp_pool.wait_closed()
-            # Create the main connection pool with the tickets database
+        if self.pool is None:
             self.pool = await aiomysql.create_pool(
                 host=os.getenv('SQL_HOST'),
                 user=os.getenv('SQL_USER'),
@@ -430,67 +415,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                 db='tickets',
                 autocommit=True
             )
-            self.logger.info("Successfully initialized ticket database connection pool")
-            # Create necessary tables
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    # Create tickets table
-                    await cur.execute("""
-                        CREATE TABLE IF NOT EXISTS tickets (
-                            ticket_id INT AUTO_INCREMENT PRIMARY KEY,
-                            user_id BIGINT NOT NULL,
-                            username VARCHAR(255) NOT NULL,
-                            issue TEXT NOT NULL,
-                            status VARCHAR(20) DEFAULT 'open',
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            closed_at TIMESTAMP NULL,
-                            priority VARCHAR(20) DEFAULT 'normal',
-                            category VARCHAR(50) DEFAULT 'general',
-                            channel_id BIGINT NULL
-                        )
-                    """)
-                    # Create ticket_comments table
-                    await cur.execute("""
-                        CREATE TABLE IF NOT EXISTS ticket_comments (
-                            comment_id INT AUTO_INCREMENT PRIMARY KEY,
-                            ticket_id INT NOT NULL,
-                            user_id BIGINT NOT NULL,
-                            username VARCHAR(255) NOT NULL,
-                            comment TEXT NOT NULL,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id)
-                            ON DELETE CASCADE
-                        )
-                    """)
-                    # Create ticket_history table
-                    await cur.execute("""
-                        CREATE TABLE IF NOT EXISTS ticket_history (
-                            history_id INT AUTO_INCREMENT PRIMARY KEY,
-                            ticket_id INT NOT NULL,
-                            user_id BIGINT NOT NULL,
-                            username VARCHAR(255) NOT NULL,
-                            action VARCHAR(50) NOT NULL,
-                            details TEXT,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id)
-                            ON DELETE CASCADE
-                        )
-                    """)
-                    # Create ticket_settings table
-                    await cur.execute("""
-                        CREATE TABLE IF NOT EXISTS ticket_settings (
-                            guild_id BIGINT PRIMARY KEY,
-                            info_channel_id BIGINT,
-                            category_id BIGINT,
-                            enabled BOOLEAN DEFAULT FALSE,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                        )
-                    """)
-            self.logger.info("Successfully initialized ticket database and tables")
-        except Exception as e:
-            self.logger.error(f"Error initializing ticket database: {e}")
-            raise
 
     async def get_settings(self, guild_id: int):
         if not self.pool:
