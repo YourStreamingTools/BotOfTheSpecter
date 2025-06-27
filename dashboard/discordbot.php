@@ -507,7 +507,8 @@ ob_start();
               </button>
             </div>
           <?php } ?>
-        <?php } else { ?><div class="has-text-centered mb-5" style="padding: 1rem 2rem;">
+        <?php } else { ?>
+          <div class="has-text-centered mb-5" style="padding: 1rem 2rem;">
             <h4 class="title is-5 has-text-white mb-3">
               <span class="icon mr-2 has-text-success" style="font-size: 1.2rem;">
                 <i class="fas fa-check-circle"></i>
