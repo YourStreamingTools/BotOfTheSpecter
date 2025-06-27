@@ -204,6 +204,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = t('language_update_error') . ': ' . mysqli_error($conn);
             $alertClass = 'is-danger';
         }
+    } elseif ($action === 'disconnect_discord') {
+        $deleteQuery = "DELETE FROM discord_users WHERE user_id = ?";
+        $stmt = mysqli_prepare($conn, $deleteQuery);
+        mysqli_stmt_bind_param($stmt, 'i', $userId);
+        if (mysqli_stmt_execute($stmt)) {
+            $message = t('discord_disconnected_success');
+            $alertClass = 'is-success';
+        } else {
+            $message = t('discord_disconnect_error') . ': ' . mysqli_error($conn);
+            $alertClass = 'is-danger';
+        }
+    } elseif ($action === 'disconnect_spotify') {
+        $deleteQuery = "DELETE FROM spotify_tokens WHERE user_id = ?";
+        $stmt = mysqli_prepare($conn, $deleteQuery);
+        mysqli_stmt_bind_param($stmt, 'i', $userId);
+        if (mysqli_stmt_execute($stmt)) {
+            $message = t('spotify_disconnected_success');
+            $alertClass = 'is-success';
+        } else {
+            $message = t('spotify_disconnect_error') . ': ' . mysqli_error($conn);
+            $alertClass = 'is-danger';
+        }
+    } elseif ($action === 'disconnect_streamelements') {
+        if (isset($_SESSION['twitchUserId'])) {
+            $deleteQuery = "DELETE FROM streamelements_tokens WHERE twitch_user_id = ?";
+            $stmt = mysqli_prepare($conn, $deleteQuery);
+            mysqli_stmt_bind_param($stmt, 's', $_SESSION['twitchUserId']);
+            if (mysqli_stmt_execute($stmt)) {
+                $message = t('streamelements_disconnected_success');
+                $alertClass = 'is-success';
+            } else {
+                $message = t('streamelements_disconnect_error') . ': ' . mysqli_error($conn);
+                $alertClass = 'is-danger';
+            }
+        } else {
+            $message = t('streamelements_disconnect_error') . ': No Twitch user ID found';
+            $alertClass = 'is-danger';
+        }
+    } elseif ($action === 'disconnect_twitch') {
+        // Twitch disconnect is essentially a logout since it's the primary auth
+        // Clear all session data and redirect to logout
+        session_unset();
+        session_destroy();
+        header('Location: logout.php');
+        exit();
     }
 }
 
@@ -585,8 +630,9 @@ ob_start();
                         <div class="level">
                             <div class="level-left">
                                 <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;">
+                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
                                         <i class="fab fa-twitch fa-2x has-text-primary" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
+                                        <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:-5px;right:-5px;background:white;border-radius:50%;font-size:0.8em;"></i>
                                     </span>
                                 </div>
                                 <div class="level-item">
@@ -597,7 +643,10 @@ ob_start();
                             </div>
                             <div class="level-right">
                                 <div class="level-item">
-                                    <span class="tag is-success"><?php echo t('connected'); ?></span>
+                                    <button type="button" class="button is-danger is-small" onclick="disconnectTwitch()">
+                                        <span class="icon is-small"><i class="fas fa-sign-out-alt"></i></span>
+                                        <span><?php echo t('logout'); ?></span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -608,8 +657,11 @@ ob_start();
                         <div class="level">
                             <div class="level-left">
                                 <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;">
+                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
                                         <i class="fab fa-discord fa-2x has-text-info" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
+                                        <?php if ($discordLinked): ?>
+                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:-5px;right:-5px;background:white;border-radius:50%;font-size:0.8em;"></i>
+                                        <?php endif; ?>
                                     </span>
                                 </div>
                                 <div class="level-item">
@@ -621,9 +673,15 @@ ob_start();
                             <div class="level-right">
                                 <div class="level-item">
                                     <?php if ($discordLinked): ?>
-                                        <span class="tag is-success"><?php echo t('connected'); ?></span>
+                                        <button type="button" class="button is-danger is-small" onclick="disconnectDiscord()">
+                                            <span class="icon is-small"><i class="fas fa-unlink"></i></span>
+                                            <span><?php echo t('disconnect'); ?></span>
+                                        </button>
                                     <?php else: ?>
-                                        <a href="discordbot.php" class="button is-small"><?php echo t('connect'); ?></a>
+                                        <a href="discordbot.php" class="button is-small">
+                                            <span class="icon is-small"><i class="fas fa-link"></i></span>
+                                            <span><?php echo t('connect'); ?></span>
+                                        </a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -635,8 +693,11 @@ ob_start();
                         <div class="level">
                             <div class="level-left">
                                 <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;">
+                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
                                         <i class="fab fa-spotify fa-2x has-text-success" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
+                                        <?php if ($spotifyLinked): ?>
+                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:-5px;right:-5px;background:white;border-radius:50%;font-size:0.8em;"></i>
+                                        <?php endif; ?>
                                     </span>
                                 </div>
                                 <div class="level-item">
@@ -648,9 +709,15 @@ ob_start();
                             <div class="level-right">
                                 <div class="level-item">
                                     <?php if ($spotifyLinked): ?>
-                                        <span class="tag is-success"><?php echo t('connected'); ?></span>
+                                        <button type="button" class="button is-danger is-small" onclick="disconnectSpotify()">
+                                            <span class="icon is-small"><i class="fas fa-unlink"></i></span>
+                                            <span><?php echo t('disconnect'); ?></span>
+                                        </button>
                                     <?php else: ?>
-                                        <a href="spotifylink.php" class="button is-small"><?php echo t('connect'); ?></a>
+                                        <a href="spotifylink.php" class="button is-small">
+                                            <span class="icon is-small"><i class="fas fa-link"></i></span>
+                                            <span><?php echo t('connect'); ?></span>
+                                        </a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -662,8 +729,11 @@ ob_start();
                         <div class="level">
                             <div class="level-left">
                                 <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;">
+                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
                                         <img src="https://cdn.brandfetch.io/idj4DI2QBL/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B" alt="StreamElements" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
+                                        <?php if ($streamelementsLinked): ?>
+                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:-5px;right:-5px;background:white;border-radius:50%;font-size:0.8em;"></i>
+                                        <?php endif; ?>
                                     </span>
                                 </div>
                                 <div class="level-item">
@@ -675,9 +745,15 @@ ob_start();
                             <div class="level-right">
                                 <div class="level-item">
                                     <?php if ($streamelementsLinked): ?>
-                                        <span class="tag is-success"><?php echo t('connected'); ?></span>
+                                        <button type="button" class="button is-danger is-small" onclick="disconnectStreamelements()">
+                                            <span class="icon is-small"><i class="fas fa-unlink"></i></span>
+                                            <span><?php echo t('disconnect'); ?></span>
+                                        </button>
                                     <?php else: ?>
-                                        <a href="streamelements.php" class="button is-small"><?php echo t('connect'); ?></a>
+                                        <a href="streamelements.php" class="button is-small">
+                                            <span class="icon is-small"><i class="fas fa-link"></i></span>
+                                            <span><?php echo t('connect'); ?></span>
+                                        </a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -978,6 +1054,113 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Disconnect functions using SweetAlert2
+function disconnectTwitch() {
+    Swal.fire({
+        title: <?php echo json_encode(t('confirm_disconnect_twitch_title')); ?>,
+        text: <?php echo json_encode(t('confirm_disconnect_twitch_text')); ?>,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: <?php echo json_encode(t('yes_logout')); ?>,
+        cancelButtonText: <?php echo json_encode(t('cancel')); ?>,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'action';
+            input.value = 'disconnect_twitch';
+            
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
+function disconnectDiscord() {
+    Swal.fire({
+        title: <?php echo json_encode(t('confirm_disconnect_discord_title')); ?>,
+        text: <?php echo json_encode(t('confirm_disconnect_discord_text')); ?>,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: <?php echo json_encode(t('yes_disconnect')); ?>,
+        cancelButtonText: <?php echo json_encode(t('cancel')); ?>,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'action';
+            input.value = 'disconnect_discord';
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
+function disconnectSpotify() {
+    Swal.fire({
+        title: <?php echo json_encode(t('confirm_disconnect_spotify_title')); ?>,
+        text: <?php echo json_encode(t('confirm_disconnect_spotify_text')); ?>,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: <?php echo json_encode(t('yes_disconnect')); ?>,
+        cancelButtonText: <?php echo json_encode(t('cancel')); ?>,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'action';
+            input.value = 'disconnect_spotify';
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
+function disconnectStreamelements() {
+    Swal.fire({
+        title: <?php echo json_encode(t('confirm_disconnect_streamelements_title')); ?>,
+        text: <?php echo json_encode(t('confirm_disconnect_streamelements_text')); ?>,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: <?php echo json_encode(t('yes_disconnect')); ?>,
+        cancelButtonText: <?php echo json_encode(t('cancel')); ?>,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'action';
+            input.value = 'disconnect_streamelements';
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
 </script>
 <?php
 $scripts = ob_get_clean();
