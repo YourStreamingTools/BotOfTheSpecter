@@ -32,7 +32,7 @@ if (!class_exists('SSHConnectionManager')) {
     class SSHConnectionManager {
         private static $connections = [];
         private static $last_activity = [];
-        private static $connection_timeout = 300; // 5 minutes
+        private static $connection_timeout = 120; // 2 minutes (reduced from 5)
         public static function getConnection($host, $username, $password) {
             $key = md5($host . $username);
             // Check if we have a valid connection
@@ -42,6 +42,7 @@ if (!class_exists('SSHConnectionManager')) {
                     // Test connection with a simple command
                     $test_stream = @ssh2_exec(self::$connections[$key], 'echo "test"');
                     if ($test_stream) {
+                        stream_set_timeout($test_stream, 2); // Quick test
                         fclose($test_stream);
                         self::$last_activity[$key] = time();
                         return self::$connections[$key];
@@ -64,20 +65,27 @@ if (!class_exists('SSHConnectionManager')) {
                 error_log('SSH2 PHP extension is not loaded');
                 throw new Exception('Bot service is temporarily unavailable. Please contact support if this issue persists.');
             }
-            // Test basic network connectivity first
-            $fp = @fsockopen($host, 22, $errno, $errstr, 10);
+            // Test basic network connectivity first with shorter timeout
+            $fp = @fsockopen($host, 22, $errno, $errstr, 3); // Further reduced to 3 seconds
             if (!$fp) {
                 error_log("Network connectivity test failed to {$host}:22 - Error: {$errstr} (Code: {$errno})");
                 throw new Exception("Bot service is temporarily unavailable. Please try again in a few minutes or contact support if this issue persists.");
             }
             fclose($fp);
-            // Establish SSH connection with retry logic
-            $max_retries = 3;
-            $base_delay = 0.5;
+            // Set a maximum time limit for the entire connection process
+            $start_time = time();
+            $max_connection_time = 5; // Maximum 5 seconds for entire connection process
+            // Establish SSH connection with minimal retry
+            $max_retries = 1; // Only 1 retry to avoid hanging
+            $base_delay = 0.1; // Very short delay
             for ($attempt = 1; $attempt <= $max_retries; $attempt++) {
+                // Check if we're taking too long
+                if ((time() - $start_time) >= $max_connection_time) {
+                    error_log("SSH connection attempt to {$host} exceeded maximum time limit");
+                    throw new Exception("Connection timeout. Please try again later.");
+                }
                 if ($attempt > 1) {
-                    $random_delay = mt_rand(100, 300);
-                    usleep($random_delay * 1000);
+                    usleep(100000); // 0.1 second delay
                 }
                 $connection = ssh2_connect($host, 22);
                 if ($connection) {
@@ -89,10 +97,6 @@ if (!class_exists('SSHConnectionManager')) {
                         error_log("SSH authentication failed for user {$username} to {$host}");
                         throw new Exception("Authentication failed. Please contact support if this issue persists.");
                     }
-                }
-                if ($attempt < $max_retries) {
-                    $retry_delay = $base_delay * $attempt;
-                    usleep($retry_delay * 1000000);
                 }
             }
             error_log("SSH connection failed to {$host}:22 after {$max_retries} attempts");
@@ -127,8 +131,19 @@ if (!class_exists('SSHConnectionManager')) {
             } else {
                 // For regular commands, block and wait for output
                 stream_set_blocking($stream, true);
+                // Set a stream timeout to prevent hanging
+                $errorStream = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
+                stream_set_timeout($stream, 8); // 8 second timeout
+                stream_set_timeout($errorStream, 8);
                 $output = stream_get_contents($stream);
+                $info = stream_get_meta_data($stream);
                 fclose($stream);
+                fclose($errorStream);
+                // Check if stream timed out
+                if ($info['timed_out']) {
+                    error_log("SSH command timed out: $command");
+                    return false;
+                }
                 return $output;
             }
         }
