@@ -519,7 +519,7 @@ ob_start();
               <?php echo t('discordbot_linked_desc'); ?>
             </p>
             <?php if ($expires_str): ?>
-              <div class="notification is-info is-light" style="border-radius: 8px; max-width: 600px; margin: 0 auto;">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin: 0 auto;">
                 <p><strong>Token Status:</strong> Your current active Discord token will remain valid for <strong><?php echo htmlspecialchars($expires_str) ?></strong> until it automatically renews.</p>
               </div>
             <?php endif; ?>
