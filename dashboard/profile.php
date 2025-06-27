@@ -212,14 +212,16 @@ $timezoneOptions = DateTimeZone::listIdentifiers();
 
 // Check if Discord is linked
 $discordLinked = false;
-$discord_userSTMT = $conn->prepare("SELECT 1 FROM discord_users");
+$discord_userSTMT = $conn->prepare("SELECT 1 FROM discord_users WHERE user_id = ?");
+$discord_userSTMT->bind_param("i", $userId);
 $discord_userSTMT->execute();
 $discord_userResult = $discord_userSTMT->get_result();
 $discordLinked = ($discord_userResult->num_rows > 0);
 
 // Check if Spotify is linked
 $spotifyLinked = false;
-$spotifySTMT = $conn->prepare("SELECT 1 FROM spotify_tokens");
+$spotifySTMT = $conn->prepare("SELECT 1 FROM spotify_tokens WHERE user_id = ?");
+$spotifySTMT->bind_param("i", $userId);
 $spotifySTMT->execute();
 $spotifyResult = $spotifySTMT->get_result();
 $spotifyLinked = ($spotifyResult->num_rows > 0);
