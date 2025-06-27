@@ -1,4 +1,7 @@
 <?php
+// Set maximum execution time to prevent hanging
+set_time_limit(15); // 15 second maximum page load time
+
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -72,12 +75,13 @@ function checkSSHFileStatus($username) {
         return null;
     }
     try {
+        // Set a shorter timeout for this specific call to prevent hanging
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         if (!$connection) {
             return null;
         }
         $filePath = "/home/botofthespecter/logs/online/" . escapeshellarg($username) . ".txt";
-        $command = "cat " . $filePath . " 2>/dev/null";
+        $command = "timeout 5 cat " . $filePath . " 2>/dev/null";
         $output = SSHConnectionManager::executeCommand($connection, $command);
         if ($output !== false) {
             $status = trim($output);
@@ -148,33 +152,28 @@ $sshStatus = null;
 $finalStatus = null;
 
 if (isset($username) && $username !== '') {
-  // Check database status
-  $stmt = $db->prepare("SELECT status FROM stream_status");
-  $stmt->execute();
-  $stmt->bind_result($dbStatus);
-  if ($stmt->fetch()) {
-    // Database status retrieved
-  } else {
+  // Check database status (quick operation)
+  try {
+    $stmt = $db->prepare("SELECT status FROM stream_status");
+    $stmt->execute();
+    $stmt->bind_result($dbStatus);
+    if ($stmt->fetch()) {
+      // Database status retrieved
+    } else {
+      $dbStatus = null;
+    }
+    $stmt->close();
+  } catch (Exception $e) {
+    error_log("Database status check failed: " . $e->getMessage());
     $dbStatus = null;
   }
-  $stmt->close();
-  // Check SSH file status
-  $sshStatus = checkSSHFileStatus($username);
-  // Determine final status - prioritize "True" from either source
-  if ($dbStatus === 'True' || $sshStatus === 'True') {
-    $finalStatus = 'True';
-  } elseif ($dbStatus === 'False' && $sshStatus === 'False') {
-    $finalStatus = 'False';
-  } elseif ($dbStatus === 'False' && $sshStatus === null) {
-    $finalStatus = 'False';
-  } elseif ($dbStatus === null && $sshStatus === 'False') {
-    $finalStatus = 'False';
-  } elseif ($dbStatus === null && $sshStatus === null) {
-    $finalStatus = null;
-  } else {
-    // If one is False and the other is unknown, default to False
-    $finalStatus = 'False';
-  }
+  
+  // Skip SSH file status check during page load to prevent hanging
+  // This will be checked asynchronously via JavaScript
+  $sshStatus = null;
+  
+  // Use only database status for initial page load
+  $finalStatus = $dbStatus;
   // Generate status display based on final status
   if ($finalStatus === 'True') {
     $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-success" style="width:100%;">' . t('bot_status_online') . '</span>';
@@ -198,20 +197,12 @@ if (isset($username) && $username !== '') {
   $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_na') . '</span>';
 }
 
-// Check only the selected bot's status
-if ($selectedBot === 'stable') {
-  $statusOutput = getBotsStatus($statusScriptPath, $username, 'stable');
-  $botSystemStatus = strpos($statusOutput, 'PID') !== false;
-  if ($botSystemStatus) {
-    $versionRunning = getRunningVersion($versionFilePath, $newVersion);
-  }
-} elseif ($selectedBot === 'beta') {
-  $betaStatusOutput = getBotsStatus($statusScriptPath, $username, 'beta');
-  $betaBotSystemStatus = strpos($betaStatusOutput, 'PID') !== false;
-  if ($betaBotSystemStatus) {
-    $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
-  }
-}
+// Skip bot status checks during page load to prevent hanging
+// These will be loaded asynchronously via JavaScript
+$statusOutput = '';
+$betaStatusOutput = '';
+$botSystemStatus = false;
+$betaBotSystemStatus = false;
 
 // Get last modified time of the bot script files using SSH
 require_once 'bot_control_functions.php';
@@ -1083,19 +1074,18 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedBot = urlParams.get('bot');
     if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
     if (!selectedBot) { selectedBot = 'stable'; }
-    return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 8000)
+    return fetchWithTimeout(`bot_status_async.php?action=status&bot=${selectedBot}&_t=${Date.now()}`, {}, 8000)
         .then(async response => {
             const text = await response.text();
             try {
                 const data = JSON.parse(text);
                 console.log('updateBotStatus parsed data:', data);
-                if (data.success) {
+                if (!data.error) {
                     console.log('Bot status data received:', {
-                        bot: data.bot,
+                        type: data.type,
                         running: data.running,
                         version: data.version,
-                        lastModified: data.lastModified,
-                        lastRun: data.lastRun
+                        status_output: data.status_output
                     });
                     const statusText = data.running ? 'ONLINE' : 'OFFLINE';
                     const statusClass = data.running ? 'success' : 'danger';
@@ -1136,59 +1126,34 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Re-attach event listeners
                         attachBotButtonListeners();
                     }
-                    // Update version info card
-                    const lastUpdatedElement = document.getElementById('last-updated');
-                    const lastRunElement = document.getElementById('last-run');
-                    if (lastUpdatedElement) {
-                        lastUpdatedElement.textContent = data.lastModified || 'Unknown';
-                        console.log('Updated last-updated to:', data.lastModified || 'Unknown');
-                    }
-                    if (lastRunElement) {
-                        lastRunElement.textContent = data.lastRun || 'Never';
-                        console.log('Updated last-run to:', data.lastRun || 'Never');
-                    }
-                    // Update technical info if available
-                    const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
-                    const lastCheckElement = document.getElementById(`${selectedBot}-service-lastcheck`);
-                    if (latencyElement && lastCheckElement) {
-                        latencyElement.textContent = `${data.latency || '--'}ms`;
-                        lastCheckElement.textContent = data.lastRun || '--';
+                    // Update version info display
+                    const versionElement = document.querySelector('.has-text-weight-bold.is-size-5');
+                    if (versionElement && data.version) {
+                        versionElement.textContent = data.version;
                     }
                 } else {
                     console.error('Bot status API returned error:', data);
-                    // Set fallback values if API fails
-                    const lastUpdatedElement = document.getElementById('last-updated');
-                    const lastRunElement = document.getElementById('last-run');
-                    if (lastUpdatedElement) {
-                        lastUpdatedElement.textContent = 'Error loading';
-                    }
-                    if (lastRunElement) {
-                        lastRunElement.textContent = 'Error loading';
+                    // Show loading state when there's an error
+                    const statusTextElement = document.getElementById('bot-status-text');
+                    if (statusTextElement) {
+                        statusTextElement.innerHTML = '<span class="has-text-warning">Loading...</span>';
                     }
                 }
             } catch (e) {
                 console.error('Error parsing bot status JSON:', e);
-                // Set fallback values if JSON parsing fails
-                const lastUpdatedElement = document.getElementById('last-updated');
-                const lastRunElement = document.getElementById('last-run');
-                if (lastUpdatedElement) {
-                    lastUpdatedElement.textContent = 'Error loading';
-                }
-                if (lastRunElement) {
-                    lastRunElement.textContent = 'Error loading';
+                // Show loading state if JSON parsing fails
+                const statusTextElement = document.getElementById('bot-status-text');
+                if (statusTextElement) {
+                    statusTextElement.innerHTML = '<span class="has-text-warning">Loading...</span>';
                 }
             }
         })
         .catch(error => {
             console.error('Error fetching bot status:', error);
-            // Set fallback values if fetch fails
-            const lastUpdatedElement = document.getElementById('last-updated');
-            const lastRunElement = document.getElementById('last-run');
-            if (lastUpdatedElement) {
-                lastUpdatedElement.textContent = 'Error loading';
-            }
-            if (lastRunElement) {
-                lastRunElement.textContent = 'Error loading';
+            // Show loading state if fetch fails
+            const statusTextElement = document.getElementById('bot-status-text');
+            if (statusTextElement) {
+                statusTextElement.innerHTML = '<span class="has-text-warning">Loading...</span>';
             }
         });
   }
