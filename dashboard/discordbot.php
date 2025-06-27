@@ -435,10 +435,6 @@ ob_start();
                   Active for <?php echo htmlspecialchars($expires_str); ?>
                 </span>
               <?php endif; ?>
-              <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
-                <span class="icon mr-1"><i class="fas fa-check-circle"></i></span>
-                Connected
-              </span>
             <?php else: ?>
               <span class="tag is-danger is-medium" style="border-radius: 6px; font-weight: 600;">
                 <span class="icon mr-1"><i class="fas fa-times-circle"></i></span>
