@@ -6,6 +6,7 @@ import signal
 import json
 import yt_dlp
 import tempfile
+import random
 # Third-party libraries
 import aiohttp
 import discord
@@ -1137,6 +1138,22 @@ class MusicPlayer:
             embed.set_footer(text=f"... and {len(self.queues[guild_id]) - 10} more tracks")
         await ctx.send(embed=embed)
 
+    async def play_random_cdn_mp3(self, ctx):
+        music_dir = '/mnt/cdn/music'
+        try:
+            files = [f for f in os.listdir(music_dir) if f.lower().endswith('.mp3')]
+            if not files:
+                if self.logger:
+                    self.logger.warning('No mp3 files found in /mnt/cdn/music')
+                await ctx.send('No music files found in the CDN.')
+                return
+            random_file = random.choice(files)
+            await self.add_to_queue(ctx, random_file)
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f'Error picking random mp3: {e}')
+            await ctx.send('Error picking a random music file.')
+
 # VoiceCog class for managing voice connections
 class VoiceCog(commands.Cog, name='Voice'):
     def __init__(self, bot: commands.Bot, logger=None):
@@ -1217,6 +1234,12 @@ class VoiceCog(commands.Cog, name='Voice'):
             )
             await ctx.send(embed=embed)
             self.logger.info(f"Connected to voice channel {channel.name} in {ctx.guild.name}")
+            # Play a random mp3 if nothing is queued or playing
+            guild_id = ctx.guild.id
+            queue_empty = not self.music_player.queues.get(guild_id)
+            is_playing = self.music_player.is_playing.get(guild_id, False)
+            if queue_empty and not is_playing:
+                await self.music_player.play_random_cdn_mp3(ctx)
         except discord.ClientException as e:
             embed = discord.Embed(
                 title="❌ Connection Error",
