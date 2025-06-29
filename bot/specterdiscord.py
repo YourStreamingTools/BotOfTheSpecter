@@ -1014,7 +1014,7 @@ class MusicPlayer:
             'no_warnings': True,
             'default_search': 'auto',
             'source_address': '0.0.0.0',
-            'cookies': cookies_path,
+            'cookiefile': cookies_path,
         }
         self.ffmpeg_options = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
