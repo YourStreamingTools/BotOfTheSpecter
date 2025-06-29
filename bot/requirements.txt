@@ -31,3 +31,5 @@ pyttsx3
 PyNaCl
 # For SSH connections
 paramiko
+# YouTube video downloader
+yt_dlp
