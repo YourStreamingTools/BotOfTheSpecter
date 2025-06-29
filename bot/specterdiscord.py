@@ -1043,9 +1043,6 @@ class MusicPlayer:
         # Send appropriate message
         if track_info['is_youtube']:
             await ctx.send(f"🎵 Added **{title}** to the queue (requested by {user.display_name})")
-        else:
-            # For CDN files, just confirm it's queued without saying what's playing
-            await ctx.send(f"🎵 Song added to queue (requested by {user.display_name})")
         if not self.is_playing[guild_id]:
             await self._play_next(ctx)
 
