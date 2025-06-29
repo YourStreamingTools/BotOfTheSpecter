@@ -35,6 +35,7 @@ def setup_logger(name, log_file, level=logging.INFO):
     logger.addHandler(handler)
     return logger
 
+# Setup websocket listener for global actions
 class WebsocketListener:
     def __init__(self, bot, logger=None):
         self.bot = bot
@@ -135,6 +136,7 @@ class BotOfTheSpecter(commands.Bot):
     def __init__(self, discord_token, discord_logger, **kwargs):
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.voice_states = True
         super().__init__(command_prefix="!", intents=intents, **kwargs)
         self.discord_token = discord_token
         self.logger = discord_logger
@@ -184,6 +186,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
         await self.add_cog(ChannelManagementCog(self, self.logger))
+        await self.add_cog(VoiceCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
         self.websocket_listener = WebsocketListener(self, self.logger)
@@ -414,6 +417,7 @@ class BotOfTheSpecter(commands.Bot):
             return f"🚀 **{username}** raided with {viewers} viewers!"
         return None
 
+# QuoteCog class for fetching and sending public quotes
 class QuoteCog(commands.Cog, name='Quote'):
     def __init__(self, bot: BotOfTheSpecter, api_token: str, logger=None):
         self.bot = bot
@@ -465,6 +469,7 @@ class QuoteCog(commands.Cog, name='Quote'):
             self.logger.error(f"Error fetching quote: {e}")
             await ctx.send("An error occurred while fetching the quote.")
 
+# Ticket management cog
 class TicketCog(commands.Cog, name='Tickets'):
     def __init__(self, bot: commands.Bot, logger=None):
         self.bot = bot
@@ -978,6 +983,223 @@ class TicketCog(commands.Cog, name='Tickets'):
                     )
             self.logger.info(f"Auto-saved comment for ticket {ticket_id} from {message.author}")
 
+# VoiceCog class for managing voice connections
+class VoiceCog(commands.Cog, name='Voice'):
+    def __init__(self, bot: commands.Bot, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.voice_clients = {}  # Guild ID -> VoiceClient mapping
+    async def cog_check(self, ctx):
+        return ctx.guild is not None
+    @commands.command(name="connect", aliases=["join", "summon"])
+    async def connect_voice(self, ctx, *, channel: discord.VoiceChannel = None):
+        await self._handle_connect(ctx, channel)
+    @app_commands.command(name="connect", description="Connect the bot to a voice channel")
+    @app_commands.describe(channel="The voice channel to connect to (optional - defaults to your current channel)")
+    async def slash_connect_voice(self, interaction: discord.Interaction, channel: discord.VoiceChannel = None):
+        ctx = await commands.Context.from_interaction(interaction)
+        await self._handle_connect(ctx, channel)
+
+    async def _handle_connect(self, ctx, channel: discord.VoiceChannel = None):
+        try:
+            # If no channel specified, try to get the user's current voice channel
+            if channel is None:
+                if ctx.author.voice is None:
+                    embed = discord.Embed(
+                        title="❌ Voice Connection Error",
+                        description="You are not connected to a voice channel. Please join a voice channel or specify one.",
+                        color=discord.Color.red()
+                    )
+                    await ctx.send(embed=embed)
+                    return
+                channel = ctx.author.voice.channel
+            # Check if bot has permissions to connect to the channel
+            permissions = channel.permissions_for(ctx.guild.me)
+            if not permissions.connect:
+                embed = discord.Embed(
+                    title="❌ Permission Error",
+                    description=f"I don't have permission to connect to {channel.mention}.",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=embed)
+                return
+            if not permissions.speak:
+                embed = discord.Embed(
+                    title="⚠️ Limited Permissions",
+                    description=f"I can connect to {channel.mention} but don't have permission to speak.",
+                    color=discord.Color.yellow()
+                )
+                await ctx.send(embed=embed)
+            # Check if bot is already connected to a voice channel in this guild
+            if ctx.guild.id in self.voice_clients and self.voice_clients[ctx.guild.id].is_connected():
+                current_channel = self.voice_clients[ctx.guild.id].channel
+                if current_channel == channel:
+                    embed = discord.Embed(
+                        title="ℹ️ Already Connected",
+                        description=f"I'm already connected to {channel.mention}.",
+                        color=discord.Color.blue()
+                    )
+                    await ctx.send(embed=embed)
+                    return
+                else:
+                    # Move to the new channel
+                    await self.voice_clients[ctx.guild.id].move_to(channel)
+                    embed = discord.Embed(
+                        title="✅ Moved to Voice Channel",
+                        description=f"Moved from {current_channel.mention} to {channel.mention}.",
+                        color=discord.Color.green()
+                    )
+                    await ctx.send(embed=embed)
+                    self.logger.info(f"Moved voice connection from {current_channel.name} to {channel.name} in {ctx.guild.name}")
+                    return
+            # Connect to the voice channel
+            voice_client = await channel.connect()
+            self.voice_clients[ctx.guild.id] = voice_client
+            embed = discord.Embed(
+                title="✅ Connected to Voice Channel",
+                description=f"Successfully connected to {channel.mention}.",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+            self.logger.info(f"Connected to voice channel {channel.name} in {ctx.guild.name}")
+        except discord.ClientException as e:
+            embed = discord.Embed(
+                title="❌ Connection Error",
+                description=f"Failed to connect to voice channel: {str(e)}",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            self.logger.error(f"Discord client error connecting to voice: {e}")
+        except Exception as e:
+            embed = discord.Embed(
+                title="❌ Unexpected Error",
+                description="An unexpected error occurred while connecting to the voice channel.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            self.logger.error(f"Unexpected error connecting to voice: {e}")
+
+    @commands.command(name="disconnect", aliases=["leave", "dc"])
+    async def disconnect_voice(self, ctx):
+        await self._handle_disconnect(ctx)
+
+    @app_commands.command(name="disconnect", description="Disconnect the bot from the voice channel")
+    async def slash_disconnect_voice(self, interaction: discord.Interaction):
+        ctx = await commands.Context.from_interaction(interaction)
+        await self._handle_disconnect(ctx)
+
+    async def _handle_disconnect(self, ctx):
+        try:
+            if ctx.guild.id not in self.voice_clients:
+                embed = discord.Embed(
+                    title="ℹ️ Not Connected",
+                    description="I'm not connected to any voice channel in this server.",
+                    color=discord.Color.blue()
+                )
+                await ctx.send(embed=embed)
+                return
+            voice_client = self.voice_clients[ctx.guild.id]
+            if not voice_client.is_connected():
+                embed = discord.Embed(
+                    title="ℹ️ Not Connected",
+                    description="I'm not connected to any voice channel in this server.",
+                    color=discord.Color.blue()
+                )
+                await ctx.send(embed=embed)
+                del self.voice_clients[ctx.guild.id]
+                return
+            channel_name = voice_client.channel.name
+            await voice_client.disconnect()
+            del self.voice_clients[ctx.guild.id]
+            embed = discord.Embed(
+                title="✅ Disconnected",
+                description=f"Successfully disconnected from {channel_name}.",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+            self.logger.info(f"Disconnected from voice channel {channel_name} in {ctx.guild.name}")
+        except Exception as e:
+            embed = discord.Embed(
+                title="❌ Disconnect Error",
+                description="An error occurred while disconnecting from the voice channel.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            self.logger.error(f"Error disconnecting from voice: {e}")
+
+    @commands.command(name="voice_status", aliases=["vstatus"])
+    async def voice_status(self, ctx):
+        await self._handle_voice_status(ctx)
+
+    @app_commands.command(name="voice_status", description="Check the bot's current voice connection status")
+    async def slash_voice_status(self, interaction: discord.Interaction):
+        ctx = await commands.Context.from_interaction(interaction)
+        await self._handle_voice_status(ctx)
+
+    async def _handle_voice_status(self, ctx):
+        if ctx.guild.id in self.voice_clients and self.voice_clients[ctx.guild.id].is_connected():
+            voice_client = self.voice_clients[ctx.guild.id]
+            channel = voice_client.channel
+            # Get channel member count
+            member_count = len(channel.members)
+            embed = discord.Embed(
+                title="🔊 Voice Status",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Connected To", value=channel.mention, inline=True)
+            embed.add_field(name="Channel Members", value=str(member_count), inline=True)
+            embed.add_field(name="Latency", value=f"{voice_client.latency:.2f}ms", inline=True)
+            await ctx.send(embed=embed)
+        else:
+            embed = discord.Embed(
+                title="🔇 Voice Status",
+                description="Not connected to any voice channel in this server.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+
+    @connect_voice.error
+    async def connect_error(self, ctx, error):
+        if isinstance(error, commands.ChannelNotFound):
+            embed = discord.Embed(
+                title="❌ Channel Not Found",
+                description="Could not find the specified voice channel.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+        elif isinstance(error, commands.BotMissingPermissions):
+            embed = discord.Embed(
+                title="❌ Missing Permissions",
+                description="I don't have the required permissions to connect to voice channels.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+        else:
+            self.logger.error(f"Unhandled error in connect command: {error}")
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if member == self.bot.user:
+            return
+        # Check if the bot should auto-disconnect when alone
+        for guild_id, voice_client in list(self.voice_clients.items()):
+            if not voice_client.is_connected():
+                continue
+            channel = voice_client.channel
+            # Count non-bot members in the channel
+            human_members = [m for m in channel.members if not m.bot]
+            if len(human_members) == 0:
+                self.logger.info(f"Auto-disconnecting from {channel.name} in {channel.guild.name} - no human members")
+                await voice_client.disconnect()
+                del self.voice_clients[guild_id]
+
+    def cog_unload(self):
+        for voice_client in self.voice_clients.values():
+            if voice_client.is_connected():
+                asyncio.create_task(voice_client.disconnect())
+        self.voice_clients.clear()
+
+# ChannelManagementCog class
 class ChannelManagementCog(commands.Cog, name='Channel Management'):
     def __init__(self, bot: BotOfTheSpecter, logger=None):
         self.bot = bot
@@ -1051,6 +1273,7 @@ class ChannelManagementCog(commands.Cog, name='Channel Management'):
             )
         await interaction.response.send_message(embed=embed)
 
+# MySQLHelper class for database operations
 class MySQLHelper:
     def __init__(self, logger=None):
         self.logger = logger
@@ -1132,6 +1355,7 @@ class MySQLHelper:
         finally:
             conn.close()
 
+# DiscordChannelResolver class for resolving Discord channel information
 class DiscordChannelResolver:
     def __init__(self, logger=None, mysql_helper=None):
         self.logger = logger
@@ -1155,6 +1379,7 @@ class DiscordChannelResolver:
             (user_id,), database_name='website', dict_cursor=True)
         return row if row else None
 
+# DiscordBotRunner class to manage the bot lifecycle
 class DiscordBotRunner:
     def __init__(self, discord_logger):
         self.logger = discord_logger
