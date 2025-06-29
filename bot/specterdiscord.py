@@ -1614,6 +1614,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=5)
+                await ctx.message.delete(delay=5)
             except Exception:
                 pass
             return
