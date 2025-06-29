@@ -1020,6 +1020,9 @@ class MusicPlayer:
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
             'options': '-vn'
         }
+        # Create cache directory for pre-downloaded YouTube tracks
+        self.download_dir = os.path.join(tempfile.gettempdir(), 'bot_music_cache')
+        os.makedirs(self.download_dir, exist_ok=True)
 
     async def add_to_queue(self, ctx, query):
         guild_id = ctx.guild.id
