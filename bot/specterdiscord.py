@@ -1142,13 +1142,19 @@ class VoiceCog(commands.Cog, name='Voice'):
             channel = voice_client.channel
             # Get channel member count
             member_count = len(channel.members)
+            # Handle latency display
+            latency = voice_client.latency
+            if latency == float('inf') or latency > 1000:
+                latency_display = "N/A"
+            else:
+                latency_display = f"{latency * 1000:.1f}ms"
             embed = discord.Embed(
                 title="🔊 Voice Status",
                 color=discord.Color.green()
             )
             embed.add_field(name="Connected To", value=channel.mention, inline=True)
             embed.add_field(name="Channel Members", value=str(member_count), inline=True)
-            embed.add_field(name="Latency", value=f"{voice_client.latency:.2f}ms", inline=True)
+            embed.add_field(name="Latency", value=latency_display, inline=True)
             await ctx.send(embed=embed)
         else:
             embed = discord.Embed(
