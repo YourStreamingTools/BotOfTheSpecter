@@ -1552,16 +1552,15 @@ class VoiceCog(commands.Cog, name='Voice'):
         title = current['title']
         if not current.get('is_youtube') and title.lower().endswith('.mp3'):
             title = title[:-4]
-        source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
         duration = self.music_player.track_duration.get(guild_id)
         start = self.music_player.track_start.get(guild_id)
         if duration and start:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            await interaction.response.send_message(f"🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]")
+            await interaction.response.send_message(f"🎵 Now playing: **{title}** [{elapsed_str}/{duration_str}]")
         else:
-            await interaction.response.send_message(f"🎵 Now playing ({source_label}): **{title}**")
+            await interaction.response.send_message(f"🎵 Now playing: **{title}**")
 
     @app_commands.command(name="volume", description="Set playback volume (0-100)")
     @app_commands.describe(volume="Volume percentage (0-100)")
