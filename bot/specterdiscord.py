@@ -1359,6 +1359,88 @@ class VoiceCog(commands.Cog, name='Voice'):
                 asyncio.create_task(voice_client.disconnect())
         self.voice_clients.clear()
 
+    # Music commands
+    @commands.command(name="play")
+    async def play_music(self, ctx, *, query: str):
+        if not ctx.author.voice:
+            await ctx.send("You need to be in a voice channel to use this command!")
+            return
+        if not ctx.voice_client:
+            try:
+                await self._handle_connect(ctx, ctx.author.voice.channel)
+            except Exception as e:
+                await ctx.send(f"Failed to connect to voice channel: {str(e)}")
+                return
+        await self.music_player.add_to_queue(ctx, query)
+
+    @app_commands.command(name="play", description="Play music from YouTube or add to queue")
+    @app_commands.describe(query="The song name or YouTube URL to play")
+    async def slash_play_music(self, interaction: discord.Interaction, query: str):
+        await interaction.response.defer()
+        if not interaction.user.voice:
+            await interaction.followup.send("You need to be in a voice channel to use this command!")
+            return
+        if not interaction.guild.voice_client:
+            try:
+                voice_channel = interaction.user.voice.channel
+                await voice_channel.connect()
+            except Exception as e:
+                await interaction.followup.send(f"Failed to connect to voice channel: {str(e)}")
+                return
+        class MockContext:
+            def __init__(self, interaction):
+                self.guild = interaction.guild
+                self.author = interaction.user
+                self.voice_client = interaction.guild.voice_client
+                self.send = interaction.followup.send
+        ctx = MockContext(interaction)
+        await self.music_player.add_to_queue(ctx, query)
+
+    @commands.command(name="skip", aliases=["s", "next"])
+    async def skip_music(self, ctx):
+        await self.music_player.skip(ctx)
+
+    @app_commands.command(name="skip", description="Skip the current song")
+    async def slash_skip_music(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        class MockContext:
+            def __init__(self, interaction):
+                self.guild = interaction.guild
+                self.voice_client = interaction.guild.voice_client
+                self.send = interaction.followup.send
+        ctx = MockContext(interaction)
+        await self.music_player.skip(ctx)
+
+    @commands.command(name="stop", aliases=["pause"])
+    async def stop_music(self, ctx):
+        await self.music_player.stop(ctx)
+
+    @app_commands.command(name="stop", description="Stop music and clear the queue")
+    async def slash_stop_music(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        class MockContext:
+            def __init__(self, interaction):
+                self.guild = interaction.guild
+                self.voice_client = interaction.guild.voice_client
+                self.send = interaction.followup.send
+        ctx = MockContext(interaction)
+        await self.music_player.stop(ctx)
+
+    @commands.command(name="queue", aliases=["q", "playlist"])
+    async def show_queue(self, ctx):
+        await self.music_player.get_queue(ctx)
+
+    @app_commands.command(name="queue", description="Show the current music queue")
+    async def slash_show_queue(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        class MockContext:
+            def __init__(self, interaction):
+                self.guild = interaction.guild
+                self.voice_client = interaction.guild.voice_client
+                self.send = interaction.followup.send
+        ctx = MockContext(interaction)
+        await self.music_player.get_queue(ctx)
+
 # ChannelManagementCog class
 class ChannelManagementCog(commands.Cog, name='Channel Management'):
     def __init__(self, bot: BotOfTheSpecter, logger=None):
