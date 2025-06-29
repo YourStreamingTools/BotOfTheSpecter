@@ -990,37 +990,97 @@ class MusicPlayer:
     def __init__(self, bot, logger=None):
         self.bot = bot
         self.logger = logger
-        self.queues = {}       # guild_id -> asyncio.Queue
+        self.queues = {}       # guild_id -> list of dicts with {'query', 'title', 'user'}
         self.is_playing = {}   # guild_id -> bool
+        self.current_track = {}  # guild_id -> current track info
+        # yt-dlp configuration
+        self.ytdl_format_options = {
+            'format': 'bestaudio/best',
+            'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+            'restrictfilenames': True,
+            'noplaylist': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'logtostderr': False,
+            'quiet': True,
+            'no_warnings': True,
+            'default_search': 'auto',
+            'source_address': '0.0.0.0',
+        }
+        self.ffmpeg_options = {
+            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+            'options': '-vn'
+        }
 
-    async def play(self, ctx, query):
+    async def add_to_queue(self, ctx, query):
         guild_id = ctx.guild.id
+        user = ctx.author
         if guild_id not in self.queues:
-            self.queues[guild_id] = asyncio.Queue()
+            self.queues[guild_id] = []
             self.is_playing[guild_id] = False
-        await self.queues[guild_id].put(query)
+            self.current_track[guild_id] = None
+        # Get track info for display
+        if query.startswith('http'):
+            try:
+                with yt_dlp.YoutubeDL(self.ytdl_format_options) as ydl:
+                    info = ydl.extract_info(query, download=False)
+                    title = info.get('title', 'Unknown YouTube Video')
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f'Error extracting YouTube info: {e}')
+                title = 'YouTube Video (Title unavailable)'
+        else:
+            title = query if query.endswith('.mp3') else f'{query}.mp3'
+        track_info = {
+            'query': query,
+            'title': title,
+            'user': user.display_name,
+            'is_youtube': query.startswith('http')
+        }
+        self.queues[guild_id].append(track_info)
+        # Send appropriate message
+        if track_info['is_youtube']:
+            await ctx.send(f"🎵 Added **{title}** to the queue (requested by {user.display_name})")
+        else:
+            # For CDN files, just confirm it's queued without saying what's playing
+            await ctx.send(f"🎵 Song added to queue (requested by {user.display_name})")
         if not self.is_playing[guild_id]:
             await self._play_next(ctx)
+
+    # Keep the legacy play method for compatibility
+    async def play(self, ctx, query):
+        await self.add_to_queue(ctx, query)
 
     async def _play_next(self, ctx):
         guild_id = ctx.guild.id
         queue = self.queues[guild_id]
-        if queue.empty():
+        if not queue:
             self.is_playing[guild_id] = False
+            self.current_track[guild_id] = None
             return
         self.is_playing[guild_id] = True
-        query = await queue.get()
+        track_info = queue.pop(0)
+        self.current_track[guild_id] = track_info
+        query = track_info['query']
         source = None
-        if query.startswith('http'):
-            temp_file = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
-            ydl_opts = {'format': 'bestaudio', 'outtmpl': temp_file.name, 'quiet': True}
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([query])
-            source = discord.FFmpegPCMAudio(temp_file.name)
+        if track_info['is_youtube']:
+            try:
+                with yt_dlp.YoutubeDL(self.ytdl_format_options) as ydl:
+                    info = ydl.extract_info(query, download=False)
+                    url = info['url']
+                    
+                source = discord.FFmpegPCMAudio(url, **self.ffmpeg_options)
+                await ctx.send(f'🎵 Now playing: **{track_info["title"]}**')
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f'Error processing YouTube URL: {e}')
+                await ctx.send(f'❌ Error playing YouTube video: {str(e)}')
+                return await self._play_next(ctx)
         else:
             path = os.path.join('/mnt/cdn/music', query if query.endswith('.mp3') else f'{query}.mp3')
             if not os.path.exists(path):
-                await ctx.send(f'File not found in CDN: {path}')
+                if self.logger:
+                    self.logger.warning(f'CDN file not found: {path}')
                 return await self._play_next(ctx)
             source = discord.FFmpegPCMAudio(path)
         vc = ctx.voice_client
@@ -1035,7 +1095,6 @@ class MusicPlayer:
                 if self.logger:
                     self.logger.error(f'Error scheduling next track: {e}')
         vc.play(source, after=after_play)
-        await ctx.send(f'Now playing: {query}')
 
     async def skip(self, ctx):
         vc = ctx.voice_client
@@ -1050,9 +1109,32 @@ class MusicPlayer:
         if not vc:
             return await ctx.send('Not connected to a voice channel.')
         vc.stop()
-        self.queues[guild_id] = asyncio.Queue()
+        self.queues[guild_id] = []
+        self.current_track[guild_id] = None
         await vc.disconnect()
         await ctx.send('Stopped playback and cleared queue.')
+
+    async def get_queue(self, ctx):
+        guild_id = ctx.guild.id
+        if guild_id not in self.queues or not self.queues[guild_id]:
+            return await ctx.send('The queue is empty.')
+        queue_list = []
+        for i, track in enumerate(self.queues[guild_id][:10], 1):  # Show first 10
+            title = track['title'] if track['is_youtube'] else 'CDN Music'
+            queue_list.append(f"{i}. {title} (by {track['user']})")
+        current = self.current_track[guild_id]
+        current_text = ""
+        if current:
+            current_title = current['title'] if current['is_youtube'] else 'CDN Music'
+            current_text = f"**Now Playing:** {current_title}\n\n"
+        embed = discord.Embed(
+            title="🎵 Music Queue",
+            description=f"{current_text}**Up Next:**\n" + "\n".join(queue_list),
+            color=BOT_COLOR
+        )
+        if len(self.queues[guild_id]) > 10:
+            embed.set_footer(text=f"... and {len(self.queues[guild_id]) - 10} more tracks")
+        await ctx.send(embed=embed)
 
 # VoiceCog class for managing voice connections
 class VoiceCog(commands.Cog, name='Voice'):
