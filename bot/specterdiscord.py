@@ -4,6 +4,8 @@ import logging
 import os
 import signal
 import json
+import yt_dlp
+import tempfile
 # Third-party libraries
 import aiohttp
 import discord
@@ -983,12 +985,82 @@ class TicketCog(commands.Cog, name='Tickets'):
                     )
             self.logger.info(f"Auto-saved comment for ticket {ticket_id} from {message.author}")
 
+# Music player class
+class MusicPlayer:
+    def __init__(self, bot, logger=None):
+        self.bot = bot
+        self.logger = logger
+        self.queues = {}       # guild_id -> asyncio.Queue
+        self.is_playing = {}   # guild_id -> bool
+
+    async def play(self, ctx, query):
+        guild_id = ctx.guild.id
+        if guild_id not in self.queues:
+            self.queues[guild_id] = asyncio.Queue()
+            self.is_playing[guild_id] = False
+        await self.queues[guild_id].put(query)
+        if not self.is_playing[guild_id]:
+            await self._play_next(ctx)
+
+    async def _play_next(self, ctx):
+        guild_id = ctx.guild.id
+        queue = self.queues[guild_id]
+        if queue.empty():
+            self.is_playing[guild_id] = False
+            return
+        self.is_playing[guild_id] = True
+        query = await queue.get()
+        source = None
+        if query.startswith('http'):
+            temp_file = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
+            ydl_opts = {'format': 'bestaudio', 'outtmpl': temp_file.name, 'quiet': True}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([query])
+            source = discord.FFmpegPCMAudio(temp_file.name)
+        else:
+            path = os.path.join('/mnt/cdn/music', query if query.endswith('.mp3') else f'{query}.mp3')
+            if not os.path.exists(path):
+                await ctx.send(f'File not found in CDN: {path}')
+                return await self._play_next(ctx)
+            source = discord.FFmpegPCMAudio(path)
+        vc = ctx.voice_client
+        def after_play(error):
+            if error and self.logger:
+                self.logger.error(f'Playback error: {error}')
+            coro = self._play_next(ctx)
+            fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+            try:
+                fut.result()
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f'Error scheduling next track: {e}')
+        vc.play(source, after=after_play)
+        await ctx.send(f'Now playing: {query}')
+
+    async def skip(self, ctx):
+        vc = ctx.voice_client
+        if not vc or not vc.is_playing():
+            return await ctx.send('Nothing is playing.')
+        vc.stop()
+        await ctx.send('Skipped current track.')
+
+    async def stop(self, ctx):
+        vc = ctx.voice_client
+        guild_id = ctx.guild.id
+        if not vc:
+            return await ctx.send('Not connected to a voice channel.')
+        vc.stop()
+        self.queues[guild_id] = asyncio.Queue()
+        await vc.disconnect()
+        await ctx.send('Stopped playback and cleared queue.')
+
 # VoiceCog class for managing voice connections
 class VoiceCog(commands.Cog, name='Voice'):
     def __init__(self, bot: commands.Bot, logger=None):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.voice_clients = {}  # Guild ID -> VoiceClient mapping
+        self.music_player = MusicPlayer(bot, logger)
     async def cog_check(self, ctx):
         return ctx.guild is not None
     @commands.command(name="connect", aliases=["join", "summon"])
