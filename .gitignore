@@ -70,6 +70,7 @@ soundalerts/*/*
 *.DS_Store
 stream/stream.service
 bot/databse.txt
+bot/ytdl-cookies.txt
 
 # Ignoring the next update changelog file
 docs/5.4.md
