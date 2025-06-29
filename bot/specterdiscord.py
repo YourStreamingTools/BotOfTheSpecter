@@ -1116,8 +1116,11 @@ class MusicPlayer:
 
     async def skip(self, ctx):
         vc = ctx.voice_client
-        if not vc or not vc.is_playing():
-            return await ctx.send('Nothing is playing.')
+        if not vc:
+            return await ctx.send('Not connected to a voice channel.')
+        if not vc.is_playing():
+            await self.play_random_cdn_mp3(ctx)
+            return
         vc.stop()
         await ctx.send('Skipped current track.')
 
@@ -1174,17 +1177,21 @@ class MusicPlayer:
         guild_id = ctx.guild.id
         track = self.current_track.get(guild_id)
         if not track:
-            return await ctx.send('Nothing is playing.')
+            await self.play_random_cdn_mp3(ctx)
+            return
         title = track['title']
+        if not track.get('is_youtube') and title.lower().endswith('.mp3'):
+            title = title[:-4]
+        source_label = 'YouTube' if track.get('is_youtube') else 'CDN'
         duration = self.track_duration.get(guild_id)
         start = self.track_start.get(guild_id)
         if duration and start:
-            elapsed = time.time() - start
-            elapsed_str = str(datetime.timedelta(seconds=int(elapsed)))
+            elapsed = int(time.time() - start)
+            elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            await ctx.send(f'🎵 Now Playing: **{title}** [{elapsed_str}/{duration_str}]')
+            await ctx.send(f'🎵 Now Playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]')
         else:
-            await ctx.send(f'🎵 Now Playing: **{title}**')
+            await ctx.send(f'🎵 Now Playing ({source_label}): **{title}**')
 
 # VoiceCog class for managing voice connections
 class VoiceCog(commands.Cog, name='Voice'):
@@ -1501,23 +1508,22 @@ class VoiceCog(commands.Cog, name='Voice'):
     async def current_song(self, ctx):
         guild_id = ctx.guild.id
         current = self.music_player.current_track.get(guild_id)
-        # If somehow idle while connected, play random CDN track
         if not current:
             await self.music_player.play_random_cdn_mp3(ctx)
             return
         title = current['title']
-        # Strip .mp3 extension for local CDN files
         if not current.get('is_youtube') and title.lower().endswith('.mp3'):
             title = title[:-4]
+        source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
         duration = self.music_player.track_duration.get(guild_id)
         start = self.music_player.track_start.get(guild_id)
         if duration and start:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            await ctx.send(f"🎵 Now playing: **{title}** [{elapsed_str}/{duration_str}]")
+            await ctx.send(f"🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]")
         else:
-            await ctx.send(f"🎵 Now playing: **{title}**")
+            await ctx.send(f"🎵 Now playing ({source_label}): **{title}**")
 
     @commands.command(name="volume")
     async def set_volume(self, ctx, volume: int):
@@ -1535,9 +1541,8 @@ class VoiceCog(commands.Cog, name='Voice'):
     async def slash_current_song(self, interaction: discord.Interaction):
         guild_id = interaction.guild.id
         current = self.music_player.current_track.get(guild_id)
+        # If idle, enqueue and play random CDN track
         if not current:
-            # If idle, enqueue and play random CDN track
-            # Mock context for CDN play
             class MockCtx:
                 def __init__(self, interaction):
                     self.guild = interaction.guild
@@ -1547,15 +1552,16 @@ class VoiceCog(commands.Cog, name='Voice'):
         title = current['title']
         if not current.get('is_youtube') and title.lower().endswith('.mp3'):
             title = title[:-4]
+        source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
         duration = self.music_player.track_duration.get(guild_id)
         start = self.music_player.track_start.get(guild_id)
         if duration and start:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            await interaction.response.send_message(f"🎵 Now playing: **{title}** [{elapsed_str}/{duration_str}]")
+            await interaction.response.send_message(f"🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]")
         else:
-            await interaction.response.send_message(f"🎵 Now playing: **{title}**")
+            await interaction.response.send_message(f"🎵 Now playing ({source_label}): **{title}**")
 
     @app_commands.command(name="volume", description="Set playback volume (0-100)")
     @app_commands.describe(volume="Volume percentage (0-100)")
