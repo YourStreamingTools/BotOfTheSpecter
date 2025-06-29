@@ -181,14 +181,11 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.error(f"Failed to update Discord bot version file: {e}")
         # Set the initial presence and check stream status for each guild
         for guild in self.guilds:
-            channel_name = guild.name.replace(' ', '').lower()
-            stream_online = self.read_stream_status(channel_name)
-            if stream_online:
-                self.logger.info(f"Stream for {channel_name} is online.")
-                # You can add logic here to update channel status or presence
-            else:
-                self.logger.info(f"Stream for {channel_name} is offline.")
-                # You can add logic here to update channel status or presence
+            # pick up the Twitch channel code mapped to this guild, or fallback to server-derived name
+            mapping_code = next((code for code, m in self.channel_mapping.mappings.items() if m["guild_id"] == guild.id), None)
+            channel_key = mapping_code or guild.name.replace(' ', '').lower()
+            online = self.read_stream_status(channel_key)
+            self.logger.info(f"Stream for {channel_key} is {'online' if online else 'offline'}.")
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
