@@ -1150,6 +1150,8 @@ class MusicPlayer:
                 fut.result()
             except Exception as e:
                 self.logger.error(f'Error scheduling next track: {e}')
+        if vc.is_playing():
+            return
         vc.play(source, after=after_play)
 
     async def skip(self, ctx):
@@ -1320,9 +1322,8 @@ class MusicPlayer:
             return
         source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(ctx.guild.id, 0.1))
-        def after_play(error):
-            if error:
-                self.logger.error(f'Playback error: {error}')
+        if vc.is_playing():
+            return
         vc.play(source, after=after_play)
         self.is_playing[ctx.guild.id] = True
         self.current_track[ctx.guild.id] = {
