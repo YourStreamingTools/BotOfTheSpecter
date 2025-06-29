@@ -994,6 +994,7 @@ class MusicPlayer:
         self.queues = {}       # guild_id -> list of dicts with {'query', 'title', 'user'}
         self.is_playing = {}   # guild_id -> bool
         self.current_track = {}  # guild_id -> current track info
+        self.volumes = {}      # Initialize volume settings per guild
         # yt-dlp configuration
         self.ytdl_format_options = {
             'format': 'bestaudio/best',
@@ -1083,6 +1084,7 @@ class MusicPlayer:
                 return await self._play_next(ctx)
             source = discord.FFmpegPCMAudio(path)
         vc = ctx.voice_client
+        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, 0.5))
         def after_play(error):
             if error and self.logger:
                 self.logger.error(f'Playback error: {error}')
@@ -1461,6 +1463,27 @@ class VoiceCog(commands.Cog, name='Voice'):
                 self.send = interaction.followup.send
         ctx = MockContext(interaction)
         await self.music_player.get_queue(ctx)
+
+    @commands.command(name="song")
+    async def current_song(self, ctx):
+        guild_id = ctx.guild.id
+        current = self.music_player.current_track.get(guild_id)
+        if current:
+            await ctx.send(f"🎵 Now playing: **{current['title']}**")
+        else:
+            await ctx.send("No song is currently playing.")
+
+    @commands.command(name="volume")
+    async def set_volume(self, ctx, volume: int):
+        if volume < 0 or volume > 100:
+            return await ctx.send("Please provide a volume between 0 and 100.")
+        vol = volume / 100
+        self.music_player.volumes[ctx.guild.id] = vol
+        # Adjust live volume if playing
+        vc = ctx.voice_client
+        if vc and hasattr(vc, 'source') and isinstance(vc.source, discord.PCMVolumeTransformer):
+            vc.source.volume = vol
+        await ctx.send(f"Set volume to {volume}%")
 
 # ChannelManagementCog class
 class ChannelManagementCog(commands.Cog, name='Channel Management'):
