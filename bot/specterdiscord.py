@@ -1084,7 +1084,7 @@ class MusicPlayer:
                 return await self._play_next(ctx)
             source = discord.FFmpegPCMAudio(path)
         vc = ctx.voice_client
-        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, 0.3))
+        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, 0.1))
         def after_play(error):
             if error and self.logger:
                 self.logger.error(f'Playback error: {error}')
