@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 import aiomysql
 import socketio
 import yt_dlp
+import mutagen
 
 # Load environment variables from .env file
 load_dotenv()
@@ -992,19 +993,17 @@ class MusicPlayer:
     def __init__(self, bot, logger=None):
         self.bot = bot
         self.logger = logger
-        self.queues = {}       # guild_id -> list of dicts with {'query', 'title', 'user'}
+        self.queues = {}       # guild_id -> list of dicts with {'query', 'title', 'user', 'file_path'}
         self.is_playing = {}   # guild_id -> bool
         self.current_track = {}  # guild_id -> current track info
         self.volumes = {}      # Initialize volume settings per guild
         self.track_start = {}
         self.track_duration = {}
         cookies_path = "/home/botofthespecter/ytdl-cookies.txt"
-        if not os.path.isfile(cookies_path):
-            self.logger.warning(f"yt-dlp cookies file not found at {cookies_path}")
         # yt-dlp configuration
         self.ytdl_format_options = {
             'format': 'bestaudio/best',
-            'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+            'outtmpl': os.path.join(tempfile.gettempdir(), 'bot_music_cache', '%(id)s.%(ext)s'),
             'restrictfilenames': True,
             'noplaylist': True,
             'nocheckcertificate': True,
@@ -1020,9 +1019,29 @@ class MusicPlayer:
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
             'options': '-vn'
         }
-        # Create cache directory for pre-downloaded YouTube tracks
+        # Create cache directory for pre-downloaded YouTube tracks if it doesn't exist
         self.download_dir = os.path.join(tempfile.gettempdir(), 'bot_music_cache')
         os.makedirs(self.download_dir, exist_ok=True)
+        # Initialize the periodic cleanup task
+        asyncio.create_task(self.periodic_cleanup())
+
+    async def predownload_youtube(self, url):
+        loop = asyncio.get_event_loop()
+        ydl_opts = self.ytdl_format_options.copy()
+        info = None
+        file_path = None
+        def run_yt():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(url, download=True)
+        try:
+            info = await loop.run_in_executor(None, run_yt)
+            if info:
+                ext = info.get('ext', 'webm')
+                file_path = os.path.join(self.download_dir, f"{info['id']}.{ext}")
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"yt-dlp predownload failed: {e}")
+        return file_path, info
 
     async def add_to_queue(self, ctx, query):
         guild_id = ctx.guild.id
@@ -1031,27 +1050,24 @@ class MusicPlayer:
             self.queues[guild_id] = []
             self.is_playing[guild_id] = False
             self.current_track[guild_id] = None
-        # Get track info for display
-        if query.startswith('http'):
-            try:
-                with yt_dlp.YoutubeDL(self.ytdl_format_options) as ydl:
-                    info = ydl.extract_info(query, download=False)
-                    title = info.get('title', 'Unknown YouTube Video')
-            except Exception as e:
-                if self.logger:
-                    self.logger.error(f'Error extracting YouTube info: {e}')
-                title = 'YouTube Video (Title unavailable)'
+        file_path = None
+        title = query
+        is_youtube = query.startswith('http')
+        if is_youtube:
+            file_path, info = await self.predownload_youtube(query)
+            if info:
+                title = info.get('title', query)
         else:
             title = query if query.endswith('.mp3') else f'{query}.mp3'
         track_info = {
             'query': query,
             'title': title,
             'user': user.display_name,
-            'is_youtube': query.startswith('http')
+            'is_youtube': is_youtube,
+            'file_path': file_path
         }
         self.queues[guild_id].append(track_info)
-        # Send appropriate message
-        if track_info['is_youtube']:
+        if is_youtube:
             await ctx.send(f"🎵 Added **{title}** to the queue (requested by {user.display_name})")
         if not self.is_playing[guild_id]:
             await self._play_next(ctx)
@@ -1078,33 +1094,33 @@ class MusicPlayer:
         query = track_info['query']
         source = None
         if track_info['is_youtube']:
+            file_path = track_info.get('file_path')
+            if not file_path or not os.path.exists(file_path):
+                # fallback: download now if not already
+                file_path, _ = await self.predownload_youtube(query)
+            if not file_path or not os.path.exists(file_path):
+                await ctx.send(f"Failed to download or find the YouTube audio for {track_info['title']}")
+                await self._play_next(ctx)
+                return
+            source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
+            # Try to get duration
             try:
-                with yt_dlp.YoutubeDL(self.ytdl_format_options) as ydl:
-                    info = ydl.extract_info(query, download=False)
-                    url = info['url']
-                    duration = info.get('duration')
-                source = discord.FFmpegPCMAudio(url, **self.ffmpeg_options)
-                self.track_duration[guild_id] = duration
-                self.track_start[guild_id] = time.time()
-                await ctx.send(f'🎵 Now playing: **{track_info["title"]}**')
-            except Exception as e:
-                if self.logger:
-                    self.logger.error(f'Error processing YouTube URL: {e}')
-                await ctx.send(f'❌ Error playing YouTube video: {str(e)}')
-                return await self._play_next(ctx)
+                audio = mutagen.File(file_path)
+                duration = int(audio.info.length) if audio and audio.info else None
+            except Exception:
+                duration = None
+            self.track_duration[guild_id] = duration
+            self.track_start[guild_id] = time.time()
         else:
             path = os.path.join('/mnt/cdn/music', query if query.endswith('.mp3') else f'{query}.mp3')
             if not os.path.exists(path):
-                if self.logger:
-                    self.logger.warning(f'CDN file not found: {path}')
-                return await self._play_next(ctx)
+                await ctx.send(f"File not found: {path}")
+                await self._play_next(ctx)
+                return
             source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
             try:
-                result = subprocess.run([
-                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                    '-of', 'default=noprint_wrappers=1:nokey=1', path
-                ], stdout=PIPE, stderr=PIPE, text=True)
-                duration = float(result.stdout.strip())
+                audio = mutagen.File(path)
+                duration = int(audio.info.length) if audio and audio.info else None
             except Exception:
                 duration = None
             self.track_duration[guild_id] = duration
@@ -1112,15 +1128,14 @@ class MusicPlayer:
         vc = ctx.voice_client
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, 0.1))
         def after_play(error):
-            if error and self.logger:
+            if error:
                 self.logger.error(f'Playback error: {error}')
             coro = self._play_next(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
                 fut.result()
             except Exception as e:
-                if self.logger:
-                    self.logger.error(f'Error scheduling next track: {e}')
+                self.logger.error(f'Error scheduling next track: {e}')
         vc.play(source, after=after_play)
 
     async def skip(self, ctx):
@@ -1200,6 +1215,32 @@ class MusicPlayer:
             await ctx.send(f'🎵 Now Playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]')
         else:
             await ctx.send(f'🎵 Now Playing ({source_label}): **{title}**')
+
+    async def cleanup_cache(self):
+        # Remove files not referenced in any queue or current_track
+        referenced = set()
+        for q in self.queues.values():
+            for t in q:
+                if t.get('file_path'):
+                    referenced.add(t['file_path'])
+        for t in self.current_track.values():
+            if t and t.get('file_path'):
+                referenced.add(t['file_path'])
+        for fname in os.listdir(self.download_dir):
+            fpath = os.path.join(self.download_dir, fname)
+            if fpath not in referenced:
+                try:
+                    os.remove(fpath)
+                    if self.logger:
+                        self.logger.info(f"Removed unused cached file: {fpath}")
+                except Exception as e:
+                    if self.logger:
+                        self.logger.error(f"Failed to remove {fpath}: {e}")
+
+    async def periodic_cleanup(self):
+        while True:
+            await asyncio.sleep(3600)  # every hour
+            await self.cleanup_cache()
 
 # VoiceCog class for managing voice connections
 class VoiceCog(commands.Cog, name='Voice'):
