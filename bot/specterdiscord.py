@@ -19,7 +19,6 @@ from dotenv import load_dotenv
 import aiomysql
 import socketio
 import yt_dlp
-import mutagen
 
 # Load environment variables from .env file
 load_dotenv()
@@ -1114,8 +1113,11 @@ class MusicPlayer:
             source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
             # Try to get duration
             try:
-                audio = mutagen.File(file_path)
-                duration = int(audio.info.length) if audio and audio.info else None
+                result = subprocess.run([
+                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1', file_path
+                ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                duration = int(float(result.stdout)) if result.stdout else None
             except Exception:
                 duration = None
             self.track_duration[guild_id] = duration
@@ -1128,8 +1130,11 @@ class MusicPlayer:
                 return
             source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
             try:
-                audio = mutagen.File(path)
-                duration = int(audio.info.length) if audio and audio.info else None
+                result = subprocess.run([
+                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1', path
+                ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                duration = int(float(result.stdout)) if result.stdout else None
             except Exception:
                 duration = None
             self.track_duration[guild_id] = duration
