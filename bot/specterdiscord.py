@@ -1059,9 +1059,14 @@ class MusicPlayer:
 
     async def _play_next(self, ctx):
         guild_id = ctx.guild.id
+        vc = ctx.guild.voice_client
+        # No longer in voice, stop scheduling
+        if not vc or not vc.is_connected():
+            self.is_playing[guild_id] = False
+            return
         queue = self.queues[guild_id]
         if not queue:
-            # Reset flag so add_to_queue will call _play_next
+            # Reset flag so add_to_queue won't spin
             self.is_playing[guild_id] = False
             return await self.play_random_cdn_mp3(ctx)
         self.is_playing[guild_id] = True
@@ -1160,19 +1165,18 @@ class MusicPlayer:
 
     async def play_random_cdn_mp3(self, ctx):
         music_dir = '/mnt/cdn/music'
+        vc = ctx.guild.voice_client
+        if not vc or not vc.is_connected():
+            return
         try:
             files = [f for f in os.listdir(music_dir) if f.lower().endswith('.mp3')]
             if not files:
-                if self.logger:
-                    self.logger.warning('No mp3 files found in /mnt/cdn/music')
-                await ctx.send('No music files found in the CDN.')
+                self.logger.warning('No mp3 files found in /mnt/cdn/music')
                 return
             random_file = random.choice(files)
             await self.add_to_queue(ctx, random_file)
         except Exception as e:
-            if self.logger:
-                self.logger.error(f'Error picking random mp3: {e}')
-            await ctx.send('Error picking a random music file.')
+            self.logger.error(f'Error picking random mp3: {e}')
 
     async def now_playing(self, ctx):
         guild_id = ctx.guild.id
