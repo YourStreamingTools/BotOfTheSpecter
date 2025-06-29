@@ -134,7 +134,7 @@ config = Config()
 
 # Define the bot information
 BOT_COLOR = 0x001C1D
-DISCORD_BOT_SERVICE_VERSION = "5.0.0"
+DISCORD_BOT_SERVICE_VERSION = "5.1.0"
 BOT_VERSION = DISCORD_BOT_SERVICE_VERSION
 DISCORD_VERSION_FILE = "/var/www/logs/version/discord_version_control.txt"
 
@@ -1145,6 +1145,19 @@ class MusicPlayer:
             if error:
                 if self.logger:
                     self.logger.error(f'Playback error: {error}')
+            else:
+                if self.logger:
+                    self.logger.info(f"Finished playing: {track_info['title']}")
+            # Clean up the audio file immediately after playback (YouTube files only)
+            if track_info['is_youtube'] and 'file_path' in track_info and track_info['file_path']:
+                try:
+                    if os.path.exists(track_info['file_path']):
+                        os.remove(track_info['file_path'])
+                        if self.logger:
+                            self.logger.info(f"Cleaned up audio file: {track_info['file_path']}")
+                except Exception as cleanup_error:
+                    if self.logger:
+                        self.logger.error(f"Failed to clean up audio file {track_info['file_path']}: {cleanup_error}")
             coro = self._play_next(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
@@ -1304,7 +1317,7 @@ class MusicPlayer:
 
     async def periodic_cleanup(self):
         while True:
-            await asyncio.sleep(3600)  # every hour
+            await asyncio.sleep(900)  # every 15 minutes
             await self.cleanup_cache()
 
     async def play_random_cdn_mp3(self, ctx):
