@@ -1061,8 +1061,9 @@ class MusicPlayer:
         guild_id = ctx.guild.id
         queue = self.queues[guild_id]
         if not queue:
-            await self.play_random_cdn_mp3(ctx)
-            return
+            # Reset flag so add_to_queue will call _play_next
+            self.is_playing[guild_id] = False
+            return await self.play_random_cdn_mp3(ctx)
         self.is_playing[guild_id] = True
         track_info = queue.pop(0)
         self.current_track[guild_id] = track_info
