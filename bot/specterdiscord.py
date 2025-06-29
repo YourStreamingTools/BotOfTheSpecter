@@ -1068,7 +1068,16 @@ class MusicPlayer:
         }
         self.queues[guild_id].append(track_info)
         if is_youtube:
-            await ctx.send(f"🎵 Added **{title}** to the queue (requested by {user.display_name})")
+            embed = discord.Embed(
+                title="🎵 Added to Queue",
+                description=f"**{title}** (requested by {user.display_name})",
+                color=discord.Color.green()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+            except Exception:
+                pass
         if not self.is_playing[guild_id]:
             await self._play_next(ctx)
 
@@ -1141,30 +1150,80 @@ class MusicPlayer:
     async def skip(self, ctx):
         vc = ctx.voice_client
         if not vc:
-            return await ctx.send('Not connected to a voice channel.')
+            embed = discord.Embed(
+                title="⚠️ Not Connected",
+                description="Not connected to a voice channel.",
+                color=discord.Color.orange()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+            except Exception:
+                pass
+            return
         if not vc.is_playing():
             await self.play_random_cdn_mp3(ctx)
             return
         vc.stop()
-        await ctx.send('Skipped current track.')
+        embed = discord.Embed(
+            title="⏭️ Skipped",
+            description="Skipped current track.",
+            color=discord.Color.blue()
+        )
+        msg = await ctx.send(embed=embed)
+        try:
+            await msg.delete(delay=5)
+        except Exception:
+            pass
 
     async def stop(self, ctx):
         vc = ctx.voice_client
         guild_id = ctx.guild.id
         if not vc:
-            return await ctx.send('Not connected to a voice channel.')
+            embed = discord.Embed(
+                title="⚠️ Not Connected",
+                description="Not connected to a voice channel.",
+                color=discord.Color.orange()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+            except Exception:
+                pass
+            return
         vc.stop()
         self.queues[guild_id] = []
         self.current_track[guild_id] = None
         await vc.disconnect()
-        await ctx.send('Stopped playback and cleared queue.')
+        embed = discord.Embed(
+            title="⏹️ Stopped",
+            description="Stopped playback and cleared queue.",
+            color=discord.Color.red()
+        )
+        msg = await ctx.send(embed=embed)
+        try:
+            await msg.delete(delay=5)
+        except Exception:
+            pass
 
     async def get_queue(self, ctx):
         guild_id = ctx.guild.id
-        if guild_id not in self.queues or not self.queues[guild_id]:
-            return await ctx.send('The queue is empty.')
+        queue = self.queues.get(guild_id, [])
+        if not queue:
+            embed = discord.Embed(
+                title="🎵 Music Queue",
+                description="The queue is empty.",
+                color=discord.Color.blue()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=10)
+            except Exception:
+                pass
+            return
         queue_list = []
-        for i, track in enumerate(self.queues[guild_id][:10], 1):  # Show first 10
+        max_display = 5
+        for i, track in enumerate(queue[:max_display], 1):
             title = track['title'] if track['is_youtube'] else 'CDN Music'
             queue_list.append(f"{i}. {title} (by {track['user']})")
         current = self.current_track[guild_id]
@@ -1172,29 +1231,19 @@ class MusicPlayer:
         if current:
             current_title = current['title'] if current['is_youtube'] else 'CDN Music'
             current_text = f"**Now Playing:** {current_title}\n\n"
+        desc = f"{current_text}**Up Next:**\n" + "\n".join(queue_list)
+        if len(queue) > max_display:
+            desc += f"\n... and {len(queue) - max_display} more tracks"
         embed = discord.Embed(
             title="🎵 Music Queue",
-            description=f"{current_text}**Up Next:**\n" + "\n".join(queue_list),
+            description=desc,
             color=BOT_COLOR
         )
-        if len(self.queues[guild_id]) > 10:
-            embed.set_footer(text=f"... and {len(self.queues[guild_id]) - 10} more tracks")
-        await ctx.send(embed=embed)
-
-    async def play_random_cdn_mp3(self, ctx):
-        music_dir = '/mnt/cdn/music'
-        vc = ctx.guild.voice_client
-        if not vc or not vc.is_connected():
-            return
+        msg = await ctx.send(embed=embed)
         try:
-            files = [f for f in os.listdir(music_dir) if f.lower().endswith('.mp3')]
-            if not files:
-                self.logger.warning('No mp3 files found in /mnt/cdn/music')
-                return
-            random_file = random.choice(files)
-            await self.add_to_queue(ctx, random_file)
-        except Exception as e:
-            self.logger.error(f'Error picking random mp3: {e}')
+            await msg.delete(delay=10)
+        except Exception:
+            pass
 
     async def now_playing(self, ctx):
         guild_id = ctx.guild.id
@@ -1212,9 +1261,19 @@ class MusicPlayer:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            await ctx.send(f'🎵 Now Playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]')
+            desc = f'🎵 Now Playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]'
         else:
-            await ctx.send(f'🎵 Now Playing ({source_label}): **{title}**')
+            desc = f'🎵 Now Playing ({source_label}): **{title}**'
+        embed = discord.Embed(
+            title="Now Playing",
+            description=desc,
+            color=discord.Color.purple()
+        )
+        msg = await ctx.send(embed=embed)
+        try:
+            await msg.delete(delay=5)
+        except Exception:
+            pass
 
     async def cleanup_cache(self):
         # Remove files not referenced in any queue or current_track
