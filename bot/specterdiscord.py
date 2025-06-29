@@ -1333,8 +1333,11 @@ class MusicPlayer:
             'file_path': path
         }
         try:
-            audio = mutagen.File(path)
-            duration = int(audio.info.length) if audio and audio.info else None
+            result = subprocess.run([
+                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', path
+            ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            duration = int(float(result.stdout)) if result.stdout else None
         except Exception:
             duration = None
         self.track_duration[ctx.guild.id] = duration
