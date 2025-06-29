@@ -998,6 +998,9 @@ class MusicPlayer:
         self.volumes = {}      # Initialize volume settings per guild
         self.track_start = {}
         self.track_duration = {}
+        cookies_path = "/home/botofthespecter/ytdl-cookies.txt"
+        if not os.path.isfile(cookies_path):
+            self.logger.warning(f"yt-dlp cookies file not found at {cookies_path}")
         # yt-dlp configuration
         self.ytdl_format_options = {
             'format': 'bestaudio/best',
@@ -1011,7 +1014,7 @@ class MusicPlayer:
             'no_warnings': True,
             'default_search': 'auto',
             'source_address': '0.0.0.0',
-            'cookies': '/home/botofthespecter/ytdl-cookies.txt',
+            'cookies': cookies_path,
         }
         self.ffmpeg_options = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
