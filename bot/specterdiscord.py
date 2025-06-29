@@ -1084,7 +1084,7 @@ class MusicPlayer:
                 return await self._play_next(ctx)
             source = discord.FFmpegPCMAudio(path)
         vc = ctx.voice_client
-        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, 0.5))
+        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, 0.3))
         def after_play(error):
             if error and self.logger:
                 self.logger.error(f'Playback error: {error}')
@@ -1484,6 +1484,26 @@ class VoiceCog(commands.Cog, name='Voice'):
         if vc and hasattr(vc, 'source') and isinstance(vc.source, discord.PCMVolumeTransformer):
             vc.source.volume = vol
         await ctx.send(f"Set volume to {volume}%")
+
+    @app_commands.command(name="song", description="Show the current song playing")
+    async def slash_current_song(self, interaction: discord.Interaction):
+        current = self.music_player.current_track.get(interaction.guild.id)
+        if current:
+            await interaction.response.send_message(f"🎵 Now playing: **{current['title']}**")
+        else:
+            await interaction.response.send_message("No song is currently playing.")
+
+    @app_commands.command(name="volume", description="Set playback volume (0-100)")
+    @app_commands.describe(volume="Volume percentage (0-100)")
+    async def slash_volume(self, interaction: discord.Interaction, volume: int):
+        if volume < 0 or volume > 100:
+            return await interaction.response.send_message("Please provide a volume between 0 and 100.", ephemeral=True)
+        vol = volume / 100
+        self.music_player.volumes[interaction.guild.id] = vol
+        vc = interaction.guild.voice_client
+        if vc and hasattr(vc, 'source') and isinstance(vc.source, discord.PCMVolumeTransformer):
+            vc.source.volume = vol
+        await interaction.response.send_message(f"Set volume to {volume}%")
 
 # ChannelManagementCog class
 class ChannelManagementCog(commands.Cog, name='Channel Management'):
