@@ -1301,6 +1301,38 @@ class MusicPlayer:
             await asyncio.sleep(3600)  # every hour
             await self.cleanup_cache()
 
+    async def play_random_cdn_mp3(self, ctx):
+        import random
+        music_dir = '/mnt/cdn/music'
+        mp3_files = [f for f in os.listdir(music_dir) if f.lower().endswith('.mp3')]
+        random_mp3 = random.choice(mp3_files)
+        path = os.path.join(music_dir, random_mp3)
+        vc = ctx.voice_client
+        if not vc or not vc.is_connected():
+            await ctx.send("Not connected to a voice channel.")
+            return
+        source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
+        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(ctx.guild.id, 0.1))
+        def after_play(error):
+            if error:
+                self.logger.error(f'Playback error: {error}')
+        vc.play(source, after=after_play)
+        self.is_playing[ctx.guild.id] = True
+        self.current_track[ctx.guild.id] = {
+            'query': random_mp3,
+            'title': random_mp3,
+            'user': 'CDN',
+            'is_youtube': False,
+            'file_path': path
+        }
+        try:
+            audio = mutagen.File(path)
+            duration = int(audio.info.length) if audio and audio.info else None
+        except Exception:
+            duration = None
+        self.track_duration[ctx.guild.id] = duration
+        self.track_start[ctx.guild.id] = time.time()
+
 # VoiceCog class for managing voice connections
 class VoiceCog(commands.Cog, name='Voice'):
     def __init__(self, bot: commands.Bot, logger=None):
