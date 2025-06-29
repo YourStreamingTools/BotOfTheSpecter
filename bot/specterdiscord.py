@@ -1271,7 +1271,10 @@ class VoiceCog(commands.Cog, name='Voice'):
                 description=f"Successfully connected to {channel.mention}.",
                 color=discord.Color.green()
             )
-            await ctx.send(embed=embed)
+            response = await ctx.send(embed=embed)
+            # remove the bot response and the command after 5 seconds to keep channel clean
+            await response.delete(delay=5)
+            await ctx.message.delete(delay=5)
             self.logger.info(f"Connected to voice channel {channel.name} in {ctx.guild.name}")
             # Play a random mp3 if nothing is queued or playing
             guild_id = ctx.guild.id
@@ -1285,7 +1288,9 @@ class VoiceCog(commands.Cog, name='Voice'):
                 description=f"Failed to connect to voice channel: {str(e)}",
                 color=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            response = await ctx.send(embed=embed)
+            await response.delete(delay=5)
+            await ctx.message.delete(delay=5)
             self.logger.error(f"Discord client error connecting to voice: {e}")
         except Exception as e:
             embed = discord.Embed(
@@ -1293,7 +1298,9 @@ class VoiceCog(commands.Cog, name='Voice'):
                 description="An unexpected error occurred while connecting to the voice channel.",
                 color=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            response = await ctx.send(embed=embed)
+            await response.delete(delay=5)
+            await ctx.message.delete(delay=5)
             self.logger.error(f"Unexpected error connecting to voice: {e}")
 
     @commands.command(name="disconnect", aliases=["leave", "dc"])
@@ -1333,7 +1340,9 @@ class VoiceCog(commands.Cog, name='Voice'):
                 description=f"Successfully disconnected from {channel_name}.",
                 color=discord.Color.green()
             )
-            await ctx.send(embed=embed)
+            response = await ctx.send(embed=embed)
+            await response.delete(delay=5)
+            await ctx.message.delete(delay=5)
             self.logger.info(f"Disconnected from voice channel {channel_name} in {ctx.guild.name}")
         except Exception as e:
             embed = discord.Embed(
@@ -1341,7 +1350,9 @@ class VoiceCog(commands.Cog, name='Voice'):
                 description="An error occurred while disconnecting from the voice channel.",
                 color=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            response = await ctx.send(embed=embed)
+            await response.delete(delay=5)
+            await ctx.message.delete(delay=5)
             self.logger.error(f"Error disconnecting from voice: {e}")
 
     @commands.command(name="voice_status", aliases=["vstatus"])
