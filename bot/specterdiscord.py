@@ -7,6 +7,10 @@ import json
 import yt_dlp
 import tempfile
 import random
+import time
+import datetime
+import subprocess
+from subprocess import PIPE
 # Third-party libraries
 import aiohttp
 import discord
@@ -995,6 +999,8 @@ class MusicPlayer:
         self.is_playing = {}   # guild_id -> bool
         self.current_track = {}  # guild_id -> current track info
         self.volumes = {}      # Initialize volume settings per guild
+        self.track_start = {}
+        self.track_duration = {}
         # yt-dlp configuration
         self.ytdl_format_options = {
             'format': 'bestaudio/best',
@@ -1067,8 +1073,10 @@ class MusicPlayer:
                 with yt_dlp.YoutubeDL(self.ytdl_format_options) as ydl:
                     info = ydl.extract_info(query, download=False)
                     url = info['url']
-                    
+                    duration = info.get('duration')
                 source = discord.FFmpegPCMAudio(url, **self.ffmpeg_options)
+                self.track_duration[guild_id] = duration
+                self.track_start[guild_id] = time.time()
                 await ctx.send(f'🎵 Now playing: **{track_info["title"]}**')
             except Exception as e:
                 if self.logger:
@@ -1082,6 +1090,16 @@ class MusicPlayer:
                     self.logger.warning(f'CDN file not found: {path}')
                 return await self._play_next(ctx)
             source = discord.FFmpegPCMAudio(path)
+            try:
+                result = subprocess.run([
+                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1', path
+                ], stdout=PIPE, stderr=PIPE, text=True)
+                duration = float(result.stdout.strip())
+            except Exception:
+                duration = None
+            self.track_duration[guild_id] = duration
+            self.track_start[guild_id] = time.time()
         vc = ctx.voice_client
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, 0.1))
         def after_play(error):
@@ -1151,6 +1169,22 @@ class MusicPlayer:
             if self.logger:
                 self.logger.error(f'Error picking random mp3: {e}')
             await ctx.send('Error picking a random music file.')
+
+    async def now_playing(self, ctx):
+        guild_id = ctx.guild.id
+        track = self.current_track.get(guild_id)
+        if not track:
+            return await ctx.send('Nothing is playing.')
+        title = track['title']
+        duration = self.track_duration.get(guild_id)
+        start = self.track_start.get(guild_id)
+        if duration and start:
+            elapsed = time.time() - start
+            elapsed_str = str(datetime.timedelta(seconds=int(elapsed)))
+            duration_str = str(datetime.timedelta(seconds=int(duration)))
+            await ctx.send(f'🎵 Now Playing: **{title}** [{elapsed_str}/{duration_str}]')
+        else:
+            await ctx.send(f'🎵 Now Playing: **{title}**')
 
 # VoiceCog class for managing voice connections
 class VoiceCog(commands.Cog, name='Voice'):
