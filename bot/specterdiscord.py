@@ -4,7 +4,6 @@ import logging
 import os
 import signal
 import json
-import yt_dlp
 import tempfile
 import random
 import time
@@ -19,6 +18,7 @@ from discord import app_commands
 from dotenv import load_dotenv
 import aiomysql
 import socketio
+import yt_dlp
 
 # Load environment variables from .env file
 load_dotenv()
