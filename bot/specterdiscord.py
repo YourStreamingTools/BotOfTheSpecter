@@ -1089,7 +1089,7 @@ class MusicPlayer:
                 if self.logger:
                     self.logger.warning(f'CDN file not found: {path}')
                 return await self._play_next(ctx)
-            source = discord.FFmpegPCMAudio(path, **self.ffmpeg_options)
+            source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
             try:
                 result = subprocess.run([
                     'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
