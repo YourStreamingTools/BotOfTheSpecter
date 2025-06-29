@@ -1143,13 +1143,15 @@ class MusicPlayer:
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, 0.1))
         def after_play(error):
             if error:
-                self.logger.error(f'Playback error: {error}')
+                if self.logger:
+                    self.logger.error(f'Playback error: {error}')
             coro = self._play_next(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
                 fut.result()
             except Exception as e:
-                self.logger.error(f'Error scheduling next track: {e}')
+                if self.logger:
+                    self.logger.error(f'Error scheduling next track: {e}')
         if vc.is_playing():
             return
         vc.play(source, after=after_play)
@@ -1322,6 +1324,17 @@ class MusicPlayer:
             return
         source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(ctx.guild.id, 0.1))
+        def after_play(error):
+            if error:
+                if self.logger:
+                    self.logger.error(f'Playback error: {error}')
+            coro = self._play_next(ctx)
+            fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+            try:
+                fut.result()
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f'Error scheduling next track: {e}')
         if vc.is_playing():
             return
         vc.play(source, after=after_play)
