@@ -1309,7 +1309,12 @@ class MusicPlayer:
         path = os.path.join(music_dir, random_mp3)
         vc = ctx.voice_client
         if not vc or not vc.is_connected():
-            await ctx.send("Not connected to a voice channel.")
+            embed = discord.Embed(
+                title="Voice Channel Error",
+                description="Not connected to a voice channel.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
             return
         source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(ctx.guild.id, 0.1))
