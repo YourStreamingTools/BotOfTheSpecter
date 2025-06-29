@@ -1261,19 +1261,16 @@ class MusicPlayer:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            desc = f'🎵 Now Playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]'
+            if source_label == 'YouTube':
+                desc = f'🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]'
         else:
-            desc = f'🎵 Now Playing ({source_label}): **{title}**'
+            desc = f'🎵 Now playing: **{title}**'
         embed = discord.Embed(
             title="Now Playing",
             description=desc,
             color=discord.Color.purple()
         )
-        msg = await ctx.send(embed=embed)
-        try:
-            await msg.delete(delay=5)
-        except Exception:
-            pass
+        await ctx.send(embed=embed)
 
     async def cleanup_cache(self):
         # Remove files not referenced in any queue or current_track
