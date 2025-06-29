@@ -1738,9 +1738,15 @@ class VoiceCog(commands.Cog, name='Voice'):
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            await ctx.send(f"🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]")
+            if source_label == 'YouTube':
+                await ctx.send(f"🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]")
+            else:
+                await ctx.send(f"🎵 Now playing: **{title}** [{elapsed_str}/{duration_str}]")
         else:
-            await ctx.send(f"🎵 Now playing ({source_label}): **{title}**")
+            if source_label == 'YouTube':
+                await ctx.send(f"🎵 Now playing ({source_label}): **{title}**")
+            else:
+                await ctx.send(f"🎵 Now playing: **{title}**")
 
     @commands.command(name="volume")
     async def set_volume(self, ctx, volume: int):
