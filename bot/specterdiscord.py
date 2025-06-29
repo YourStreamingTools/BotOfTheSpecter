@@ -1542,10 +1542,38 @@ class VoiceCog(commands.Cog, name='Voice'):
         self.voice_clients.clear()
 
     # Music commands
+    def _user_in_linked_voice_text_channel(self, ctx):
+        if not ctx.author.voice or not ctx.author.voice.channel:
+            return False
+        voice_channel = ctx.author.voice.channel
+        # Discord voice channels can have a linked text channel (voice_channel.guild.text_channels)
+        linked_text_channel = getattr(voice_channel, 'linked_text_channel', None)
+        # If using Discord's new voice chat text channel feature
+        if linked_text_channel:
+            return ctx.channel.id == linked_text_channel.id
+        # Fallback: try to find a text channel with the same name as the voice channel
+        for text_channel in ctx.guild.text_channels:
+            if text_channel.name == voice_channel.name and ctx.channel.id == text_channel.id:
+                return True
+        # If no linked text channel, allow everywhere (legacy behavior)
+        return True
+
     @commands.command(name="play")
     async def play_music(self, ctx, *, query: str):
         if not ctx.author.voice:
             await ctx.send("You need to be in a voice channel to use this command!")
+            return
+        if not self._user_in_linked_voice_text_channel(ctx):
+            embed = discord.Embed(
+                title="❌ Wrong Channel",
+                description="Please use this command in the text chat channel linked to your voice channel.",
+                color=discord.Color.red()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+            except Exception:
+                pass
             return
         if not ctx.voice_client:
             try:
@@ -1580,6 +1608,18 @@ class VoiceCog(commands.Cog, name='Voice'):
 
     @commands.command(name="skip", aliases=["s", "next"])
     async def skip_music(self, ctx):
+        if not ctx.author.voice or not self._user_in_linked_voice_text_channel(ctx):
+            embed = discord.Embed(
+                title="❌ Wrong Channel",
+                description="Please use this command in the text chat channel linked to your voice channel.",
+                color=discord.Color.red()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+            except Exception:
+                pass
+            return
         await self.music_player.skip(ctx)
 
     @app_commands.command(name="skip", description="Skip the current song")
@@ -1595,6 +1635,18 @@ class VoiceCog(commands.Cog, name='Voice'):
 
     @commands.command(name="stop", aliases=["pause"])
     async def stop_music(self, ctx):
+        if not ctx.author.voice or not self._user_in_linked_voice_text_channel(ctx):
+            embed = discord.Embed(
+                title="❌ Wrong Channel",
+                description="Please use this command in the text chat channel linked to your voice channel.",
+                color=discord.Color.red()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+            except Exception:
+                pass
+            return
         await self.music_player.stop(ctx)
 
     @app_commands.command(name="stop", description="Stop music and clear the queue")
@@ -1610,6 +1662,18 @@ class VoiceCog(commands.Cog, name='Voice'):
 
     @commands.command(name="queue", aliases=["q", "playlist"])
     async def show_queue(self, ctx):
+        if not ctx.author.voice or not self._user_in_linked_voice_text_channel(ctx):
+            embed = discord.Embed(
+                title="❌ Wrong Channel",
+                description="Please use this command in the text chat channel linked to your voice channel.",
+                color=discord.Color.red()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+            except Exception:
+                pass
+            return
         await self.music_player.get_queue(ctx)
 
     @app_commands.command(name="queue", description="Show the current music queue")
