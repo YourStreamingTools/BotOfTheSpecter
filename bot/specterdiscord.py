@@ -20,28 +20,53 @@ import aiomysql
 import socketio
 import yt_dlp
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Define the bot information
-BOT_COLOR = 0x001C1D
-DISCORD_BOT_SERVICE_VERSION = "5.1.0"
-BOT_VERSION = DISCORD_BOT_SERVICE_VERSION
-DISCORD_VERSION_FILE = "/var/www/logs/version/discord_version_control.txt"
-
 # Global configuration class
 class Config:
     def __init__(self):
+        # Load environment variables from .env file
+        load_dotenv()
+        # Environment variables
         self.discord_token = os.getenv("DISCORD_TOKEN")
         self.api_token = os.getenv("API_KEY")
+        self.admin_key = os.getenv("ADMIN_KEY")
+        self.sql_host = os.getenv('SQL_HOST')
+        self.sql_user = os.getenv('SQL_USER')
+        self.sql_password = os.getenv('SQL_PASSWORD')
+        # Bot information
+        self.bot_color = 0x001C1D
+        self.discord_bot_service_version = "5.1.1"
+        self.bot_version = self.discord_bot_service_version
+        # File paths
+        self.discord_version_file = "/var/www/logs/version/discord_version_control.txt"
+        self.logs_directory = "/home/botofthespecter/logs/"
+        self.discord_logs = os.path.join(self.logs_directory, "specterdiscord")
+        self.processed_messages_file = f"/home/botofthespecter/logs/discord/messages.txt"
+        self.cookies_path = "/home/botofthespecter/ytdl-cookies.txt"
+        self.music_directory = '/mnt/cdn/music'
+        # Discord server settings
+        self.owner_id = 127783626917150720              # gfaUnDead User ID (Owner)
+        self.support_guild_id = 1103694163930787880     # YourStreamingTools Server ID
+        self.support_role_id = 1337400720403468288      # Support Team Role
+        self.mod_channel_id = 1103695077928345683       # Moderator Channel ID
+        # URLs
+        self.websocket_url = "wss://websocket.botofthespecter.com"
+        self.api_base_url = "https://api.botofthespecter.com"
+        # Music player settings
+        self.typing_speed = 50
+        self.volume_default = 0.1
+        # Status file path template
+        self.stream_status_file = "/home/botofthespecter/logs/online/{channel_name}.txt"
+
+# Initialize the configuration
 config = Config()
 
-# Define logging directory
-logs_directory = "/home/botofthespecter/logs/"
-discord_logs = os.path.join(logs_directory, "specterdiscord")
+# Ensure directories exist
+for directory in [config.logs_directory, config.discord_logs]:
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
-# Ensure directory exists
-for directory in [logs_directory, discord_logs]:
+# Ensure directories exist
+for directory in [config.logs_directory, config.discord_logs]:
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -63,8 +88,8 @@ class WebsocketListener:
         self.sio = None
     async def start(self):
         self.sio = socketio.AsyncClient(logger=False, engineio_logger=False)
-        admin_key = os.getenv("ADMIN_KEY")
-        websocket_url = "wss://websocket.botofthespecter.com"
+        admin_key = config.admin_key
+        websocket_url = config.websocket_url
         @self.sio.event
         async def connect():
             if self.logger:
@@ -107,7 +132,7 @@ class ChannelMapping:
         self.mappings = {}  # channel_code -> {guild_id, channel_id, channel_name}
         self.load_mappings()
     def load_mappings(self):
-        mapping_file = f"{discord_logs}/discord_channel_mappings.json"
+        mapping_file = f"{config.discord_logs}/discord_channel_mappings.json"
         try:
             if os.path.exists(mapping_file):
                 with open(mapping_file, 'r') as f:
@@ -115,7 +140,7 @@ class ChannelMapping:
         except Exception as e:
             print(f"Error loading channel mappings: {e}")
     def save_mappings(self):
-        mapping_file = f"{discord_logs}/discord_channel_mappings.json"
+        mapping_file = f"{config.discord_logs}/discord_channel_mappings.json"
         try:
             with open(mapping_file, 'w') as f:
                 json.dump(self.mappings, f, indent=2)
@@ -146,9 +171,9 @@ class BotOfTheSpecter(commands.Bot):
         super().__init__(command_prefix="!", intents=intents, **kwargs)
         self.discord_token = discord_token
         self.logger = discord_logger
-        self.typing_speed = 50
-        self.processed_messages_file = f"/home/botofthespecter/logs/discord/messages.txt"
-        self.version = BOT_VERSION
+        self.typing_speed = config.typing_speed
+        self.processed_messages_file = config.processed_messages_file
+        self.version = config.bot_version
         self.pool = None  # Initialize the pool attribute
         self.channel_mapping = ChannelMapping()
         self.websocket_client = None
@@ -160,7 +185,7 @@ class BotOfTheSpecter(commands.Bot):
             open(self.processed_messages_file, 'w').close()
 
     def read_stream_status(self, channel_name):
-        status_file_path = f"/home/botofthespecter/logs/online/{channel_name}.txt"
+        status_file_path = config.stream_status_file.format(channel_name=channel_name)
         if os.path.exists(status_file_path):
             with open(status_file_path, "r") as file:
                 status = file.read().strip()
@@ -172,10 +197,10 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Bot version: {self.version}')
         # Update the global version file for dashboard display
         try:
-            os.makedirs(os.path.dirname(DISCORD_VERSION_FILE), exist_ok=True)
-            with open(DISCORD_VERSION_FILE, "w") as f:
-                f.write(DISCORD_BOT_SERVICE_VERSION + "\n")
-            self.logger.info(f"Updated Discord bot version file: {DISCORD_BOT_SERVICE_VERSION}")
+            os.makedirs(os.path.dirname(config.discord_version_file), exist_ok=True)
+            with open(config.discord_version_file, "w") as f:
+                f.write(config.discord_bot_service_version + "\n")
+            self.logger.info(f"Updated Discord bot version file: {config.discord_bot_service_version}")
         except Exception as e:
             self.logger.error(f"Failed to update Discord bot version file: {e}")
         # Set the initial presence and check stream status for each guild
@@ -303,8 +328,8 @@ class BotOfTheSpecter(commands.Bot):
 
     async def connect_to_websocket(self):
         self.websocket_client = socketio.AsyncClient(logger=False, engineio_logger=False)
-        admin_key = os.getenv("ADMIN_KEY")
-        websocket_url = "wss://websocket.botofthespecter.com"
+        admin_key = config.admin_key
+        websocket_url = config.websocket_url
         @self.websocket_client.event
         async def connect():
             self.logger.info("Connected to websocket server")
@@ -431,7 +456,7 @@ class QuoteCog(commands.Cog, name='Quote'):
         self.bot = bot
         self.api_token = api_token
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.typing_speed = 50
+        self.typing_speed = config.typing_speed
         # Register the slash command
         self.bot.tree.add_command(
             app_commands.Command(
@@ -453,7 +478,7 @@ class QuoteCog(commands.Cog, name='Quote'):
             ctx = ctx_or_interaction
         else:
             ctx = await commands.Context.from_interaction(ctx_or_interaction)
-        url = f"https://api.botofthespecter.com/quotes?api_key={self.api_token}"
+        url = f"{config.api_base_url}/quotes?api_key={self.api_token}"
         try:
             async with aiohttp.ClientSession() as session:
                 async with ctx.typing():
@@ -483,17 +508,17 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.pool = None
-        self.OWNER_ID = 127783626917150720              # gfaUnDead User ID (Owner)
-        self.SUPPORT_GUILD_ID = 1103694163930787880     # YourStreamingTools Server ID
-        self.SUPPORT_ROLE = 1337400720403468288         # Support Team Role
-        self.MOD_CHANNEL_ID = 1103695077928345683       # Moderator Channel ID
+        self.OWNER_ID = config.owner_id              # gfaUnDead User ID (Owner)
+        self.SUPPORT_GUILD_ID = config.support_guild_id     # YourStreamingTools Server ID
+        self.SUPPORT_ROLE = config.support_role_id         # Support Team Role
+        self.MOD_CHANNEL_ID = config.mod_channel_id       # Moderator Channel ID
 
     async def init_ticket_database(self):
         if self.pool is None:
             self.pool = await aiomysql.create_pool(
-                host=os.getenv('SQL_HOST'),
-                user=os.getenv('SQL_USER'),
-                password=os.getenv('SQL_PASSWORD'),
+                host=config.sql_host,
+                user=config.sql_user,
+                password=config.sql_password,
                 db='tickets',
                 autocommit=True
             )
@@ -543,7 +568,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 "Please be patient and remain respectful throughout the process.\n\n"
                 "If you wish to close the ticket at any time, use '!ticket close' to notify the support team."
             ),
-            color=BOT_COLOR
+            color=config.bot_color
         )
         await channel.send(embed=embed)  # Send the embed message to the channel
         # Notify the support team about the new ticket
@@ -599,7 +624,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                             f"please return to <#{settings['info_channel_id']}> and create a new ticket "
                             f"using `!ticket create`."
                         ),
-                        color=BOT_COLOR
+                        color=config.bot_color
                     )
                     await ticket_creator.send(embed=dm_embed)
                     self.logger.info(f"Sent closure DM to user {ticket_creator.name} for ticket #{ticket_id} with reason: {reason if reason != 'No reason provided' else 'No reason provided'}")
@@ -908,7 +933,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     "• Keep all communication respectful\n"
                     "• Only support team members can close tickets"
                 ),
-                color=BOT_COLOR
+                color=config.bot_color
             )
             # Add a warning message about channel usage
             warning_embed = discord.Embed(
@@ -1002,7 +1027,7 @@ class MusicPlayer:
         self.volumes = {}      # Initialize volume settings per guild
         self.track_start = {}
         self.track_duration = {}
-        cookies_path = "/home/botofthespecter/ytdl-cookies.txt"
+        cookies_path = config.cookies_path
         # yt-dlp configuration
         self.ytdl_format_options = {
             'format': 'bestaudio/best',
@@ -1127,7 +1152,7 @@ class MusicPlayer:
             self.track_duration[guild_id] = duration
             self.track_start[guild_id] = time.time()
         else:
-            path = os.path.join('/mnt/cdn/music', query if query.endswith('.mp3') else f'{query}.mp3')
+            path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
             if not os.path.exists(path):
                 await ctx.send(f"File not found: {path}")
                 await self._play_next(ctx)
@@ -1144,7 +1169,7 @@ class MusicPlayer:
             self.track_duration[guild_id] = duration
             self.track_start[guild_id] = time.time()
         vc = ctx.voice_client
-        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, 0.1))
+        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, config.volume_default))
         def after_play(error):
             if error:
                 if self.logger:
@@ -1263,7 +1288,7 @@ class MusicPlayer:
         embed = discord.Embed(
             title="🎵 Music Queue",
             description=desc,
-            color=BOT_COLOR
+            color=config.bot_color
         )
         msg = await ctx.send(embed=embed)
         try:
@@ -1325,8 +1350,7 @@ class MusicPlayer:
             await self.cleanup_cache()
 
     async def play_random_cdn_mp3(self, ctx):
-        import random
-        music_dir = '/mnt/cdn/music'
+        music_dir = config.music_directory
         mp3_files = [f for f in os.listdir(music_dir) if f.lower().endswith('.mp3')]
         random_mp3 = random.choice(mp3_files)
         path = os.path.join(music_dir, random_mp3)
@@ -1340,7 +1364,7 @@ class MusicPlayer:
             await ctx.send(embed=embed)
             return
         source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
-        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(ctx.guild.id, 0.1))
+        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(ctx.guild.id, config.volume_default))
         def after_play(error):
             if error:
                 if self.logger:
@@ -1901,13 +1925,13 @@ class ChannelManagementCog(commands.Cog, name='Channel Management'):
             embed = discord.Embed(
                 title="📋 Channel Mappings",
                 description="\n".join(guild_mappings),
-                color=BOT_COLOR
+                color=config.bot_color
             )
         else:
             embed = discord.Embed(
                 title="📋 Channel Mappings",
                 description="No channel mappings found for this server.",
-                color=BOT_COLOR
+                color=config.bot_color
             )
         await interaction.response.send_message(embed=embed)
 
@@ -1916,9 +1940,9 @@ class MySQLHelper:
     def __init__(self, logger=None):
         self.logger = logger
     async def get_connection(self, database_name):
-        sql_host = os.getenv('SQL_HOST')
-        sql_user = os.getenv('SQL_USER')
-        sql_password = os.getenv('SQL_PASSWORD')
+        sql_host = config.sql_host
+        sql_user = config.sql_user
+        sql_password = config.sql_password
         if not sql_host or not sql_user or not sql_password:
             if self.logger:
                 self.logger.error("Missing SQL connection parameters. Please check the .env file.")
@@ -2073,9 +2097,9 @@ class DiscordBotRunner:
         await self.bot.start(self.discord_token)
 
 def main():
-    bot_log_file = os.path.join(discord_logs, f"discordbot.txt")
+    bot_log_file = os.path.join(config.discord_logs, f"discordbot.txt")
     discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
-    discord_logger.info(f"Starting BotOfTheSpecter Discord Bot version {BOT_VERSION}")
+    discord_logger.info(f"Starting BotOfTheSpecter Discord Bot version {config.bot_version}")
     bot_runner = DiscordBotRunner(discord_logger)
     bot_runner.run()
 
