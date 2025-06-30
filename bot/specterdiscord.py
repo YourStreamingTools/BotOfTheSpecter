@@ -839,11 +839,28 @@ class TicketCog(commands.Cog, name='Tickets'):
 
     @commands.command(name="setuptickets")
     async def setup_tickets(self, ctx):
-        # Allow only server admins to run this command
-        if not ctx.author.guild_permissions.administrator:
+        """Set up the ticket system (Bot Owner Only)"""
+        # Check if user is in the correct server
+        if ctx.guild.id != self.SUPPORT_GUILD_ID:
             await ctx.send(
-                "❌ Only server administrators can set up the ticket system.",
+                "❌ The ticket system can only be set up in the YourStreamingTools Discord server.\n"
+                "This is a centralized support system - please join <https://discord.com/invite/ANwEkpauHJ> "
+                "to create support tickets."
+            )
+            return
+        # Check if command is used in the moderator channel
+        if ctx.channel.id != self.MOD_CHANNEL_ID:
+            await ctx.send(
+                "❌ This command can only be used in the <#1103695077928345683> channel.",
                 delete_after=10
+            )
+            return
+        # Check if user is the bot owner
+        if ctx.author.id != self.OWNER_ID:
+            await ctx.send(
+                "❌ Only the bot owner can set up the ticket system.\n"
+                "The ticket system is managed centrally through the YourStreamingTools Discord server.\n"
+                "Please join <https://discord.com/invite/ANwEkpauHJ> for support."
             )
             return
         try:
@@ -873,40 +890,39 @@ class TicketCog(commands.Cog, name='Tickets'):
                 async with conn.cursor() as cur:
                     await cur.execute("""
                         INSERT INTO ticket_settings 
-                        (guild_id, info_channel_id, category_id, enabled, owner_id, support_role_id, mod_channel_id) 
-                        VALUES (%s, %s, %s, TRUE, %s, %s, %s)
+                        (guild_id, info_channel_id, category_id, enabled) 
+                        VALUES (%s, %s, %s, TRUE)
                         ON DUPLICATE KEY UPDATE 
                         info_channel_id = VALUES(info_channel_id),
                         category_id = VALUES(category_id),
                         enabled = TRUE,
-                        owner_id = VALUES(owner_id),
-                        support_role_id = VALUES(support_role_id),
-                        mod_channel_id = VALUES(mod_channel_id),
                         updated_at = CURRENT_TIMESTAMP
-                    """, (ctx.guild.id, info_channel.id, category.id, ctx.author.id, self.SUPPORT_ROLE, self.MOD_CHANNEL_ID))
+                    """, (ctx.guild.id, info_channel.id, category.id))
+            # Set channel permissions
             await info_channel.set_permissions(
-                ctx.guild.default_role,
-                read_messages=True,
-                send_messages=True,
-                add_reactions=False,
-                embed_links=False,
-                attach_files=False,
-                use_application_commands=True
+                ctx.guild.default_role,  # or interaction.guild.default_role for slash command
+                read_messages=True,      # Allow everyone to see the channel
+                send_messages=True,      # Allow sending messages (for commands)
+                add_reactions=False,     # Prevent reactions
+                embed_links=False,       # Prevent embeds
+                attach_files=False,      # Prevent file attachments
+                use_application_commands=True  # Allow slash commands
             )
-            await info_channel.edit(slowmode_delay=5)
+            # Set up channel slowmode to prevent spam
+            await info_channel.edit(slowmode_delay=5)  # 5 seconds between messages
+            # Set proper permissions for the Open Tickets category
             await category.set_permissions(
-                ctx.guild.default_role,
-                read_messages=False,
+                ctx.guild.default_role,  # or interaction.guild.default_role for slash command
+                read_messages=False,     # Hide all ticket channels by default
                 send_messages=False
             )
+            # Create the info message
             embed = discord.Embed(
-                title="🎫 Support Ticket System",
+                title="🎫 YourStreamingTools Support System",
                 description=(
-                    "**Welcome to the support ticket system!**"
-                    "\n\n"
-                    "To create a new support ticket: `!ticket create`"
-                    "\n\n"
-                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue in detail and communicate with your support team."
+                    "**Welcome to our support ticket system!**\n\n"
+                    "To create a new support ticket: `!ticket create`\n\n"
+                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue in detail and communicate with our support team."
                     "\n\n"
                     "Important Notes\n"
                     "• Your ticket will be created in a private channel\n"
