@@ -23,6 +23,19 @@ import yt_dlp
 # Load environment variables from .env file
 load_dotenv()
 
+# Define the bot information
+BOT_COLOR = 0x001C1D
+DISCORD_BOT_SERVICE_VERSION = "5.1.0"
+BOT_VERSION = DISCORD_BOT_SERVICE_VERSION
+DISCORD_VERSION_FILE = "/var/www/logs/version/discord_version_control.txt"
+
+# Global configuration class
+class Config:
+    def __init__(self):
+        self.discord_token = os.getenv("DISCORD_TOKEN")
+        self.api_token = os.getenv("API_KEY")
+config = Config()
+
 # Define logging directory
 logs_directory = "/home/botofthespecter/logs/"
 discord_logs = os.path.join(logs_directory, "specterdiscord")
@@ -124,20 +137,6 @@ class ChannelMapping:
             return True
         return False
 
-# Global configuration class
-class Config:
-    def __init__(self):
-        self.discord_token = os.getenv("DISCORD_TOKEN")
-        self.api_token = os.getenv("API_KEY")
-
-config = Config()
-
-# Define the bot information
-BOT_COLOR = 0x001C1D
-DISCORD_BOT_SERVICE_VERSION = "5.1.0"
-BOT_VERSION = DISCORD_BOT_SERVICE_VERSION
-DISCORD_VERSION_FILE = "/var/www/logs/version/discord_version_control.txt"
-
 # Bot class
 class BotOfTheSpecter(commands.Bot):
     def __init__(self, discord_token, discord_logger, **kwargs):
@@ -183,9 +182,14 @@ class BotOfTheSpecter(commands.Bot):
         for guild in self.guilds:
             # pick up the Twitch channel code mapped to this guild, or fallback to server-derived name
             mapping_code = next((code for code, m in self.channel_mapping.mappings.items() if m["guild_id"] == guild.id), None)
-            channel_key = mapping_code or guild.name.replace(' ', '').lower()
+            if mapping_code:
+                channel_key = mapping_code
+                self.logger.info(f"Using mapped channel code '{channel_key}' for guild '{guild.name}' (ID: {guild.id})")
+            else:
+                channel_key = guild.name.replace(' ', '').lower()
+                self.logger.info(f"No mapping found for guild '{guild.name}' (ID: {guild.id}), using derived name '{channel_key}'")
             online = self.read_stream_status(channel_key)
-            self.logger.info(f"Stream for {channel_key} is {'online' if online else 'offline'}.")
+            self.logger.info(f"Stream for channel '{channel_key}' (guild: {guild.name}) is {'online' if online else 'offline'}.")
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
@@ -361,13 +365,13 @@ class BotOfTheSpecter(commands.Bot):
     async def handle_stream_event(self, event_type, data):
         resolver = DiscordChannelResolver(self.logger)
         code = data.get("channel_code", "unknown")
+        self.logger.info(f"Processing {event_type} event for channel_code: {code}")
         user_id = await resolver.get_user_id_from_api_key(code)
         if not user_id:
-            self.logger.warning(f"No user_id found for api_key/code: {code}")
+            self.logger.warning(f"No user_id found for channel_code: {code}")
             return
         discord_info = await resolver.get_discord_info_from_user_id(user_id)
         if not discord_info:
-            self.logger.warning(f"No discord info found for user_id: {user_id}")
             return
         guild = self.get_guild(int(discord_info["guild_id"]))
         if not guild:
@@ -1998,19 +2002,31 @@ class DiscordChannelResolver:
         if self.logger:
             self.logger.info(f"Looking up user_id for api_key/code: {api_key}")
         row = await self.mysql.fetchone(
-            "SELECT id FROM users WHERE api_key = %s", (api_key,), database_name='website')
+            "SELECT id, username FROM users WHERE api_key = %s", (api_key,), database_name='website')
         if self.logger:
-            self.logger.info(f"Query result for api_key/code {api_key}: {row}")
-        if not row and self.logger:
-            # Extra debug: list all api_keys in the table
-            all_keys = await self.mysql.fetchall(
-                "SELECT api_key FROM users", database_name='website')
-            self.logger.warning(f"All api_keys in users table: {[k[0] for k in all_keys]}")
+            if row:
+                self.logger.info(f"Query result for api_key/code {api_key}: user_id={row[0]}, username={row[1]}")
+            else:
+                self.logger.warning(f"No user found for api_key/code {api_key}")
+                # Extra debug: list all api_keys in the table
+                all_keys = await self.mysql.fetchall(
+                    "SELECT api_key, username FROM users", database_name='website')
+                self.logger.warning(f"All api_keys in users table: {[(k[0], k[1]) for k in all_keys] if all_keys else 'None found'}")
         return row[0] if row else None
     async def get_discord_info_from_user_id(self, user_id):
+        if self.logger:
+            self.logger.info(f"Looking up discord info for user_id: {user_id}")
+        user_row = await self.mysql.fetchone(
+            "SELECT username FROM users WHERE id = %s", (user_id,), database_name='website')
+        username = user_row[0] if user_row else f"user_id_{user_id}"
         row = await self.mysql.fetchone(
             "SELECT guild_id, live_channel_id, online_text, offline_text FROM discord_users WHERE user_id = %s",
             (user_id,), database_name='website', dict_cursor=True)
+        if self.logger:
+            if row:
+                self.logger.info(f"Discord info found for {username} (user_id: {user_id}): guild_id={row['guild_id']}, live_channel_id={row['live_channel_id']}")
+            else:
+                self.logger.warning(f"No discord info found for {username} (user_id: {user_id})")
         return row if row else None
 
 # DiscordBotRunner class to manage the bot lifecycle
