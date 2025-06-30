@@ -584,29 +584,27 @@ class TicketCog(commands.Cog, name='Tickets'):
             await self.init_ticket_database()
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute("INSERT INTO tickets (user_id, username, issue) VALUES (%s, %s, %s)",
-                    (user_id, username, "Awaiting user's issue description"))
+                await cur.execute("INSERT INTO tickets (guild_id, user_id, username, issue) VALUES (%s, %s, %s, %s)",
+                    (guild_id, user_id, username, "Awaiting user's issue description"))
                 ticket_id = cur.lastrowid
                 await cur.execute("INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
                     (ticket_id, user_id, username, "created", "Ticket channel created"))
                 return ticket_id
 
-    async def close_ticket(self, ticket_id: int, channel_id: int, closer_id: int, closer_name: str, reason: str = "No reason provided"):
+    async def close_ticket(self, ticket_id: int, channel_id: int, closer_id: int, closer_name: str, reason: str = "No reason provided", guild_id: int = None):
         if not self.pool:
             await self.init_ticket_database()
-        # Get the channel and ticket information
         channel = self.bot.get_channel(channel_id)
         if not channel:
             raise ValueError("Channel not found")
-        # Get ticket information to identify the ticket creator
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute("SELECT user_id FROM tickets WHERE ticket_id = %s", (ticket_id,))
+                await cur.execute("SELECT user_id FROM tickets WHERE ticket_id = %s AND guild_id = %s", (ticket_id, guild_id))
                 ticket_data = await cur.fetchone()
                 if not ticket_data:
                     raise ValueError("Ticket not found in database")
                 # Update ticket status and store channel_id
-                await cur.execute("UPDATE tickets SET status = 'closed', closed_at = NOW(), channel_id = %s WHERE ticket_id = %s",(channel_id, ticket_id))
+                await cur.execute("UPDATE tickets SET status = 'closed', closed_at = NOW(), channel_id = %s WHERE ticket_id = %s AND guild_id = %s",(channel_id, ticket_id, guild_id))
                 # Log the closure in history with the reason
                 await cur.execute("INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
                     (ticket_id, closer_id, closer_name, "closed", reason))
@@ -675,12 +673,12 @@ class TicketCog(commands.Cog, name='Tickets'):
                 self.logger.error(f"Error archiving ticket #{ticket_id}: {e}")
                 raise
 
-    async def get_ticket(self, ticket_id: int):
+    async def get_ticket(self, ticket_id: int, guild_id: int):
         if not self.pool:
             await self.init_ticket_database()
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute("SELECT * FROM tickets WHERE ticket_id = %s", (ticket_id,))
+                await cur.execute("SELECT * FROM tickets WHERE ticket_id = %s AND guild_id = %s", (ticket_id, guild_id))
                 return await cur.fetchone()
 
     @commands.command(name="ticket")
@@ -729,7 +727,7 @@ class TicketCog(commands.Cog, name='Tickets'):
             try:
                 # Fetch ticket id from the channel name
                 ticket_id = int(ctx.channel.name.split("-")[1])
-                ticket = await self.get_ticket(ticket_id)
+                ticket = await self.get_ticket(ticket_id, ctx.guild.id)
                 if not ticket:
                     embed = discord.Embed(
                         title="Ticket Closure Error",
@@ -759,7 +757,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     # Notify support team with a plain text message
                     await ctx.channel.send(f"{support_role.mention} requested ticket closure.")
                     return
-                await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason)
+                await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason, ctx.guild.id)
                 self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author} with reason: {reason}")
             except Exception as e:
                 self.logger.error(f"Error closing ticket: {e}")
@@ -996,8 +994,8 @@ class TicketCog(commands.Cog, name='Tickets'):
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(
-                        "INSERT INTO ticket_comments (ticket_id, user_id, username, comment) VALUES (%s, %s, %s, %s)",
-                        (ticket_id, message.author.id, str(message.author), message.content)
+                        "INSERT INTO ticket_comments (guild_id, ticket_id, user_id, username, comment) VALUES (%s, %s, %s, %s, %s)",
+                        (message.guild.id, ticket_id, message.author.id, str(message.author), message.content)
                     )
             self.logger.info(f"Auto-saved comment for ticket {ticket_id} from {message.author}")
 
