@@ -205,20 +205,21 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.error(f"Failed to update Discord bot version file: {e}")
         # Set the initial presence and check stream status for each guild
         for guild in self.guilds:
-            # pick up the Twitch channel code mapped to this guild, or fallback to server-derived name
-            mapping_code = next((code for code, m in self.channel_mapping.mappings.items() if m["guild_id"] == guild.id), None)
-            if mapping_code:
-                channel_key = mapping_code
-                self.logger.info(f"Using mapped channel code '{channel_key}' for guild '{guild.name}' (ID: {guild.id})")
+            # Automatic mapping: get Twitch display name from SQL
+            resolver = DiscordChannelResolver(self.logger)
+            discord_info = await resolver.get_discord_info_from_guild_id(guild.id)
+            if discord_info:
+                twitch_display_name = discord_info.get('twitch_display_name', guild.name)
+                channel_key = twitch_display_name.lower().replace(' ', '')
+                self.logger.info(f"Auto-mapped guild '{guild.name}' (ID: {guild.id}) to Twitch user '{twitch_display_name}'")
             else:
-                channel_key = guild.name.replace(' ', '').lower()
+                channel_key = guild.name.lower().replace(' ', '')
                 self.logger.info(f"No mapping found for guild '{guild.name}' (ID: {guild.id}), using derived name '{channel_key}'")
             online = self.read_stream_status(channel_key)
             self.logger.info(f"Stream for channel '{channel_key}' (guild: {guild.name}) is {'online' if online else 'offline'}.")
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
-        await self.add_cog(ChannelManagementCog(self, self.logger))
         await self.add_cog(VoiceCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
@@ -1862,78 +1863,56 @@ class VoiceCog(commands.Cog, name='Voice'):
         await interaction.response.send_message(f"Set volume to {volume}%")
 
 # ChannelManagementCog class
-class ChannelManagementCog(commands.Cog, name='Channel Management'):
-    def __init__(self, bot: BotOfTheSpecter, logger=None):
-        self.bot = bot
+class DiscordChannelResolver:
+    def __init__(self, logger=None, mysql_helper=None):
         self.logger = logger
-
-    @app_commands.command(name="map_channel", description="Map a Twitch channel code to this Discord channel")
-    @app_commands.describe(channel_code="The Twitch channel code to map to this Discord channel")
-    async def map_channel(self, interaction: discord.Interaction, channel_code: str):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        self.bot.channel_mapping.add_mapping(
-            channel_code,
-            interaction.guild.id,
-            interaction.channel.id,
-            interaction.channel.name
-        )
-        embed = discord.Embed(
-            title="✅ Channel Mapped Successfully",
-            description=f"Twitch channel code `{channel_code}` is now mapped to {interaction.channel.mention}",
-            color=discord.Color.green()
-        )
-        await interaction.response.send_message(embed=embed)
+        self.mysql = mysql_helper or MySQLHelper(logger)
+    async def get_user_id_from_api_key(self, api_key):
         if self.logger:
-            self.logger.info(f"Mapped channel code {channel_code} to {interaction.guild.name}#{interaction.channel.name}")
-
-    @app_commands.command(name="unmap_channel", description="Remove the mapping for a Twitch channel code")
-    @app_commands.describe(channel_code="The Twitch channel code to unmap")
-    async def unmap_channel(self, interaction: discord.Interaction, channel_code: str):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        if self.bot.channel_mapping.remove_mapping(channel_code):
-            embed = discord.Embed(
-                title="✅ Channel Unmapped Successfully",
-                description=f"Twitch channel code `{channel_code}` has been unmapped",
-                color=discord.Color.green()
-            )
-            if self.logger:
-                self.logger.info(f"Unmapped channel code {channel_code}")
+            self.logger.info(f"Looking up user_id for api_key/code: {api_key}")
+        row = await self.mysql.fetchone(
+            "SELECT id, username FROM users WHERE api_key = %s", (api_key,), database_name='website')
+        if self.logger:
+            if row:
+                self.logger.info(f"Query result for api_key/code {api_key}: user_id={row[0]}, username={row[1]}")
+            else:
+                self.logger.warning(f"No user found for api_key/code {api_key}")
+                # Extra debug: list all api_keys in the table
+                all_keys = await self.mysql.fetchall(
+                    "SELECT api_key, username FROM users", database_name='website')
+                self.logger.warning(f"All api_keys in users table: {[(k[0], k[1]) for k in all_keys] if all_keys else 'None found'}")
+        return row[0] if row else None
+    async def get_discord_info_from_user_id(self, user_id):
+        if self.logger:
+            self.logger.info(f"Looking up discord info for user_id: {user_id}")
+        user_row = await self.mysql.fetchone(
+            "SELECT username FROM users WHERE id = %s", (user_id,), database_name='website')
+        username = user_row[0] if user_row else f"user_id_{user_id}"
+        row = await self.mysql.fetchone(
+            "SELECT guild_id, live_channel_id, online_text, offline_text FROM discord_users WHERE user_id = %s",
+            (user_id,), database_name='website', dict_cursor=True)
+        if self.logger:
+            if row:
+                self.logger.info(f"Discord info found for {username} (user_id: {user_id}): guild_id={row['guild_id']}, live_channel_id={row['live_channel_id']}")
+            else:
+                self.logger.warning(f"No discord info found for {username} (user_id: {user_id})")
+        return row if row else None
+    async def get_discord_info_from_guild_id(self, guild_id):
+        # Find discord_users row by guild_id
+        row = await self.mysql.fetchone(
+            "SELECT user_id, live_channel_id, online_text, offline_text FROM discord_users WHERE guild_id = %s",
+            (guild_id,), database_name='website', dict_cursor=True)
+        if not row:
+            return None
+        user_id = row['user_id']
+        # Get twitch_display_name from users table
+        user_row = await self.mysql.fetchone(
+            "SELECT twitch_display_name FROM users WHERE id = %s", (user_id,), database_name='website', dict_cursor=True)
+        if user_row:
+            row['twitch_display_name'] = user_row['twitch_display_name']
         else:
-            embed = discord.Embed(
-                title="❌ Channel Not Found",
-                description=f"No mapping found for channel code `{channel_code}`",
-                color=discord.Color.red()
-            )
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="list_mappings", description="List all channel mappings for this server")
-    async def list_mappings(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        guild_mappings = []
-        for code, mapping in self.bot.channel_mapping.mappings.items():
-            if mapping["guild_id"] == interaction.guild.id:
-                channel = interaction.guild.get_channel(mapping["channel_id"])
-                channel_mention = channel.mention if channel else f"#{mapping['channel_name']} (deleted)"
-                guild_mappings.append(f"`{code}` → {channel_mention}")
-        if guild_mappings:
-            embed = discord.Embed(
-                title="📋 Channel Mappings",
-                description="\n".join(guild_mappings),
-                color=config.bot_color
-            )
-        else:
-            embed = discord.Embed(
-                title="📋 Channel Mappings",
-                description="No channel mappings found for this server.",
-                color=config.bot_color
-            )
-        await interaction.response.send_message(embed=embed)
+            row['twitch_display_name'] = None
+        return row
 
 # MySQLHelper class for database operations
 class MySQLHelper:
@@ -2016,42 +1995,6 @@ class MySQLHelper:
             return None
         finally:
             conn.close()
-
-# DiscordChannelResolver class for resolving Discord channel information
-class DiscordChannelResolver:
-    def __init__(self, logger=None, mysql_helper=None):
-        self.logger = logger
-        self.mysql = mysql_helper or MySQLHelper(logger)
-    async def get_user_id_from_api_key(self, api_key):
-        if self.logger:
-            self.logger.info(f"Looking up user_id for api_key/code: {api_key}")
-        row = await self.mysql.fetchone(
-            "SELECT id, username FROM users WHERE api_key = %s", (api_key,), database_name='website')
-        if self.logger:
-            if row:
-                self.logger.info(f"Query result for api_key/code {api_key}: user_id={row[0]}, username={row[1]}")
-            else:
-                self.logger.warning(f"No user found for api_key/code {api_key}")
-                # Extra debug: list all api_keys in the table
-                all_keys = await self.mysql.fetchall(
-                    "SELECT api_key, username FROM users", database_name='website')
-                self.logger.warning(f"All api_keys in users table: {[(k[0], k[1]) for k in all_keys] if all_keys else 'None found'}")
-        return row[0] if row else None
-    async def get_discord_info_from_user_id(self, user_id):
-        if self.logger:
-            self.logger.info(f"Looking up discord info for user_id: {user_id}")
-        user_row = await self.mysql.fetchone(
-            "SELECT username FROM users WHERE id = %s", (user_id,), database_name='website')
-        username = user_row[0] if user_row else f"user_id_{user_id}"
-        row = await self.mysql.fetchone(
-            "SELECT guild_id, live_channel_id, online_text, offline_text FROM discord_users WHERE user_id = %s",
-            (user_id,), database_name='website', dict_cursor=True)
-        if self.logger:
-            if row:
-                self.logger.info(f"Discord info found for {username} (user_id: {user_id}): guild_id={row['guild_id']}, live_channel_id={row['live_channel_id']}")
-            else:
-                self.logger.warning(f"No discord info found for {username} (user_id: {user_id})")
-        return row if row else None
 
 # DiscordBotRunner class to manage the bot lifecycle
 class DiscordBotRunner:
