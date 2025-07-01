@@ -1143,12 +1143,23 @@ class MusicPlayer:
         self.current_track[guild_id] = track_info
         query = track_info['query']
         source = None
-        # Robust file_path handling
+        # Robust file_path handling for YouTube
         if track_info['is_youtube']:
             file_path = track_info.get('file_path')
+            title = track_info.get('title', query)
+            # If file missing, try to download again
             if not file_path or not os.path.exists(file_path):
-                self.logger.error(f"[FFMPEG] File not found for playback: {file_path}. Skipping track.")
-                return await self._play_next(ctx)  # Skip to next track
+                self.logger.warning(f"[FFMPEG] File not found for playback: {file_path}. Retrying download for: {title}")
+                file_path, info = await self.predownload_youtube(query)
+                if file_path and os.path.exists(file_path):
+                    track_info['file_path'] = file_path
+                else:
+                    self.logger.error(f"[FFMPEG] Could not download or find file for: {title}. Skipping track.")
+                    try:
+                        await ctx.send(f"Song skipped, can't play '{title}'.")
+                    except Exception:
+                        pass
+                    return await self._play_next(ctx)  # Skip to next track
             self.logger.info(f"[FFMPEG] Playing YouTube file: {file_path}")
             source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
             # Try to get duration
@@ -1168,6 +1179,10 @@ class MusicPlayer:
             path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
             if not os.path.exists(path):
                 self.logger.error(f"[FFMPEG] CDN file not found: {path}. Skipping track.")
+                try:
+                    await ctx.send(f"Song skipped, can't play '{query}'.")
+                except Exception:
+                    pass
                 return await self._play_next(ctx)  # Skip to next track
             self.logger.info(f"[FFMPEG] Playing CDN file: {path}")
             source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
@@ -1199,14 +1214,8 @@ class MusicPlayer:
                     os.remove(track_info['file_path'])
                 except Exception as e:
                     self.logger.error(f"[FFMPEG] Error cleaning up file: {e}")
-            coro = self._play_next(ctx)
-            fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
-            try:
-                fut.result()
-            except Exception as e:
-                self.logger.error(f"[FFMPEG] Error in after_play: {e}")
         if vc.is_playing():
-            return
+            vc.stop()
         vc.play(source, after=after_play)
 
     async def skip(self, ctx):
