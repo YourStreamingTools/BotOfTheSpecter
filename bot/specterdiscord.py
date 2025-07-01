@@ -1128,8 +1128,17 @@ class MusicPlayer:
                 await msg.delete(delay=5)
             except Exception:
                 pass
-        if not self.is_playing.get(guild_id, False):
+        voice_client = ctx.guild.voice_client
+        is_playing_flag = self.is_playing.get(guild_id, False)
+        voice_is_playing = voice_client.is_playing() if voice_client else False
+        current_track_user = self.current_track.get(guild_id, {}).get('user', 'None')
+        self.logger.info(f"[QUEUE] Added '{title}' by {user.display_name} to queue for guild {guild_id}")
+        self.logger.info(f"[QUEUE] is_playing flag: {is_playing_flag}, voice_client.is_playing(): {voice_is_playing}, current track user: {current_track_user}")
+        if not is_playing_flag and not voice_is_playing:
+            self.logger.info(f"[QUEUE] Nothing playing, starting _play_next for guild {guild_id}")
             await self._play_next(ctx)
+        else:
+            self.logger.info(f"[QUEUE] Music already playing for guild {guild_id}, song queued and will play after current track")
 
     # Keep the legacy play method for compatibility
     async def play(self, ctx, query):
@@ -1139,6 +1148,7 @@ class MusicPlayer:
         async with self.play_lock:
             guild_id = ctx.guild.id
             vc = ctx.guild.voice_client
+            self.logger.info(f"[PLAY_NEXT] Called for guild {guild_id}")
             # Ensure guild has proper entries in our dictionaries
             if guild_id not in self.queues:
                 self.queues[guild_id] = []
@@ -1146,16 +1156,21 @@ class MusicPlayer:
                 self.is_playing[guild_id] = False
             # No longer in voice, stop scheduling
             if not vc or not vc.is_connected():
+                self.logger.info(f"[PLAY_NEXT] Not connected to voice for guild {guild_id}, stopping")
                 self.is_playing[guild_id] = False
                 return
             queue = self.queues.get(guild_id, [])
             if not queue:
+                self.logger.info(f"[PLAY_NEXT] Queue empty for guild {guild_id}")
                 # Reset flag so add_to_queue won't spin
                 self.is_playing[guild_id] = False
                 # Only play random CDN if not already playing one
-                if not (self.current_track.get(guild_id) and self.current_track[guild_id].get('user') == 'CDN' and self.is_playing[guild_id]):
+                current_track = self.current_track.get(guild_id)
+                if not (current_track and current_track.get('user') == 'CDN' and self.is_playing[guild_id]):
+                    self.logger.info(f"[PLAY_NEXT] Starting random CDN music for guild {guild_id}")
                     await self.play_random_cdn_mp3(ctx)
                 return
+            self.logger.info(f"[PLAY_NEXT] Processing queue for guild {guild_id}, {len(queue)} songs remaining")
             self.is_playing[guild_id] = True
             track_info = queue.pop(0)
             self.current_track[guild_id] = track_info
@@ -1233,8 +1248,15 @@ class MusicPlayer:
                     fut.result()
                 except Exception as e:
                     self.logger.error(f"[FFMPEG] Error in after_play: {e}")
+            # Don't stop if this is being called while nothing should be playing
             if vc.is_playing():
+                current_track = self.current_track.get(guild_id, {})
+                current_user = current_track.get('user', 'Unknown')
+                current_title = current_track.get('title', 'Unknown')
+                self.logger.info(f"[PLAY_NEXT] Stopping current track '{current_title}' by {current_user} to play '{track_info['title']}' by {track_info['user']}")
                 vc.stop()
+            else:
+                self.logger.info(f"[PLAY_NEXT] Starting '{track_info['title']}' by {track_info['user']} (nothing was playing)")
             vc.play(source, after=after_play)
 
     async def skip(self, ctx):
@@ -1399,6 +1421,7 @@ class MusicPlayer:
         random_mp3 = random.choice(mp3_files)
         path = os.path.join(music_dir, random_mp3)
         vc = ctx.voice_client
+        self.logger.info(f"[CDN] play_random_cdn_mp3 called for guild {ctx.guild.id}")
         if not vc or not vc.is_connected():
             embed = discord.Embed(
                 title="Voice Channel Error",
@@ -1407,25 +1430,26 @@ class MusicPlayer:
             )
             await ctx.send(embed=embed)
             return
-        self.logger.info(f"[FFMPEG] Playing random CDN mp3: {path}")
+        if vc.is_playing():
+            self.logger.info(f"[CDN] Voice client already playing for guild {ctx.guild.id}, not starting CDN music")
+            return
+        self.logger.info(f"[CDN] Starting random CDN mp3: {random_mp3} at {path}")
         source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(ctx.guild.id, config.volume_default))
         def after_play(error):
             # Reset playing state when track finishes
             self.is_playing[ctx.guild.id] = False
             if error:
-                self.logger.error(f"[FFMPEG] Playback error: {error}")
+                self.logger.error(f"[CDN] Playback error: {error}")
             else:
-                self.logger.info(f"[FFMPEG] Track finished for guild {ctx.guild.id}")
+                self.logger.info(f"[CDN] CDN track '{random_mp3}' finished for guild {ctx.guild.id}")
             coro = self._play_next(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
                 fut.result()
             except Exception as e:
-                self.logger.error(f"[FFMPEG] Error in after_play: {e}")
-        if vc.is_playing():
-            return
-        vc.play(source, after=after_play)
+                self.logger.error(f"[CDN] Error in after_play: {e}")
+        # Set playing state before starting playback to avoid race conditions
         self.is_playing[ctx.guild.id] = True
         self.current_track[ctx.guild.id] = {
             'query': random_mp3,
@@ -1434,6 +1458,7 @@ class MusicPlayer:
             'is_youtube': False,
             'file_path': path
         }
+        vc.play(source, after=after_play)
         try:
             self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
             result = subprocess.run([
