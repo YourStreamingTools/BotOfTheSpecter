@@ -1104,15 +1104,21 @@ class MusicPlayer:
     async def _play_next(self, ctx):
         guild_id = ctx.guild.id
         vc = ctx.guild.voice_client
+        # Ensure guild has proper entries in our dictionaries
+        if guild_id not in self.queues:
+            self.queues[guild_id] = []
+        if guild_id not in self.is_playing:
+            self.is_playing[guild_id] = False
         # No longer in voice, stop scheduling
         if not vc or not vc.is_connected():
             self.is_playing[guild_id] = False
             return
-        queue = self.queues[guild_id]
+        queue = self.queues.get(guild_id, [])
         if not queue:
             # Reset flag so add_to_queue won't spin
             self.is_playing[guild_id] = False
             return await self.play_random_cdn_mp3(ctx)
+            
         self.is_playing[guild_id] = True
         track_info = queue.pop(0)
         self.current_track[guild_id] = track_info
@@ -1178,10 +1184,11 @@ class MusicPlayer:
             coro = self._play_next(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
-                fut.result()
+                fut.result(timeout=30)
             except Exception as e:
                 if self.logger:
                     self.logger.error(f'Error scheduling next track: {e}')
+                self.is_playing[guild_id] = False
         if vc.is_playing():
             return
         vc.play(source, after=after_play)
@@ -1360,10 +1367,12 @@ class MusicPlayer:
             coro = self._play_next(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
-                fut.result()
+                fut.result(timeout=30)
             except Exception as e:
                 if self.logger:
                     self.logger.error(f'Error scheduling next track: {e}')
+                # Reset playing state if scheduling fails
+                self.is_playing[ctx.guild.id] = False
         if vc.is_playing():
             return
         vc.play(source, after=after_play)
