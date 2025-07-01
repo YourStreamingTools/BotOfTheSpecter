@@ -1047,7 +1047,6 @@ class MusicPlayer:
                 self.logger.info(f"[YT-DLP] Downloading: {url} with options: {ydl_opts}")
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     result = ydl.extract_info(url, download=True)
-                    self.logger.info(f"[YT-DLP] Download result: {result}")
                     return result
             except Exception as e:
                 self.logger.error(f"[YT-DLP] Error downloading {url}: {e}")
