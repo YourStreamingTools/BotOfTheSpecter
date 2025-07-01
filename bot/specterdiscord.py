@@ -1308,6 +1308,9 @@ class MusicPlayer:
             desc = f'🎵 Now playing ({source_label}): **{title}**'
         else:
             desc = f'🎵 Now playing: **{title}**'
+        requester = track.get('user')
+        if requester and requester not in ('CDN', 'Unknown'):
+            desc += f" (requested by {requester})"
         embed = discord.Embed(
             title="🎵 Now Playing",
             description=desc,
@@ -1874,6 +1877,9 @@ class VoiceCog(commands.Cog, name='Voice'):
             desc = f"🎵 Now playing ({source_label}): **{title}**"
         else:
             desc = f"🎵 Now playing: **{title}**"
+        requester = current.get('user')
+        if requester and requester not in ('CDN', 'Unknown'):
+            desc += f" (requested by {requester})"
         embed = discord.Embed(
             title="🎵 Now Playing",
             description=desc,
@@ -1966,6 +1972,9 @@ class VoiceCog(commands.Cog, name='Voice'):
             desc = f"🎵 Now playing ({source_label}): **{title}**"
         else:
             desc = f"🎵 Now playing: **{title}**"
+        requester = current.get('user')
+        if requester and requester not in ('CDN', 'Unknown'):
+            desc += f" (requested by {requester})"
         embed = discord.Embed(
             title="🎵 Now Playing",
             description=desc,
