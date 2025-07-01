@@ -1128,7 +1128,7 @@ class MusicPlayer:
                 await msg.delete(delay=5)
             except Exception:
                 pass
-        if not self.is_playing[guild_id]:
+        if not self.is_playing.get(guild_id, False):
             await self._play_next(ctx)
 
     # Keep the legacy play method for compatibility
