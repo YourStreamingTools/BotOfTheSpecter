@@ -1901,6 +1901,39 @@ class VoiceCog(commands.Cog, name='Voice'):
         except Exception:
             pass
 
+    @app_commands.command(name="song", description="Show the current song playing")
+    async def slash_current_song(self, interaction: discord.Interaction):
+        guild_id = interaction.guild.id
+        current = self.music_player.current_track.get(guild_id)
+        # If idle, enqueue and play random CDN track
+        if not current:
+            await interaction.response.send_message("No song is currently playing.", ephemeral=True)
+            return
+        title = current['title']
+        if not current.get('is_youtube') and title.lower().endswith('.mp3'):
+            title = title[:-4]
+        source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
+        duration = self.music_player.track_duration.get(guild_id)
+        start = self.music_player.track_start.get(guild_id)
+        if source_label == 'YouTube':
+            desc = f'🎵 Now playing ({source_label}): **{title}**'
+        else:
+            desc = f'🎵 Now playing: **{title}**'
+        requested_by = current.get('user', 'Unknown')
+        embed = discord.Embed(
+            title="🎵 Now Playing",
+            description=desc,
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="Source", value=source_label, inline=True)
+        embed.add_field(name="Requested by", value=requested_by, inline=True)
+        if duration and start:
+            elapsed = int(time.time() - start)
+            elapsed_str = str(datetime.timedelta(seconds=elapsed))
+            duration_str = str(datetime.timedelta(seconds=int(duration)))
+            embed.add_field(name="Progress", value=f"{elapsed_str} / {duration_str}", inline=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     @commands.command(name="volume")
     async def set_volume(self, ctx, volume: int = None):
         # If no volume provided, show current volume
@@ -1951,45 +1984,6 @@ class VoiceCog(commands.Cog, name='Voice'):
             await ctx.message.delete(delay=5)
         except Exception:
             pass
-
-    @app_commands.command(name="song", description="Show the current song playing")
-    async def slash_current_song(self, interaction: discord.Interaction):
-        guild_id = interaction.guild.id
-        current = self.music_player.current_track.get(guild_id)
-        # If idle, enqueue and play random CDN track
-        if not current:
-            class MockCtx:
-                def __init__(self, interaction):
-                    self.guild = interaction.guild
-                    self.send = interaction.response.send_message
-            await self.music_player.play_random_cdn_mp3(MockCtx(interaction))
-            return
-        title = current['title']
-        if not current.get('is_youtube') and title.lower().endswith('.mp3'):
-            title = title[:-4]
-        source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
-        duration = self.music_player.track_duration.get(guild_id)
-        start = self.music_player.track_start.get(guild_id)
-        if source_label == 'YouTube':
-            desc = f"🎵 Now playing ({source_label}): **{title}**"
-        else:
-            desc = f"🎵 Now playing: **{title}**"
-        requester = current.get('user')
-        if requester and requester not in ('CDN', 'Unknown'):
-            desc += f" (requested by {requester})"
-        embed = discord.Embed(
-            title="🎵 Now Playing",
-            description=desc,
-            color=discord.Color.purple()
-        )
-        embed.add_field(name="Source", value=source_label, inline=True)
-        embed.add_field(name="Requested by", value=current.get('user', 'Unknown'), inline=True)
-        if duration and start:
-            elapsed = int(time.time() - start)
-            elapsed_str = str(datetime.timedelta(seconds=elapsed))
-            duration_str = str(datetime.timedelta(seconds=int(duration)))
-            embed.add_field(name="Progress", value=f"{elapsed_str} / {duration_str}", inline=True)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="volume", description="Show current volume or set playback volume (0-100)")
     @app_commands.describe(volume="Volume percentage (0-100) - leave empty to see current volume")
