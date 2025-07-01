@@ -195,7 +195,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             os.makedirs(os.path.dirname(config.discord_version_file), exist_ok=True)
             with open(config.discord_version_file, "w") as f:
-                f.write(config.discord_bot_service_version + "\n")
+                f.write(config.discord_bot_service_version + os.linesep)
             self.logger.info(f"Updated Discord bot version file: {config.discord_bot_service_version}")
         except Exception as e:
             self.logger.error(f"Failed to update Discord bot version file: {e}")
@@ -308,7 +308,7 @@ class BotOfTheSpecter(commands.Bot):
                 self.logger.error(f"Unexpected error in on_message: {e}")
             # Mark the message as processed by appending the message ID to the file
             with open(self.processed_messages_file, 'a') as file:
-                file.write(message_id + '\n')
+                file.write(message_id + os.linesep)
         # If the message is in a server channel, process commands
         await self.process_commands(message)
 
@@ -575,12 +575,12 @@ class TicketCog(commands.Cog, name='Tickets'):
         embed = discord.Embed(
             title="Instructions",
             description=(
-                "Please provide the following information:\n"
-                "1. A detailed description of your issue\n"
-                "2. What you've tried so far (if applicable)\n"
-                "3. Any relevant screenshots or files\n\n"
-                "Our support team will assist you as soon as possible.\n"
-                "Please be patient and remain respectful throughout the process.\n\n"
+                "Please provide the following information:" + os.linesep +
+                "1. A detailed description of your issue" + os.linesep +
+                "2. What you've tried so far (if applicable)" + os.linesep +
+                "3. Any relevant screenshots or files" + os.linesep + os.linesep +
+                "Our support team will assist you as soon as possible." + os.linesep +
+                "Please be patient and remain respectful throughout the process." + os.linesep + os.linesep +
                 "If you wish to close the ticket at any time, use '!ticket close' to notify the support team."
             ),
             color=config.bot_color
@@ -752,12 +752,12 @@ class TicketCog(commands.Cog, name='Tickets'):
                     embed = discord.Embed(
                         title="Ticket Closure Notice",
                         description=(
-                            "Only the support team can close tickets.\n"
-                            "If you need further assistance, please provide more details in this ticket channel\n"
-                            "before a support team member closes this ticket for you."
-                            "\n\n"
-                            "The support team has been notified that you wish to close this ticket.\n"
-                            "When we close tickets, this ticket will be marked as closed and archived.\n\n"
+                            "Only the support team can close tickets." + os.linesep +
+                            "If you need further assistance, please provide more details in this ticket channel" + os.linesep +
+                            "before a support team member closes this ticket for you." +
+                            os.linesep + os.linesep +
+                            "The support team has been notified that you wish to close this ticket." + os.linesep +
+                            "When we close tickets, this ticket will be marked as closed and archived." + os.linesep + os.linesep +
                             "If you need further assistance in the future, please create a new ticket."
                         ),
                         color=discord.Color.yellow()
@@ -905,16 +905,16 @@ class TicketCog(commands.Cog, name='Tickets'):
             embed = discord.Embed(
                 title="🎫 Server Support System",
                 description=(
-                    "**Welcome to our support ticket system!**\n\n"
-                    "To create a new support ticket: `!ticket create`\n\n"
-                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue in detail and communicate with our support team."
-                    "\n\n"
-                    "Important Notes\n"
-                    "• Your ticket will be created in a private channel\n"
-                    "• Provide a clear description of your issue in the ticket channel\n"
-                    "• One ticket per issue\n"
-                    "• Be patient while waiting for a response\n"
-                    "• Keep all communication respectful\n"
+                    "**Welcome to our support ticket system!**" + os.linesep + os.linesep +
+                    "To create a new support ticket: `!ticket create`" + os.linesep + os.linesep +
+                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue in detail and communicate with our support team." +
+                    os.linesep + os.linesep +
+                    "Important Notes" + os.linesep +
+                    "• Your ticket will be created in a private channel" + os.linesep +
+                    "• Provide a clear description of your issue in the ticket channel" + os.linesep +
+                    "• One ticket per issue" + os.linesep +
+                    "• Be patient while waiting for a response" + os.linesep +
+                    "• Keep all communication respectful" + os.linesep +
                     "• Only support team members can close tickets"
                 ),
                 color=config.bot_color
@@ -923,8 +923,8 @@ class TicketCog(commands.Cog, name='Tickets'):
             warning_embed = discord.Embed(
                 title="⚠️ Channel Information",
                 description=(
-                    "This channel is for creating support tickets only.\n"
-                    "Please use the command `!ticket create` to open a ticket.\n"
+                    "This channel is for creating support tickets only." + os.linesep +
+                    "Please use the command `!ticket create` to open a ticket." + os.linesep +
                     "Regular messages will be automatically deleted."
                 ),
                 color=discord.Color.yellow()
@@ -932,7 +932,7 @@ class TicketCog(commands.Cog, name='Tickets'):
             # Send the new info message
             await info_channel.send(embed=embed)
             await info_channel.send(embed=warning_embed)
-            await ctx.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
+            await ctx.send(f"✅ Ticket system has been set up successfully!" + os.linesep + f"Please check {info_channel.mention} for the info message.")
             self.logger.info(f"Ticket system set up completed in {ctx.guild.name}")
         except Exception as e:
             self.logger.error(f"Error setting up ticket system: {e}")
@@ -1381,10 +1381,10 @@ class MusicPlayer:
         current_text = ""
         if current:
             current_title = current['title'] if current['is_youtube'] else 'CDN Music'
-            current_text = f"**Now Playing:** {current_title}\n\n"
-        desc = f"{current_text}**Up Next:**\n" + "\n".join(queue_list)
+            current_text = f"**Now Playing:** {current_title}" + os.linesep + os.linesep
+        desc = f"{current_text}**Up Next:**" + os.linesep + (os.linesep.join(queue_list))
         if len(queue) > max_display:
-            desc += f"\n... and {len(queue) - max_display} more tracks"
+            desc += os.linesep + f"... and {len(queue) - max_display} more tracks"
         embed = discord.Embed(
             title="🎵 Music Queue",
             description=desc,
