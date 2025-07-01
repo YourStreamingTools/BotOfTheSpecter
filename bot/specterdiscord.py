@@ -92,8 +92,7 @@ class WebsocketListener:
         websocket_url = config.websocket_url
         @self.sio.event
         async def connect():
-            if self.logger:
-                self.logger.info("Connected to websocket server")
+            self.logger.info("Connected to websocket server")
             await self.sio.emit("REGISTER", {
                 "code": admin_key,
                 "global_listener": True,
@@ -102,16 +101,13 @@ class WebsocketListener:
             })
         @self.sio.event
         async def disconnect():
-            if self.logger:
-                self.logger.info("Disconnected from websocket server")
+            self.logger.info("Disconnected from websocket server")
         @self.sio.event
         async def SUCCESS(data):
-            if self.logger:
-                self.logger.info(f"Websocket registration successful: {data}")
+            self.logger.info(f"Websocket registration successful: {data}")
         @self.sio.event
         async def ERROR(data):
-            if self.logger:
-                self.logger.error(f"Websocket error: {data}")
+            self.logger.error(f"Websocket error: {data}")
         @self.sio.event
         async def STREAM_ONLINE(data):
             self.logger.info(f"Received STREAM_ONLINE event: {data}")
@@ -1047,16 +1043,21 @@ class MusicPlayer:
         info = None
         file_path = None
         def run_yt():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                return ydl.extract_info(url, download=True)
+            try:
+                self.logger.info(f"[YT-DLP] Downloading: {url} with options: {ydl_opts}")
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    result = ydl.extract_info(url, download=True)
+                    self.logger.info(f"[YT-DLP] Download result: {result}")
+                    return result
+            except Exception as e:
+                self.logger.error(f"[YT-DLP] Error downloading {url}: {e}")
+                return None
         try:
             info = await loop.run_in_executor(None, run_yt)
             if info:
-                ext = info.get('ext', 'webm')
-                file_path = os.path.join(self.download_dir, f"{info['id']}.{ext}")
+                file_path = ydl_opts['outtmpl'] % {'id': info['id'], 'ext': info['ext']}
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"yt-dlp predownload failed: {e}")
+            self.logger.error(f"[YT-DLP] Exception in predownload_youtube: {e}")
         return file_path, info
 
     async def add_to_queue(self, ctx, query):
@@ -1127,38 +1128,39 @@ class MusicPlayer:
         if track_info['is_youtube']:
             file_path = track_info.get('file_path')
             if not file_path or not os.path.exists(file_path):
-                # fallback: download now if not already
-                file_path, _ = await self.predownload_youtube(query)
+                self.logger.error(f"[FFMPEG] File not found for playback: {file_path}")
             if not file_path or not os.path.exists(file_path):
-                await ctx.send(f"Failed to download or find the YouTube audio for {track_info['title']}")
-                await self._play_next(ctx)
-                return
+                self.logger.error(f"[FFMPEG] File not found for playback: {file_path}")
+            self.logger.info(f"[FFMPEG] Playing YouTube file: {file_path}")
             source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
             # Try to get duration
             try:
+                self.logger.info(f"[FFMPEG] ffprobe for duration: {file_path}")
                 result = subprocess.run([
                     'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                     '-of', 'default=noprint_wrappers=1:nokey=1', file_path
                 ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                 duration = int(float(result.stdout)) if result.stdout else None
-            except Exception:
+            except Exception as e:
+                self.logger.error(f"[FFMPEG] Error getting duration: {e}")
                 duration = None
             self.track_duration[guild_id] = duration
             self.track_start[guild_id] = time.time()
         else:
             path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
             if not os.path.exists(path):
-                await ctx.send(f"File not found: {path}")
-                await self._play_next(ctx)
-                return
+                self.logger.error(f"[FFMPEG] CDN file not found: {path}")
+            self.logger.info(f"[FFMPEG] Playing CDN file: {path}")
             source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
             try:
+                self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
                 result = subprocess.run([
                     'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                     '-of', 'default=noprint_wrappers=1:nokey=1', path
                 ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                 duration = int(float(result.stdout)) if result.stdout else None
-            except Exception:
+            except Exception as e:
+                self.logger.error(f"[FFMPEG] Error getting duration: {e}")
                 duration = None
             self.track_duration[guild_id] = duration
             self.track_start[guild_id] = time.time()
@@ -1168,28 +1170,22 @@ class MusicPlayer:
             # Reset playing state when track finishes
             self.is_playing[guild_id] = False
             if error:
-                if self.logger:
-                    self.logger.error(f'Playback error: {error}')
+                self.logger.error(f"[FFMPEG] Playback error: {error}")
             else:
-                if self.logger:
-                    self.logger.info(f"Finished playing: {track_info['title']}")
+                self.logger.info(f"[FFMPEG] Track finished for guild {guild_id}")
             # Clean up the audio file immediately after playback (YouTube files only)
             if track_info['is_youtube'] and 'file_path' in track_info and track_info['file_path']:
+                self.logger.info(f"[FFMPEG] Cleaning up file: {track_info['file_path']}")
                 try:
-                    if os.path.exists(track_info['file_path']):
-                        os.remove(track_info['file_path'])
-                        if self.logger:
-                            self.logger.info(f"Cleaned up audio file: {track_info['file_path']}")
-                except Exception as cleanup_error:
-                    if self.logger:
-                        self.logger.error(f"Failed to clean up audio file {track_info['file_path']}: {cleanup_error}")
+                    os.remove(track_info['file_path'])
+                except Exception as e:
+                    self.logger.error(f"[FFMPEG] Error cleaning up file: {e}")
             coro = self._play_next(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
-                fut.result(timeout=30)
+                fut.result()
             except Exception as e:
-                if self.logger:
-                    self.logger.error(f'Error scheduling next track: {e}')
+                self.logger.error(f"[FFMPEG] Error in after_play: {e}")
         if vc.is_playing():
             return
         vc.play(source, after=after_play)
@@ -1308,9 +1304,6 @@ class MusicPlayer:
             desc = f'🎵 Now playing ({source_label}): **{title}**'
         else:
             desc = f'🎵 Now playing: **{title}**'
-        requester = track.get('user')
-        if requester and requester not in ('CDN', 'Unknown'):
-            desc += f" (requested by {requester})"
         embed = discord.Embed(
             title="🎵 Now Playing",
             description=desc,
@@ -1346,11 +1339,9 @@ class MusicPlayer:
             if fpath not in referenced:
                 try:
                     os.remove(fpath)
-                    if self.logger:
-                        self.logger.info(f"Removed unused cached file: {fpath}")
+                    self.logger.info(f"Removed unused cached file: {fpath}")
                 except Exception as e:
-                    if self.logger:
-                        self.logger.error(f"Failed to remove {fpath}: {e}")
+                    self.logger.error(f"Failed to remove {fpath}: {e}")
 
     async def periodic_cleanup(self):
         while True:
@@ -1371,21 +1362,20 @@ class MusicPlayer:
             )
             await ctx.send(embed=embed)
             return
+        self.logger.info(f"[FFMPEG] Playing random CDN mp3: {path}")
         source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(ctx.guild.id, config.volume_default))
         def after_play(error):
             # Reset playing state when track finishes
             self.is_playing[ctx.guild.id] = False
             if error:
-                if self.logger:
-                    self.logger.error(f'Playback error: {error}')
+                self.logger.error(f"[FFMPEG] Playback error: {error}")
             coro = self._play_next(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
-                fut.result(timeout=30)
+                fut.result()
             except Exception as e:
-                if self.logger:
-                    self.logger.error(f'Error scheduling next track: {e}')
+                self.logger.error(f"[FFMPEG] Error in after_play: {e}")
         if vc.is_playing():
             return
         vc.play(source, after=after_play)
@@ -1398,12 +1388,14 @@ class MusicPlayer:
             'file_path': path
         }
         try:
+            self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
             result = subprocess.run([
                 'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                 '-of', 'default=noprint_wrappers=1:nokey=1', path
             ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             duration = int(float(result.stdout)) if result.stdout else None
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"[FFMPEG] Error getting duration: {e}")
             duration = None
         self.track_duration[ctx.guild.id] = duration
         self.track_start[ctx.guild.id] = time.time()
@@ -1834,7 +1826,20 @@ class VoiceCog(commands.Cog, name='Voice'):
 
     @commands.command(name="queue", aliases=["q", "playlist"])
     async def show_queue(self, ctx):
-        if not ctx.author.voice or not self._user_in_linked_voice_text_channel(ctx):
+        if not ctx.author.voice or not ctx.voice_client:
+            embed = discord.Embed(
+                title="❌ Not in Voice Channel",
+                description="You need to be in a voice channel to use this command!",
+                color=discord.Color.red()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+                await ctx.message.delete(delay=5)
+            except Exception:
+                pass
+            return
+        if not self._user_in_linked_voice_text_channel(ctx):
             embed = discord.Embed(
                 title="❌ Wrong Channel",
                 description="Please use this command in the text chat channel linked to your voice channel.",
@@ -1865,7 +1870,7 @@ class VoiceCog(commands.Cog, name='Voice'):
         guild_id = ctx.guild.id
         current = self.music_player.current_track.get(guild_id)
         if not current:
-            await self.music_player.play_random_cdn_mp3(ctx)
+            await ctx.send("No song is currently playing.")
             return
         title = current['title']
         if not current.get('is_youtube') and title.lower().endswith('.mp3'):
@@ -1874,19 +1879,17 @@ class VoiceCog(commands.Cog, name='Voice'):
         duration = self.music_player.track_duration.get(guild_id)
         start = self.music_player.track_start.get(guild_id)
         if source_label == 'YouTube':
-            desc = f"🎵 Now playing ({source_label}): **{title}**"
+            desc = f'🎵 Now playing ({source_label}): **{title}**'
         else:
-            desc = f"🎵 Now playing: **{title}**"
-        requester = current.get('user')
-        if requester and requester not in ('CDN', 'Unknown'):
-            desc += f" (requested by {requester})"
+            desc = f'🎵 Now playing: **{title}**'
+        requested_by = current.get('user', 'Unknown')
         embed = discord.Embed(
             title="🎵 Now Playing",
             description=desc,
             color=discord.Color.purple()
         )
         embed.add_field(name="Source", value=source_label, inline=True)
-        embed.add_field(name="Requested by", value=current.get('user', 'Unknown'), inline=True)
+        embed.add_field(name="Requested by", value=requested_by, inline=True)
         if duration and start:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
@@ -1895,7 +1898,6 @@ class VoiceCog(commands.Cog, name='Voice'):
         msg = await ctx.send(embed=embed)
         try:
             await msg.delete(delay=5)
-            await ctx.message.delete(delay=5)
         except Exception:
             pass
 
@@ -2031,34 +2033,30 @@ class DiscordChannelResolver:
         self.logger = logger
         self.mysql = mysql_helper or MySQLHelper(logger)
     async def get_user_id_from_api_key(self, api_key):
-        if self.logger:
-            self.logger.info(f"Looking up user_id for api_key/code: {api_key}")
+        self.logger.info(f"Looking up user_id for api_key/code: {api_key}")
         row = await self.mysql.fetchone(
             "SELECT id, username FROM users WHERE api_key = %s", (api_key,), database_name='website')
-        if self.logger:
-            if row:
-                self.logger.info(f"Query result for api_key/code {api_key}: user_id={row[0]}, username={row[1]}")
-            else:
-                self.logger.warning(f"No user found for api_key/code {api_key}")
-                # Extra debug: list all api_keys in the table
-                all_keys = await self.mysql.fetchall(
-                    "SELECT api_key, username FROM users", database_name='website')
-                self.logger.warning(f"All api_keys in users table: {[(k[0], k[1]) for k in all_keys] if all_keys else 'None found'}")
+        if row:
+            self.logger.info(f"Query result for api_key/code {api_key}: user_id={row[0]}, username={row[1]}")
+        else:
+            self.logger.warning(f"No user found for api_key/code {api_key}")
+            # Extra debug: list all api_keys in the table
+            all_keys = await self.mysql.fetchall(
+                "SELECT api_key, username FROM users", database_name='website')
+            self.logger.warning(f"All api_keys in users table: {[(k[0], k[1]) for k in all_keys] if all_keys else 'None found'}")
         return row[0] if row else None
     async def get_discord_info_from_user_id(self, user_id):
-        if self.logger:
-            self.logger.info(f"Looking up discord info for user_id: {user_id}")
+        self.logger.info(f"Looking up discord info for user_id: {user_id}")
         user_row = await self.mysql.fetchone(
             "SELECT username FROM users WHERE id = %s", (user_id,), database_name='website')
         username = user_row[0] if user_row else f"user_id_{user_id}"
         row = await self.mysql.fetchone(
             "SELECT guild_id, live_channel_id, online_text, offline_text FROM discord_users WHERE user_id = %s",
             (user_id,), database_name='website', dict_cursor=True)
-        if self.logger:
-            if row:
-                self.logger.info(f"Discord info found for {username} (user_id: {user_id}): guild_id={row['guild_id']}, live_channel_id={row['live_channel_id']}")
-            else:
-                self.logger.warning(f"No discord info found for {username} (user_id: {user_id})")
+        if row:
+            self.logger.info(f"Discord info found for {username} (user_id: {user_id}): guild_id={row['guild_id']}, live_channel_id={row['live_channel_id']}")
+        else:
+            self.logger.warning(f"No discord info found for {username} (user_id: {user_id})")
         return row if row else None
     async def get_discord_info_from_guild_id(self, guild_id):
         # Find discord_users row by guild_id
@@ -2086,8 +2084,7 @@ class MySQLHelper:
         sql_user = config.sql_user
         sql_password = config.sql_password
         if not sql_host or not sql_user or not sql_password:
-            if self.logger:
-                self.logger.error("Missing SQL connection parameters. Please check the .env file.")
+            self.logger.error("Missing SQL connection parameters. Please check the .env file.")
             return None
         try:
             conn = await aiomysql.connect(
@@ -2098,8 +2095,7 @@ class MySQLHelper:
             )
             return conn
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error connecting to MySQL: {e}")
+            self.logger.error(f"Error connecting to MySQL: {e}")
             return None
     async def fetchone(self, query, params=None, database_name='website', dict_cursor=False):
         conn = await self.get_connection(database_name)
@@ -2117,8 +2113,7 @@ class MySQLHelper:
                     row = await cursor.fetchone()
                     return row
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"MySQL fetchone error: {e}")
+            self.logger.error(f"MySQL fetchone error: {e}")
             return None
         finally:
             conn.close()
@@ -2138,8 +2133,7 @@ class MySQLHelper:
                     rows = await cursor.fetchall()
                     return rows
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"MySQL fetchall error: {e}")
+            self.logger.error(f"MySQL fetchall error: {e}")
             return None
         finally:
             conn.close()
@@ -2153,8 +2147,7 @@ class MySQLHelper:
                 await conn.commit()
                 return cursor.rowcount
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"MySQL execute error: {e}")
+            self.logger.error(f"MySQL execute error: {e}")
             return None
         finally:
             conn.close()
