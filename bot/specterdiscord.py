@@ -922,7 +922,7 @@ class TicketCog(commands.Cog, name='Tickets'):
             self.logger.info(f"Ticket system set up completed in {ctx.guild.name}")
         except Exception as e:
             self.logger.error(f"Error setting up ticket system: {e}")
-            await ctx.send("❌ An error occurred while setting up the ticket system. Please check the logs.")
+            await ctx.send("❌ An error occurred while setting up the ticket system.")
 
     @commands.Cog.listener()
     async def on_message(self, message):
