@@ -1225,6 +1225,13 @@ class MusicPlayer:
                             self.logger.error(f"[FFMPEG] Error cleaning up file: {e}")
                     else:
                         self.logger.warning(f"[FFMPEG] Not cleaning up file outside download dir: {track_info['file_path']}")
+                # Always call _play_next to ensure music continues
+                coro = self._play_next(ctx)
+                fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+                try:
+                    fut.result()
+                except Exception as e:
+                    self.logger.error(f"[FFMPEG] Error in after_play: {e}")
             if vc.is_playing():
                 vc.stop()
             vc.play(source, after=after_play)
