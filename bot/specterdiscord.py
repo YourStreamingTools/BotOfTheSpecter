@@ -1096,9 +1096,12 @@ class MusicPlayer:
                 except Exception:
                     pass
                 return
-            file_path, info = await self.predownload_youtube(query)
-            if info:
-                title = info.get('title', query)
+            # Start pre-download in the background, but do not wait for it
+            async def predownload_task():
+                await self.predownload_youtube(query)
+            asyncio.create_task(predownload_task())
+            # Try to get info for title display, but don't block queueing
+            title = query
         else:
             title = query if query.endswith('.mp3') else f'{query}.mp3'
         track_info = {
@@ -1106,7 +1109,7 @@ class MusicPlayer:
             'title': title,
             'user': user.display_name,
             'is_youtube': is_youtube,
-            'file_path': file_path
+            'file_path': None  # Will be set when actually downloaded
         }
         self.queues[guild_id].append(track_info)
         if is_youtube:
@@ -1152,21 +1155,15 @@ class MusicPlayer:
         source = None
         # Robust file_path handling for YouTube
         if track_info['is_youtube']:
-            file_path = track_info.get('file_path')
-            title = track_info.get('title', query)
-            # If file missing, try to download again
+            # Always check if file is downloaded, if not, download and wait
+            file_path, info = await self.predownload_youtube(query)
+            title = info.get('title') if info and 'title' in info else query
+            track_info['file_path'] = file_path
+            track_info['title'] = title
             if not file_path or not os.path.exists(file_path):
-                self.logger.warning(f"[FFMPEG] File not found for playback: {file_path}. Retrying download for: {title}")
-                file_path, info = await self.predownload_youtube(query)
-                if file_path and os.path.exists(file_path):
-                    track_info['file_path'] = file_path
-                else:
-                    self.logger.error(f"[FFMPEG] Could not download or find file for: {title}. Skipping track.")
-                    try:
-                        await ctx.send(f"Song skipped, can't play '{title}'.")
-                    except Exception:
-                        pass
-                    return await self._play_next(ctx)  # Skip to next track
+                # Could not download, skip to next
+                self.logger.error(f"[YT-DLP] Could not download file for {query}, skipping.")
+                return await self._play_next(ctx)
             self.logger.info(f"[FFMPEG] Playing YouTube file: {file_path}")
             source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
             # Try to get duration
