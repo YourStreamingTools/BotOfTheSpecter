@@ -1725,8 +1725,8 @@ class VoiceCog(commands.Cog, name='Voice'):
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete(delay=5)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.warning(f"Failed to delete user message on !play command: {e}")
             return
         if not self._user_in_linked_voice_text_channel(ctx):
             embed = discord.Embed(
@@ -1738,8 +1738,8 @@ class VoiceCog(commands.Cog, name='Voice'):
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete(delay=5)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.warning(f"Failed to delete user message on !play command: {e}")
             return
         if not ctx.voice_client:
             try:
@@ -1750,8 +1750,8 @@ class VoiceCog(commands.Cog, name='Voice'):
         await self.music_player.add_to_queue(ctx, query)
         try:
             await ctx.message.delete(delay=5)
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.warning(f"Failed to delete user message on !play command: {e}")
 
     @app_commands.command(name="play", description="Play music from YouTube or add to queue")
     @app_commands.describe(query="The song name or YouTube URL to play")
