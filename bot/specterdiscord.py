@@ -1045,7 +1045,7 @@ class MusicPlayer:
         file_path = None
         def run_yt():
             try:
-                self.logger.info(f"[YT-DLP] Downloading: {url} with options: {ydl_opts}")
+                self.logger.info(f"[YT-DLP] Downloading: {url}")
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     result = ydl.extract_info(url, download=True)
                     return result
