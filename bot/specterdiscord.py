@@ -211,12 +211,12 @@ class BotOfTheSpecter(commands.Bot):
             if discord_info:
                 twitch_display_name = discord_info.get('twitch_display_name', guild.name)
                 channel_key = twitch_display_name.lower().replace(' ', '')
-                self.logger.info(f"Auto-mapped guild '{guild.name}' (ID: {guild.id}) to Twitch user '{twitch_display_name}'")
-            else:
-                channel_key = guild.name.lower().replace(' ', '')
-                self.logger.info(f"No mapping found for guild '{guild.name}' (ID: {guild.id}), using derived name '{channel_key}'")
+            # Combine mapping and status into a single log entry
             online = self.read_stream_status(channel_key)
-            self.logger.info(f"Stream for channel '{channel_key}' (guild: {guild.name}) is {'online' if online else 'offline'}.")
+            self.logger.info(
+                f"Guild '{guild.name}' (ID: {guild.id}) auto-mapped to Twitch user '{twitch_display_name}', "
+                f"stream is {'online' if online else 'offline'} for channel key '{channel_key}'."
+            )
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
