@@ -1908,8 +1908,8 @@ class VoiceCog(commands.Cog, name='Voice'):
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete(delay=5)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.warning(f"Failed to delete messages on !queue command (not in voice): {e}")
             return
         if not self._user_in_linked_voice_text_channel(ctx):
             embed = discord.Embed(
@@ -1921,10 +1921,14 @@ class VoiceCog(commands.Cog, name='Voice'):
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete(delay=5)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.warning(f"Failed to delete messages on !queue command (wrong channel): {e}")
             return
         await self.music_player.get_queue(ctx)
+        try:
+            await ctx.message.delete(delay=5)
+        except Exception as e:
+            self.logger.warning(f"Failed to delete user message on !queue command: {e}")
 
     @app_commands.command(name="queue", description="Show the current music queue")
     async def slash_show_queue(self, interaction: discord.Interaction):
