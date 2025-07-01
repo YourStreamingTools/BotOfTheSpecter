@@ -1143,12 +1143,12 @@ class MusicPlayer:
         self.current_track[guild_id] = track_info
         query = track_info['query']
         source = None
+        # Robust file_path handling
         if track_info['is_youtube']:
             file_path = track_info.get('file_path')
             if not file_path or not os.path.exists(file_path):
-                self.logger.error(f"[FFMPEG] File not found for playback: {file_path}")
-            if not file_path or not os.path.exists(file_path):
-                self.logger.error(f"[FFMPEG] File not found for playback: {file_path}")
+                self.logger.error(f"[FFMPEG] File not found for playback: {file_path}. Skipping track.")
+                return await self._play_next(ctx)  # Skip to next track
             self.logger.info(f"[FFMPEG] Playing YouTube file: {file_path}")
             source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
             # Try to get duration
@@ -1167,7 +1167,8 @@ class MusicPlayer:
         else:
             path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
             if not os.path.exists(path):
-                self.logger.error(f"[FFMPEG] CDN file not found: {path}")
+                self.logger.error(f"[FFMPEG] CDN file not found: {path}. Skipping track.")
+                return await self._play_next(ctx)  # Skip to next track
             self.logger.info(f"[FFMPEG] Playing CDN file: {path}")
             source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
             try:
