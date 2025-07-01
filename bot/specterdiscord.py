@@ -418,11 +418,13 @@ class BotOfTheSpecter(commands.Bot):
         # Attempt to update the channel name if it is different
         if channel.name != channel_update:
             try:
-                await channel.edit(name=channel_update)
+                await channel.edit(name=channel_update, reason="Stream status update")
                 self.logger.info(f"Updated channel name to '{channel_update}' for stream {event_type}")
             except Exception as e:
                 self.logger.error(f"Failed to update channel name: {e}")
-        self.logger.info(f"Sent stream {event_type} notification to {guild.name}#{channel.name}")
+            self.logger.info(f"Set status to \"{event_type}\" for {guild.name}#{channel.name}")
+        else:
+            self.logger.info(f"Status not set to \"{event_type}\" for {guild.name}#{channel.name} - channel name already matches \"{channel_update}\"")
 
     def format_twitch_message(self, event_type, data):
         username = data.get("username", "Unknown User")
