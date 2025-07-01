@@ -1165,6 +1165,8 @@ class MusicPlayer:
         vc = ctx.voice_client
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, config.volume_default))
         def after_play(error):
+            # Reset playing state when track finishes
+            self.is_playing[guild_id] = False
             if error:
                 if self.logger:
                     self.logger.error(f'Playback error: {error}')
@@ -1188,7 +1190,6 @@ class MusicPlayer:
             except Exception as e:
                 if self.logger:
                     self.logger.error(f'Error scheduling next track: {e}')
-                self.is_playing[guild_id] = False
         if vc.is_playing():
             return
         vc.play(source, after=after_play)
@@ -1361,6 +1362,8 @@ class MusicPlayer:
         source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
         source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(ctx.guild.id, config.volume_default))
         def after_play(error):
+            # Reset playing state when track finishes
+            self.is_playing[ctx.guild.id] = False
             if error:
                 if self.logger:
                     self.logger.error(f'Playback error: {error}')
@@ -1371,8 +1374,6 @@ class MusicPlayer:
             except Exception as e:
                 if self.logger:
                     self.logger.error(f'Error scheduling next track: {e}')
-                # Reset playing state if scheduling fails
-                self.is_playing[ctx.guild.id] = False
         if vc.is_playing():
             return
         vc.play(source, after=after_play)
