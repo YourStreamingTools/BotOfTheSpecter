@@ -1304,20 +1304,29 @@ class MusicPlayer:
         source_label = 'YouTube' if track.get('is_youtube') else 'CDN'
         duration = self.track_duration.get(guild_id)
         start = self.track_start.get(guild_id)
+        if source_label == 'YouTube':
+            desc = f'🎵 Now playing ({source_label}): **{title}**'
+        else:
+            desc = f'🎵 Now playing: **{title}**'
+        embed = discord.Embed(
+            title="🎵 Now Playing",
+            description=desc,
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="Source", value=source_label, inline=True)
+        embed.add_field(name="Requested by", value=track.get('user', 'Unknown'), inline=True)
         if duration and start:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            if source_label == 'YouTube':
-                desc = f'🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]'
-        else:
-            desc = f'🎵 Now playing: **{title}**'
-        embed = discord.Embed(
-            title="Now Playing",
-            description=desc,
-            color=discord.Color.purple()
-        )
-        await ctx.send(embed=embed)
+            embed.add_field(name="Progress", value=f"{elapsed_str} / {duration_str}", inline=True)
+        msg = await ctx.send(embed=embed)
+        try:
+            await msg.delete(delay=5)
+            if hasattr(ctx, 'message') and ctx.message:
+                await ctx.message.delete(delay=5)
+        except Exception:
+            pass
 
     async def cleanup_cache(self):
         # Remove files not referenced in any queue or current_track
@@ -1861,24 +1870,22 @@ class VoiceCog(commands.Cog, name='Voice'):
         source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
         duration = self.music_player.track_duration.get(guild_id)
         start = self.music_player.track_start.get(guild_id)
+        if source_label == 'YouTube':
+            desc = f"🎵 Now playing ({source_label}): **{title}**"
+        else:
+            desc = f"🎵 Now playing: **{title}**"
+        embed = discord.Embed(
+            title="🎵 Now Playing",
+            description=desc,
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="Source", value=source_label, inline=True)
+        embed.add_field(name="Requested by", value=current.get('user', 'Unknown'), inline=True)
         if duration and start:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            if source_label == 'YouTube':
-                desc = f"🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]"
-            else:
-                desc = f"🎵 Now playing: **{title}** [{elapsed_str}/{duration_str}]"
-        else:
-            if source_label == 'YouTube':
-                desc = f"🎵 Now playing ({source_label}): **{title}**"
-            else:
-                desc = f"🎵 Now playing: **{title}**"
-        embed = discord.Embed(
-            title="Now Playing",
-            description=desc,
-            color=discord.Color.purple()
-        )
+            embed.add_field(name="Progress", value=f"{elapsed_str} / {duration_str}", inline=True)
         msg = await ctx.send(embed=embed)
         try:
             await msg.delete(delay=5)
@@ -1887,7 +1894,24 @@ class VoiceCog(commands.Cog, name='Voice'):
             pass
 
     @commands.command(name="volume")
-    async def set_volume(self, ctx, volume: int):
+    async def set_volume(self, ctx, volume: int = None):
+        # If no volume provided, show current volume
+        if volume is None:
+            current_vol = self.music_player.volumes.get(ctx.guild.id, config.volume_default)
+            current_vol_percent = int(current_vol * 100)
+            embed = discord.Embed(
+                title="🔊 Current Volume",
+                description=f"Volume is currently set to **{current_vol_percent}%**",
+                color=discord.Color.blue()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+                await ctx.message.delete(delay=5)
+            except Exception:
+                pass
+            return
+        # Validate volume range
         if volume < 0 or volume > 100:
             embed = discord.Embed(
                 title="❌ Invalid Volume",
@@ -1901,6 +1925,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             except Exception:
                 pass
             return
+        # Set new volume
         vol = volume / 100
         self.music_player.volumes[ctx.guild.id] = vol
         # Adjust live volume if playing
@@ -1909,7 +1934,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             vc.source.volume = vol
         embed = discord.Embed(
             title="🔊 Volume Changed",
-            description=f"Set volume to {volume}%",
+            description=f"Set volume to **{volume}%**",
             color=discord.Color.green()
         )
         msg = await ctx.send(embed=embed)
@@ -1934,27 +1959,62 @@ class VoiceCog(commands.Cog, name='Voice'):
         title = current['title']
         if not current.get('is_youtube') and title.lower().endswith('.mp3'):
             title = title[:-4]
+        source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
         duration = self.music_player.track_duration.get(guild_id)
         start = self.music_player.track_start.get(guild_id)
+        if source_label == 'YouTube':
+            desc = f"🎵 Now playing ({source_label}): **{title}**"
+        else:
+            desc = f"🎵 Now playing: **{title}**"
+        embed = discord.Embed(
+            title="🎵 Now Playing",
+            description=desc,
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="Source", value=source_label, inline=True)
+        embed.add_field(name="Requested by", value=current.get('user', 'Unknown'), inline=True)
         if duration and start:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
-            await interaction.response.send_message(f"🎵 Now playing: **{title}** [{elapsed_str}/{duration_str}]")
-        else:
-            await interaction.response.send_message(f"🎵 Now playing: **{title}**")
+            embed.add_field(name="Progress", value=f"{elapsed_str} / {duration_str}", inline=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="volume", description="Set playback volume (0-100)")
-    @app_commands.describe(volume="Volume percentage (0-100)")
-    async def slash_volume(self, interaction: discord.Interaction, volume: int):
+    @app_commands.command(name="volume", description="Show current volume or set playback volume (0-100)")
+    @app_commands.describe(volume="Volume percentage (0-100) - leave empty to see current volume")
+    async def slash_volume(self, interaction: discord.Interaction, volume: int = None):
+        # If no volume provided, show current volume
+        if volume is None:
+            current_vol = self.music_player.volumes.get(interaction.guild.id, config.volume_default)
+            current_vol_percent = int(current_vol * 100)
+            embed = discord.Embed(
+                title="🔊 Current Volume",
+                description=f"Volume is currently set to **{current_vol_percent}%**",
+                color=discord.Color.blue()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        # Validate volume range
         if volume < 0 or volume > 100:
-            return await interaction.response.send_message("Please provide a volume between 0 and 100.", ephemeral=True)
+            embed = discord.Embed(
+                title="❌ Invalid Volume",
+                description="Please provide a volume between 0 and 100.",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        # Set new volume
         vol = volume / 100
         self.music_player.volumes[interaction.guild.id] = vol
         vc = interaction.guild.voice_client
         if vc and hasattr(vc, 'source') and isinstance(vc.source, discord.PCMVolumeTransformer):
             vc.source.volume = vol
-        await interaction.response.send_message(f"Set volume to {volume}%")
+        embed = discord.Embed(
+            title="🔊 Volume Changed",
+            description=f"Set volume to **{volume}%**",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # ChannelManagementCog class
 class DiscordChannelResolver:
