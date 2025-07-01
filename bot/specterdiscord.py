@@ -1146,6 +1146,12 @@ class MusicPlayer:
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=5)
+                await ctx.message.delete()
+            except Exception:
+                pass
+        else:
+            try:
+                await ctx.message.delete()
             except Exception:
                 pass
         voice_client = ctx.guild.voice_client
@@ -1296,11 +1302,9 @@ class MusicPlayer:
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=5)
+                await ctx.message.delete()
             except Exception:
                 pass
-            return
-        if not vc.is_playing():
-            await self.play_random_cdn_mp3(ctx)
             return
         vc.stop()
         embed = discord.Embed(
@@ -1311,6 +1315,7 @@ class MusicPlayer:
         msg = await ctx.send(embed=embed)
         try:
             await msg.delete(delay=5)
+            await ctx.message.delete()
         except Exception:
             pass
 
@@ -1326,6 +1331,7 @@ class MusicPlayer:
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=5)
+                await ctx.message.delete()
             except Exception:
                 pass
             return
@@ -1341,6 +1347,7 @@ class MusicPlayer:
         msg = await ctx.send(embed=embed)
         try:
             await msg.delete(delay=5)
+            await ctx.message.delete()
         except Exception:
             pass
 
@@ -1356,6 +1363,7 @@ class MusicPlayer:
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=10)
+                await ctx.message.delete()
             except Exception:
                 pass
             return
@@ -1380,6 +1388,7 @@ class MusicPlayer:
         msg = await ctx.send(embed=embed)
         try:
             await msg.delete(delay=10)
+            await ctx.message.delete()
         except Exception:
             pass
 
@@ -1412,8 +1421,7 @@ class MusicPlayer:
         msg = await ctx.send(embed=embed)
         try:
             await msg.delete(delay=5)
-            if hasattr(ctx, 'message') and ctx.message:
-                await ctx.message.delete(delay=5)
+            await ctx.message.delete()
         except Exception:
             pass
 
@@ -1830,10 +1838,6 @@ class VoiceCog(commands.Cog, name='Voice'):
                 await ctx.send(f"Failed to connect to voice channel: {str(e)}")
                 return
         await self.music_player.add_to_queue(ctx, query)
-        try:
-            await ctx.message.delete(delay=5)
-        except Exception as e:
-            self.logger.warning(f"Failed to delete user message on !play command: {e}")
 
     @app_commands.command(name="play", description="Play music from YouTube or add to queue")
     @app_commands.describe(query="The song name or YouTube URL to play")
@@ -1874,10 +1878,6 @@ class VoiceCog(commands.Cog, name='Voice'):
                 pass
             return
         await self.music_player.skip(ctx)
-        try:
-            await ctx.message.delete(delay=5)
-        except Exception:
-            pass
 
     @app_commands.command(name="skip", description="Skip the current song")
     async def slash_skip_music(self, interaction: discord.Interaction):
@@ -1906,10 +1906,6 @@ class VoiceCog(commands.Cog, name='Voice'):
                 pass
             return
         await self.music_player.stop(ctx)
-        try:
-            await ctx.message.delete(delay=5)
-        except Exception:
-            pass
 
     @app_commands.command(name="stop", description="Stop music and clear the queue")
     async def slash_stop_music(self, interaction: discord.Interaction):
@@ -1951,10 +1947,6 @@ class VoiceCog(commands.Cog, name='Voice'):
                 self.logger.warning(f"Failed to delete messages on !queue command (wrong channel): {e}")
             return
         await self.music_player.get_queue(ctx)
-        try:
-            await ctx.message.delete(delay=5)
-        except Exception as e:
-            self.logger.warning(f"Failed to delete user message on !queue command: {e}")
 
     @app_commands.command(name="queue", description="Show the current music queue")
     async def slash_show_queue(self, interaction: discord.Interaction):
@@ -1997,8 +1989,7 @@ class VoiceCog(commands.Cog, name='Voice'):
         msg = await ctx.send(embed=embed)
         try:
             await msg.delete(delay=5)
-            if hasattr(ctx, 'message') and ctx.message:
-                await ctx.message.delete(delay=5)
+            await ctx.message.delete(delay=5)
         except Exception:
             pass
 
@@ -2045,7 +2036,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=5)
-                await ctx.message.delete(delay=5)
+                await ctx.message.delete()
             except Exception:
                 pass
             return
@@ -2059,7 +2050,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=5)
-                await ctx.message.delete(delay=5)
+                await ctx.message.delete()
             except Exception:
                 pass
             return
@@ -2078,7 +2069,7 @@ class VoiceCog(commands.Cog, name='Voice'):
         msg = await ctx.send(embed=embed)
         try:
             await msg.delete(delay=5)
-            await ctx.message.delete(delay=5)
+            await ctx.message.delete()
         except Exception:
             pass
 
