@@ -1157,7 +1157,8 @@ class MusicPlayer:
         voice_client = ctx.guild.voice_client
         is_playing_flag = self.is_playing.get(guild_id, False)
         voice_is_playing = voice_client.is_playing() if voice_client else False
-        current_track_user = self.current_track.get(guild_id, {}).get('user', 'None')
+        current_track = self.current_track.get(guild_id)
+        current_track_user = current_track.get('user', 'None') if current_track else 'None'
         self.logger.info(f"[QUEUE] Added '{title}' by {user.display_name} to queue for guild {guild_id}")
         self.logger.info(f"[QUEUE] is_playing flag: {is_playing_flag}, voice_client.is_playing(): {voice_is_playing}, current track user: {current_track_user}")
         if not is_playing_flag and not voice_is_playing:
@@ -1282,9 +1283,13 @@ class MusicPlayer:
                     self.logger.error(f"[FFMPEG] Error in after_play: {e}")
             # Don't stop if this is being called while nothing should be playing
             if vc.is_playing():
-                current_track = self.current_track.get(guild_id, {})
-                current_user = current_track.get('user', 'Unknown')
-                current_title = current_track.get('title', 'Unknown')
+                current_track = self.current_track.get(guild_id)
+                if current_track:
+                    current_user = current_track.get('user', 'Unknown')
+                    current_title = current_track.get('title', 'Unknown')
+                else:
+                    current_user = 'Unknown'
+                    current_title = 'Unknown'
                 self.logger.info(f"[PLAY_NEXT] Stopping current track '{current_title}' by {current_user} to play '{track_info['title']}' by {track_info['user']}")
                 vc.stop()
             else:
