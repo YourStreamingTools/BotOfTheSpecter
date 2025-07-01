@@ -683,11 +683,6 @@ class TicketCog(commands.Cog, name='Tickets'):
 
     @commands.command(name="ticket")
     async def ticket_command(self, ctx, action: str = None, *, reason: str = None):
-        """Ticket system commands"""
-        # Check if the command is used in the correct server
-        if ctx.guild.id != self.SUPPORT_GUILD_ID:
-            await ctx.send("❌ This command can only be used in the support server.", delete_after=10)
-            return
         if action is None:
             await ctx.send("Please specify an action: `create` to create a ticket or `close` to close your ticket.", delete_after=10)
             return
@@ -839,30 +834,6 @@ class TicketCog(commands.Cog, name='Tickets'):
 
     @commands.command(name="setuptickets")
     async def setup_tickets(self, ctx):
-        """Set up the ticket system (Bot Owner Only)"""
-        # Check if user is in the correct server
-        if ctx.guild.id != self.SUPPORT_GUILD_ID:
-            await ctx.send(
-                "❌ The ticket system can only be set up in the YourStreamingTools Discord server.\n"
-                "This is a centralized support system - please join <https://discord.com/invite/ANwEkpauHJ> "
-                "to create support tickets."
-            )
-            return
-        # Check if command is used in the moderator channel
-        if ctx.channel.id != self.MOD_CHANNEL_ID:
-            await ctx.send(
-                "❌ This command can only be used in the <#1103695077928345683> channel.",
-                delete_after=10
-            )
-            return
-        # Check if user is the bot owner
-        if ctx.author.id != self.OWNER_ID:
-            await ctx.send(
-                "❌ Only the bot owner can set up the ticket system.\n"
-                "The ticket system is managed centrally through the YourStreamingTools Discord server.\n"
-                "Please join <https://discord.com/invite/ANwEkpauHJ> for support."
-            )
-            return
         try:
             # Create the category if it doesn't exist
             category = discord.utils.get(ctx.guild.categories, name="Open Tickets")
@@ -918,7 +889,7 @@ class TicketCog(commands.Cog, name='Tickets'):
             )
             # Create the info message
             embed = discord.Embed(
-                title="🎫 YourStreamingTools Support System",
+                title="🎫 Server Support System",
                 description=(
                     "**Welcome to our support ticket system!**\n\n"
                     "To create a new support ticket: `!ticket create`\n\n"
