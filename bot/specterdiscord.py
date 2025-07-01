@@ -1070,7 +1070,25 @@ class MusicPlayer:
         file_path = None
         title = query
         is_youtube = query.startswith('http')
+        # YouTube URL validation
         if is_youtube:
+            valid_prefixes = [
+                'https://www.youtube.com/',
+                'https://youtube.com/',
+                'https://youtu.be/'
+            ]
+            if not any(query.startswith(prefix) for prefix in valid_prefixes):
+                embed = discord.Embed(
+                    title="❌ Invalid Link",
+                    description="Only YouTube links are supported. Please use a link starting with https://www.youtube.com, https://youtube.com, or https://youtu.be/",
+                    color=discord.Color.red()
+                )
+                msg = await ctx.send(embed=embed)
+                try:
+                    await msg.delete(delay=7)
+                except Exception:
+                    pass
+                return
             file_path, info = await self.predownload_youtube(query)
             if info:
                 title = info.get('title', query)
