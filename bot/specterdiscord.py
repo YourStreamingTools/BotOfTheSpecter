@@ -1097,12 +1097,16 @@ class MusicPlayer:
                 except Exception:
                     pass
                 return
-            # Start pre-download in the background, but do not wait for it
+            # Fetch YouTube info synchronously for title display
+            file_path, info = await self.predownload_youtube(query)
+            if info and 'title' in info:
+                title = info['title']
+            else:
+                title = query
+            # Start pre-download in the background, but do not wait
             async def predownload_task():
                 await self.predownload_youtube(query)
             asyncio.create_task(predownload_task())
-            # Try to get info for title display, but don't block queueing
-            title = query
         else:
             title = query if query.endswith('.mp3') else f'{query}.mp3'
         track_info = {
