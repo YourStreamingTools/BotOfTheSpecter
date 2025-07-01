@@ -1036,6 +1036,7 @@ class MusicPlayer:
         os.makedirs(self.download_dir, exist_ok=True)
         # Initialize the periodic cleanup task
         asyncio.create_task(self.periodic_cleanup())
+        self.play_lock = asyncio.Lock()
 
     async def predownload_youtube(self, url):
         loop = asyncio.get_event_loop()
@@ -1131,100 +1132,98 @@ class MusicPlayer:
         await self.add_to_queue(ctx, query)
 
     async def _play_next(self, ctx):
-        guild_id = ctx.guild.id
-        vc = ctx.guild.voice_client
-        # Ensure guild has proper entries in our dictionaries
-        if guild_id not in self.queues:
-            self.queues[guild_id] = []
-        if guild_id not in self.is_playing:
-            self.is_playing[guild_id] = False
-        # No longer in voice, stop scheduling
-        if not vc or not vc.is_connected():
-            self.is_playing[guild_id] = False
-            return
-        queue = self.queues.get(guild_id, [])
-        if not queue:
-            # Reset flag so add_to_queue won't spin
-            self.is_playing[guild_id] = False
-            return await self.play_random_cdn_mp3(ctx)
-            
-        self.is_playing[guild_id] = True
-        track_info = queue.pop(0)
-        self.current_track[guild_id] = track_info
-        query = track_info['query']
-        source = None
-        # Robust file_path handling for YouTube
-        if track_info['is_youtube']:
-            # Always check if file is downloaded, if not, download and wait
-            file_path, info = await self.predownload_youtube(query)
-            title = info.get('title') if info and 'title' in info else query
-            track_info['file_path'] = file_path
-            track_info['title'] = title
-            if not file_path or not os.path.exists(file_path):
-                # Could not download, skip to next
-                self.logger.error(f"[YT-DLP] Could not download file for {query}, skipping.")
-                return await self._play_next(ctx)
-            self.logger.info(f"[FFMPEG] Playing YouTube file: {file_path}")
-            source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
-            # Try to get duration
-            try:
-                self.logger.info(f"[FFMPEG] ffprobe for duration: {file_path}")
-                result = subprocess.run([
-                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                    '-of', 'default=noprint_wrappers=1:nokey=1', file_path
-                ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                duration = int(float(result.stdout)) if result.stdout else None
-            except Exception as e:
-                self.logger.error(f"[FFMPEG] Error getting duration: {e}")
-                duration = None
-            self.track_duration[guild_id] = duration
-            self.track_start[guild_id] = time.time()
-        else:
-            path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
-            if not os.path.exists(path):
-                self.logger.error(f"[FFMPEG] CDN file not found: {path}. Skipping track.")
+        async with self.play_lock:
+            guild_id = ctx.guild.id
+            vc = ctx.guild.voice_client
+            # Ensure guild has proper entries in our dictionaries
+            if guild_id not in self.queues:
+                self.queues[guild_id] = []
+            if guild_id not in self.is_playing:
+                self.is_playing[guild_id] = False
+            # No longer in voice, stop scheduling
+            if not vc or not vc.is_connected():
+                self.is_playing[guild_id] = False
+                return
+            queue = self.queues.get(guild_id, [])
+            if not queue:
+                # Reset flag so add_to_queue won't spin
+                self.is_playing[guild_id] = False
+                return await self.play_random_cdn_mp3(ctx)
+            self.is_playing[guild_id] = True
+            track_info = queue.pop(0)
+            self.current_track[guild_id] = track_info
+            query = track_info['query']
+            source = None
+            # Robust file_path handling for YouTube
+            if track_info['is_youtube']:
+                # Always check if file is downloaded, if not, download and wait
+                file_path, info = await self.predownload_youtube(query)
+                title = info.get('title') if info and 'title' in info else query
+                track_info['file_path'] = file_path
+                track_info['title'] = title
+                if not file_path or not os.path.exists(file_path):
+                    # Could not download, skip to next
+                    self.logger.error(f"[YT-DLP] Could not download file for {query}, skipping.")
+                    return await self._play_next(ctx)
+                self.logger.info(f"[FFMPEG] Playing YouTube file: {file_path}")
+                source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
+                # Try to get duration
                 try:
-                    await ctx.send(f"Song skipped, can't play '{query}'.")
-                except Exception:
-                    pass
-                return await self._play_next(ctx)  # Skip to next track
-            self.logger.info(f"[FFMPEG] Playing CDN file: {path}")
-            source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
-            try:
-                self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
-                result = subprocess.run([
-                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                    '-of', 'default=noprint_wrappers=1:nokey=1', path
-                ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                duration = int(float(result.stdout)) if result.stdout else None
-            except Exception as e:
-                self.logger.error(f"[FFMPEG] Error getting duration: {e}")
-                duration = None
+                    self.logger.info(f"[FFMPEG] ffprobe for duration: {file_path}")
+                    result = subprocess.run([
+                        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                        '-of', 'default=noprint_wrappers=1:nokey=1', file_path
+                    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                    duration = int(float(result.stdout)) if result.stdout else None
+                except Exception as e:
+                    self.logger.error(f"[FFMPEG] Error getting duration: {e}")
+                    duration = None
+            else:
+                path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
+                if not os.path.exists(path):
+                    self.logger.error(f"[FFMPEG] CDN file not found: {path}. Skipping track.")
+                    try:
+                        await ctx.send(f"Song skipped, can't play '{query}'.")
+                    except Exception:
+                        pass
+                    return await self._play_next(ctx)  # Skip to next track
+                self.logger.info(f"[FFMPEG] Playing CDN file: {path}")
+                source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
+                try:
+                    self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
+                    result = subprocess.run([
+                        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                        '-of', 'default=noprint_wrappers=1:nokey=1', path
+                    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                    duration = int(float(result.stdout)) if result.stdout else None
+                except Exception as e:
+                    self.logger.error(f"[FFMPEG] Error getting duration: {e}")
+                    duration = None
             self.track_duration[guild_id] = duration
             self.track_start[guild_id] = time.time()
-        vc = ctx.voice_client
-        source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, config.volume_default))
-        def after_play(error):
-            # Reset playing state when track finishes
-            self.is_playing[guild_id] = False
-            if error:
-                self.logger.error(f"[FFMPEG] Playback error: {error}")
-            else:
-                self.logger.info(f"[FFMPEG] Track finished for guild {guild_id}")
-            # Clean up the audio file immediately after playback (YouTube files only)
-            if track_info['is_youtube'] and 'file_path' in track_info and track_info['file_path']:
-                # Only remove if in the expected download dir
-                if track_info['file_path'].startswith(self.download_dir):
-                    self.logger.info(f"[FFMPEG] Cleaning up file: {track_info['file_path']}")
-                    try:
-                        os.remove(track_info['file_path'])
-                    except Exception as e:
-                        self.logger.error(f"[FFMPEG] Error cleaning up file: {e}")
+            vc = ctx.voice_client
+            source = discord.PCMVolumeTransformer(source, volume=self.volumes.get(guild_id, config.volume_default))
+            def after_play(error):
+                # Reset playing state when track finishes
+                self.is_playing[guild_id] = False
+                if error:
+                    self.logger.error(f"[FFMPEG] Playback error: {error}")
                 else:
-                    self.logger.warning(f"[FFMPEG] Not cleaning up file outside download dir: {track_info['file_path']}")
-        if vc.is_playing():
-            vc.stop()
-        vc.play(source, after=after_play)
+                    self.logger.info(f"[FFMPEG] Track finished for guild {guild_id}")
+                # Clean up the audio file immediately after playback (YouTube files only)
+                if track_info['is_youtube'] and 'file_path' in track_info and track_info['file_path']:
+                    # Only remove if in the expected download dir
+                    if track_info['file_path'].startswith(self.download_dir):
+                        self.logger.info(f"[FFMPEG] Cleaning up file: {track_info['file_path']}")
+                        try:
+                            os.remove(track_info['file_path'])
+                        except Exception as e:
+                            self.logger.error(f"[FFMPEG] Error cleaning up file: {e}")
+                    else:
+                        self.logger.warning(f"[FFMPEG] Not cleaning up file outside download dir: {track_info['file_path']}")
+            if vc.is_playing():
+                vc.stop()
+            vc.play(source, after=after_play)
 
     async def skip(self, ctx):
         vc = ctx.voice_client
