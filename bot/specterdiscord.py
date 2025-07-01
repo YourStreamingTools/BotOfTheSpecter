@@ -1424,7 +1424,12 @@ class VoiceCog(commands.Cog, name='Voice'):
                         description="You are not connected to a voice channel. Please join a voice channel or specify one.",
                         color=discord.Color.red()
                     )
-                    await ctx.send(embed=embed)
+                    msg = await ctx.send(embed=embed)
+                    try:
+                        await msg.delete(delay=5)
+                        await ctx.message.delete(delay=5)
+                    except Exception:
+                        pass
                     return
                 channel = ctx.author.voice.channel
             # Check if bot has permissions to connect to the channel
@@ -1435,7 +1440,12 @@ class VoiceCog(commands.Cog, name='Voice'):
                     description=f"I don't have permission to connect to {channel.mention}.",
                     color=discord.Color.red()
                 )
-                await ctx.send(embed=embed)
+                msg = await ctx.send(embed=embed)
+                try:
+                    await msg.delete(delay=5)
+                    await ctx.message.delete(delay=5)
+                except Exception:
+                    pass
                 return
             if not permissions.speak:
                 embed = discord.Embed(
@@ -1443,7 +1453,12 @@ class VoiceCog(commands.Cog, name='Voice'):
                     description=f"I can connect to {channel.mention} but don't have permission to speak.",
                     color=discord.Color.yellow()
                 )
-                await ctx.send(embed=embed)
+                msg = await ctx.send(embed=embed)
+                try:
+                    await msg.delete(delay=5)
+                    await ctx.message.delete(delay=5)
+                except Exception:
+                    pass
             # Check if bot is already connected to a voice channel in this guild
             if ctx.guild.id in self.voice_clients and self.voice_clients[ctx.guild.id].is_connected():
                 current_channel = self.voice_clients[ctx.guild.id].channel
@@ -1453,7 +1468,12 @@ class VoiceCog(commands.Cog, name='Voice'):
                         description=f"I'm already connected to {channel.mention}.",
                         color=discord.Color.blue()
                     )
-                    await ctx.send(embed=embed)
+                    msg = await ctx.send(embed=embed)
+                    try:
+                        await msg.delete(delay=5)
+                        await ctx.message.delete(delay=5)
+                    except Exception:
+                        pass
                     return
                 else:
                     # Move to the new channel
@@ -1463,7 +1483,12 @@ class VoiceCog(commands.Cog, name='Voice'):
                         description=f"Moved from {current_channel.mention} to {channel.mention}.",
                         color=discord.Color.green()
                     )
-                    await ctx.send(embed=embed)
+                    msg = await ctx.send(embed=embed)
+                    try:
+                        await msg.delete(delay=5)
+                        await ctx.message.delete(delay=5)
+                    except Exception:
+                        pass
                     self.logger.info(f"Moved voice connection from {current_channel.name} to {channel.name} in {ctx.guild.name}")
                     return
             # Connect to the voice channel
@@ -1523,7 +1548,12 @@ class VoiceCog(commands.Cog, name='Voice'):
                     description="I'm not connected to any voice channel in this server.",
                     color=discord.Color.blue()
                 )
-                await ctx.send(embed=embed)
+                msg = await ctx.send(embed=embed)
+                try:
+                    await msg.delete(delay=5)
+                    await ctx.message.delete(delay=5)
+                except Exception:
+                    pass
                 return
             voice_client = self.voice_clients[ctx.guild.id]
             if not voice_client.is_connected():
@@ -1532,7 +1562,12 @@ class VoiceCog(commands.Cog, name='Voice'):
                     description="I'm not connected to any voice channel in this server.",
                     color=discord.Color.blue()
                 )
-                await ctx.send(embed=embed)
+                msg = await ctx.send(embed=embed)
+                try:
+                    await msg.delete(delay=5)
+                    await ctx.message.delete(delay=5)
+                except Exception:
+                    pass
                 del self.voice_clients[ctx.guild.id]
                 return
             channel_name = voice_client.channel.name
@@ -1586,14 +1621,19 @@ class VoiceCog(commands.Cog, name='Voice'):
             embed.add_field(name="Connected To", value=channel.mention, inline=True)
             embed.add_field(name="Channel Members", value=str(member_count), inline=True)
             embed.add_field(name="Latency", value=latency_display, inline=True)
-            await ctx.send(embed=embed)
+            msg = await ctx.send(embed=embed)
         else:
             embed = discord.Embed(
                 title="🔇 Voice Status",
                 description="Not connected to any voice channel in this server.",
                 color=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            msg = await ctx.send(embed=embed)
+        try:
+            await msg.delete(delay=5)
+            await ctx.message.delete(delay=5)
+        except Exception:
+            pass
 
     @connect_voice.error
     async def connect_error(self, ctx, error):
@@ -1656,7 +1696,17 @@ class VoiceCog(commands.Cog, name='Voice'):
     @commands.command(name="play")
     async def play_music(self, ctx, *, query: str):
         if not ctx.author.voice:
-            await ctx.send("You need to be in a voice channel to use this command!")
+            embed = discord.Embed(
+                title="❌ Not in Voice Channel",
+                description="You need to be in a voice channel to use this command!",
+                color=discord.Color.red()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+                await ctx.message.delete(delay=5)
+            except Exception:
+                pass
             return
         if not self._user_in_linked_voice_text_channel(ctx):
             embed = discord.Embed(
@@ -1678,6 +1728,10 @@ class VoiceCog(commands.Cog, name='Voice'):
                 await ctx.send(f"Failed to connect to voice channel: {str(e)}")
                 return
         await self.music_player.add_to_queue(ctx, query)
+        try:
+            await ctx.message.delete(delay=5)
+        except Exception:
+            pass
 
     @app_commands.command(name="play", description="Play music from YouTube or add to queue")
     @app_commands.describe(query="The song name or YouTube URL to play")
@@ -1713,10 +1767,15 @@ class VoiceCog(commands.Cog, name='Voice'):
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=5)
+                await ctx.message.delete(delay=5)
             except Exception:
                 pass
             return
         await self.music_player.skip(ctx)
+        try:
+            await ctx.message.delete(delay=5)
+        except Exception:
+            pass
 
     @app_commands.command(name="skip", description="Skip the current song")
     async def slash_skip_music(self, interaction: discord.Interaction):
@@ -1740,10 +1799,15 @@ class VoiceCog(commands.Cog, name='Voice'):
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=5)
+                await ctx.message.delete(delay=5)
             except Exception:
                 pass
             return
         await self.music_player.stop(ctx)
+        try:
+            await ctx.message.delete(delay=5)
+        except Exception:
+            pass
 
     @app_commands.command(name="stop", description="Stop music and clear the queue")
     async def slash_stop_music(self, interaction: discord.Interaction):
@@ -1767,6 +1831,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             msg = await ctx.send(embed=embed)
             try:
                 await msg.delete(delay=5)
+                await ctx.message.delete(delay=5)
             except Exception:
                 pass
             return
@@ -1801,26 +1866,58 @@ class VoiceCog(commands.Cog, name='Voice'):
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
             if source_label == 'YouTube':
-                await ctx.send(f"🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]")
+                desc = f"🎵 Now playing ({source_label}): **{title}** [{elapsed_str}/{duration_str}]"
             else:
-                await ctx.send(f"🎵 Now playing: **{title}** [{elapsed_str}/{duration_str}]")
+                desc = f"🎵 Now playing: **{title}** [{elapsed_str}/{duration_str}]"
         else:
             if source_label == 'YouTube':
-                await ctx.send(f"🎵 Now playing ({source_label}): **{title}**")
+                desc = f"🎵 Now playing ({source_label}): **{title}**"
             else:
-                await ctx.send(f"🎵 Now playing: **{title}**")
+                desc = f"🎵 Now playing: **{title}**"
+        embed = discord.Embed(
+            title="Now Playing",
+            description=desc,
+            color=discord.Color.purple()
+        )
+        msg = await ctx.send(embed=embed)
+        try:
+            await msg.delete(delay=5)
+            await ctx.message.delete(delay=5)
+        except Exception:
+            pass
 
     @commands.command(name="volume")
     async def set_volume(self, ctx, volume: int):
         if volume < 0 or volume > 100:
-            return await ctx.send("Please provide a volume between 0 and 100.")
+            embed = discord.Embed(
+                title="❌ Invalid Volume",
+                description="Please provide a volume between 0 and 100.",
+                color=discord.Color.red()
+            )
+            msg = await ctx.send(embed=embed)
+            try:
+                await msg.delete(delay=5)
+                await ctx.message.delete(delay=5)
+            except Exception:
+                pass
+            return
         vol = volume / 100
         self.music_player.volumes[ctx.guild.id] = vol
         # Adjust live volume if playing
         vc = ctx.voice_client
         if vc and hasattr(vc, 'source') and isinstance(vc.source, discord.PCMVolumeTransformer):
             vc.source.volume = vol
-        await ctx.send(f"Set volume to {volume}%")
+        embed = discord.Embed(
+            title="🔊 Volume Changed",
+            description=f"Set volume to {volume}%",
+            color=discord.Color.green()
+        )
+        msg = await ctx.send(embed=embed)
+        try:
+            await msg.delete(delay=5)
+            await ctx.message.delete(delay=5)
+        except Exception:
+            pass
 
     @app_commands.command(name="song", description="Show the current song playing")
     async def slash_current_song(self, interaction: discord.Interaction):
