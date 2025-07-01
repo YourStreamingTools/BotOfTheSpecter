@@ -1298,16 +1298,17 @@ class MusicPlayer:
         if not track.get('is_youtube') and title.lower().endswith('.mp3'):
             title = title[:-4]
         source_label = 'YouTube' if track.get('is_youtube') else 'CDN'
+        requested_by = track.get('user', 'Unknown')
         duration = self.track_duration.get(guild_id)
         start = self.track_start.get(guild_id)
-        desc = f"🎵 **Now playing:** *{title}*"
+        desc = f"Now Playing: {title}"
         embed = discord.Embed(
-            title="🎶 Now Playing",
+            title="Now Playing",
             description=desc,
             color=discord.Color.purple()
         )
         embed.add_field(name="Source", value=source_label, inline=True)
-        embed.add_field(name="Requested by", value=track.get('user', 'Unknown'), inline=True)
+        embed.add_field(name="Requested by", value=requested_by, inline=True)
         if duration and start:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
@@ -1873,16 +1874,17 @@ class VoiceCog(commands.Cog, name='Voice'):
         if not current.get('is_youtube') and title.lower().endswith('.mp3'):
             title = title[:-4]
         source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
+        requested_by = current.get('user', 'Unknown')
         duration = self.music_player.track_duration.get(guild_id)
         start = self.music_player.track_start.get(guild_id)
-        desc = f"🎵 **Now playing:** *{title}*"
+        desc = f"Now Playing: {title}"
         embed = discord.Embed(
-            title="🎶 Now Playing",
+            title="Now Playing",
             description=desc,
             color=discord.Color.purple()
         )
         embed.add_field(name="Source", value=source_label, inline=True)
-        embed.add_field(name="Requested by", value=current.get('user', 'Unknown'), inline=True)
+        embed.add_field(name="Requested by", value=requested_by, inline=True)
         if duration and start:
             elapsed = int(time.time() - start)
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
@@ -1910,9 +1912,9 @@ class VoiceCog(commands.Cog, name='Voice'):
         source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
         duration = self.music_player.track_duration.get(guild_id)
         start = self.music_player.track_start.get(guild_id)
-        desc = f"🎵 **Now playing:** *{title}*"
+        desc = f"Now Playing: {title}"
         embed = discord.Embed(
-            title="🎶 Now Playing",
+            title="Now Playing",
             description=desc,
             color=discord.Color.purple()
         )
