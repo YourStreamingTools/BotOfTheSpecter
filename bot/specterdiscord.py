@@ -1055,7 +1055,15 @@ class MusicPlayer:
         try:
             info = await loop.run_in_executor(None, run_yt)
             if info:
-                file_path = ydl_opts['outtmpl'] % {'id': info['id'], 'ext': info['ext']}
+                file_path = None
+                # Try to get the file path from requested_downloads, fallback to _filename
+                if 'requested_downloads' in info and info['requested_downloads']:
+                    file_path = info['requested_downloads'][0].get('filepath') or info['requested_downloads'][0].get('filename')
+                if not file_path:
+                    file_path = info.get('_filename')
+                # Ensure file_path is in the expected directory
+                if file_path and not file_path.startswith(self.download_dir):
+                    self.logger.warning(f"[YT-DLP] File path {file_path} not in expected dir {self.download_dir}")
         except Exception as e:
             self.logger.error(f"[YT-DLP] Exception in predownload_youtube: {e}")
         return file_path, info
@@ -1209,11 +1217,15 @@ class MusicPlayer:
                 self.logger.info(f"[FFMPEG] Track finished for guild {guild_id}")
             # Clean up the audio file immediately after playback (YouTube files only)
             if track_info['is_youtube'] and 'file_path' in track_info and track_info['file_path']:
-                self.logger.info(f"[FFMPEG] Cleaning up file: {track_info['file_path']}")
-                try:
-                    os.remove(track_info['file_path'])
-                except Exception as e:
-                    self.logger.error(f"[FFMPEG] Error cleaning up file: {e}")
+                # Only remove if in the expected download dir
+                if track_info['file_path'].startswith(self.download_dir):
+                    self.logger.info(f"[FFMPEG] Cleaning up file: {track_info['file_path']}")
+                    try:
+                        os.remove(track_info['file_path'])
+                    except Exception as e:
+                        self.logger.error(f"[FFMPEG] Error cleaning up file: {e}")
+                else:
+                    self.logger.warning(f"[FFMPEG] Not cleaning up file outside download dir: {track_info['file_path']}")
         if vc.is_playing():
             vc.stop()
         vc.play(source, after=after_play)
