@@ -1043,6 +1043,30 @@ class MusicPlayer:
         ydl_opts = self.ytdl_format_options.copy()
         info = None
         file_path = None
+        def get_info_only():
+            try:
+                self.logger.info(f"[YT-DLP] Getting info for: {url}")
+                ydl_opts_info = ydl_opts.copy()
+                ydl_opts_info['nodownload'] = True
+                with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+                    return ydl.extract_info(url, download=False)
+            except Exception as e:
+                self.logger.error(f"[YT-DLP] Error getting info for {url}: {e}")
+                return None
+        # Get video info first
+        try:
+            info = await loop.run_in_executor(None, get_info_only)
+            if info:
+                # Check if file already exists based on video ID
+                video_id = info.get('id', 'unknown')
+                video_ext = info.get('ext', 'webm')
+                expected_filename = os.path.join(self.download_dir, f"{video_id}.{video_ext}")
+                if os.path.exists(expected_filename):
+                    self.logger.info(f"[YT-DLP] File already exists: {expected_filename}")
+                    return expected_filename, info
+        except Exception as e:
+            self.logger.error(f"[YT-DLP] Error checking existing file: {e}")
+
         def run_yt():
             try:
                 self.logger.info(f"[YT-DLP] Downloading: {url}")
@@ -1103,10 +1127,6 @@ class MusicPlayer:
                 title = info['title']
             else:
                 title = query
-            # Start pre-download in the background, but do not wait
-            async def predownload_task():
-                await self.predownload_youtube(query)
-            asyncio.create_task(predownload_task())
         else:
             title = query if query.endswith('.mp3') else f'{query}.mp3'
         track_info = {
@@ -1114,7 +1134,7 @@ class MusicPlayer:
             'title': title,
             'user': user.display_name,
             'is_youtube': is_youtube,
-            'file_path': None  # Will be set when actually downloaded
+            'file_path': file_path
         }
         self.queues[guild_id].append(track_info)
         if is_youtube:
@@ -1178,11 +1198,17 @@ class MusicPlayer:
             source = None
             # Robust file_path handling for YouTube
             if track_info['is_youtube']:
-                # Always check if file is downloaded, if not, download and wait
-                file_path, info = await self.predownload_youtube(query)
-                title = info.get('title') if info and 'title' in info else query
-                track_info['file_path'] = file_path
-                track_info['title'] = title
+                # Check if file is already downloaded from add_to_queue
+                file_path = track_info.get('file_path')
+                if file_path and os.path.exists(file_path):
+                    self.logger.info(f"[YT-DLP] Using pre-downloaded file: {file_path}")
+                else:
+                    # File not downloaded or doesn't exist, download now
+                    self.logger.info(f"[YT-DLP] File not pre-downloaded, downloading now: {query}")
+                    file_path, info = await self.predownload_youtube(query)
+                    if info and 'title' in info:
+                        track_info['title'] = info['title']
+                    track_info['file_path'] = file_path
                 if not file_path or not os.path.exists(file_path):
                     # Could not download, skip to next
                     self.logger.error(f"[YT-DLP] Could not download file for {query}, skipping.")
