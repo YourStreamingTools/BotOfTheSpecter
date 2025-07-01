@@ -385,8 +385,8 @@ class BotOfTheSpecter(commands.Bot):
             return
         message = self.format_twitch_message(event_type, data)
         if message:
-            await channel.send(message)
-            self.logger.info(f"Sent {event_type} notification to {guild.name}#{channel.name}")
+            await channel.send(embed=message)
+            self.logger.info(f"Sent {event_type} message to {guild.name}#{channel.name}")
 
     async def handle_stream_event(self, event_type, data):
         resolver = DiscordChannelResolver(self.logger)
@@ -428,30 +428,46 @@ class BotOfTheSpecter(commands.Bot):
 
     def format_twitch_message(self, event_type, data):
         username = data.get("username", "Unknown User")
+        embed = None
         if event_type == "FOLLOW":
-            return f"💙 **{username}** just followed the stream!"
+            embed = discord.Embed(
+                title="💙 New Follower!",
+                description=f"**{username}** just followed the stream!",
+                color=discord.Color.blue()
+            )
         elif event_type == "SUBSCRIPTION":
             months = data.get("months", 1)
-            tier = data.get("tier", "1")
+            tier = data.get("tier")
             message_text = data.get("message", "")
-            msg = f"⭐ **{username}** just subscribed"
+            desc = f"**{username}** just subscribed"
             if months > 1:
-                msg += f" for {months} months"
-            msg += f" (Tier {tier})!"
+                desc += f" for {months} months"
+            desc += f" (Tier {tier})!"
+            embed = discord.Embed(
+                title="⭐ New Subscription!",
+                description=desc,
+                color=discord.Color.gold()
+            )
             if message_text:
-                msg += f"\n> {message_text}"
-            return msg
+                embed.add_field(name="Message", value=message_text, inline=False)
         elif event_type == "CHEER":
             bits = data.get("bits", 0)
             message_text = data.get("message", "")
-            msg = f"💎 **{username}** cheered {bits} bits!"
+            embed = discord.Embed(
+                title="💎 Cheer!",
+                description=f"**{username}** cheered {bits} bits!",
+                color=discord.Color.purple()
+            )
             if message_text:
-                msg += f"\n> {message_text}"
-            return msg
+                embed.add_field(name="Message", value=message_text, inline=False)
         elif event_type == "RAID":
             viewers = data.get("viewers", 0)
-            return f"🚀 **{username}** raided with {viewers} viewers!"
-        return None
+            embed = discord.Embed(
+                title="🚀 Raid!",
+                description=f"**{username}** raided with {viewers} viewers!",
+                color=discord.Color.green()
+            )
+        return embed
 
 # QuoteCog class for fetching and sending public quotes
 class QuoteCog(commands.Cog, name='Quote'):
