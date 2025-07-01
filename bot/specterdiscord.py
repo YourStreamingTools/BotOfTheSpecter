@@ -1152,7 +1152,10 @@ class MusicPlayer:
             if not queue:
                 # Reset flag so add_to_queue won't spin
                 self.is_playing[guild_id] = False
-                return await self.play_random_cdn_mp3(ctx)
+                # Only play random CDN if not already playing one
+                if not (self.current_track.get(guild_id) and self.current_track[guild_id].get('user') == 'CDN' and self.is_playing[guild_id]):
+                    await self.play_random_cdn_mp3(ctx)
+                return
             self.is_playing[guild_id] = True
             track_info = queue.pop(0)
             self.current_track[guild_id] = track_info
@@ -1223,8 +1226,6 @@ class MusicPlayer:
                             os.remove(track_info['file_path'])
                         except Exception as e:
                             self.logger.error(f"[FFMPEG] Error cleaning up file: {e}")
-                    else:
-                        self.logger.warning(f"[FFMPEG] Not cleaning up file outside download dir: {track_info['file_path']}")
                 # Always call _play_next to ensure music continues
                 coro = self._play_next(ctx)
                 fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
@@ -1414,6 +1415,8 @@ class MusicPlayer:
             self.is_playing[ctx.guild.id] = False
             if error:
                 self.logger.error(f"[FFMPEG] Playback error: {error}")
+            else:
+                self.logger.info(f"[FFMPEG] Track finished for guild {ctx.guild.id}")
             coro = self._play_next(ctx)
             fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
