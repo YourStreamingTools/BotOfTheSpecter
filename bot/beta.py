@@ -6193,7 +6193,6 @@ async def update_timed_messages():
                 if (current_row["message"] != active_row["message"] or
                     current_row["interval_count"] != active_row["interval_count"] or
                     current_row["chat_line_trigger"] != active_row["chat_line_trigger"] or
-                    current_row["chat_line_delay_mins"] != active_row["chat_line_delay_mins"] or
                     current_row["message_type"] != active_row["message_type"]):
                     # Restart the message with new settings
                     await stop_timed_message(message_id)
@@ -6210,7 +6209,6 @@ async def start_timed_message(message_id, row):
     message = row["message"]
     interval = row["interval_count"]
     chat_line_trigger = row["chat_line_trigger"]
-    chat_line_delay_mins = row.get("chat_line_delay_mins", 5)
     # Store message details in memory
     active_timed_messages[message_id] = dict(row)
     if message_type == "interval" and interval and int(interval) > 0:
@@ -6232,15 +6230,14 @@ async def start_timed_message(message_id, row):
         chat_logger.info(f"Started chat count message ID: {message_id} - trigger after {chat_line_trigger} messages")
     elif message_type == "chat_count_delayed" and chat_line_trigger and int(chat_line_trigger) > 0:
         # Type 3: Chat count with delay messages
-        delay_mins = max(1, int(chat_line_delay_mins)) if chat_line_delay_mins else 5
         chat_trigger_tasks[message_id] = {
             "chat_line_trigger": int(chat_line_trigger),
             "message": message,
             "last_trigger_count": chat_line_count,
-            "delay_mins": delay_mins,
+            "delay_mins": interval,
             "message_type": "chat_count_delayed"
         }
-        chat_logger.info(f"Started delayed chat count message ID: {message_id} - trigger after {chat_line_trigger} messages, delay {delay_mins} minutes")
+        chat_logger.info(f"Started delayed chat count message ID: {message_id} - trigger after {chat_line_trigger} messages, delay {interval} minutes")
 
 async def stop_timed_message(message_id):
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks
