@@ -1014,7 +1014,7 @@ class MusicPlayer:
         cookies_path = config.cookies_path
         # yt-dlp configuration
         self.ytdl_format_options = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio',
             'outtmpl': os.path.join(tempfile.gettempdir(), 'bot_music_cache', '%(id)s.%(ext)s'),
             'restrictfilenames': True,
             'noplaylist': True,
