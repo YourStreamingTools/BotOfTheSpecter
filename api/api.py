@@ -93,7 +93,7 @@ async def init_database():
             await cur.execute("SELECT COUNT(*) FROM api_counts WHERE type='exchangerate'")
             if (await cur.fetchone())[0] == 0:
                 await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES ('exchangerate', 1500, 14)")
-            await conn.commit()
+
     except Exception as e:
         logging.error(f"Error initializing database tables: {e}")
     finally:
@@ -1106,15 +1106,19 @@ async def authorized_users(api_key: str = Query(...)):
     valid = await verify_admin_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    # Check for auth users file in preferred location first
-    auth_users_path = "/home/botofthespecter/authusers.json"
-    if not os.path.exists(auth_users_path):
-        auth_users_path = "/home/fastapi/authusers.json"
-    if not os.path.exists(auth_users_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    with open(auth_users_path, "r") as auth_users_file:
-        auth_users = json.load(auth_users_file)
-    return auth_users
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT twitch_display_name FROM users WHERE beta_access = 1")
+                users = await cur.fetchall()
+                user_list = [row[0] for row in users]
+        finally:
+            conn.close()
+        return {"authorized_users": user_list}
+    except Exception as e:
+        logging.error(f"Error fetching authorized users from database: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching authorized users from database")
 
 # Check API Key Given
 @app.get(
