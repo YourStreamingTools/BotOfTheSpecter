@@ -1,15 +1,18 @@
+# Standard library imports
 import os
-import aiohttp
-import aiomysql
 import random
 import json
-import uvicorn
-import datetime
 import logging
 import asyncio
+import datetime
 import urllib
-import aioping
 from datetime import datetime, timedelta
+
+# Third-party imports
+import aiohttp
+import aiomysql
+import uvicorn
+import aioping
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
