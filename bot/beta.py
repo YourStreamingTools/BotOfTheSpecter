@@ -8143,8 +8143,9 @@ async def check_premium_feature():
             async with session.get(beta_users_url) as response:
                 response.raise_for_status()
                 auth_data = await response.json()
-                auth_data = {key: value.lower() if isinstance(value, str) else value for key, value in auth_data.items()}
-                if display_name in auth_data["users"]:
+                # Convert usernames in the users list to lowercase for comparison
+                authorized_users = [user.lower() for user in auth_data.get("users", [])]
+                if display_name.lower() in authorized_users:
                     return 4000
             # If user not found in Auth List, check if they're a subscriber
             async with session.get(twitch_subscriptions_url, headers=headers) as response:
