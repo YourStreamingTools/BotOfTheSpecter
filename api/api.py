@@ -64,41 +64,6 @@ tags_metadata = [
     },
 ]
 
-# Initialize database tables
-async def init_database():
-    conn = await get_mysql_connection()
-    try:
-        async with conn.cursor() as cur:
-            # Check if api_counts table exists
-            await cur.execute("SHOW TABLES LIKE 'api_counts'")
-            table_exists = await cur.fetchone()
-            if not table_exists:
-                # Create api_counts table only if it doesn't exist
-                await cur.execute("""
-                    CREATE TABLE api_counts (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        type VARCHAR(50) NOT NULL,
-                        count INT NOT NULL,
-                        reset_day INT NOT NULL,
-                        UNIQUE(type)
-                    )
-                """)
-            # Initialize default counts if they don't exist
-            await cur.execute("SELECT COUNT(*) FROM api_counts WHERE type='weather'")
-            if (await cur.fetchone())[0] == 0:
-                await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES ('weather', 1000, 0)")
-            await cur.execute("SELECT COUNT(*) FROM api_counts WHERE type='shazam'")
-            if (await cur.fetchone())[0] == 0:
-                await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES ('shazam', 500, 23)")
-            await cur.execute("SELECT COUNT(*) FROM api_counts WHERE type='exchangerate'")
-            if (await cur.fetchone())[0] == 0:
-                await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES ('exchangerate', 1500, 14)")
-
-    except Exception as e:
-        logging.error(f"Error initializing database tables: {e}")
-    finally:
-        conn.close()
-
 # Function to get API count from database
 async def get_api_count(count_type):
     conn = await get_mysql_connection()
@@ -180,8 +145,6 @@ async def midnight():
 # Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database tables
-    await init_database()
     midnight_task = asyncio.create_task(midnight())
     # Yield control back to FastAPI (letting it continue with startup and handling requests)
     yield
