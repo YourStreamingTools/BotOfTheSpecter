@@ -1014,7 +1014,7 @@ class MusicPlayer:
         cookies_path = config.cookies_path
         # yt-dlp configuration
         self.ytdl_format_options = {
-            'format': 'bestaudio',
+            'format': 'bestaudio/best',
             'outtmpl': os.path.join(tempfile.gettempdir(), 'bot_music_cache', '%(id)s.%(ext)s'),
             'restrictfilenames': True,
             'noplaylist': True,
@@ -1026,10 +1026,13 @@ class MusicPlayer:
             'default_search': 'auto',
             'source_address': '0.0.0.0',
             'cookiefile': cookies_path,
+            'extractaudio': True,
+            'audioformat': 'mp3',
+            'audioquality': '192K',
         }
         self.ffmpeg_options = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': '-vn'
+            'options': '-vn -filter:a "volume=0.5"'
         }
         # Create cache directory for pre-downloaded YouTube tracks if it doesn't exist
         self.download_dir = os.path.join(tempfile.gettempdir(), 'bot_music_cache')
@@ -1040,14 +1043,35 @@ class MusicPlayer:
 
     async def predownload_youtube(self, url):
         loop = asyncio.get_event_loop()
-        ydl_opts = self.ytdl_format_options.copy()
         info = None
         file_path = None
+        # Try multiple format configurations in order of preference
+        format_options = [
+            # First try: Best audio with conversion to MP3
+            {
+                'format': 'bestaudio/best',
+                'extractaudio': True,
+                'audioformat': 'mp3',
+                'audioquality': '192K',
+            },
+            # Second try: Best available format
+            {
+                'format': 'best[ext=m4a]/best[ext=mp3]/best',
+            },
+            # Third try: Any available format
+            {
+                'format': 'worst',
+            }
+        ]
         def get_info_only():
             try:
                 self.logger.info(f"[YT-DLP] Getting info for: {url}")
-                ydl_opts_info = ydl_opts.copy()
+                ydl_opts_info = self.ytdl_format_options.copy()
                 ydl_opts_info['nodownload'] = True
+                # Remove extraction options for info-only
+                ydl_opts_info.pop('extractaudio', None)
+                ydl_opts_info.pop('audioformat', None)
+                ydl_opts_info.pop('audioquality', None)
                 with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
                     return ydl.extract_info(url, download=False)
             except Exception as e:
@@ -1059,37 +1083,49 @@ class MusicPlayer:
             if info:
                 # Check if file already exists based on video ID
                 video_id = info.get('id', 'unknown')
-                video_ext = info.get('ext', 'webm')
-                expected_filename = os.path.join(self.download_dir, f"{video_id}.{video_ext}")
-                if os.path.exists(expected_filename):
-                    self.logger.info(f"[YT-DLP] File already exists: {expected_filename}")
-                    return expected_filename, info
+                # Look for any existing file with this video ID
+                for ext in ['mp3', 'webm', 'm4a', 'opus', 'mp4']:
+                    expected_filename = os.path.join(self.download_dir, f"{video_id}.{ext}")
+                    if os.path.exists(expected_filename):
+                        self.logger.info(f"[YT-DLP] File already exists: {expected_filename}")
+                        return expected_filename, info
         except Exception as e:
             self.logger.error(f"[YT-DLP] Error checking existing file: {e}")
-
-        def run_yt():
+        # Try downloading with different format options
+        for i, format_override in enumerate(format_options):
+            def run_yt():
+                try:
+                    self.logger.info(f"[YT-DLP] Downloading attempt {i+1}: {url}")
+                    ydl_opts = self.ytdl_format_options.copy()
+                    ydl_opts.update(format_override)
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        result = ydl.extract_info(url, download=True)
+                        return result
+                except Exception as e:
+                    self.logger.error(f"[YT-DLP] Download attempt {i+1} failed for {url}: {e}")
+                    return None
             try:
-                self.logger.info(f"[YT-DLP] Downloading: {url}")
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    result = ydl.extract_info(url, download=True)
-                    return result
+                info = await loop.run_in_executor(None, run_yt)
+                if info:
+                    file_path = None
+                    # Try to get the file path from requested_downloads, fallback to _filename
+                    if 'requested_downloads' in info and info['requested_downloads']:
+                        file_path = info['requested_downloads'][0].get('filepath') or info['requested_downloads'][0].get('filename')
+                    if not file_path:
+                        file_path = info.get('_filename')
+                    
+                    # If we got a valid file path, we're done
+                    if file_path and os.path.exists(file_path):
+                        self.logger.info(f"[YT-DLP] Successfully downloaded: {file_path}")
+                        break
+                    else:
+                        self.logger.warning(f"[YT-DLP] Download succeeded but file not found: {file_path}")
+                        file_path = None
             except Exception as e:
-                self.logger.error(f"[YT-DLP] Error downloading {url}: {e}")
-                return None
-        try:
-            info = await loop.run_in_executor(None, run_yt)
-            if info:
-                file_path = None
-                # Try to get the file path from requested_downloads, fallback to _filename
-                if 'requested_downloads' in info and info['requested_downloads']:
-                    file_path = info['requested_downloads'][0].get('filepath') or info['requested_downloads'][0].get('filename')
-                if not file_path:
-                    file_path = info.get('_filename')
-                # Ensure file_path is in the expected directory
-                if file_path and not file_path.startswith(self.download_dir):
-                    self.logger.warning(f"[YT-DLP] File path {file_path} not in expected dir {self.download_dir}")
-        except Exception as e:
-            self.logger.error(f"[YT-DLP] Exception in predownload_youtube: {e}")
+                self.logger.error(f"[YT-DLP] Exception in download attempt {i+1}: {e}")
+                continue
+        if not file_path:
+            self.logger.error(f"[YT-DLP] All download attempts failed for: {url}")
         return file_path, info
 
     async def add_to_queue(self, ctx, query):
@@ -1127,6 +1163,20 @@ class MusicPlayer:
                 title = info['title']
             else:
                 title = query
+                # If download failed completely, show error
+                if not file_path:
+                    embed = discord.Embed(
+                        title="❌ Download Failed",
+                        description=f"Failed to download from YouTube: {query}",
+                        color=discord.Color.red()
+                    )
+                    msg = await ctx.send(embed=embed)
+                    try:
+                        await msg.delete(delay=10)
+                        await ctx.message.delete()
+                    except Exception:
+                        pass
+                    return
         else:
             title = query if query.endswith('.mp3') else f'{query}.mp3'
         track_info = {
