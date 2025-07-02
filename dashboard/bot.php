@@ -733,7 +733,7 @@ document.addEventListener('DOMContentLoaded', function() {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `action=${encodeURIComponent(action)}&bot=stable`
-      }, 15000)
+      }, 8000) // Reduced from 15000 to 8000
         .then(response => response.json())
         .then(data => {
           console.log('Stable bot action response:', data);
@@ -795,7 +795,7 @@ document.addEventListener('DOMContentLoaded', function() {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `action=${encodeURIComponent(action)}&bot=beta`
-      }, 15000)
+      }, 8000) // Reduced from 15000 to 8000
         .then(response => response.json())
         .then(data => {
           console.log('Beta bot action response:', data);
@@ -1008,7 +1008,7 @@ document.addEventListener('DOMContentLoaded', function() {
       webStatusElem.textContent = 'Running normally';
       webStatusElem.className = 'is-size-7 has-text-grey-light';
     }
-  }, 2000);
+  }, 10000); // Increased from 2000ms to 10000ms (10 seconds)
   function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -1083,7 +1083,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedBot = urlParams.get('bot');
     if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
     if (!selectedBot) { selectedBot = 'stable'; }
-    return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 8000)
+    return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 5000) // Reduced from 8000 to 5000
         .then(async response => {
             const text = await response.text();
             try {
@@ -1543,12 +1543,12 @@ document.addEventListener('DOMContentLoaded', function() {
       diskElem.innerHTML = `<span class="${diskColor}">${diskUsage}%</span>`;
     }
   }
-  // Set up polling for status updates
-  setInterval(updateServiceStatus, 10000);
-  setInterval(updateApiLimits, 30000);
-  setInterval(() => updateBotStatus(true), 60000);
+  // Set up polling for status updates - REDUCED FREQUENCY TO PREVENT OVERLOAD
+  setInterval(updateServiceStatus, 30000); // Increased from 10s to 30s
+  setInterval(updateApiLimits, 60000);     // Increased from 30s to 60s
+  setInterval(() => updateBotStatus(true), 120000); // Increased from 60s to 120s
   if (isTechnical) {
-    setInterval(updateTechnicalOverview, 15000); // Update technical overview every 15 seconds
+    setInterval(updateTechnicalOverview, 60000); // Increased from 15s to 60s
   }
   updateServiceStatus();
   updateApiLimits();

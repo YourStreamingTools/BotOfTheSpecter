@@ -3,6 +3,10 @@ session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
 
+// Set strict timeout limits to prevent hanging
+set_time_limit(15); // Maximum 15 seconds for the entire request
+ini_set('max_execution_time', 15);
+
 // Clean output buffer
 while (ob_get_level()) { ob_end_clean(); }
 ob_start();
@@ -74,11 +78,29 @@ $params = [
   'api_key' => $apiKey
 ];
 
-// Perform the bot action
-$result = performBotAction($actionMap[$action], $bot, $params);
+// Perform the bot action with timeout monitoring
+$startTime = time();
+$maxExecutionTime = 12; // Leave buffer for cleanup
+try {
+  $result = performBotAction($actionMap[$action], $bot, $params);
+  // Check if we're approaching timeout
+  if ((time() - $startTime) >= $maxExecutionTime) {
+    $result = [
+      'success' => false, 
+      'message' => 'Operation timed out. Bot may still be processing in background.',
+      'timeout' => true
+    ];
+  }
+} catch (Exception $e) {
+  $result = [
+    'success' => false,
+    'message' => 'Error: ' . $e->getMessage(),
+    'error' => true
+  ];
+}
 
 // Add some debugging information
-error_log("Bot action performed - Bot: $bot, Action: $action, Username: $username, Result: " . json_encode($result));
+error_log("Bot action performed - Bot: $bot, Action: $action, Username: $username, Duration: " . (time() - $startTime) . "s, Result: " . json_encode($result));
 
 // Return response
 ob_clean(); // Clear any accidental output

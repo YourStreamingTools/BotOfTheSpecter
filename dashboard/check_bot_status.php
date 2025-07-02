@@ -1,4 +1,8 @@
 <?php
+// Set strict timeout limits to prevent hanging
+set_time_limit(10); // Maximum 10 seconds for status check
+ini_set('max_execution_time', 10);
+
 while (ob_get_level()) { ob_end_clean(); }
 ob_start();
 session_start();
