@@ -260,6 +260,14 @@ async def verify_api_key(api_key):
 # Verify the ADMIN API Key Given
 async def verify_admin_key(admin_key: str):
     global ADMIN_KEY
+    logging.info(f"ADMIN_KEY loaded: {ADMIN_KEY is not None}")
+    if ADMIN_KEY:
+        logging.info(f"ADMIN_KEY length: {len(ADMIN_KEY)}")
+        logging.info(f"Provided key length: {len(admin_key)}")
+        logging.info(f"Keys match: {admin_key == ADMIN_KEY}")
+    else:
+        logging.error("ADMIN_KEY is None or empty")
+    
     if admin_key != ADMIN_KEY:
         return False
     return True
@@ -1167,19 +1175,9 @@ async def favicon():
     return "https://cdn.botofthespecter.com/logo.ico"
 
 if __name__ == "__main__":
-    # Check for Let's Encrypt certificates first (standard location)
-    letsencrypt_cert = "/etc/letsencrypt/live/api.botofthespecter.com/fullchain.pem"
-    letsencrypt_key = "/etc/letsencrypt/live/api.botofthespecter.com/privkey.pem"
-    ssl_cert_path = letsencrypt_cert
-    ssl_key_path = letsencrypt_key
-    # Fallback to /home/botofthespecter if Let's Encrypt certs don't exist
-    if not os.path.exists(ssl_cert_path):
-        ssl_cert_path = "/home/botofthespecter/ssl/fullchain.pem"
-        ssl_key_path = "/home/botofthespecter/ssl/privkey.pem"
-        # Final fallback to /home/fastapi
-        if not os.path.exists(ssl_cert_path):
-            ssl_cert_path = "/home/fastapi/ssl/fullchain.pem"
-            ssl_key_path = "/home/fastapi/ssl/privkey.pem"
+    # Use Let's Encrypt certificates only
+    ssl_cert_path = "/etc/letsencrypt/live/api.botofthespecter.com/fullchain.pem"
+    ssl_key_path = "/etc/letsencrypt/live/api.botofthespecter.com/privkey.pem"
     logging.info(f"Using SSL certificates: {ssl_cert_path}")
     uvicorn.run(
         app,
