@@ -35,8 +35,15 @@ function checkBotRunning($username, $botType = 'stable') {
             error_log($config_status);
             throw new Exception('Bot service is temporarily unavailable. Please contact support if this issue persists.');
         }
+        // Set a timeout for the entire operation
+        $operationStartTime = time();
+        $maxOperationTime = 10; // Maximum 10 seconds for the entire operation
         // Get persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        // Check if we're approaching timeout
+        if ((time() - $operationStartTime) >= $maxOperationTime) {
+            throw new Exception('Operation timed out during connection setup.');
+        }
         // SSH connection successful - now check bot status
         $result['success'] = true;
         // Get PID of the running bot
@@ -89,6 +96,8 @@ function checkBotRunning($username, $botType = 'stable') {
         // These are real errors that should set success to false
         $result['success'] = false;
         $result['message'] = $e->getMessage();
+        // Clean up connections on error
+        SSHConnectionManager::closeAllConnections();
     }
     return $result;
 }
@@ -129,8 +138,15 @@ function performBotAction($action, $botType, $params) {
         'version' => $newVersion
     ];
     try {
+        // Set a timeout for the entire operation
+        $operationStartTime = time();
+        $maxOperationTime = 8; // Maximum 8 seconds for bot actions
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        // Check if we're approaching timeout
+        if ((time() - $operationStartTime) >= $maxOperationTime) {
+            throw new Exception('Operation timed out during connection setup.');
+        }
         // Check current bot status
         $command = "python $statusScriptPath -system $botType -channel $username";
         $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
@@ -160,16 +176,22 @@ function performBotAction($action, $botType, $params) {
                         $result['message'] = 'Missing required bot parameters (username, tokens, etc.)';
                         break;
                     }
-                    // Construct proper bot start command with all required parameters
-                    $startCommand = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey &";
-                    $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand);
+                    // Construct proper bot start command with all required parameters - MAKE IT BACKGROUND
+                    $startCommand = "nohup python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey > /dev/null 2>&1 &";
+                    $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
                     if ($startOutput === false) {
                         $result['message'] = 'Failed to start bot - SSH command execution failed.';
                     } else {
-                        sleep(3);
-                        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-                        if ($statusOutput !== false) {
-                            if (preg_match('/process ID:\s*(\\d+)/i', $statusOutput, $matches) || preg_match('/PID\\s+(\\d+)/i', $statusOutput, $matches)) {
+                        // Check timeout before starting bot
+                        if ((time() - $operationStartTime) >= $maxOperationTime) {
+                            throw new Exception('Operation timed out before bot start.');
+                        }
+                        // Don't wait too long - just give it a moment and respond
+                        usleep(500000); // 0.5 seconds instead of 3 seconds
+                        // Quick status check with short timeout
+                        $quickStatusOutput = SSHConnectionManager::executeCommand($connection, $command);
+                        if ($quickStatusOutput !== false) {
+                            if (preg_match('/process ID:\s*(\\d+)/i', $quickStatusOutput, $matches) || preg_match('/PID\\s+(\\d+)/i', $quickStatusOutput, $matches)) {
                                 $result['pid'] = intval($matches[1]);
                                 $result['success'] = true;
                                 $result['message'] = "Bot started successfully (v{$newVersion})";
@@ -180,12 +202,12 @@ function performBotAction($action, $botType, $params) {
                                 $writeVersionCmd = "echo " . escapeshellarg($newVersion) . " > " . escapeshellarg($versionFilePath);
                                 SSHConnectionManager::executeCommand($connection, $writeVersionCmd);
                             } else {
-                                $result['message'] = 'Bot started but PID not found after 3 seconds.';
-                                $result['success'] = true; // Still consider it a success since the command executed
+                                $result['message'] = "Bot start command sent. Status will update shortly.";
+                                $result['success'] = true; // Background process started
                             }
                         } else {
-                            $result['message'] = 'Bot start command executed but status check failed.';
-                            $result['success'] = true; // Still consider it a success since the command executed
+                            $result['message'] = "Bot start command sent. Status check failed but process may be starting.";
+                            $result['success'] = true; // Background process likely started
                         }
                     }
                 }
@@ -197,16 +219,23 @@ function performBotAction($action, $botType, $params) {
                     if ($killOutput === false) {
                         $result['message'] = 'Unable to stop bot. Please try again later.';
                     } else {
-                        sleep(1);
-                        $result['message'] = 'Bot stopped.';
+                        // Don't wait - killing is instant
+                        $result['message'] = 'Bot stop command sent.';
                         $result['success'] = true;
                     }
                 } else {
                     $result['message'] = 'Bot is not running.';
+                    $result['success'] = true;
                 }
                 break;
         }
-    } catch (Exception $e) { $result['message'] = $e->getMessage(); }
+        // Clean up old connections periodically to prevent accumulation
+        SSHConnectionManager::closeAllConnections();
+    } catch (Exception $e) { 
+        $result['message'] = $e->getMessage(); 
+        // Clean up connections on error
+        SSHConnectionManager::closeAllConnections();
+    }
     return $result;
 }
 
