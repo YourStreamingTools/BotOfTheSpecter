@@ -309,8 +309,65 @@ class BotOfTheSpecter(commands.Bot):
             # Mark the message as processed by appending the message ID to the file
             with open(self.processed_messages_file, 'a') as file:
                 file.write(message_id + os.linesep)
+        # If the message is in a server channel, check for custom commands
+        elif isinstance(message.channel, discord.TextChannel):
+            # Check if message starts with "!" (custom command)
+            if message.content.startswith("!"):
+                await self.handle_custom_command(message)
         # If the message is in a server channel, process commands
         await self.process_commands(message)
+
+    async def handle_custom_command(self, message):
+        try:
+            # Extract command from message (remove "!" prefix)
+            command_text = message.content[1:].strip().lower()
+            # Get the first word as the command (in case there are parameters)
+            command_name = command_text.split()[0] if command_text else ""
+            if not command_name:
+                return
+            # Get the guild ID to find the corresponding Twitch user
+            guild_id = message.guild.id
+            # Use the resolver to get Discord info from guild ID
+            resolver = DiscordChannelResolver(self.logger)
+            discord_info = await resolver.get_discord_info_from_guild_id(guild_id)
+            if not discord_info:
+                self.logger.warning(f"No Discord info found for guild {guild_id}")
+                return
+            # Get the Twitch display name to use as database name
+            twitch_display_name = discord_info.get('twitch_display_name')
+            if not twitch_display_name:
+                self.logger.warning(f"No Twitch display name found for guild {guild_id}")
+                return
+            # Convert display name to database name format (lowercase, no spaces)
+            database_name = twitch_display_name.lower().replace(' ', '')
+            # Query the custom_commands table in the user's database
+            mysql_helper = MySQLHelper(self.logger)
+            custom_command = await mysql_helper.fetchone(
+                "SELECT command, response, status, cooldown FROM custom_commands WHERE command = %s",
+                (command_name,),
+                database_name=database_name,
+                dict_cursor=True
+            )
+            if custom_command:
+                # Check if the command is enabled
+                if custom_command['status'] == 'Enabled':
+                    # Send the command response
+                    response = custom_command['response']
+                    # Process custom variables if any (basic implementation)
+                    # Replace (user) with the message author's display name
+                    response = response.replace('(user)', message.author.display_name)
+                    response = response.replace('(author)', message.author.display_name)
+                    await message.channel.send(response)
+                    self.logger.info(f"Executed custom command '{command_name}' for {database_name} in guild {message.guild.name} (ID: {guild_id})")
+                    # Mark the message as processed
+                    with open(self.processed_messages_file, 'a') as file:
+                        file.write(str(message.id) + os.linesep)
+                else:
+                    self.logger.info(f"Custom command '{command_name}' is disabled for {database_name}")
+            else:
+                self.logger.debug(f"Custom command '{command_name}' not found for {database_name}")
+        except Exception as e:
+            self.logger.error(f"Error handling custom command: {e}")
 
     async def update_presence(self):
         server_count = len(self.guilds)  # Get the number of servers the bot is in
