@@ -173,6 +173,7 @@ class BotOfTheSpecter(commands.Bot):
         self.pool = None  # Initialize the pool attribute
         self.channel_mapping = ChannelMapping()
         self.websocket_client = None
+        self.cooldowns = {}
         # Ensure the log directory and file exist
         messages_dir = os.path.dirname(self.processed_messages_file)
         if not os.path.exists(messages_dir):
@@ -351,6 +352,16 @@ class BotOfTheSpecter(commands.Bot):
             if custom_command:
                 # Check if the command is enabled
                 if custom_command['status'] == 'Enabled':
+                    cooldown_seconds = custom_command.get('cooldown', 0) or 0
+                    now = time.time()
+                    cooldown_key = (guild_id, command_name)
+                    last_used = self.cooldowns.get(cooldown_key, 0)
+                    if now - last_used < cooldown_seconds:
+                        # Still in cooldown, do not respond
+                        self.logger.info(f"Command '{command_name}' in guild {guild_id} is on cooldown.")
+                        return
+                    # Set cooldown
+                    self.cooldowns[cooldown_key] = now
                     # Send the command response
                     response = custom_command['response']
                     # Process custom variables if any (basic implementation)
