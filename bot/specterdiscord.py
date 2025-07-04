@@ -396,10 +396,10 @@ class BotOfTheSpecter(commands.Bot):
             messageAuthor = message.author.display_name
             messageContent = message.content
             tz = datetime.now().astimezone().tzinfo  # Get current timezone
-            # Handle (count)
+            # Handle (count) - Discord only displays, never increments
             if '(count)' in response:
                 try:
-                    # Get current count from database or initialize to 0
+                    # Get current count from database
                     count_row = await mysql_helper.fetchone(
                         "SELECT count FROM custom_counts WHERE command = %s",
                         (command,),
@@ -407,18 +407,12 @@ class BotOfTheSpecter(commands.Bot):
                         dict_cursor=True
                     )
                     current_count = count_row['count'] if count_row else 0
-                    new_count = current_count + 1
-                    
-                    # Update or insert the count
-                    await mysql_helper.execute(
-                        "INSERT INTO custom_counts (command, count) VALUES (%s, %s) ON DUPLICATE KEY UPDATE count = %s",
-                        (command, new_count, new_count),
-                        database_name=database_name
-                    )
-                    response = response.replace('(count)', str(new_count))
+                    # For Discord, only display the current count, do not increment
+                    response = response.replace('(count)', str(current_count))
                 except Exception as e:
                     self.logger.error(f"Error handling (count): {e}")
-            # Handle (usercount)
+                    response = response.replace('(count)', "0")
+            # Handle (usercount) - Discord only displays, never increments
             if '(usercount)' in response:
                 try:
                     user_mention = re.search(r'@(\w+)', messageContent)
@@ -430,27 +424,12 @@ class BotOfTheSpecter(commands.Bot):
                         database_name=database_name,
                         dict_cursor=True
                     )
-                    if result:
-                        user_count = result['count']
-                    else:
-                        # If no entry found, initialize it to 0
-                        user_count = 0
-                        await mysql_helper.execute(
-                            "INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)",
-                            (command, user_name, user_count),
-                            database_name=database_name
-                        )
-                    # Increment the count
-                    user_count += 1
-                    await mysql_helper.execute(
-                        "UPDATE user_counts SET count = %s WHERE command = %s AND user = %s",
-                        (user_count, command, user_name),
-                        database_name=database_name
-                    )
+                    user_count = result['count'] if result else 0
+                    # For Discord, only display the current count, do not increment
                     response = response.replace('(usercount)', str(user_count))
                 except Exception as e:
                     self.logger.error(f"Error while handling (usercount): {e}")
-                    response = response.replace('(usercount)', "Error")
+                    response = response.replace('(usercount)', "0")
             # Handle (daysuntil.)
             if '(daysuntil.' in response:
                 get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
