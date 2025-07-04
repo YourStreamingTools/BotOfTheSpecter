@@ -435,8 +435,7 @@ try {
             CREATE TABLE IF NOT EXISTS chat_history (
                 author VARCHAR(255),
                 message TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (author)
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)
@@ -520,6 +519,16 @@ try {
                     }
                 }
             }
+        }
+    }
+    // Special handling for chat_history table - remove primary key if it exists
+    $checkPrimaryKey = $usrDBconn->query("SHOW INDEX FROM chat_history WHERE Key_name = 'PRIMARY'");
+    if ($checkPrimaryKey && $checkPrimaryKey->num_rows > 0) {
+        echo "<script>console.log('Primary key found on chat_history table, removing it...');</script>";
+        if ($usrDBconn->query("ALTER TABLE chat_history DROP PRIMARY KEY") === TRUE) {
+            echo "<script>console.log('Primary key removed from chat_history table successfully.');</script>";
+        } else {
+            echo "<script>console.error('Error removing primary key from chat_history table: " . addslashes($usrDBconn->error) . "');</script>";
         }
     }
     // Function to log messages asynchronously
