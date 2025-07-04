@@ -1360,6 +1360,9 @@ class TwitchBot(commands.Bot):
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
+        # Check if message.author exists before accessing its attributes
+        if not message.author or not hasattr(message.author, 'name'):
+            return
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
         connection = await mysql_connection()
         async with connection.cursor(aiomysql.DictCursor) as cursor:
@@ -1372,8 +1375,6 @@ class TwitchBot(commands.Bot):
             try:
                 # Ignore messages from the bot itself
                 if message.echo:
-                    return
-                if not message.author or not hasattr(message.author, 'name'):
                     return
                 # Handle commands
                 await self.handle_commands(message)
