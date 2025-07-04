@@ -1005,7 +1005,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var webStatusElem = document.getElementById('web1-service-status');
     if (webIcon) webIcon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
     if (webStatusElem) {
-      webStatusElem.textContent = 'Running normally';
+      webStatusElem.textContent = '';
       webStatusElem.className = 'is-size-7 has-text-grey-light';
     }
   }, 10000); // Increased from 2000ms to 10000ms (10 seconds)
@@ -1328,7 +1328,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const webLastCheckElem = document.getElementById('web1-service-lastcheck');
     if (webIcon) webIcon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
     if (webStatusElem) {
-      webStatusElem.textContent = 'Running normally';
+      webStatusElem.textContent = '';
       webStatusElem.className = 'is-size-7 has-text-grey-light';
     }
     // All other services (excluding web1Service)

@@ -136,7 +136,7 @@ if (isset($serviceMap[$service])) {
             'service' => $svc['service_name'],
             'timestamp' => date('c'),
             'checked_at' => time(),
-            'message' => $result['status'] === 'OK' ? t('bot_running_normally') : $result['message'],
+            'message' => $result['status'] === 'OK' ? '' : $result['message'],
             'version' => $discordVersion
         ];
     } else {
@@ -151,7 +151,7 @@ if (isset($serviceMap[$service])) {
             'host_port' => $svc['host'] . ':' . $svc['port'],
             'timestamp' => date('c'),
             'checked_at' => time(),
-            'message' => $result['status'] === 'OK' ? t('bot_running_normally') : $result['message']
+            'message' => $result['status'] === 'OK' ? '' : $result['message']
         ];
     }
 } elseif ($service === 'ping') {
