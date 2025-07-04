@@ -379,9 +379,32 @@ class BotOfTheSpecter(commands.Bot):
                     response = response.replace('(user)', message.author.display_name)
                     response = response.replace('(author)', message.author.display_name)
                     # Process more complex variables if they exist
+                    follow_up_commands = []
                     if any(switch in response for switch in switches):
-                        response = await self.process_custom_variables(response, message, database_name)
-                    await message.channel.send(response)
+                        response, follow_up_commands = await self.process_custom_variables(response, message, database_name)
+                    # Send the main response (only if not empty after processing)
+                    if response.strip():
+                        await message.channel.send(response)
+                    # Execute follow-up commands
+                    for follow_command in follow_up_commands:
+                        follow_response = await mysql_helper.fetchone(
+                            "SELECT response FROM custom_commands WHERE command = %s",
+                            (follow_command,),
+                            database_name=database_name,
+                            dict_cursor=True
+                        )
+                        if follow_response:
+                            # Process variables in the follow-up command response too
+                            follow_message_response = follow_response['response']
+                            follow_message_response = follow_message_response.replace('(user)', message.author.display_name)
+                            follow_message_response = follow_message_response.replace('(author)', message.author.display_name)
+                            if any(switch in follow_message_response for switch in switches):
+                                follow_message_response, _ = await self.process_custom_variables(follow_message_response, message, database_name)
+                            # Send the follow-up command response
+                            if follow_message_response.strip():
+                                await message.channel.send(follow_message_response)
+                        else:
+                            self.logger.error(f"Follow-up command '{follow_command}' not found in database")
                     self.logger.info(f"Executed custom command '{command_name}' for {database_name} in guild {message.guild.name} (ID: {guild_id})")
                     # Mark the message as processed
                     with open(self.processed_messages_file, 'a') as file:
@@ -404,6 +427,18 @@ class BotOfTheSpecter(commands.Bot):
             messageAuthor = message.author.display_name
             messageContent = message.content
             tz = datetime.now().astimezone().tzinfo  # Get current timezone
+            # Handle (command.)
+            follow_up_commands = []
+            if '(command.' in response:
+                # Find all command references
+                command_matches = re.findall(r'\(command\.(\w+)\)', response)
+                for sub_command in command_matches:
+                    # Remove the command reference from the response
+                    response = response.replace(f"(command.{sub_command})", "")
+                    # Add to follow-up commands list
+                    follow_up_commands.append(sub_command)
+                # Clean up any extra spaces left by removing commands
+                response = re.sub(r'\s+', ' ', response).strip()
             # Handle (count) - Discord only displays, never increments
             if '(count)' in response:
                 try:
@@ -481,22 +516,6 @@ class BotOfTheSpecter(commands.Bot):
                 response = response.replace('(user)', user_name)
             if '(author)' in response:
                 response = response.replace('(author)', messageAuthor)
-            # Handle (command.)
-            if '(command.' in response:
-                command_match = re.search(r'\(command\.(\w+)\)', response)
-                if command_match:
-                    sub_command = command_match.group(1)
-                    sub_response = await mysql_helper.fetchone(
-                        "SELECT response FROM custom_commands WHERE command = %s",
-                        (sub_command,),
-                        database_name=database_name,
-                        dict_cursor=True
-                    )
-                    if sub_response:
-                        response = response.replace(f"(command.{sub_command})", sub_response['response'])
-                    else:
-                        self.logger.error(f"{sub_command} is no longer available.")
-                        response = response.replace(f"(command.{sub_command})", f"Command {sub_command} not found")
             # Handle (call.)
             if '(call.' in response:
                 calling_match = re.search(r'\(call\.(\w+)\)', response)
@@ -553,7 +572,7 @@ class BotOfTheSpecter(commands.Bot):
                     response = response.replace(f"(customapi.{url_match.group(1)})", api_response)
         except Exception as e:
             self.logger.error(f"Error processing custom variables: {e}")
-        return response
+        return response, follow_up_commands
 
     async def fetch_api_response(self, url, json_flag=False):
         try:
