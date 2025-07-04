@@ -175,6 +175,7 @@ global TWITCH_SHOUTOUT_USER_COOLDOWN
 global last_shoutout_time
 global shoutout_user
 global last_message_time
+global websocket_connected
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()                         # Translator instance 
@@ -206,6 +207,7 @@ HEARTRATE = None                                        # Current heart rate val
 TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for shoutouts
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
+websocket_connected = False                             # Whether the websocket is currently connected
 bot_owner = "gfaundead"                                 # Bot owner's username
 
 SPOTIFY_ERROR_MESSAGES = {
@@ -1044,24 +1046,30 @@ async def process_twitch_eventsub_message(message):
 
 # Connect and manage reconnection for Internal Socket Server
 async def specter_websocket():
+    global websocket_connected
     specter_websocket_uri = "wss://websocket.botofthespecter.com"
     while True:
         try:
             # Attempt to connect to the WebSocket server
             bot_logger.info(f"Attempting to connect to Internal WebSocket Server")
+            websocket_connected = False  # Reset flag before attempting connection
             await specterSocket.connect(specter_websocket_uri)
             await specterSocket.wait()  # Keep the connection open to receive messages
         except socketio.exceptions.ConnectionError as e:
             bot_logger.error(f"Internal WebSocket Connection Failed: {e}")
+            websocket_connected = False  # Set flag to false on connection failure
             await asyncio.sleep(10)  # Wait and retry connection
             continue  # Ensure we continue the loop
         except Exception as e:
             bot_logger.error(f"An unexpected error occurred with Internal WebSocket: {e}")
+            websocket_connected = False  # Set flag to false on any error
             await asyncio.sleep(10)  # Wait and retry connection
             continue  # Ensure we continue the loop
 
 @specterSocket.event
 async def connect():
+    global websocket_connected
+    websocket_connected = True  # Set flag to true when successfully connected
     websocket_logger.info("Successfully established connection to internal websocket server")
     registration_data = {
         'code': API_TOKEN,
@@ -1073,6 +1081,7 @@ async def connect():
         websocket_logger.info("Client registration sent")
     except Exception as e:
         websocket_logger.error(f"Failed to register client: {e}")
+        websocket_connected = False  # Set flag to false if registration fails
 
 @specterSocket.event
 async def connect_error(data):
@@ -1080,6 +1089,8 @@ async def connect_error(data):
 
 @specterSocket.event
 async def disconnect():
+    global websocket_connected
+    websocket_connected = False  # Set flag to false when disconnected
     websocket_logger.warning("Client disconnected from server")
 
 @specterSocket.event
@@ -2096,7 +2107,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='weather')
     async def weather_command(self, ctx, *, location: str = None) -> None:
-        global bot_owner
+        global bot_owner, CHANNEL_NAME
         connection = await mysql_connection()
         try:
             async with connection.cursor(aiomysql.DictCursor) as cursor:
@@ -2108,6 +2119,10 @@ class TwitchBot(commands.Bot):
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check if websocket is connected - weather data comes via websocket
+                    if not websocket_connected:
+                        await ctx.send(f"The bot is not connected to the weather data service. @{CHANNEL_NAME} please restart me to reconnect to the service.")
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
