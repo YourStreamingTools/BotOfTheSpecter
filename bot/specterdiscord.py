@@ -36,7 +36,7 @@ class Config:
         self.sql_password = os.getenv('SQL_PASSWORD')
         # Bot information
         self.bot_color = 0x001C1D
-        self.discord_bot_service_version = "5.1.1"
+        self.discord_bot_service_version = "5.2.0"
         self.bot_version = self.discord_bot_service_version
         # File paths
         self.discord_version_file = "/var/www/logs/version/discord_version_control.txt"
