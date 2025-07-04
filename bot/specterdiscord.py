@@ -316,9 +316,13 @@ class BotOfTheSpecter(commands.Bot):
         elif isinstance(message.channel, discord.TextChannel):
             # Check if message starts with "!" (custom command)
             if message.content.startswith("!"):
-                await self.handle_custom_command(message)
-        # If the message is in a server channel, process commands
-        await self.process_commands(message)
+                custom_command_executed = await self.handle_custom_command(message)
+                # Only process built-in commands if no custom command was executed
+                if not custom_command_executed:
+                    await self.process_commands(message)
+            else:
+                # Not a command with "!" prefix, process as normal
+                await self.process_commands(message)
 
     async def handle_custom_command(self, message):
         try:
@@ -327,7 +331,7 @@ class BotOfTheSpecter(commands.Bot):
             # Get the first word as the command (in case there are parameters)
             command_name = command_text.split()[0] if command_text else ""
             if not command_name:
-                return
+                return False
             # Get the guild ID to find the corresponding Twitch user
             guild_id = message.guild.id
             # Use the resolver to get Discord info from guild ID
@@ -335,12 +339,12 @@ class BotOfTheSpecter(commands.Bot):
             discord_info = await resolver.get_discord_info_from_guild_id(guild_id)
             if not discord_info:
                 self.logger.warning(f"No Discord info found for guild {guild_id}")
-                return
+                return False
             # Get the Twitch display name to use as database name
             twitch_display_name = discord_info.get('twitch_display_name')
             if not twitch_display_name:
                 self.logger.warning(f"No Twitch display name found for guild {guild_id}")
-                return
+                return False
             # Convert display name to database name format (lowercase, no spaces)
             database_name = twitch_display_name.lower().replace(' ', '')
             # Query the custom_commands table in the user's database
@@ -361,7 +365,7 @@ class BotOfTheSpecter(commands.Bot):
                     if now - last_used < cooldown_seconds:
                         # Still in cooldown, do not respond
                         self.logger.info(f"Command '{command_name}' in guild {guild_id} is on cooldown.")
-                        return
+                        return True  # Command exists but is on cooldown
                     # Set cooldown
                     self.cooldowns[cooldown_key] = now
                     response = custom_command['response']
@@ -382,12 +386,16 @@ class BotOfTheSpecter(commands.Bot):
                     # Mark the message as processed
                     with open(self.processed_messages_file, 'a') as file:
                         file.write(str(message.id) + os.linesep)
+                    return True  # Custom command was executed successfully
                 else:
                     self.logger.info(f"Custom command '{command_name}' is disabled for {database_name}")
+                    return True  # Command exists but is disabled
             else:
                 self.logger.debug(f"Custom command '{command_name}' not found for {database_name}")
+                return False  # No custom command found
         except Exception as e:
             self.logger.error(f"Error handling custom command: {e}")
+            return False  # Error occurred, let Discord try to process it
 
     async def process_custom_variables(self, response, message, database_name):
         try:
