@@ -10,6 +10,8 @@ import time
 import datetime
 import subprocess
 from subprocess import PIPE
+import re
+
 # Third-party libraries
 import aiohttp
 import discord
@@ -362,12 +364,19 @@ class BotOfTheSpecter(commands.Bot):
                         return
                     # Set cooldown
                     self.cooldowns[cooldown_key] = now
-                    # Send the command response
                     response = custom_command['response']
-                    # Process custom variables if any (basic implementation)
-                    # Replace (user) with the message author's display name
+                    # Process custom variables - check for supported switches
+                    switches = [
+                        '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
+                        '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
+                        '(random.pick.', '(math.', '(call.', '(usercount)', '(timeuntil.'
+                    ]
+                    # Basic variable replacements
                     response = response.replace('(user)', message.author.display_name)
                     response = response.replace('(author)', message.author.display_name)
+                    # Process more complex variables if they exist
+                    if any(switch in response for switch in switches):
+                        response = await self.process_custom_variables(response, message, database_name)
                     await message.channel.send(response)
                     self.logger.info(f"Executed custom command '{command_name}' for {database_name} in guild {message.guild.name} (ID: {guild_id})")
                     # Mark the message as processed
@@ -379,6 +388,202 @@ class BotOfTheSpecter(commands.Bot):
                 self.logger.debug(f"Custom command '{command_name}' not found for {database_name}")
         except Exception as e:
             self.logger.error(f"Error handling custom command: {e}")
+
+    async def process_custom_variables(self, response, message, database_name):
+        try:
+            mysql_helper = MySQLHelper(self.logger)
+            command = message.content[1:].split()[0]
+            messageAuthor = message.author.display_name
+            messageContent = message.content
+            tz = datetime.now().astimezone().tzinfo  # Get current timezone
+            # Handle (count)
+            if '(count)' in response:
+                try:
+                    # Get current count from database or initialize to 0
+                    count_row = await mysql_helper.fetchone(
+                        "SELECT count FROM custom_counts WHERE command = %s",
+                        (command,),
+                        database_name=database_name,
+                        dict_cursor=True
+                    )
+                    current_count = count_row['count'] if count_row else 0
+                    new_count = current_count + 1
+                    
+                    # Update or insert the count
+                    await mysql_helper.execute(
+                        "INSERT INTO custom_counts (command, count) VALUES (%s, %s) ON DUPLICATE KEY UPDATE count = %s",
+                        (command, new_count, new_count),
+                        database_name=database_name
+                    )
+                    response = response.replace('(count)', str(new_count))
+                except Exception as e:
+                    self.logger.error(f"Error handling (count): {e}")
+            # Handle (usercount)
+            if '(usercount)' in response:
+                try:
+                    user_mention = re.search(r'@(\w+)', messageContent)
+                    user_name = user_mention.group(1) if user_mention else messageAuthor
+                    # Get the user count for the specific command
+                    result = await mysql_helper.fetchone(
+                        "SELECT count FROM user_counts WHERE command = %s AND user = %s",
+                        (command, user_name),
+                        database_name=database_name,
+                        dict_cursor=True
+                    )
+                    if result:
+                        user_count = result['count']
+                    else:
+                        # If no entry found, initialize it to 0
+                        user_count = 0
+                        await mysql_helper.execute(
+                            "INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)",
+                            (command, user_name, user_count),
+                            database_name=database_name
+                        )
+                    # Increment the count
+                    user_count += 1
+                    await mysql_helper.execute(
+                        "UPDATE user_counts SET count = %s WHERE command = %s AND user = %s",
+                        (user_count, command, user_name),
+                        database_name=database_name
+                    )
+                    response = response.replace('(usercount)', str(user_count))
+                except Exception as e:
+                    self.logger.error(f"Error while handling (usercount): {e}")
+                    response = response.replace('(usercount)', "Error")
+            # Handle (daysuntil.)
+            if '(daysuntil.' in response:
+                get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
+                if get_date:
+                    date_str = get_date.group(1)
+                    event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                    current_date = datetime.now(tz).date()
+                    days_left = (event_date - current_date).days
+                    # If days_left is negative, try next year
+                    if days_left < 0:
+                        next_year_date = event_date.replace(year=event_date.year + 1)
+                        days_left = (next_year_date - current_date).days
+                    response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+            # Handle (timeuntil.)
+            if '(timeuntil.' in response:
+                # Try first for full date-time format
+                get_datetime = re.search(r'\(timeuntil\.(\d{4}-\d{2}-\d{2}(?:-\d{1,2}-\d{2})?)\)', response)
+                if get_datetime:
+                    datetime_str = get_datetime.group(1)
+                    # Check if time components are included
+                    if '-' in datetime_str[10:]:  # Full date-time format
+                        event_datetime = datetime.strptime(datetime_str, "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
+                    else:  # Date only format, default to midnight
+                        event_datetime = datetime.strptime(datetime_str + "-00-00", "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
+                    current_datetime = datetime.now(tz)
+                    time_left = event_datetime - current_datetime
+                    # If time_left is negative, try next year
+                    if time_left.days < 0:
+                        event_datetime = event_datetime.replace(year=event_datetime.year + 1)
+                        time_left = event_datetime - current_datetime
+                    days_left = time_left.days
+                    hours_left, remainder = divmod(time_left.seconds, 3600)
+                    minutes_left, _ = divmod(remainder, 60)
+                    time_left_str = f"{days_left} days, {hours_left} hours, and {minutes_left} minutes"
+                    # Replace the original placeholder with the calculated time
+                    response = response.replace(f"(timeuntil.{datetime_str})", time_left_str)
+            # Handle (user) and (author)
+            if '(user)' in response:
+                user_mention = re.search(r'@(\w+)', messageContent)
+                user_name = user_mention.group(1) if user_mention else messageAuthor
+                response = response.replace('(user)', user_name)
+            if '(author)' in response:
+                response = response.replace('(author)', messageAuthor)
+            # Handle (command.)
+            if '(command.' in response:
+                command_match = re.search(r'\(command\.(\w+)\)', response)
+                if command_match:
+                    sub_command = command_match.group(1)
+                    sub_response = await mysql_helper.fetchone(
+                        "SELECT response FROM custom_commands WHERE command = %s",
+                        (sub_command,),
+                        database_name=database_name,
+                        dict_cursor=True
+                    )
+                    if sub_response:
+                        response = response.replace(f"(command.{sub_command})", sub_response['response'])
+                    else:
+                        self.logger.error(f"{sub_command} is no longer available.")
+                        response = response.replace(f"(command.{sub_command})", f"Command {sub_command} not found")
+            # Handle (call.)
+            if '(call.' in response:
+                calling_match = re.search(r'\(call\.(\w+)\)', response)
+                if calling_match:
+                    match_call = calling_match.group(1)
+                    # For Discord, we'll just log this as it requires implementation
+                    self.logger.info(f"Call function requested: {match_call}")
+                    response = response.replace(f"(call.{match_call})", f"[Call: {match_call}]")
+            # Handle random replacements
+            if '(random.percent' in response or '(random.number' in response or '(random.pick.' in response:
+                # Unified pattern for all placeholders
+                pattern = r'\((random\.(percent|number|pick))(?:\.(.+?))?\)'
+                matches = re.finditer(pattern, response)
+                for match in matches:
+                    category = match.group(1)  # 'random.percent', 'random.number', or 'random.pick'
+                    details = match.group(3)  # Range (x-y) or items for pick
+                    replacement = ''  # Initialize the replacement string
+                    if 'percent' in category or 'number' in category:
+                        # Default bounds for random.percent and random.number
+                        lower_bound, upper_bound = 0, 100
+                        if details:  # If range is specified, extract it
+                            range_match = re.match(r'(\d+)-(\d+)', details)
+                            if range_match:
+                                lower_bound, upper_bound = int(range_match.group(1)), int(range_match.group(2))
+                        random_value = random.randint(lower_bound, upper_bound)
+                        replacement = f'{random_value}%' if 'percent' in category else str(random_value)
+                    elif 'pick' in category:
+                        # Split the details into items to pick from
+                        items = details.split('.') if details else []
+                        replacement = random.choice(items) if items else ''
+                    # Replace the placeholder with the generated value
+                    response = response.replace(match.group(0), replacement)
+            # Handle (math.x+y)
+            if '(math.' in response:
+                math_match = re.search(r'\(math\.(.+)\)', response)
+                if math_match:
+                    math_expression = math_match.group(1)
+                    try:
+                        math_result = eval(math_expression)
+                        response = response.replace(f'(math.{math_expression})', str(math_result))
+                    except Exception as e:
+                        self.logger.error(f"Math expression error: {e}")
+                        response = response.replace(f'(math.{math_expression})', "Error")
+            # Handle (customapi.)
+            if '(customapi.' in response:
+                url_match = re.search(r'\(customapi\.(\S+)\)', response)
+                if url_match:
+                    url = url_match.group(1)
+                    json_flag = False
+                    if url.startswith('json.'):
+                        json_flag = True
+                        url = url[5:]  # Remove 'json.' prefix
+                    api_response = await self.fetch_api_response(url, json_flag=json_flag)
+                    response = response.replace(f"(customapi.{url_match.group(1)})", api_response)
+        except Exception as e:
+            self.logger.error(f"Error processing custom variables: {e}")
+        return response
+
+    async def fetch_api_response(self, url, json_flag=False):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=5) as resp:
+                    if resp.status == 200:
+                        if json_flag:
+                            api_response = await resp.json()
+                            return str(api_response)[:200]  # Limit response length
+                        else:
+                            api_response = await resp.text()
+                            return api_response.strip()[:200]  # Limit response length
+                    else:
+                        return "API Error"
+        except Exception as e:
+            self.logger.error(f"API fetch error: {e}")
+            return "API Unavailable"
 
     async def update_presence(self):
         server_count = len(self.guilds)  # Get the number of servers the bot is in
