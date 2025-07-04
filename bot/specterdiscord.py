@@ -7,7 +7,7 @@ import json
 import tempfile
 import random
 import time
-import datetime
+from datetime import datetime
 import subprocess
 from subprocess import PIPE
 import re
