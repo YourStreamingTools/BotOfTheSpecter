@@ -1054,9 +1054,11 @@ async def specter_websocket():
         except socketio.exceptions.ConnectionError as e:
             bot_logger.error(f"Internal WebSocket Connection Failed: {e}")
             await asyncio.sleep(10)  # Wait and retry connection
+            continue  # Ensure we continue the loop
         except Exception as e:
             bot_logger.error(f"An unexpected error occurred with Internal WebSocket: {e}")
-            await asyncio.sleep(10)
+            await asyncio.sleep(10)  # Wait and retry connection
+            continue  # Ensure we continue the loop
 
 @specterSocket.event
 async def connect():
