@@ -1340,7 +1340,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["shoutout_worker"] = asyncio.create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = asyncio.create_task(periodic_watch_time_update())
         looped_tasks["check_song_requests"] = asyncio.create_task(check_song_requests())
-        await self.send_and_log_message(channel, f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
+        await send_and_log_bot_message(channel, f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
         self.target_channel = channel 
@@ -1355,7 +1355,7 @@ class TwitchBot(commands.Bot):
             message = f"Command '{command}' is on cooldown. Try again in {retry_after} seconds."
             channel = self.get_channel(self.channel_name)
             if channel:
-                await self.send_and_log_message(self.target_channel, message)
+                await send_and_log_bot_message(self.target_channel, message)
             else:
                 bot_logger.error(f"Unable to send cooldown message: Target channel '{CHANNEL_NAME}' not joined yet.")
         elif isinstance(error, commands.CommandNotFound):
@@ -1437,7 +1437,7 @@ class TwitchBot(commands.Bot):
                                 if time_since_last_used < cooldown:
                                     remaining_time = cooldown - time_since_last_used
                                     chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
-                                    await self.send_and_log_message(channel, f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
+                                    await send_and_log_bot_message(channel, f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
                                     return
                             command_last_used[command] = datetime.now()
                             switches = [
@@ -1541,7 +1541,7 @@ class TwitchBot(commands.Bot):
                                             responses_to_send.append(sub_response["response"])
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
-                                            await self.send_and_log_message(channel, f"The command {sub_command} is no longer available.")
+                                            await send_and_log_bot_message(channel, f"The command {sub_command} is no longer available.")
                                 # Handle (call.)
                                 if '(call.' in response:
                                     calling_match = re.search(r'\(call\.(\w+)\)', response)
@@ -1594,10 +1594,10 @@ class TwitchBot(commands.Bot):
                                             url = url[5:]  # Remove 'json.' prefix
                                         api_response = await fetch_api_response(url, json_flag=json_flag)
                                         response = response.replace(f"(customapi.{url})", api_response)
-                            await self.send_and_log_message(channel, response)
+                            await send_and_log_bot_message(channel, response)
                             for resp in responses_to_send:
                                 chat_logger.info(f"{command} command ran with response: {resp}")
-                                await self.send_and_log_message(channel, resp)
+                                await send_and_log_bot_message(channel, resp)
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
@@ -1606,7 +1606,7 @@ class TwitchBot(commands.Bot):
                 if f'@{self.nick.lower()}' in message.content.lower():
                     user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
                     if not user_message:
-                        await self.send_and_log_message(channel, f'Hello, {message.author.name}!')
+                        await send_and_log_bot_message(channel, f'Hello, {message.author.name}!')
                     else:
                         await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
@@ -1638,12 +1638,12 @@ class TwitchBot(commands.Bot):
                             # Delete the message if it contains a blacklisted URL
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
-                            await self.send_and_log_message(channel, f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
+                            await send_and_log_bot_message(channel, f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
                             return
                         elif not contains_whitelisted_link and not contains_twitch_clip_link:
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                            await self.send_and_log_message(channel, f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
+                            await send_and_log_bot_message(channel, f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
                             return
                         else:
                             chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
@@ -1874,7 +1874,7 @@ class TwitchBot(commands.Bot):
 
     async def send_message_to_channel(self, message):
         channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-        await self.send_and_log_message(channel, message)
+        await send_and_log_bot_message(channel, message)
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global bot_owner
