@@ -739,6 +739,7 @@ def handle_streamelements_error(error, message):
 
 async def process_tipping_message(data, source):
     try:
+        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         send_message = None
         if source == "StreamElements" and data.get('type') == 'tip':
             user = data['data']['username']
@@ -772,6 +773,7 @@ async def process_tipping_message(data, source):
         event_logger.error(f"Error processing tipping message: {e}")
 
 async def process_twitch_eventsub_message(message):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     connection = await mysql_connection()
     try:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
@@ -1338,7 +1340,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["shoutout_worker"] = asyncio.create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = asyncio.create_task(periodic_watch_time_update())
         looped_tasks["check_song_requests"] = asyncio.create_task(check_song_requests())
-        await send_and_log_bot_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
+        await send_and_log_bot_message(channel, f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
         self.target_channel = channel 
@@ -1381,6 +1383,7 @@ class TwitchBot(commands.Bot):
         async with connection.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (message.author.name, message.content))
             await connection.commit()
+            channel = message.channel
             messageAuthor = ""
             messageAuthorID = ""
             bannedUser = None
@@ -1434,7 +1437,7 @@ class TwitchBot(commands.Bot):
                                 if time_since_last_used < cooldown:
                                     remaining_time = cooldown - time_since_last_used
                                     chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
-                                    await send_and_log_bot_message(f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
+                                    await send_and_log_bot_message(channel, f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
                                     return
                             command_last_used[command] = datetime.now()
                             switches = [
@@ -1538,7 +1541,7 @@ class TwitchBot(commands.Bot):
                                             responses_to_send.append(sub_response["response"])
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
-                                            await send_and_log_bot_message(f"The command {sub_command} is no longer available.")
+                                            await send_and_log_bot_message(channel, f"The command {sub_command} is no longer available.")
                                 # Handle (call.)
                                 if '(call.' in response:
                                     calling_match = re.search(r'\(call\.(\w+)\)', response)
@@ -1591,10 +1594,10 @@ class TwitchBot(commands.Bot):
                                             url = url[5:]  # Remove 'json.' prefix
                                         api_response = await fetch_api_response(url, json_flag=json_flag)
                                         response = response.replace(f"(customapi.{url})", api_response)
-                            await send_and_log_bot_message(response)
+                            await send_and_log_bot_message(channel, response)
                             for resp in responses_to_send:
                                 chat_logger.info(f"{command} command ran with response: {resp}")
-                                await send_and_log_bot_message(resp)
+                                await send_and_log_bot_message(channel, resp)
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
@@ -1603,7 +1606,7 @@ class TwitchBot(commands.Bot):
                 if f'@{self.nick.lower()}' in message.content.lower():
                     user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
                     if not user_message:
-                        await send_and_log_bot_message(f'Hello, {message.author.name}!')
+                        await send_and_log_bot_message(channel, f'Hello, {message.author.name}!')
                     else:
                         await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
@@ -1635,12 +1638,12 @@ class TwitchBot(commands.Bot):
                             # Delete the message if it contains a blacklisted URL
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
-                            await send_and_log_bot_message(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
+                            await send_and_log_bot_message(channel, f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
                             return
                         elif not contains_whitelisted_link and not contains_twitch_clip_link:
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                            await send_and_log_bot_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
+                            await send_and_log_bot_message(channel, f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
                             return
                         else:
                             chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
@@ -1870,7 +1873,8 @@ class TwitchBot(commands.Bot):
             await self.send_message_to_channel(f"{part}")
 
     async def send_message_to_channel(self, message):
-        await send_and_log_bot_message(message)
+        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+        await send_and_log_bot_message(channel, message)
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global bot_owner
@@ -5781,6 +5785,7 @@ async def fetch_json(url, headers=None):
 
 # Function to process fourthwall events
 async def process_fourthwall_event(data):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     event_logger.info(f"Fourthwall event received: {data}")
     # Check if 'data' is a string and needs to be parsed
     if isinstance(data.get('data'), str):
@@ -5860,6 +5865,7 @@ async def process_fourthwall_event(data):
 
 # Function to process KOFI events
 async def process_kofi_event(data):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     if isinstance(data.get('data'), str):
         try:
             data['data'] = ast.literal_eval(data['data'])
@@ -5924,6 +5930,7 @@ async def process_kofi_event(data):
         event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
 
 async def process_patreon_event(data):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Extract the data from the event
     message = data.get("message", {})
     message_data = message.get("data", {})
@@ -5965,6 +5972,7 @@ async def process_patreon_event(data):
     await send_and_log_bot_message(message)
 
 async def process_weather_websocket(data):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Convert weather_data from string to dictionary
     try:
         weather_data = ast.literal_eval(data.get('weather_data', '{}'))
@@ -5999,6 +6007,7 @@ async def process_stream_online_websocket():
     looped_tasks["timed_message"] = asyncio.get_event_loop().create_task(timed_message())
     looped_tasks["handle_upcoming_ads"] = asyncio.get_event_loop().create_task(handle_upcoming_ads())
     await generate_winning_lotto_numbers()
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
         headers = {
@@ -6594,6 +6603,8 @@ async def handle_ad_break_start(duration_seconds):
 # Fcuntion for POLLS
 async def handel_twitch_poll(event=None, poll_title=None, half_time=None, message=None):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+    if not channel:
+        return
     if event == "poll.start":
         await send_and_log_bot_message(message)
         half_time = int(half_time.total_seconds()), 60
@@ -6615,6 +6626,7 @@ async def handel_twitch_poll(event=None, poll_title=None, half_time=None, messag
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     connection = await mysql_connection()
     try:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
@@ -6950,6 +6962,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
 
 # Function for Gift Subscriptions
 async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     connection = await mysql_connection()
     try:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
@@ -6986,6 +6999,7 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     connection = await mysql_connection()
     try:
         time_now = datetime.now()
@@ -7452,6 +7466,7 @@ async def convert_currency(amount, from_currency, to_currency):
 # Channel Point Rewards Proccessing
 async def process_channel_point_rewards(event_data, event_type):
     connection = await mysql_connection()
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     async with connection.cursor(aiomysql.DictCursor) as cursor:
         try:
             user_name = event_data["user_name"]
@@ -7946,6 +7961,7 @@ async def subathon_status(ctx):
 
 # Function to start the subathon countdown
 async def subathon_countdown():
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     while True:
         subathon_state = await get_subathon_state()
         if subathon_state and not subathon_state["paused"]:
