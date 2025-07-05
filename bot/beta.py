@@ -238,6 +238,21 @@ async def signal_handler(sig, frame):
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C as well
 
+# Global helper function to send and log bot messages
+async def send_and_log_bot_message(message):
+    global CHANNEL_NAME
+    chat_history_logger.info(f"Chat message from BotOfTheSpecter: {message}")
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (BOT_USERNAME, message))
+            await connection.commit()
+        connection.close()
+    except Exception as e:
+        bot_logger.error(f"Failed to log bot message to database: {e}")
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+    await channel.send(message)
+
 # Function to handle MySQL connections
 async def mysql_connection(db_name=None):
     global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
@@ -740,7 +755,7 @@ async def process_tipping_message(data, source):
                 send_message = f"{user} just tipped {amount}! Message: {tip_message}"
                 event_logger.info(f"StreamLabs Tip: {send_message}")
         if send_message:
-            await channel.send(send_message)
+            await send_and_log_bot_message(send_message)
             # Save tipping data directly in this function
             connection = await mysql_connection()
             try:
@@ -834,7 +849,7 @@ async def process_twitch_eventsub_message(message):
                     else:
                         alert_message = "The Hype Train has started! Starting at level: (level)"
                     alert_message = alert_message.replace("(level)", str(level))
-                    await channel.send(alert_message)
+                    await send_and_log_bot_message(alert_message)
                     await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Hype Train Start",))
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
@@ -851,7 +866,7 @@ async def process_twitch_eventsub_message(message):
                     else:
                         alert_message = "The Hype Train has ended at level: (level)!"
                     alert_message = alert_message.replace("(level)", str(level))
-                    await channel.send(alert_message)
+                    await send_and_log_bot_message(alert_message)
                     await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Hype Train End",))
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
@@ -877,7 +892,7 @@ async def process_twitch_eventsub_message(message):
                     currency = event_data["event"]["amount"]["currency"]
                     value_formatted = "{:,.2f}".format(value)
                     message = f"Thank you so much {user} for your ${value_formatted}{currency} donation to {charity}. Your support means so much to us and to {charity}."
-                    await channel.send(message)
+                    await send_and_log_bot_message(message)
                 # Moderation Event
                 elif event_type == 'channel.moderate':
                     moderator_user_name = event_data["event"].get("moderator_user_name", "Unknown Moderator")
@@ -1035,7 +1050,7 @@ async def process_twitch_eventsub_message(message):
                         shoutout_message = f"@{event_data['event']['from_broadcaster_user_name']} has given @{CHANNEL_NAME} a shoutout."
                     else:
                         shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct inforamtion from twitch to process the request."
-                    await channel.send(shoutout_message)
+                    await send_and_log_bot_message(shoutout_message)
                 else:
                     # Logging for unknown event types
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
@@ -1325,7 +1340,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["shoutout_worker"] = asyncio.create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = asyncio.create_task(periodic_watch_time_update())
         looped_tasks["check_song_requests"] = asyncio.create_task(check_song_requests())
-        await channel.send(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
+        await self.send_and_log_message(channel, f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
         self.target_channel = channel 
@@ -1340,7 +1355,7 @@ class TwitchBot(commands.Bot):
             message = f"Command '{command}' is on cooldown. Try again in {retry_after} seconds."
             channel = self.get_channel(self.channel_name)
             if channel:
-                await self.target_channel.send(message)
+                await self.send_and_log_message(self.target_channel, message)
             else:
                 bot_logger.error(f"Unable to send cooldown message: Target channel '{CHANNEL_NAME}' not joined yet.")
         elif isinstance(error, commands.CommandNotFound):
@@ -1422,7 +1437,7 @@ class TwitchBot(commands.Bot):
                                 if time_since_last_used < cooldown:
                                     remaining_time = cooldown - time_since_last_used
                                     chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
-                                    await channel.send(f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
+                                    await self.send_and_log_message(channel, f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
                                     return
                             command_last_used[command] = datetime.now()
                             switches = [
@@ -1526,7 +1541,7 @@ class TwitchBot(commands.Bot):
                                             responses_to_send.append(sub_response["response"])
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
-                                            await channel.send(f"The command {sub_command} is no longer available.")
+                                            await self.send_and_log_message(channel, f"The command {sub_command} is no longer available.")
                                 # Handle (call.)
                                 if '(call.' in response:
                                     calling_match = re.search(r'\(call\.(\w+)\)', response)
@@ -1579,10 +1594,10 @@ class TwitchBot(commands.Bot):
                                             url = url[5:]  # Remove 'json.' prefix
                                         api_response = await fetch_api_response(url, json_flag=json_flag)
                                         response = response.replace(f"(customapi.{url})", api_response)
-                            await channel.send(response)
+                            await self.send_and_log_message(channel, response)
                             for resp in responses_to_send:
                                 chat_logger.info(f"{command} command ran with response: {resp}")
-                                await channel.send(resp)
+                                await self.send_and_log_message(channel, resp)
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
@@ -1591,7 +1606,7 @@ class TwitchBot(commands.Bot):
                 if f'@{self.nick.lower()}' in message.content.lower():
                     user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
                     if not user_message:
-                        await channel.send(f'Hello, {message.author.name}!')
+                        await self.send_and_log_message(channel, f'Hello, {message.author.name}!')
                     else:
                         await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
@@ -1623,12 +1638,12 @@ class TwitchBot(commands.Bot):
                             # Delete the message if it contains a blacklisted URL
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
-                            await channel.send(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
+                            await self.send_and_log_message(channel, f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
                             return
                         elif not contains_whitelisted_link and not contains_twitch_clip_link:
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                            await channel.send(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
+                            await self.send_and_log_message(channel, f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
                             return
                         else:
                             chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
@@ -1859,7 +1874,7 @@ class TwitchBot(commands.Bot):
 
     async def send_message_to_channel(self, message):
         channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-        await channel.send(message)
+        await self.send_and_log_message(channel, message)
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global bot_owner
@@ -5796,7 +5811,7 @@ async def process_fourthwall_event(data):
             event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
             # Prepare the message to send
             message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
-            await channel.send(message)
+            await send_and_log_bot_message(message)
         elif event_type == 'DONATION':
             donor_username = event_data['username']
             donation_amount = event_data['amounts']['total']['value']
@@ -5809,7 +5824,7 @@ async def process_fourthwall_event(data):
             else:
                 event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency}")
                 message = f"💰 {donor_username} just donated {donation_amount} {currency}! Thank you!"
-            await channel.send(message)
+            await send_and_log_bot_message(message)
         elif event_type == 'GIVEAWAY_PURCHASED':
             purchaser_username = event_data['username']
             item_name = event_data['offer']['name']
@@ -5819,7 +5834,7 @@ async def process_fourthwall_event(data):
             event_logger.info(f"New Giveaway Purchase: {purchaser_username} purchased giveaway '{item_name}' for {total_price} {currency}")
             # Prepare and send the message
             message = f"🎁 {purchaser_username} just purchased a giveaway: {item_name} for {total_price} {currency}!"
-            await channel.send(message)
+            await send_and_log_bot_message(message)
             # Process each gift
             for idx, gift in enumerate(event_data.get('gifts', []), start=1):
                 gift_status = gift['status']
@@ -5829,7 +5844,7 @@ async def process_fourthwall_event(data):
                 event_logger.info(f"Gift {idx} is {gift_status} with winner: {winner_username}")
                 # Prepare and send the gift status message
                 gift_message = f"🎁 Gift {idx}: Status - {gift_status}. Winner: {winner_username}."
-                await channel.send(gift_message)
+                await send_and_log_bot_message(gift_message)
         elif event_type == 'SUBSCRIPTION_PURCHASED':
             subscriber_nickname = event_data['nickname']
             subscription_variant = event_data['subscription']['variant']
@@ -5840,7 +5855,7 @@ async def process_fourthwall_event(data):
             event_logger.info(f"New Subscription: {subscriber_nickname} subscribed {interval} for {amount} {currency}")
             # Prepare and send the message
             message = f"🎉 {subscriber_nickname} just subscribed for {interval}, paying {amount} {currency}!"
-            await channel.send(message)
+            await send_and_log_bot_message(message)
         else:
             event_logger.info(f"Unhandled Fourthwall event: {event_type}")
     except KeyError as e:
@@ -5908,7 +5923,7 @@ async def process_kofi_event(data):
             return
         # Only send a message if it was successfully created
         if message_to_send:
-            await channel.send(message_to_send)
+            await send_and_log_bot_message(message_to_send)
     except KeyError as e:
         event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
     except Exception as e:
@@ -5954,7 +5969,7 @@ async def process_patreon_event(data):
         message = f"A patreon supporter has started a free trial!"
     else:
         message = f"A patreon supporter just subscribed for a {subscription_type} plan!"
-    await channel.send(message)
+    await send_and_log_bot_message(message)
 
 async def process_weather_websocket(data):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
@@ -5982,7 +5997,7 @@ async def process_weather_websocket(data):
                f"{wind_speed_kph} kph ({wind_speed_mph} mph) with {humidity}% humidity.")
     # Log and send message
     event_logger.info(f"Sending weather update: {message}")
-    await channel.send(message)
+    await send_and_log_bot_message(message)
 
 # Function to process the stream being online
 async def process_stream_online_websocket():
@@ -6018,7 +6033,7 @@ async def process_stream_online_websocket():
         image = ""
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
-    await channel.send(message)
+    await send_and_log_bot_message(message)
     await send_to_discord_stream_online(message, image)
     # Log the status to the file
     os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
@@ -6341,8 +6356,7 @@ async def send_timed_message(message_id, message, delay):
                 await asyncio.sleep(wait_time)
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
         try:
-            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-            await channel.send(message)
+            await send_and_log_bot_message(message)
             last_message_time = asyncio.get_event_loop().time()
         except Exception as e:
             bot_logger.error(f"Error sending message: {e}")
@@ -6575,10 +6589,10 @@ async def handle_ad_break_start(duration_seconds):
         else:
             formatted_duration = f"{minutes} minutes, {seconds} seconds"
         ad_start_message = ad_start_message.replace("(duration)", formatted_duration)
-        await channel.send(ad_start_message)
+        await send_and_log_bot_message(ad_start_message)
         @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
         async def handle_ad_break_end(channel):
-            await channel.send(ad_end_message)
+            await send_and_log_bot_message(ad_end_message)
             # Check for the next ad after this one completes
             global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
             ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
@@ -6592,7 +6606,7 @@ async def handel_twitch_poll(event=None, poll_title=None, half_time=None, messag
     if not channel:
         return
     if event == "poll.start":
-        await channel.send(message)
+        await send_and_log_bot_message(message)
         half_time = int(half_time.total_seconds()), 60
         minutes, seconds = divmod(half_time)
         if minutes and seconds:
@@ -6604,10 +6618,10 @@ async def handel_twitch_poll(event=None, poll_title=None, half_time=None, messag
         half_way_message = f"The poll '{poll_title}' is halfway through! You have {time_left} left to cast your vote."
         @routines.routine(seconds=half_time, iterations=1, wait_first=True)
         async def handel_twitch_poll_half_message(channel):
-            await channel.send(half_way_message)
+            await send_and_log_bot_message(half_way_message)
         handel_twitch_poll_half_message.start(channel)
     elif event == "poll.end":
-        await channel.send(message)
+        await send_and_log_bot_message(message)
         handel_twitch_poll_half_message.cancel()
 
 # Function for RAIDS
@@ -6665,7 +6679,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             else:
                 alert_message = "Incredible! (user) and (viewers) viewers have joined the party! Let's give them a warm welcome!"
             alert_message = alert_message.replace("(user)", from_broadcaster_name).replace("(viewers)", str(viewer_count))
-            await channel.send(alert_message)
+            await send_and_log_bot_message(alert_message)
             marker_description = f"New Raid from {from_broadcaster_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6711,7 +6725,7 @@ async def process_cheer_event(user_id, user_name, bits):
                 else:
                     image = "cheer1000.png"
             alert_message = alert_message.replace("(user)", user_name).replace("(bits)", str(bits)).replace("(total-bits)", str(total_bits))
-            await channel.send(alert_message)
+            await send_and_log_bot_message(alert_message)
             # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
             # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
@@ -6833,7 +6847,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
             try:
-                await channel.send(alert_message)
+                await send_and_log_bot_message(alert_message)
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6928,7 +6942,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
             try:
-                await channel.send(alert_message)
+                await send_and_log_bot_message(alert_message)
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6969,7 +6983,7 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 discord_message = f"{giftsubfrom} just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
             alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
-            await channel.send(alert_message)
+            await send_and_log_bot_message(alert_message)
             marker_description = f"New Gift Subs from {giftsubfrom}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -7025,7 +7039,7 @@ async def process_followers_event(user_id, user_name):
         else:
             alert_message = "Thank you (user) for following! Welcome to the channel!"
         alert_message = alert_message.replace("(user)", user_name)
-        await channel.send(alert_message)
+        await send_and_log_bot_message(alert_message)
         discord_message = f"{user_name} just followed!"
         await send_to_discord(discord_message, "New Follower!", "follow.png")
         asyncio.create_task(websocket_notice("TWITCH_FOLLOW", user=user_name))
@@ -7516,7 +7530,7 @@ async def process_channel_point_rewards(event_data, event_type):
                         except Exception as e:
                             chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
                             custom_message = custom_message.replace('(userstreak)', "Error")
-                await channel.send(custom_message)
+                await send_and_log_bot_message(custom_message)
             # Check for TTS reward
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
@@ -7527,10 +7541,10 @@ async def process_channel_point_rewards(event_data, event_type):
                 winning_numbers_str = await generate_user_lotto_numbers(user_name)
                 # Handling errors (check if the result is an error message)
                 if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
-                    await channel.send(f"Error: {winning_numbers_str['error']}")
+                    await send_and_log_bot_message(f"Error: {winning_numbers_str['error']}")
                     return
                 # Send the combined numbers (winning and supplementary) as one message
-                await channel.send(f"{user_name} here are your Lotto numbers! {winning_numbers_str}")
+                await send_and_log_bot_message(f"{user_name} here are your Lotto numbers! {winning_numbers_str}")
                 # Log the generated numbers for debugging and records
                 chat_logger.info(f"Lotto numbers generated: {user_name} - {winning_numbers_str}")
                 return
@@ -7538,7 +7552,7 @@ async def process_channel_point_rewards(event_data, event_type):
             elif "fortune" in reward_title.lower():
                 fortune_message = await tell_fortune()
                 fortune_message = fortune_message[0].lower() + fortune_message[1:]
-                await channel.send(f"{user_name}, {fortune_message}")
+                await send_and_log_bot_message(f"{user_name}, {fortune_message}")
                 chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
                 return
             # Sound alert logic
@@ -7953,7 +7967,7 @@ async def subathon_countdown():
         if subathon_state and not subathon_state["paused"]:
             now = datetime.now()
             if now >= subathon_state["end_time"]:
-                await channel.send(f"Subathon has ended!")
+                await send_and_log_bot_message(f"Subathon has ended!")
                 connection = await mysql_connection()
                 try:
                     async with connection.cursor(aiomysql.DictCursor) as cursor:
@@ -8003,8 +8017,7 @@ async def midnight():
             cur_day = current_time.strftime("%A")
             if stream_online:
                 message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
-                channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-                await channel.send(message)
+                await send_and_log_bot_message(message)
             # Sleep for 120 seconds to avoid sending the message multiple times
             await asyncio.sleep(120)
         else:
@@ -8402,7 +8415,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time):
                                             message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
                                 finally:
                                     await connection.ensure_closed()
-                                    await channel.send(message)
+                                    await send_and_log_bot_message(message)
                                 api_logger.info(f"Sent 5-minute ad notification: {message}")
                                 last_notification_time = next_ad_at
                     except Exception as e:
@@ -8464,7 +8477,7 @@ async def check_next_ad_after_completion(channel, ads_api_url, headers):
                                         message = f"Heads up! Another ad break is coming up in {minutes_until} minute{'s' if minutes_until != 1 else ''} and will last {duration_text}."
                             finally:
                                 await connection.ensure_closed()
-                            await channel.send(message)
+                            await send_and_log_bot_message(message)
                             api_logger.info(f"Sent immediate next-ad notification: {message}")
                     except Exception as e:
                         api_logger.error(f"Error parsing next ad time after completion: {e}")
