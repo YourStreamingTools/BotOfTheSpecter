@@ -45,11 +45,6 @@ class Config:
         self.processed_messages_file = f"/home/botofthespecter/logs/discord/messages.txt"
         self.cookies_path = "/home/botofthespecter/ytdl-cookies.txt"
         self.music_directory = '/mnt/cdn/music'
-        # Discord server settings
-        self.owner_id = 127783626917150720              # gfaUnDead User ID (Owner)
-        self.support_guild_id = 1103694163930787880     # YourStreamingTools Server ID
-        self.support_role_id = 1337400720403468288      # Support Team Role
-        self.mod_channel_id = 1103695077928345683       # Moderator Channel ID
         # URLs
         self.websocket_url = "wss://websocket.botofthespecter.com"
         self.api_base_url = "https://api.botofthespecter.com"
@@ -802,10 +797,6 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.pool = None
-        self.OWNER_ID = config.owner_id              # gfaUnDead User ID (Owner)
-        self.SUPPORT_GUILD_ID = config.support_guild_id     # YourStreamingTools Server ID
-        self.SUPPORT_ROLE = config.support_role_id         # Support Team Role
-        self.MOD_CHANNEL_ID = config.mod_channel_id       # Moderator Channel ID
 
     async def init_ticket_database(self):
         if self.pool is None:
