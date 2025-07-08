@@ -513,7 +513,7 @@ ob_start();
                   <div class="card-header-icon">
                     <span class="tag is-warning is-light">
                       <span class="icon"><i class="fas fa-wrench"></i></span>
-                      <span>Coming Soon</span>
+                      <span>IN TESTING!</span>
                     </span>
                   </div>
                 </header>
@@ -522,6 +522,17 @@ ob_start();
                     Configure Discord channels for different bot events. This new system will replace webhook URLs with direct channel integration.
                   </p>
                   <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
+                    <div class="field">
+                      <label class="label has-text-white" for="guild_id" style="font-weight: 500;">
+                        <span class="icon mr-1 has-text-info"><i class="fa-solid fa-users"></i></span>
+                        <?php echo t('discordbot_guild_id_label'); ?>
+                      </label>
+                      <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_guild_id_help'); ?></p>
+                      <div class="control has-icons-left">
+                        <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId) . "\""; if (empty($existingGuildId)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      </div>
+                    </div>
                     <div class="field">
                       <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
                         <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>
@@ -563,17 +574,6 @@ ob_start();
                       <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_live_channel_id_help'); ?></p>
                       <div class="control has-icons-left">
                         <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId) . "\""; if (empty($existingLiveChannelId)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white" for="guild_id" style="font-weight: 500;">
-                        <span class="icon mr-1 has-text-info"><i class="fa-solid fa-users"></i></span>
-                        <?php echo t('discordbot_guild_id_label'); ?>
-                      </label>
-                      <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_guild_id_help'); ?></p>
-                      <div class="control has-icons-left">
-                        <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId) . "\""; if (empty($existingGuildId)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
