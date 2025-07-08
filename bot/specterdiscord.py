@@ -83,10 +83,12 @@ class WebsocketListener:
         self.bot = bot
         self.logger = logger
         self.specterSocket = None
+
     async def start(self):
         self.specterSocket = socketio.AsyncClient(logger=False, engineio_logger=False)
         admin_key = config.admin_key
         websocket_url = config.websocket_url
+        # Register event handlers for the websocket client
         @self.specterSocket.event
         async def connect():
             self.logger.info("Connected to websocket server")
@@ -96,30 +98,39 @@ class WebsocketListener:
                 "channel": "Global",
                 "name": "Discord Bot Global Listener"
             })
+        # Disconnect event handler
         @self.specterSocket.event
         async def disconnect():
             self.logger.info("Disconnected from websocket server")
+        # Success event handler
         @self.specterSocket.event
         async def SUCCESS(data):
             self.logger.info(f"Websocket registration successful: {data}")
+        # Error event handler
         @self.specterSocket.event
         async def ERROR(data):
             self.logger.error(f"Websocket error: {data}")
+        # Event handlers for Twitch Follows
         @self.specterSocket.event
         async def TWITCH_FOLLOW(data):
             await self.handle_twitch_event("FOLLOW", data)
+        # Event handlers for Twitch Subscription Events
         @self.specterSocket.event
         async def TWITCH_SUB(data):
             await self.handle_twitch_event("SUBSCRIPTION", data)
+        # Event handlers for Twitch Bits (Cheer) Events
         @self.specterSocket.event
         async def TWITCH_CHEER(data):
             await self.handle_twitch_event("CHEER", data)
+        # Event handlers for Twitch Raid Events
         @self.specterSocket.event
         async def TWITCH_RAID(data):
             await self.handle_twitch_event("RAID", data)
+        # Event handlers for Twitch Stream Online Events
         @self.specterSocket.event
         async def STREAM_ONLINE(data):
             await self.handle_stream_event("ONLINE", data)
+        # Event handlers for Twitch Stream Offline Events
         @self.specterSocket.event
         async def STREAM_OFFLINE(data):
             await self.handle_stream_event("OFFLINE", data)
