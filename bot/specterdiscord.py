@@ -1139,11 +1139,13 @@ class TicketCog(commands.Cog, name='Tickets'):
             role_embed = discord.Embed(
                 title="Support Role Setup",
                 description=(
-                    "Please provide the **Role ID** for your support team role.\n\n"
-                    "**How to get a Role ID:**\n"
-                    "1. Go to Server Settings → Roles\n"
-                    "2. Right-click on the role you want\n"
-                    "3. Select 'Copy ID'\n\n"
+                    "Please provide the **Role ID** for your support team role." + os.linesep + os.linesep +
+                    "**How to get a Role ID:**" + os.linesep +
+                    "1. Go to Server Settings → Roles" + os.linesep +
+                    "2. Right-click on the role you want" + os.linesep +
+                    "3. Select 'Copy ID'" + os.linesep +
+                    "4. Paste the ID number here" + os.linesep + os.linesep +
+                    "**Example ID format:** `123456789012345678` (this is just an example)" + os.linesep + os.linesep +
                     "**Or type `skip` to create a new support role automatically.**"
                 ),
                 color=discord.Color.blue()
@@ -1170,7 +1172,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     await ctx.author.add_roles(support_role, reason="Ticket System Setup - Auto-assigned support role")
                     success_embed = discord.Embed(
                         title="✅ Support Role Created",
-                        description=f"Created new support role: {support_role.mention}\nYou have been assigned this role automatically.",
+                        description=f"Created new support role: {support_role.mention}" + os.linesep + "You have been assigned this role automatically.",
                         color=discord.Color.green()
                     )
                     await ctx.send(embed=success_embed)
@@ -1234,15 +1236,15 @@ class TicketCog(commands.Cog, name='Tickets'):
             mod_embed = discord.Embed(
                 title="Mod Channel Setup",
                 description=(
-                    "Please provide the **Channel ID** or mention a channel for ticket system management.\n\n"
-                    "**This channel will be used for:**\n"
-                    "• Editing ticket system settings\n"
-                    "• Receiving update notifications\n"
-                    "• Managing ticket configurations\n"
-                    "• Administrative alerts and logs\n\n"
-                    "**How to provide channel:**\n"
-                    "• Mention the channel: #mod-logs\n"
-                    "• Or provide Channel ID: 123456789012345678\n\n"
+                    "Please provide the **Channel ID** or mention a channel for ticket system management." + os.linesep + os.linesep +
+                    "**This channel will be used for:**" + os.linesep +
+                    "• Editing ticket system settings" + os.linesep +
+                    "• Receiving update notifications" + os.linesep +
+                    "• Managing ticket configurations" + os.linesep +
+                    "• Administrative alerts and logs" + os.linesep + os.linesep +
+                    "**How to provide channel:**" + os.linesep +
+                    "• Mention the channel: #mod-logs" + os.linesep +
+                    "• Or provide Channel ID: `123456789012345678` (example ID format)" + os.linesep + os.linesep +
                     "**Or type `skip` to skip this step.**"
                 ),
                 color=discord.Color.blue()
@@ -1257,7 +1259,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                         mod_channel = mod_response.channel_mentions[0]
                         channel_embed = discord.Embed(
                             title="✅ Mod Channel Configured",
-                            description=f"Management channel set: {mod_channel.mention}\n\nThis channel will receive ticket system updates and allow settings management.",
+                            description=f"Management channel set: {mod_channel.mention}" + os.linesep + os.linesep + "This channel will receive ticket system updates and allow settings management.",
                             color=discord.Color.green()
                         )
                         await ctx.send(embed=channel_embed)
@@ -1268,7 +1270,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                             if mod_channel:
                                 channel_embed = discord.Embed(
                                     title="✅ Mod Channel Configured",
-                                    description=f"Management channel set: {mod_channel.mention}\n\nThis channel will receive ticket system updates and allow settings management.",
+                                    description=f"Management channel set: {mod_channel.mention}" + os.linesep + os.linesep + "This channel will receive ticket system updates and allow settings management.",
                                     color=discord.Color.green()
                                 )
                                 await ctx.send(embed=channel_embed)
@@ -1371,15 +1373,15 @@ class TicketCog(commands.Cog, name='Tickets'):
             # Create detailed setup confirmation message
             final_embed = discord.Embed(
                 title="✅ Ticket System Setup Complete!",
-                description=f"Your ticket system has been successfully configured!\n\nPlease check {info_channel.mention} for user instructions.",
+                description=f"Your ticket system has been successfully configured!" + os.linesep + os.linesep + f"Please check {info_channel.mention} for user instructions.",
                 color=discord.Color.green()
             )
             final_embed.add_field(
                 name="📋 Configuration Summary",
                 value=(
-                    f"**Support Role:** {support_role.mention if support_role else 'None'}\n"
-                    f"**Management Channel:** {mod_channel.mention + ' (for settings & updates)' if mod_channel else 'None'}\n"
-                    f"**Ticket Category:** {category.mention}\n"
+                    f"**Support Role:** {support_role.mention if support_role else 'None'}" + os.linesep +
+                    f"**Management Channel:** {mod_channel.mention + ' (for settings & updates)' if mod_channel else 'None'}" + os.linesep +
+                    f"**Ticket Category:** {category.mention}" + os.linesep +
                     f"**Info Channel:** {info_channel.mention}"
                 ),
                 inline=False
