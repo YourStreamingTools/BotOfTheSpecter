@@ -226,66 +226,47 @@ if (isset($_GET['code']) && !$is_linked) {
   }
 }
 
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) { die('Connection failed: ' . $db->connect_error); }
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   try {
-    if (isset($_POST['option']) && isset($_POST['webhook'])) {
-      // Update webhook URL based on the selected option
-      $option = $_POST['option'];
-      $webhook = $_POST['webhook'];
-      $profile_key = "";
-      switch ($option) {
-        case 'discord_alert':
-          $profile_key = "discord_alert";
-          break;
-        case 'discord_mod':
-          $profile_key = "discord_mod";
-          break;
-        case 'discord_alert_online':
-          $profile_key = "discord_alert_online";
-          break;
-        default:
-          $buildStatus = "Invalid option";
-          exit;
-      }
-      $stmt = $db->prepare("UPDATE profile SET $profile_key = ?");
-      $stmt->bind_param('s', $webhook);
-      if ($stmt->execute()) {
-        $buildStatus = "Webhook URL updated successfully";
-      } else {
-        $errorMsg = "Error updating webhook URL: " . $stmt->error;
-      }
-      $stmt->close();
-    } elseif (isset($_POST['live_channel_id']) && isset($_POST['guild_id'])) {
+    if (isset($_POST['live_channel_id']) && isset($_POST['guild_id']) && isset($_POST['online_text']) && isset($_POST['offline_text'])) {
       // Update live_channel_id and guild_id
-      $live_channel_id = $_POST['live_channel_id'];
       $guild_id = $_POST['guild_id'];
+      $live_channel_id = $_POST['live_channel_id'] ?? null;
+      $onlineText = !empty($live_channel_id) ? $_POST['online_text'] : null;
+      $offlineText = !empty($live_channel_id) ? $_POST['offline_text'] : null;
+      if (!empty($_POST['stream_channel_id'])) { $streamChannelID = $_POST['stream_channel_id']; } 
+      else { $streamChannelID = null; }
+      if (!empty($_POST['mod_channel_id'])) { $moderationChannelID = $_POST['mod_channel_id']; }
+      else { $moderationChannelID = null; }
+      if (!empty($_POST['alert_channel_id'])) { $alertChannelID = $_POST['alert_channel_id']; }
+      else { $alertChannelID = null; }
       $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
       $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
-      if ($stmt->execute()) {
-        $buildStatus = "Live Channel ID and Guild ID updated successfully";
-      } else {
-        $errorMsg = "Error updating Live Channel ID and Guild ID: " . $stmt->error;
-      }
-      $stmt->close();    } elseif (isset($_POST['online_text']) && isset($_POST['offline_text'])) {
-      $onlineText = $_POST['online_text'];
-      $offlineText = $_POST['offline_text'];
-      // Validate character limits (max 20 characters each)
-      if (strlen($onlineText) > 20) {
-        $errorMsg = "Online text cannot exceed 20 characters. Current length: " . strlen($onlineText);
+      if ($stmt->execute()) { $buildStatus .= "Live Channel ID and Guild ID updated successfully<br>"; }
+      else { $errorMsg .= "Error updating Live Channel ID and Guild ID: " . $stmt->error . "<br>"; }
+      if (strlen($onlineText) > 20) { // Validate character limits (max 20 characters each)
+        $errorMsg .= "Online text cannot exceed 20 characters. Current length: " . strlen($onlineText) ."<br>";
       } elseif (strlen($offlineText) > 20) {
-        $errorMsg = "Offline text cannot exceed 20 characters. Current length: " . strlen($offlineText);
+        $errorMsg .= "Offline text cannot exceed 20 characters. Current length: " . strlen($offlineText) ."<br>";
       } else {
         $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
         $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
         if ($stmt->execute()) {
-          $buildStatus = "Online and Offline Text has been updated successfully";
+          $buildStatus .= "Online and Offline Text has been updated successfully<br>";
         } else {
-          $errorMsg = "Error updating Online and Offline Text: " . $stmt->error;
+          $errorMsg .= "Error updating Online and Offline Text: " . $stmt->error . "<br>";
         }
-        $stmt->close();
-      }} elseif (isset($_POST['disconnect_discord'])) {
+      }
+      $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, moderation_channel_id = ?, alert_channel_id = ? WHERE user_id = ?");
+      $stmt->bind_param("iiii", $streamChannelID, $moderationChannelID, $alertChannelID, $user_id);
+      if ($stmt->execute()) {
+        $buildStatus .= "Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID updated successfully<br>";
+      } else {
+        $errorMsg .= "Error updating Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID: " . $stmt->error . "<br>";
+      }
+      $stmt->close();
+      updateExistingDiscordValues(); // Refresh existing values after update
+    } elseif (isset($_POST['disconnect_discord'])) {
       $discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token FROM discord_users WHERE user_id = ?");
       $discord_userSTMT->bind_param("i", $user_id);
       $discord_userSTMT->execute();
@@ -319,9 +300,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 // Fetch existing webhook URLs
+$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
+if ($db->connect_error) { die('Connection failed: ' . $db->connect_error); }
 $webhookKeys = ['discord_alert', 'discord_mod', 'discord_alert_online'];
 $existingWebhooks = [];
-
 foreach ($webhookKeys as $key) {
   $stmt = $db->prepare("SELECT $key FROM profile");
   $stmt->execute();
@@ -345,6 +327,23 @@ $existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
 $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
 $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
 
+function updateExistingDiscordValues() {
+  global $conn, $user_id;
+  $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
+  $discord_userSTMT->bind_param("i", $user_id);
+  $discord_userSTMT->execute();
+  $discord_userResult = $discord_userSTMT->get_result();
+  $discordData = $discord_userResult->fetch_assoc();
+  $existingLiveChannelId = $discordData['live_channel_id'] ?? "";
+  $existingGuildId = $discordData['guild_id'] ?? "";
+  $existingOnlineText = $discordData['online_text'] ?? "";
+  $existingOfflineText = $discordData['offline_text'] ?? "";
+  $existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
+  $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
+  $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
+  $discord_userResult->close();
+}
+
 // Generate auth URL with state parameter for security
 $authURL = '';
 if (!$is_linked) {
@@ -358,31 +357,6 @@ if (!$is_linked) {
         . "&redirect_uri=" . urlencode('https://dashboard.botofthespecter.com/discordbot.php');
 }
 
-// Helper function to refresh Discord access token
-function refreshDiscordToken($refresh_token, $client_id, $client_secret) {
-    $token_url = 'https://discord.com/api/oauth2/token';
-    $data = array(
-        'grant_type' => 'refresh_token',
-        'refresh_token' => $refresh_token
-    );
-    // Use HTTP Basic authentication as recommended by Discord
-    $auth = base64_encode($client_id . ':' . $client_secret);
-    $options = array(
-        'http' => array(
-            'header' => "Content-type: application/x-www-form-urlencoded\r\n" .
-                       "Authorization: Basic $auth\r\n",
-            'method' => 'POST',
-            'content' => http_build_query($data)
-        )
-    );
-    $context = stream_context_create($options);
-    $response = file_get_contents($token_url, false, $context);
-    $params = json_decode($response, true);
-    if (isset($params['access_token'])) {
-        return $params;
-    }
-    return false;
-}
 // Helper function to revoke Discord access or refresh token
 function revokeDiscordToken($token, $client_id, $client_secret, $token_type_hint = 'access_token') {
   $revoke_url = 'https://discord.com/api/oauth2/token/revoke';
@@ -438,10 +412,6 @@ ob_start();
         </div>
         <?php if ($is_linked) { ?>
           <div class="card-header-icon" style="display: flex; gap: 0.5rem;">
-            <button class="button is-info is-medium" onclick="discordBotDashboard()" style="border-radius: 6px; font-weight: 600;">
-              <span class="icon"><i class="fab fa-discord"></i></span>
-              <span>Discord Bot Dashboard</span>
-            </button>
             <button class="button is-danger is-medium" onclick="disconnectDiscord()" style="border-radius: 6px; font-weight: 600;">
               <span class="icon"><i class="fas fa-unlink"></i></span>
               <span>Disconnect</span>
@@ -559,7 +529,7 @@ ob_start();
                       </label>
                       <p class="help has-text-grey-light mb-2">Channel ID for stream online/offline notifications</p>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="stream_channel_id" name="stream_channel_id" placeholder="e.g., 1234567890123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="stream_channel_id" name="stream_channel_id" value="<?php echo htmlspecialchars($existingStreamAlertChannelID) . "\""; if (empty($existingStreamAlertChannelID)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
@@ -570,7 +540,18 @@ ob_start();
                       </label>
                       <p class="help has-text-grey-light mb-2">Channel ID for moderation actions and logs</p>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="mod_channel_id" name="mod_channel_id" placeholder="e.g., 1234567890123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="mod_channel_id" name="mod_channel_id" value="<?php echo htmlspecialchars($existingModerationChannelID) . "\""; if (empty($existingModerationChannelID)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
+                        <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
+                        Event Alert Channel ID
+                      </label>
+                      <p class="help has-text-grey-light mb-2">Channel ID for general bot alerts and notifications</p>
+                      <div class="control has-icons-left">
+                        <input class="input" type="text" id="alert_channel_id" name="alert_channel_id" value="<?php echo htmlspecialchars($existingAlertChannelID) . "\""; if (empty($existingAlertChannelID)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
@@ -581,7 +562,7 @@ ob_start();
                       </label>
                       <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_live_channel_id_help'); ?></p>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId) . "\""; if (empty($existingLiveChannelId)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
@@ -592,7 +573,7 @@ ob_start();
                       </label>
                       <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_guild_id_help'); ?></p>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId) . "\""; if (empty($existingGuildId)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
@@ -603,7 +584,7 @@ ob_start();
                       </label>
                       <p class="help has-text-grey-light mb-2">Text to display when your channel is online</p>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText) . "\""; if (empty($existingOnlineText)) { echo " placeholder=\"e.g. Stream Online\""; } ?>" maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-success"><i class="fa-solid fa-comment"></i></span>
                       </div>
                       <p class="help has-text-grey-light">
@@ -617,23 +598,12 @@ ob_start();
                       </label>
                       <p class="help has-text-grey-light mb-2">Text to display when your channel is offline</p>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText) . "\""; if (empty($existingOfflineText)) { echo " placeholder=\"e.g. Stream Offline\""; } ?>" maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-danger"><i class="fa-solid fa-comment"></i></span>
                       </div>
                       <p class="help has-text-grey-light">
                         <span id="offline_text_counter"><?php echo strlen($existingOfflineText); ?></span>/20 characters
                       </p>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
-                        <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
-                        Alert Channel ID
-                      </label>
-                      <p class="help has-text-grey-light mb-2">Channel ID for general bot alerts and notifications</p>
-                      <div class="control has-icons-left">
-                        <input class="input" type="text" id="alert_channel_id" name="alert_channel_id" placeholder="e.g., 1234567890123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
-                      </div>
                     </div>
                     <div style="flex-grow: 1;"></div>
                     <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
@@ -649,23 +619,21 @@ ob_start();
                     </div>
                     <div class="field">
                       <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit" disabled style="border-radius: 6px; font-weight: 600; opacity: 0.5;">
+                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;">
                           <span class="icon"><i class="fas fa-cog"></i></span>
                           <span>Save Channel Configuration</span>
                         </button>
                       </div>
                       <p class="help has-text-grey-light has-text-centered mt-2">
-                        <span class="icon"><i class="fas fa-info-circle"></i></span>
-                        This feature is currently under development
+                        Most of these features are currently under development. You can still set the channel IDs and text for future use.
                       </p>
                     </div>
                   </form>
                 </div>
               </div>
             </div>
-            <!-- Right Column: Functional Forms Stacked -->
+            <!-- Webhook URL Form - Legacy - Deprecated -->
             <div class="column is-6">
-              <!-- Webhook URL Form -->
               <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
                 <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                   <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -700,7 +668,7 @@ ob_start();
                     <div class="field">
                       <label class="label has-text-white" for="webhook" style="font-weight: 500;"><?php echo t('discordbot_webhook_url_label'); ?></label>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="webhook" name="webhook" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="webhook" name="webhook" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-link"></i></span>
                       </div>
                     </div>
@@ -709,84 +677,6 @@ ob_start();
                         <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;">
                           <span class="icon"><i class="fas fa-save"></i></span>
                           <span><?php echo t('discordbot_webhook_save_btn'); ?></span>
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-              <!-- Live Channel ID and Guild ID Form -->
-              <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
-                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                  <p class="card-header-title has-text-white" style="font-weight: 600;">
-                    <span class="icon mr-2 has-text-info"><i class="fas fa-volume-up"></i></span>
-                    <?php echo t('discordbot_channel_card_title'); ?>
-                  </p>
-                </header>
-                <div class="card-content">
-                  <form action="" method="post">
-                    <div class="field">
-                      <label class="label has-text-white" for="live_channel_id" style="font-weight: 500;"><?php echo t('discordbot_live_channel_id_label'); ?></label>
-                      <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_live_channel_id_help'); ?></p>
-                      <div class="control has-icons-left">
-                        <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white" for="guild_id" style="font-weight: 500;"><?php echo t('discordbot_guild_id_label'); ?></label>
-                      <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_guild_id_help'); ?></p>
-                      <div class="control has-icons-left">
-                        <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button class="button is-info is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;">
-                          <span class="icon"><i class="fas fa-save"></i></span>
-                          <span><?php echo t('discordbot_channel_save_btn'); ?></span>
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-              <!-- Online and Offline Text Updates -->
-              <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                  <p class="card-header-title has-text-white" style="font-weight: 600;">
-                    <span class="icon mr-2 has-text-success"><i class="fas fa-comment-dots"></i></span>
-                    <?php echo t('discordbot_text_card_title'); ?>
-                  </p>
-                </header>
-                <div class="card-content">
-                  <form action="" method="post">
-                    <div class="field">
-                      <label class="label has-text-white" for="online_text" style="font-weight: 500;"><?php echo t('discordbot_online_text_label'); ?></label>
-                      <div class="control has-icons-left">
-                        <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
-                      </div>
-                      <p class="help has-text-grey-light">
-                        <span id="online_text_counter"><?php echo strlen($existingOnlineText); ?></span>/20 characters
-                      </p>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white" for="offline_text" style="font-weight: 500;"><?php echo t('discordbot_offline_text_label'); ?></label>
-                      <div class="control has-icons-left">
-                        <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
-                      </div>
-                      <p class="help has-text-grey-light">
-                        <span id="offline_text_counter"><?php echo strlen($existingOfflineText); ?></span>/20 characters
-                      </p>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button class="button is-success is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;">
-                          <span class="icon"><i class="fas fa-save"></i></span>
-                          <span><?php echo t('discordbot_text_save_btn'); ?></span>
                         </button>
                       </div>
                     </div>
@@ -805,75 +695,68 @@ $content = ob_get_clean();
 
 ob_start();
 ?>
-<script>  $(document).ready(function() {
+<script>
+  $(document).ready(function() {
     var webhooks = <?php echo json_encode($existingWebhooks); ?>;
     var initialWebhook = webhooks['discord_alert'] || '';
     $('#webhook').val(initialWebhook);
     $('#option').change(function() {
       var selectedOption = $(this).val();
       $('#webhook').val(webhooks[selectedOption] || '');
-    });
-    // Character counters for online/offline text
-    function updateCharCounter(inputId, counterId) {
-      var input = $('#' + inputId);
-      var counter = $('#' + counterId);
-      var maxLength = 20;
-      input.on('input', function() {
-        var currentLength = $(this).val().length;
-        counter.text(currentLength);
-        // Change color based on character count
-        if (currentLength >= maxLength) {
-          counter.css('color', '#ff3860'); // Red when at limit
-        } else if (currentLength >= maxLength * 0.8) {
-          counter.css('color', '#ffdd57'); // Yellow when approaching limit
-        } else {
-          counter.css('color', '#b5b5b5'); // Default grey
-        }
-      });
-    }
-    updateCharCounter('online_text', 'online_text_counter');
-    updateCharCounter('offline_text', 'offline_text_counter');
   });
+  // Character counters for online/offline text
+  function updateCharCounter(inputId, counterId) {
+    var input = $('#' + inputId);
+    var counter = $('#' + counterId);
+    var maxLength = 20;
+    input.on('input', function() {
+      var currentLength = $(this).val().length;
+      counter.text(currentLength);
+      // Change color based on character count
+      if (currentLength >= maxLength) {
+        counter.css('color', '#ff3860'); // Red when at limit
+      } else if (currentLength >= maxLength * 0.8) {
+        counter.css('color', '#ffdd57'); // Yellow when approaching limit
+      } else {
+        counter.css('color', '#b5b5b5'); // Default grey
+      }
+    });
+  }
+  updateCharCounter('online_text', 'online_text_counter');
+  updateCharCounter('offline_text', 'offline_text_counter');
+});
 </script>
-<?php if (!$is_linked) { ?>  <script>
-    function linkDiscord() {
-      window.location.href = "<?php echo addslashes($authURL); ?>";
-    }
-  </script>
-<?php } else { ?>  <script>
-    function discordBotDashboard() {
-      window.open("https://discord.botofthespecter.com/", "_blank");
-    }
-    
-    function disconnectDiscord() {
-      Swal.fire({
-        title: 'Disconnect Discord Account?',
-        text: 'Are you sure you want to disconnect your Discord account? This will revoke all tokens and remove your Discord integration.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, Disconnect',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#e74c3c',
-        cancelButtonColor: '#6c757d'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          // Create a form and submit it
-          const form = document.createElement('form');
-          form.method = 'POST';
-          form.action = '';
-          
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = 'disconnect_discord';
-          input.value = '1';
-          
-          form.appendChild(input);
-          document.body.appendChild(form);
-          form.submit();
-        }
-      });
-    }
-  </script>
+<?php if (!$is_linked) { ?>
+<script>function linkDiscord() { window.location.href = "<?php echo addslashes($authURL); ?>"; }</script>
+<?php } else { ?>
+<script>
+  function disconnectDiscord() {
+    Swal.fire({
+      title: 'Disconnect Discord Account?',
+      text: 'Are you sure you want to disconnect your Discord account? This will revoke all tokens and remove your Discord integration.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Disconnect',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#e74c3c',
+      cancelButtonColor: '#6c757d'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        // Create a form and submit it
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '';
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'disconnect_discord';
+        input.value = '1';
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+      }
+    });
+  }
+</script>
 <?php } ?>
 <?php
 $scripts = ob_get_clean();
