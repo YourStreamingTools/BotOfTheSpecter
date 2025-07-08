@@ -171,6 +171,19 @@ class BotOfTheSpecter(commands.Bot):
         self.channel_mapping = ChannelMapping()
         self.websocket_client = None
         self.cooldowns = {}
+        # Define internal commands that should never be overridden by custom commands
+        self.internal_commands = {
+            # Voice commands
+            'connect', 'join', 'summon',
+            'disconnect', 'leave', 'dc',
+            'voice_status', 'vstatus',
+            # Music commands
+            'play', 'skip', 's', 'next',
+            'stop', 'pause', 'queue', 'q', 'playlist',
+            'song', 'volume',
+            # Utility commands
+            'quote', 'ticket', 'setuptickets', 'settings'
+        }
         # Ensure the log directory and file exist
         messages_dir = os.path.dirname(self.processed_messages_file)
         if not os.path.exists(messages_dir):
@@ -311,10 +324,15 @@ class BotOfTheSpecter(commands.Bot):
         elif isinstance(message.channel, discord.TextChannel):
             # Check if message starts with "!" (custom command)
             if message.content.startswith("!"):
-                custom_command_executed = await self.handle_custom_command(message)
-                # Only process built-in commands if no custom command was executed
-                if not custom_command_executed:
+                command_text = message.content[1:].strip().lower()
+                command_name = command_text.split()[0] if command_text else ""
+                if command_name in self.internal_commands:
+                    self.logger.debug(f"Processing internal command: {command_name}")
                     await self.process_commands(message)
+                else:
+                    custom_command_executed = await self.handle_custom_command(message)
+                    if not custom_command_executed:
+                        await self.process_commands(message)
             else:
                 # Not a command with "!" prefix, process as normal
                 await self.process_commands(message)
