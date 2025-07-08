@@ -82,42 +82,52 @@ class WebsocketListener:
     def __init__(self, bot, logger=None):
         self.bot = bot
         self.logger = logger
-        self.sio = None
+        self.specterSocket = None
     async def start(self):
-        self.sio = socketio.AsyncClient(logger=False, engineio_logger=False)
+        self.specterSocket = socketio.AsyncClient(logger=False, engineio_logger=False)
         admin_key = config.admin_key
         websocket_url = config.websocket_url
-        @self.sio.event
+        @self.specterSocket.event
         async def connect():
             self.logger.info("Connected to websocket server")
-            await self.sio.emit("REGISTER", {
+            await self.specterSocket.emit("REGISTER", {
                 "code": admin_key,
                 "global_listener": True,
                 "channel": "Global",
                 "name": "Discord Bot Global Listener"
             })
-        @self.sio.event
+        @self.specterSocket.event
         async def disconnect():
             self.logger.info("Disconnected from websocket server")
-        @self.sio.event
+        @self.specterSocket.event
         async def SUCCESS(data):
             self.logger.info(f"Websocket registration successful: {data}")
-        @self.sio.event
+        @self.specterSocket.event
         async def ERROR(data):
             self.logger.error(f"Websocket error: {data}")
-        @self.sio.event
+        @self.specterSocket.event
+        async def TWITCH_FOLLOW(data):
+            await self.handle_twitch_event("FOLLOW", data)
+        @self.specterSocket.event
+        async def TWITCH_SUB(data):
+            await self.handle_twitch_event("SUBSCRIPTION", data)
+        @self.specterSocket.event
+        async def TWITCH_CHEER(data):
+            await self.handle_twitch_event("CHEER", data)
+        @self.specterSocket.event
+        async def TWITCH_RAID(data):
+            await self.handle_twitch_event("RAID", data)
+        @self.specterSocket.event
         async def STREAM_ONLINE(data):
-            self.logger.info(f"Received STREAM_ONLINE event: {data}")
-            await self.bot.handle_stream_event("ONLINE", data)
-        @self.sio.event
+            await self.handle_stream_event("ONLINE", data)
+        @self.specterSocket.event
         async def STREAM_OFFLINE(data):
-            self.logger.info(f"Received STREAM_OFFLINE event: {data}")
-            await self.bot.handle_stream_event("OFFLINE", data)
+            await self.handle_stream_event("OFFLINE", data)
         # Log all other events generically
-        @self.sio.on('*')
+        @self.specterSocket.on('*')
         async def catch_all(event, data):
             self.logger.info(f"Received websocket event '{event}': {data}")
-        await self.sio.connect(websocket_url)
+        await self.specterSocket.connect(websocket_url)
 
 # Channel mapping class to manage multiple Discord servers
 class ChannelMapping:
@@ -169,7 +179,6 @@ class BotOfTheSpecter(commands.Bot):
         self.version = config.bot_version
         self.pool = None  # Initialize the pool attribute
         self.channel_mapping = ChannelMapping()
-        self.websocket_client = None
         self.cooldowns = {}
         # Define internal commands that should never be overridden by custom commands
         self.internal_commands = {
@@ -687,48 +696,6 @@ class BotOfTheSpecter(commands.Bot):
         while not self.is_closed():
             await self.update_presence()  # Update the presence
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
-
-    async def connect_to_websocket(self):
-        self.websocket_client = socketio.AsyncClient(logger=False, engineio_logger=False)
-        admin_key = config.admin_key
-        websocket_url = config.websocket_url
-        @self.websocket_client.event
-        async def connect():
-            self.logger.info("Connected to websocket server")
-            await self.websocket_client.emit("REGISTER", {
-                "code": admin_key,
-                "global_listener": True,
-                "channel": "Global",
-                "name": "Discord Bot Global Listener"
-            })
-        @self.websocket_client.event
-        async def disconnect():
-            self.logger.info("Disconnected from websocket server")
-        @self.websocket_client.event
-        async def SUCCESS(data):
-            self.logger.info(f"Websocket registration successful: {data}")
-        @self.websocket_client.event
-        async def ERROR(data):
-            self.logger.error(f"Websocket error: {data}")
-        @self.websocket_client.event
-        async def TWITCH_FOLLOW(data):
-            await self.handle_twitch_event("FOLLOW", data)
-        @self.websocket_client.event
-        async def TWITCH_SUB(data):
-            await self.handle_twitch_event("SUBSCRIPTION", data)
-        @self.websocket_client.event
-        async def TWITCH_CHEER(data):
-            await self.handle_twitch_event("CHEER", data)
-        @self.websocket_client.event
-        async def TWITCH_RAID(data):
-            await self.handle_twitch_event("RAID", data)
-        @self.websocket_client.event
-        async def STREAM_ONLINE(data):
-            await self.handle_stream_event("ONLINE", data)
-        @self.websocket_client.event
-        async def STREAM_OFFLINE(data):
-            await self.handle_stream_event("OFFLINE", data)
-        await self.websocket_client.connect(websocket_url)
 
     async def handle_twitch_event(self, event_type, data):
         channel_code = data.get("channel_code", "unknown")
