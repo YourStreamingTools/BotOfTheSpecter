@@ -326,12 +326,15 @@ class BotOfTheSpecter(commands.Bot):
             if message.content.startswith("!"):
                 command_text = message.content[1:].strip().lower()
                 command_name = command_text.split()[0] if command_text else ""
+                self.logger.info(f"Received command: '{command_name}' from user {message.author} in guild {message.guild.name}")
                 if command_name in self.internal_commands:
-                    self.logger.debug(f"Processing internal command: {command_name}")
+                    self.logger.info(f"Processing internal command: {command_name}")
                     await self.process_commands(message)
                 else:
+                    self.logger.info(f"Checking if '{command_name}' is a custom command")
                     custom_command_executed = await self.handle_custom_command(message)
                     if not custom_command_executed:
+                        self.logger.info(f"No custom command found for '{command_name}', processing as built-in command")
                         await self.process_commands(message)
             else:
                 # Not a command with "!" prefix, process as normal
@@ -2168,10 +2171,12 @@ class VoiceCog(commands.Cog, name='Voice'):
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.voice_clients = {}  # Guild ID -> VoiceClient mapping
         self.music_player = MusicPlayer(bot, logger)
+        self.logger.info("VoiceCog initialized successfully")
     async def cog_check(self, ctx):
         return ctx.guild is not None
     @commands.command(name="connect", aliases=["join", "summon"])
     async def connect_voice(self, ctx, *, channel: discord.VoiceChannel = None):
+        self.logger.info(f"Connect command called by {ctx.author} in {ctx.guild.name}")
         await self._handle_connect(ctx, channel)
     @app_commands.command(name="connect", description="Connect the bot to a voice channel")
     @app_commands.describe(channel="The voice channel to connect to (optional - defaults to your current channel)")
@@ -2180,6 +2185,7 @@ class VoiceCog(commands.Cog, name='Voice'):
         await self._handle_connect(ctx, channel)
 
     async def _handle_connect(self, ctx, channel: discord.VoiceChannel = None):
+        self.logger.info(f"_handle_connect called by {ctx.author} in {ctx.guild.name}")
         try:
             # If no channel specified, try to get the user's current voice channel
             if channel is None:
@@ -2195,6 +2201,7 @@ class VoiceCog(commands.Cog, name='Voice'):
                         await ctx.message.delete(delay=5)
                     except Exception:
                         pass
+                    self.logger.info(f"User {ctx.author} not in voice channel")
                     return
                 channel = ctx.author.voice.channel
             # Check if bot has permissions to connect to the channel
@@ -2268,6 +2275,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             # remove the bot response and the command after 5 seconds to keep channel clean
             await response.delete(delay=5)
             await ctx.message.delete(delay=5)
+            self.logger.info(f"Sent connect success message to {ctx.guild.name}")
             self.logger.info(f"Connected to voice channel {channel.name} in {ctx.guild.name}")
             # Play a random mp3 if nothing is queued or playing
             guild_id = ctx.guild.id
