@@ -1400,6 +1400,116 @@ class TicketCog(commands.Cog, name='Tickets'):
             self.logger.error(f"Error setting up ticket system: {e}")
             await ctx.send("❌ An error occurred while setting up the ticket system.")
 
+    @commands.command(name="settings")
+    @commands.has_permissions(manage_guild=True)
+    async def check_settings(self, ctx):
+        try:
+            # Get ticket settings first to check if mod_channel_id is set
+            settings = await self.get_settings(ctx.guild.id)
+            if not settings:
+                embed = discord.Embed(
+                    title="❌ Settings Error",
+                    description="No ticket system settings found. Please run `!setuptickets` first.",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=embed)
+                return
+            # Check if command is being used in the mod channel
+            mod_channel_id = settings.get('mod_channel_id')
+            if not mod_channel_id:
+                embed = discord.Embed(
+                    title="❌ No Mod Channel",
+                    description="No moderator channel is configured. Please run `!setuptickets` to configure it.",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=embed)
+                return
+            if ctx.channel.id != mod_channel_id:
+                mod_channel = self.bot.get_channel(mod_channel_id)
+                mod_channel_mention = mod_channel.mention if mod_channel else f"<#{mod_channel_id}>"
+                embed = discord.Embed(
+                    title="❌ Wrong Channel",
+                    description=f"This command can only be used in the moderator channel: {mod_channel_mention}",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=embed, delete_after=10)
+                return
+            # Get Discord user settings using MySQLHelper directly since DiscordChannelResolver is defined later
+            mysql_helper = MySQLHelper(self.logger)
+            # Get discord user info from guild_id
+            discord_info = await mysql_helper.fetchone(
+                "SELECT user_id, live_channel_id, online_text, offline_text FROM discord_users WHERE guild_id = %s",
+                (ctx.guild.id,), database_name='website', dict_cursor=True)
+            # Get twitch_display_name if discord_info exists
+            twitch_name = None
+            if discord_info:
+                user_row = await mysql_helper.fetchone(
+                    "SELECT twitch_display_name FROM users WHERE id = %s", 
+                    (discord_info['user_id'],), database_name='website', dict_cursor=True)
+                if user_row:
+                    twitch_name = user_row['twitch_display_name']
+            # Create settings embed
+            embed = discord.Embed(
+                title="⚙️ Discord Bot Settings",
+                description=f"Current settings for **{ctx.guild.name}**",
+                color=config.bot_color
+            )
+            # Ticket System Settings
+            embed.add_field(
+                name="🎫 Ticket System",
+                value=(
+                    f"**Status:** {'✅ Enabled' if settings.get('enabled') else '❌ Disabled'}\n"
+                    f"**Category:** <#{settings.get('category_id')}>\n"
+                    f"**Info Channel:** <#{settings.get('info_channel_id')}>\n"
+                    f"**Support Role:** <@&{settings.get('support_role_id')}>\n"
+                    f"**Mod Channel:** <#{settings.get('mod_channel_id')}>"
+                ),
+                inline=False
+            )
+            # Discord Stream Settings
+            if discord_info:
+                live_channel = f"<#{discord_info.get('live_channel_id')}>" if discord_info.get('live_channel_id') else "Not set"
+                online_text = discord_info.get('online_text') or "Stream is now LIVE!"
+                offline_text = discord_info.get('offline_text') or "Stream is now OFFLINE"
+                twitch_display = twitch_name or "Not linked"
+                embed.add_field(
+                    name="📺 Stream Notifications",
+                    value=(
+                        f"**Twitch Channel:** {twitch_display}\n"
+                        f"**Live Channel:** {live_channel}\n"
+                        f"**Online Message:** {online_text}\n"
+                        f"**Offline Message:** {offline_text}"
+                    ),
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="📺 Stream Notifications",
+                    value="❌ No stream notification settings configured",
+                    inline=False
+                )
+            # Bot Information
+            embed.add_field(
+                name="🤖 Bot Information",
+                value=(
+                    f"**Version:** {config.bot_version}\n"
+                    f"**Servers:** {len(self.bot.guilds)}\n"
+                    f"**Voice Connected:** {'✅ Yes' if ctx.guild.voice_client else '❌ No'}"
+                ),
+                inline=False
+            )
+            embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+            embed.timestamp = datetime.utcnow()
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error in settings command: {e}")
+            embed = discord.Embed(
+                title="❌ Error",
+                description="An error occurred while retrieving settings.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+
     @commands.Cog.listener()
     async def on_message(self, message):
         # Ignore bot messages
