@@ -1341,7 +1341,7 @@ class TicketCog(commands.Cog, name='Tickets'):
             )
             # Create the info message
             embed = discord.Embed(
-                title="🎫 Server Support System",
+                title=f"🎟️ {ctx.guild.name} Support System",
                 description=(
                     "**Welcome to our support ticket system!**" + os.linesep + os.linesep +
                     "To create a new support ticket: `!ticket create`" + os.linesep + os.linesep +
