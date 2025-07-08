@@ -962,7 +962,7 @@ return [
     'discordbot_link_desc' => "By linking your Discord account to Specter, you'll unlock some exciting features.<br>
       You'll receive alerts from Specter directly in your Discord server via a webhook, and our new feature will update a voice channel when you go live.",
     'discordbot_link_btn' => 'Link Discord',
-    'discordbot_linked_title' => 'Thank you for linking your account.',
+    'discordbot_linked_title' => 'Your Discord account is linked!',
     'discordbot_linked_desc' => "We're constantly adding new Specter features to the Discord Bot, so keep an eye on the Discord server for updates.",
     'discordbot_dashboard_btn' => 'BotOfTheSpecter Discord Bot Dashboard',
     'discordbot_webhook_card_title' => 'Add Discord Webhook URLs',
