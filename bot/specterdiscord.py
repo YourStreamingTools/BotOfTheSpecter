@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 import aiomysql
 import socketio
 import yt_dlp
+import pytz
 
 # Global configuration class
 class Config:
@@ -34,6 +35,7 @@ class Config:
         self.sql_host = os.getenv('SQL_HOST')
         self.sql_user = os.getenv('SQL_USER')
         self.sql_password = os.getenv('SQL_PASSWORD')
+        self.twitch_client_id = os.getenv('CLIENT_ID')
         # Bot information
         self.bot_color = 0x001C1D
         self.discord_bot_service_version = "5.2.0"
@@ -718,14 +720,142 @@ class BotOfTheSpecter(commands.Bot):
         if not guild:
             self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel {channel_code}")
             return
-        channel = guild.get_channel(mapping["channel_id"])
-        if not channel:
-            self.logger.warning(f"Channel {mapping['channel_id']} not found in guild {guild.name}")
+        guild_id = mapping["guild_id"]
+        mysql_helper = MySQLHelper(self.logger)
+        discord_info = await mysql_helper.fetchone(
+            "SELECT stream_alert_channel_id, moderation_channel_id, alert_channel_id FROM discord_users WHERE guild_id = %s",
+            (guild_id,), database_name='website', dict_cursor=True)
+        if not discord_info:
+            self.logger.warning(f"No Discord info found for guild {guild_id}")
             return
-        message = self.format_twitch_message(event_type, data)
+        alert_channel_id = discord_info.get("alert_channel_id")
+        stream_alert_channel_id = discord_info.get("stream_alert_channel_id")
+        moderation_channel_id = discord_info.get("moderation_channel_id")
+        # Determine which channel to send the message to based on event type
+        if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID"]:
+            if not alert_channel_id:
+                return
+            channel_id = alert_channel_id
+        elif event_type in ["ONLINE", "OFFLINE"]:
+            if not stream_alert_channel_id:
+                return
+            channel_id = stream_alert_channel_id
+            mention_everyone = True
+        elif event_type == "MODERATION":
+            if not moderation_channel_id:
+                return
+            channel_id = moderation_channel_id
+        channel = guild.get_channel(channel_id)
+        if not channel:
+            self.logger.warning(f"Channel {channel_id} not found in guild {guild.name}")
+            return
+        channel_name = mapping.get("channel_name")
+        message = await self.format_twitch_message(event_type, data, channel_name)
         if message:
-            await channel.send(embed=message)
+            if mention_everyone:
+                await channel.send(content="@everyone", embed=message)
+            else:
+                await channel.send(embed=message)
             self.logger.info(f"Sent {event_type} message to {guild.name}#{channel.name}")
+
+    async def format_twitch_message(self, event_type, data, channel_name):
+        thumbnail_url = "https://cdn.botofthespecter.com/webhook"
+        username = data.get("username", "Unknown User")
+        message_text = data.get("message", "")
+        embed = None
+        if event_type == "ONLINE":
+            embed = discord.Embed(
+                title="🟢 Stream is LIVE!",
+                description=f"**{username}** is now live!",
+                color=discord.Color.green()
+            )
+            stream_thumbnail_url = await self.get_stream_thumbnail_url(channel_name)
+            if stream_thumbnail_url is not None:
+                embed.set_thumbnail(url=data.get(f"{stream_thumbnail_url}"))
+        elif event_type == "FOLLOW":
+            embed = discord.Embed(
+                title="New Follower!",
+                description=f"**{username}** just followed the stream!",
+                color=discord.Color.blue()
+            )
+            embed.set_thumbnail(url=data.get(f"{thumbnail_url}/follow.png"))
+        elif event_type == "SUBSCRIPTION":
+            months = data.get("months", 1)
+            tier = data.get("tier")
+            desc = f"**{username}** just subscribed"
+            if months > 1:
+                desc += f" for {months} months"
+            desc += f" (Tier {tier})!"
+            embed = discord.Embed(
+                title="New Subscriber!",
+                description=desc,
+                color=discord.Color.gold()
+            )
+            embed.set_thumbnail(url=data.get(f"{thumbnail_url}/sub.png"))
+        elif event_type == "CHEER":
+            bits = data.get("bits", 0)
+            embed = discord.Embed(
+                title="New Cheer!",
+                description=f"**{username}** cheered {bits} bits!",
+                color=discord.Color.purple()
+            )
+            if bits < 100:
+                image = "cheer.png"
+            elif 100 <= bits < 1000:
+                image = "cheer100.png"
+            else:
+                image = "cheer1000.png"
+            embed.set_thumbnail(url=data.get(f"{thumbnail_url}/{image}"))
+        elif event_type == "RAID":
+            viewers = data.get("viewers", 0)
+            embed = discord.Embed(
+                title="New Raid!",
+                description=f"**{username}** raided with {viewers} viewers!",
+                color=discord.Color.green()
+            )
+            embed.set_thumbnail(url=data.get(f"{thumbnail_url}/raid.png"))
+        if message_text:
+            embed.insert_field_at(index=1, name="Message", value=message_text, inline=False)
+        embed.set_author(name="BotOfTheSpecter", icon_url="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg")
+        timestamp = await self.format_discord_embed_timestamp(self, channel_name)
+        embed.set_footer(text=f"Auto Posted by BotOfTheSpecter | {timestamp}")
+        return embed
+
+    async def format_discord_embed_timestamp(self, channel_name):
+        mysql_helper = MySQLHelper(self.logger)
+        timezone_info = await mysql_helper.fetchone("SELECT timezone FROM profile",(), database_name=channel_name, dict_cursor=True)
+        timezone = timezone_info.get("timezone") if timezone_info.get("timezone") else 'UTC'
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
+        time_format_date = current_time.strftime("%B %d, %Y")
+        time_format_time = current_time.strftime("%I:%M %p")
+        time_format = f"{time_format_date} at {time_format_time}"
+        return time_format
+
+    async def get_stream_thumbnail_url(self, channel_name):
+        channel_name = channel_name.lower()
+        mysql_helper = MySQLHelper(self.logger)
+        twitch_user_id = await mysql_helper.fetchone(
+            "SELECT twitch_user_id FROM users WHERE username = %s",
+            (channel_name,), database_name='website', dict_cursor=True
+        )
+        twitch_user_id = twitch_user_id["twitch_user_id"]
+        auth_token = await mysql_helper.fetchone(
+            "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
+            (twitch_user_id,), database_name='website', dict_cursor=True
+        )
+        auth_token = auth_token['twitch_access_token']
+        async with aiohttp.ClientSession() as session:
+            headers = {"Client-ID": config.twitch_client_id,"Authorization": f"Bearer {auth_token}"}
+            async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    thumbnail_url = data.get("data", [{}])[0].get("thumbnail_url")
+                    thumbnail_url = thumbnail_url.replace("{width}x{height}", "1280x720")
+                    return thumbnail_url
+                else:
+                    self.logger.error(f"Failed to fetch stream thumbnail: {resp.status}")
+                    return None
 
     async def handle_stream_event(self, event_type, data):
         resolver = DiscordChannelResolver(self.logger)
@@ -764,49 +894,6 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.info(f"Set status to \"{event_type}\" for {guild.name}#{channel.name}")
         else:
             self.logger.info(f"Status not set to \"{event_type}\" for {guild.name}#{channel.name} - channel name already matches \"{channel_update}\"")
-
-    def format_twitch_message(self, event_type, data):
-        username = data.get("username", "Unknown User")
-        embed = None
-        if event_type == "FOLLOW":
-            embed = discord.Embed(
-                title="💙 New Follower!",
-                description=f"**{username}** just followed the stream!",
-                color=discord.Color.blue()
-            )
-        elif event_type == "SUBSCRIPTION":
-            months = data.get("months", 1)
-            tier = data.get("tier")
-            message_text = data.get("message", "")
-            desc = f"**{username}** just subscribed"
-            if months > 1:
-                desc += f" for {months} months"
-            desc += f" (Tier {tier})!"
-            embed = discord.Embed(
-                title="⭐ New Subscription!",
-                description=desc,
-                color=discord.Color.gold()
-            )
-            if message_text:
-                embed.add_field(name="Message", value=message_text, inline=False)
-        elif event_type == "CHEER":
-            bits = data.get("bits", 0)
-            message_text = data.get("message", "")
-            embed = discord.Embed(
-                title="💎 Cheer!",
-                description=f"**{username}** cheered {bits} bits!",
-                color=discord.Color.purple()
-            )
-            if message_text:
-                embed.add_field(name="Message", value=message_text, inline=False)
-        elif event_type == "RAID":
-            viewers = data.get("viewers", 0)
-            embed = discord.Embed(
-                title="🚀 Raid!",
-                description=f"**{username}** raided with {viewers} viewers!",
-                color=discord.Color.green()
-            )
-        return embed
 
 # QuoteCog class for fetching and sending public quotes
 class QuoteCog(commands.Cog, name='Quote'):
@@ -1764,7 +1851,6 @@ class MusicPlayer:
                         file_path = info['requested_downloads'][0].get('filepath') or info['requested_downloads'][0].get('filename')
                     if not file_path:
                         file_path = info.get('_filename')
-                    
                     # If we got a valid file path, we're done
                     if file_path and os.path.exists(file_path):
                         self.logger.info(f"[YT-DLP] Successfully downloaded: {file_path}")
