@@ -342,6 +342,7 @@ class BotOfTheSpecter(commands.Bot):
                 if command_name in self.internal_commands:
                     self.logger.info(f"Processing internal command: {command_name}")
                     await self.process_commands(message)
+                    return
                 else:
                     self.logger.info(f"Checking if '{command_name}' is a custom command")
                     custom_command_executed = await self.handle_custom_command(message)
