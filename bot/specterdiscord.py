@@ -1232,10 +1232,17 @@ class TicketCog(commands.Cog, name='Tickets'):
                 )
                 await ctx.author.add_roles(support_role, reason="Ticket System Setup - Auto-assigned support role")
             mod_embed = discord.Embed(
-                title="Mod Channel Setup (Optional)",
+                title="Mod Channel Setup",
                 description=(
-                    "Please mention a channel for mod actions/notifications.\n\n"
-                    "**Example:** #mod-logs\n\n"
+                    "Please provide the **Channel ID** or mention a channel for ticket system management.\n\n"
+                    "**This channel will be used for:**\n"
+                    "• Editing ticket system settings\n"
+                    "• Receiving update notifications\n"
+                    "• Managing ticket configurations\n"
+                    "• Administrative alerts and logs\n\n"
+                    "**How to provide channel:**\n"
+                    "• Mention the channel: #mod-logs\n"
+                    "• Or provide Channel ID: 123456789012345678\n\n"
                     "**Or type `skip` to skip this step.**"
                 ),
                 color=discord.Color.blue()
@@ -1249,8 +1256,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                     if mod_response.channel_mentions:
                         mod_channel = mod_response.channel_mentions[0]
                         channel_embed = discord.Embed(
-                            title="✅ Mod Channel Set",
-                            description=f"Using mod channel: {mod_channel.mention}",
+                            title="✅ Mod Channel Configured",
+                            description=f"Management channel set: {mod_channel.mention}\n\nThis channel will receive ticket system updates and allow settings management.",
                             color=discord.Color.green()
                         )
                         await ctx.send(embed=channel_embed)
@@ -1260,8 +1267,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                             mod_channel = ctx.guild.get_channel(channel_id)
                             if mod_channel:
                                 channel_embed = discord.Embed(
-                                    title="✅ Mod Channel Set",
-                                    description=f"Using mod channel: {mod_channel.mention}",
+                                    title="✅ Mod Channel Configured",
+                                    description=f"Management channel set: {mod_channel.mention}\n\nThis channel will receive ticket system updates and allow settings management.",
                                     color=discord.Color.green()
                                 )
                                 await ctx.send(embed=channel_embed)
@@ -1371,7 +1378,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 name="📋 Configuration Summary",
                 value=(
                     f"**Support Role:** {support_role.mention if support_role else 'None'}\n"
-                    f"**Mod Channel:** {mod_channel.mention if mod_channel else 'None'}\n"
+                    f"**Management Channel:** {mod_channel.mention + ' (for settings & updates)' if mod_channel else 'None'}\n"
                     f"**Ticket Category:** {category.mention}\n"
                     f"**Info Channel:** {info_channel.mention}"
                 ),
