@@ -7,7 +7,7 @@ import json
 import tempfile
 import random
 import time
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 import subprocess
 from subprocess import PIPE
 import re
@@ -1527,7 +1527,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 inline=False
             )
             embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
-            embed.timestamp = datetime.now(UTC)
+            embed.timestamp = datetime.now(timezone.utc)
             await ctx.send(embed=embed)
         except Exception as e:
             self.logger.error(f"Error in settings command: {e}")
