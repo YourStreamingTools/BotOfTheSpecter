@@ -560,13 +560,13 @@ ob_start();
                   </p>
                   <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
                     <div class="field">
-                      <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
-                        <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
-                        Alert Channel ID
+                      <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
+                        <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>
+                        Stream Alerts Channel ID
                       </label>
-                      <p class="help has-text-grey-light mb-2">Channel ID for general bot alerts and notifications</p>
+                      <p class="help has-text-grey-light mb-2">Channel ID for stream online/offline notifications</p>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="alert_channel_id" name="alert_channel_id" placeholder="e.g., 1234567890123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="stream_channel_id" name="stream_channel_id" placeholder="e.g., 1234567890123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
@@ -582,13 +582,35 @@ ob_start();
                       </div>
                     </div>
                     <div class="field">
-                      <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
-                        <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>
-                        Stream Alerts Channel ID
+                      <label class="label has-text-white" for="live_channel_id" style="font-weight: 500;">
+                        <span class="icon mr-1 has-text-info"><i class="fa-solid fa-volume-high"></i></span>
+                        <?php echo t('discordbot_live_channel_id_label'); ?>
                       </label>
-                      <p class="help has-text-grey-light mb-2">Channel ID for stream online/offline notifications</p>
+                      <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_live_channel_id_help'); ?></p>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="stream_channel_id" name="stream_channel_id" placeholder="e.g., 1234567890123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="label has-text-white" for="guild_id" style="font-weight: 500;">
+                        <span class="icon mr-1 has-text-info"><i class="fa-solid fa-users"></i></span>
+                        <?php echo t('discordbot_guild_id_label'); ?>
+                      </label>
+                      <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_guild_id_help'); ?></p>
+                      <div class="control has-icons-left">
+                        <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
+                        <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
+                        Alert Channel ID
+                      </label>
+                      <p class="help has-text-grey-light mb-2">Channel ID for general bot alerts and notifications</p>
+                      <div class="control has-icons-left">
+                        <input class="input" type="text" id="alert_channel_id" name="alert_channel_id" placeholder="e.g., 1234567890123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
@@ -687,7 +709,7 @@ ob_start();
                       <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_live_channel_id_help'); ?></p>
                       <div class="control has-icons-left">
                         <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-id-card"></i></span>
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
                     <div class="field">
@@ -695,7 +717,7 @@ ob_start();
                       <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_guild_id_help'); ?></p>
                       <div class="control has-icons-left">
                         <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-id-card"></i></span>
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
                     <div class="field">
