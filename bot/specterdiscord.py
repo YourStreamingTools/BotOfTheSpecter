@@ -7,7 +7,7 @@ import json
 import tempfile
 import random
 import time
-from datetime import datetime
+from datetime import datetime, UTC
 import subprocess
 from subprocess import PIPE
 import re
@@ -1424,6 +1424,16 @@ class TicketCog(commands.Cog, name='Tickets'):
                 )
                 await ctx.send(embed=embed)
                 return
+            try:
+                mod_channel_id = int(mod_channel_id)
+            except (ValueError, TypeError):
+                embed = discord.Embed(
+                    title="❌ Invalid Mod Channel",
+                    description="The moderator channel ID is invalid. Please run `!setuptickets` again.",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=embed)
+                return
             if ctx.channel.id != mod_channel_id:
                 mod_channel = self.bot.get_channel(mod_channel_id)
                 mod_channel_mention = mod_channel.mention if mod_channel else f"<#{mod_channel_id}>"
@@ -1499,7 +1509,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 inline=False
             )
             embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
-            embed.timestamp = datetime.utcnow()
+            embed.timestamp = datetime.now(UTC)
             await ctx.send(embed=embed)
         except Exception as e:
             self.logger.error(f"Error in settings command: {e}")
