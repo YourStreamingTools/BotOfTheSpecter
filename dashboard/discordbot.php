@@ -598,11 +598,13 @@ ob_start();
                     </div>
                     <div class="field">
                       <label class="label has-text-white" for="online_text" style="font-weight: 500;">
-                        <?php echo t('discordbot_online_text_label'); ?> <span class="has-text-grey-light">(Max 20 characters)</span>
+                        <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
+                        <?php echo t('discordbot_online_text_label'); ?>
                       </label>
+                      <p class="help has-text-grey-light mb-2">Text to display when your channel is online</p>
                       <div class="control has-icons-left">
                         <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
+                        <span class="icon is-small is-left has-text-success"><i class="fa-solid fa-comment"></i></span>
                       </div>
                       <p class="help has-text-grey-light">
                         <span id="online_text_counter"><?php echo strlen($existingOnlineText); ?></span>/20 characters
@@ -610,11 +612,13 @@ ob_start();
                     </div>
                     <div class="field">
                       <label class="label has-text-white" for="offline_text" style="font-weight: 500;">
-                        <?php echo t('discordbot_offline_text_label'); ?> <span class="has-text-grey-light">(Max 20 characters)</span>
+                        <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
+                        <?php echo t('discordbot_offline_text_label'); ?>
                       </label>
+                      <p class="help has-text-grey-light mb-2">Text to display when your channel is offline</p>
                       <div class="control has-icons-left">
                         <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
+                        <span class="icon is-small is-left has-text-danger"><i class="fa-solid fa-comment"></i></span>
                       </div>
                       <p class="help has-text-grey-light">
                         <span id="offline_text_counter"><?php echo strlen($existingOfflineText); ?></span>/20 characters
@@ -759,7 +763,7 @@ ob_start();
                 <div class="card-content">
                   <form action="" method="post">
                     <div class="field">
-                      <label class="label has-text-white" for="online_text" style="font-weight: 500;"><?php echo t('discordbot_online_text_label'); ?> <span class="has-text-grey-light">(Max 20 characters)</span></label>
+                      <label class="label has-text-white" for="online_text" style="font-weight: 500;"><?php echo t('discordbot_online_text_label'); ?></label>
                       <div class="control has-icons-left">
                         <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
@@ -769,7 +773,7 @@ ob_start();
                       </p>
                     </div>
                     <div class="field">
-                      <label class="label has-text-white" for="offline_text" style="font-weight: 500;"><?php echo t('discordbot_offline_text_label'); ?> <span class="has-text-grey-light">(Max 20 characters)</span></label>
+                      <label class="label has-text-white" for="offline_text" style="font-weight: 500;"><?php echo t('discordbot_offline_text_label'); ?></label>
                       <div class="control has-icons-left">
                         <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
