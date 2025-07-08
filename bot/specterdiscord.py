@@ -1124,10 +1124,155 @@ class TicketCog(commands.Cog, name='Tickets'):
 
     @commands.command(name="setuptickets")
     @commands.has_permissions(administrator=True)
-    async def setup_tickets(self, ctx, support_role: discord.Role = None, mod_channel: discord.TextChannel = None):
+    async def setup_tickets(self, ctx):
         if not self.pool:
             await self.init_ticket_database()
+        def check(message):
+            return message.author == ctx.author and message.channel == ctx.channel
         try:
+            setup_embed = discord.Embed(
+                title="🎫 Ticket System Setup",
+                description="Let's set up your ticket system! I'll ask you a few questions.",
+                color=config.bot_color
+            )
+            await ctx.send(embed=setup_embed)
+            role_embed = discord.Embed(
+                title="Support Role Setup",
+                description=(
+                    "Please provide the **Role ID** for your support team role.\n\n"
+                    "**How to get a Role ID:**\n"
+                    "1. Go to Server Settings → Roles\n"
+                    "2. Right-click on the role you want\n"
+                    "3. Select 'Copy ID'\n\n"
+                    "**Or type `skip` to create a new support role automatically.**"
+                ),
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=role_embed)
+            support_role = None
+            try:
+                role_response = await self.bot.wait_for('message', check=check, timeout=60.0)
+                if role_response.content.lower() == 'skip':
+                    # Create new support role and assign to the user
+                    support_role = await ctx.guild.create_role(
+                        name="Support Team",
+                        color=discord.Color.blue(),
+                        permissions=discord.Permissions(
+                            manage_messages=True,
+                            read_message_history=True,
+                            send_messages=True,
+                            read_messages=True,
+                            view_channel=True
+                        ),
+                        reason="Ticket System - Support Role Creation"
+                    )
+                    # Assign the role to the user setting up the system
+                    await ctx.author.add_roles(support_role, reason="Ticket System Setup - Auto-assigned support role")
+                    success_embed = discord.Embed(
+                        title="✅ Support Role Created",
+                        description=f"Created new support role: {support_role.mention}\nYou have been assigned this role automatically.",
+                        color=discord.Color.green()
+                    )
+                    await ctx.send(embed=success_embed)
+                    self.logger.info(f"Created support role '{support_role.name}' and assigned to {ctx.author} in {ctx.guild.name}")
+                else:
+                    try:
+                        role_id = int(role_response.content.strip())
+                        support_role = ctx.guild.get_role(role_id)
+                        if not support_role:
+                            await ctx.send("❌ Role not found! Creating a new support role instead...")
+                            support_role = await ctx.guild.create_role(
+                                name="Support Team",
+                                color=discord.Color.blue(),
+                                permissions=discord.Permissions(
+                                    manage_messages=True,
+                                    read_message_history=True,
+                                    send_messages=True,
+                                    read_messages=True,
+                                    view_channel=True
+                                ),
+                                reason="Ticket System - Support Role Creation (Invalid ID provided)"
+                            )
+                            await ctx.author.add_roles(support_role, reason="Ticket System Setup - Auto-assigned support role")
+                        else:
+                            found_embed = discord.Embed(
+                                title="✅ Support Role Found",
+                                description=f"Using existing role: {support_role.mention}",
+                                color=discord.Color.green()
+                            )
+                            await ctx.send(embed=found_embed)
+                    except ValueError:
+                        await ctx.send("❌ Invalid Role ID! Creating a new support role instead...")
+                        support_role = await ctx.guild.create_role(
+                            name="Support Team",
+                            color=discord.Color.blue(),
+                            permissions=discord.Permissions(
+                                manage_messages=True,
+                                read_message_history=True,
+                                send_messages=True,
+                                read_messages=True,
+                                view_channel=True
+                            ),
+                            reason="Ticket System - Support Role Creation (Invalid ID format)"
+                        )
+                        await ctx.author.add_roles(support_role, reason="Ticket System Setup - Auto-assigned support role")
+            except asyncio.TimeoutError:
+                await ctx.send("❌ Setup timed out! Creating a new support role automatically...")
+                support_role = await ctx.guild.create_role(
+                    name="Support Team",
+                    color=discord.Color.blue(),
+                    permissions=discord.Permissions(
+                        manage_messages=True,
+                        read_message_history=True,
+                        send_messages=True,
+                        read_messages=True,
+                        view_channel=True
+                    ),
+                    reason="Ticket System - Support Role Creation (Timeout)"
+                )
+                await ctx.author.add_roles(support_role, reason="Ticket System Setup - Auto-assigned support role")
+            mod_embed = discord.Embed(
+                title="Mod Channel Setup (Optional)",
+                description=(
+                    "Please mention a channel for mod actions/notifications.\n\n"
+                    "**Example:** #mod-logs\n\n"
+                    "**Or type `skip` to skip this step.**"
+                ),
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=mod_embed)
+            mod_channel = None
+            try:
+                mod_response = await self.bot.wait_for('message', check=check, timeout=60.0)
+                if mod_response.content.lower() != 'skip':
+                    # Try to extract channel from mention or ID
+                    if mod_response.channel_mentions:
+                        mod_channel = mod_response.channel_mentions[0]
+                        channel_embed = discord.Embed(
+                            title="✅ Mod Channel Set",
+                            description=f"Using mod channel: {mod_channel.mention}",
+                            color=discord.Color.green()
+                        )
+                        await ctx.send(embed=channel_embed)
+                    else:
+                        try:
+                            channel_id = int(mod_response.content.strip())
+                            mod_channel = ctx.guild.get_channel(channel_id)
+                            if mod_channel:
+                                channel_embed = discord.Embed(
+                                    title="✅ Mod Channel Set",
+                                    description=f"Using mod channel: {mod_channel.mention}",
+                                    color=discord.Color.green()
+                                )
+                                await ctx.send(embed=channel_embed)
+                            else:
+                                await ctx.send("⚠️ Channel not found, skipping mod channel setup.")
+                        except ValueError:
+                            await ctx.send("⚠️ Invalid channel format, skipping mod channel setup.")
+                else:
+                    await ctx.send("⚠️ Skipping mod channel setup.")
+            except asyncio.TimeoutError:
+                await ctx.send("⚠️ Timed out, skipping mod channel setup.")
             # Create the category if it doesn't exist
             category = discord.utils.get(ctx.guild.categories, name="Open Tickets")
             if not category:
@@ -1216,14 +1361,31 @@ class TicketCog(commands.Cog, name='Tickets'):
             # Send the new info message
             await info_channel.send(embed=embed)
             await info_channel.send(embed=warning_embed)
-            # Create setup confirmation message
-            setup_msg = f"✅ Ticket system has been set up successfully!" + os.linesep + f"Please check {info_channel.mention} for the info message."
-            if support_role:
-                setup_msg += os.linesep + f"Support role: {support_role.mention}"
-            if mod_channel:
-                setup_msg += os.linesep + f"Mod channel: {mod_channel.mention}"
+            # Create detailed setup confirmation message
+            final_embed = discord.Embed(
+                title="✅ Ticket System Setup Complete!",
+                description=f"Your ticket system has been successfully configured!\n\nPlease check {info_channel.mention} for user instructions.",
+                color=discord.Color.green()
+            )
+            final_embed.add_field(
+                name="📋 Configuration Summary",
+                value=(
+                    f"**Support Role:** {support_role.mention if support_role else 'None'}\n"
+                    f"**Mod Channel:** {mod_channel.mention if mod_channel else 'None'}\n"
+                    f"**Ticket Category:** {category.mention}\n"
+                    f"**Info Channel:** {info_channel.mention}"
+                ),
+                inline=False
+            )
+            if support_role and ctx.author in support_role.members:
+                final_embed.add_field(
+                    name="🎉 Role Assignment",
+                    value=f"You have been assigned the {support_role.mention} role!",
+                    inline=False
+                )
+            final_embed.set_footer(text="Users can now create tickets using !ticket create")
             
-            await ctx.send(setup_msg)
+            await ctx.send(embed=final_embed)
             self.logger.info(f"Ticket system set up completed in {ctx.guild.name} by {ctx.author}")
         except Exception as e:
             self.logger.error(f"Error setting up ticket system: {e}")
