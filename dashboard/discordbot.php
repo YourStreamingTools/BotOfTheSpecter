@@ -54,7 +54,7 @@ if (isset($username) && $username === 'botofthespecter') {
   $discord_userSTMT->close();
 } else {
   // For all other users, use the new robust token validation
-  $discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token, expires_in FROM discord_users WHERE user_id = ?");
+  $discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token FROM discord_users WHERE user_id = ?");
   $discord_userSTMT->bind_param("i", $user_id);
   $discord_userSTMT->execute();
   $discord_userResult = $discord_userSTMT->get_result();
@@ -68,10 +68,9 @@ if (isset($username) && $username === 'botofthespecter') {
   $needs_relink = false;
   if ($has_discord_record) {
     $discordData = $discord_userResult->fetch_assoc();
-    // Check if we have ALL required token data: access_token, refresh_token, and expires_in
+    // Check if we have ALL required token data: access_token, refresh_token
     if (!empty($discordData['access_token']) && 
-        !empty($discordData['refresh_token']) && 
-        !empty($discordData['expires_in'])) {
+        !empty($discordData['refresh_token'])) {
       // Validate token and get current authorization info using /oauth2/@me
       $auth_url = 'https://discord.com/api/oauth2/@me';
       $token = $discordData['access_token'];
@@ -91,7 +90,7 @@ if (isset($username) && $username === 'botofthespecter') {
           $discord_username = $auth_data['user']['username'] ?? '';
           $discord_discriminator = $auth_data['user']['discriminator'] ?? '';
           $discord_avatar = $auth_data['user']['avatar'] ?? '';
-          // Get actual expiration from Discord API (more accurate than stored expires_in)
+          // Get actual expiration from Discord API
           if (isset($auth_data['expires'])) {
             try {
               $expires_datetime = new DateTime($auth_data['expires']);
@@ -110,18 +109,8 @@ if (isset($username) && $username === 'botofthespecter') {
                 $expires_str = implode(', ', $parts);
               }
             } catch (Exception $e) {
-              // Fallback to stored expires_in if datetime parsing fails
-              if (!empty($discordData['expires_in'])) {
-                $expires_in = (int)$discordData['expires_in'];
-                $days = floor($expires_in / 86400);
-                $hours = floor(($expires_in % 86400) / 3600);
-                $minutes = floor(($expires_in % 3600) / 60);
-                $parts = [];
-                if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
-                if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
-                if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
-                $expires_str = implode(', ', $parts);
-              }
+              // If there's an error parsing the date, just set expires_str to empty
+              $expires_str = '';
             }
           }
         } else {
@@ -131,8 +120,9 @@ if (isset($username) && $username === 'botofthespecter') {
       } else {
         // API call failed, token might be invalid, needs relink
         $needs_relink = true;
-      }    } else {
-      // Missing required token data (access_token, refresh_token, or expires_in), needs relink
+      }
+    } else {
+      // Missing required token data (access_token, refresh_token), needs relink
       $needs_relink = true;
     }
   } else {
@@ -201,12 +191,11 @@ if (isset($_GET['code']) && !$is_linked) {
         $discord_id = $user_data['id'];
         $access_token = $params['access_token'];
         $refresh_token = $params['refresh_token'] ?? null;
-        $expires_in = $params['expires_in'] ?? null;
         // Store Discord user information with tokens if available
         if ($refresh_token) {
-          $sql = "INSERT INTO discord_users (user_id, discord_id, access_token, refresh_token, expires_in) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token), refresh_token = VALUES(refresh_token), expires_in = VALUES(expires_in)";
+          $sql = "INSERT INTO discord_users (user_id, discord_id, access_token, refresh_token) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token), refresh_token = VALUES(refresh_token)";
           $insertStmt = $conn->prepare($sql);
-          $insertStmt->bind_param("isssi", $user_id, $discord_id, $access_token, $refresh_token, $expires_in);
+          $insertStmt->bind_param("isss", $user_id, $discord_id, $access_token, $refresh_token);
         } else {
           $sql = "INSERT INTO discord_users (user_id, discord_id, access_token) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token)";
           $insertStmt = $conn->prepare($sql);
@@ -352,6 +341,9 @@ $existingLiveChannelId = $discordData['live_channel_id'] ?? "";
 $existingGuildId = $discordData['guild_id'] ?? "";
 $existingOnlineText = $discordData['online_text'] ?? "";
 $existingOfflineText = $discordData['offline_text'] ?? "";
+$existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
+$existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
+$existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
 
 // Generate auth URL with state parameter for security
 $authURL = '';
