@@ -190,14 +190,26 @@ class BotOfTheSpecter(commands.Bot):
             os.makedirs(messages_dir)
         if not os.path.exists(self.processed_messages_file):
             open(self.processed_messages_file, 'w').close()
+        self.stream_status_file_template = config.stream_status_file
 
     def read_stream_status(self, channel_name):
-        status_file_path = config.stream_status_file.format(channel_name=channel_name)
+        # Use the configured path template for the stream status file
+        normalized_channel_name = channel_name.lower().replace(' ', '')
+        status_file_path = self.stream_status_file_template.format(channel_name=normalized_channel_name)
+        self.logger.debug(f"Checking stream status file: {status_file_path}")
         if os.path.exists(status_file_path):
-            with open(status_file_path, "r") as file:
-                status = file.read().strip()
-                return status.lower() == "true"
-        return False
+            try:
+                with open(status_file_path, "r") as file:
+                    status = file.read().strip()
+                    is_online = status.lower() == "true"
+                    self.logger.debug(f"Stream status for {normalized_channel_name}: {status} -> {is_online}")
+                    return is_online
+            except Exception as e:
+                self.logger.error(f"Error reading stream status file for {normalized_channel_name}: {e}")
+                return False
+        else:
+            self.logger.warning(f"Stream status file not found for {normalized_channel_name}: {status_file_path}")
+            return False
 
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
