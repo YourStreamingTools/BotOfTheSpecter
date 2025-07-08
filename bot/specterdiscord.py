@@ -293,22 +293,22 @@ class BotOfTheSpecter(commands.Bot):
         # Ignore bot's own messages
         if message.author == self.user:
             return
-        # Determine the "channel_name" based on the source of the message
-        if isinstance(message.channel, discord.DMChannel):
-            channel = message.channel
-            channel_name = str(message.author.id)  # Use user ID for DMs
-        else:
-            channel = message.channel
-            channel_name = str(message.guild.name)  # Use guild name for server messages
-        # Use the message ID to track if it's already been processed
-        message_id = str(message.id)
-        with open(self.processed_messages_file, 'r') as file:
-            processed_messages = file.read().splitlines()
-        if message_id in processed_messages:
-            self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
-            return
         # Process the message if it's in a DM channel
         if isinstance(message.channel, discord.DMChannel):
+            # Determine the "channel_name" based on the source of the message
+            channel = message.channel
+            channel_name = str(message.author.id)  # Use user ID for DMs
+            # Use the message ID to track if it's already been processed
+            message_id = str(message.id)
+            try:
+                with open(self.processed_messages_file, 'r') as file:
+                    processed_messages = file.read().splitlines()
+                if message_id in processed_messages:
+                    self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
+                    return
+            except FileNotFoundError:
+                self.logger.info("Processed messages file not found, creating new one")
+                processed_messages = []
             try:
                 # Fetch AI responses
                 ai_responses = await self.get_ai_response(message.content, channel_name)
@@ -332,9 +332,66 @@ class BotOfTheSpecter(commands.Bot):
             # Mark the message as processed by appending the message ID to the file
             with open(self.processed_messages_file, 'a') as file:
                 file.write(message_id + os.linesep)
-        # If the message is in a server channel, check for custom commands
-        elif isinstance(message.channel, discord.TextChannel):
-            # Check if message starts with "!" (custom command)
+        # If the message is in a server channel (text or voice), check for tickets first, then custom commands
+        elif isinstance(message.channel, (discord.TextChannel, discord.VoiceChannel)):
+            try:
+                # TICKET SYSTEM LOGIC - Check if this is a ticket-info channel
+                settings = await self.get_settings(message.guild.id)
+                if settings and message.channel.id == settings['info_channel_id']:
+                    # Check if message is a ticket command
+                    is_ticket_command = message.content.startswith('!ticket')
+                    is_ticket_command_create = message.content.startswith('!ticket create')
+                    if not is_ticket_command:
+                        # Delete non-ticket messages
+                        await message.delete()
+                        # Send a temporary warning message
+                        warning = await message.channel.send(
+                            f"{message.author.mention} This channel is for ticket commands only. "
+                            "Please use `!ticket create` to open a ticket."
+                        )
+                        # Set a delay before deleting the warning message
+                        await asyncio.sleep(10)  # Wait for 10 seconds
+                        await warning.delete()  # Delete the warning message after the delay
+                        self.logger.info(f"Deleted non-ticket message from {message.author} in ticket-info channel")
+                        return
+                    elif not is_ticket_command_create:
+                        # Delete the command message
+                        await message.delete()
+                        warning = await message.channel.send(
+                            f"{message.author.mention} This channel is for ticket commands only. "
+                            "Please use `!ticket create` to open a ticket."
+                        )
+                        # Set a delay before deleting the warning message
+                        await asyncio.sleep(10)  # Wait for 10 seconds
+                        await warning.delete()  # Delete the warning message after the delay
+                        self.logger.info(f"Deleted ticket create command from {message.author} in ticket-info channel")
+                        return
+            except Exception as e:
+                self.logger.error(f"Error in ticket-info message watcher: {e}")
+            try:
+                if hasattr(message.channel, "name") and message.channel.name.startswith("ticket-"):
+                    # Ignore commands
+                    if message.content.startswith("!ticket"):
+                        return
+                    try:
+                        parts = message.channel.name.split("-")
+                        if len(parts) < 2:
+                            return
+                        ticket_id = int(parts[1])
+                    except Exception:
+                        return
+                    if not self.pool:
+                        await self.init_ticket_database()
+                    async with self.pool.acquire() as conn:
+                        async with conn.cursor() as cur:
+                            await cur.execute(
+                                "INSERT INTO ticket_comments (guild_id, ticket_id, user_id, username, comment) VALUES (%s, %s, %s, %s, %s)",
+                                (message.guild.id, ticket_id, message.author.id, str(message.author), message.content)
+                            )
+                    self.logger.info(f"Auto-saved comment for ticket {ticket_id} from {message.author}")
+                    return
+            except Exception as e:
+                self.logger.error(f"Error in ticket auto-save logic: {e}")
             if message.content.startswith("!"):
                 command_text = message.content[1:].strip().lower()
                 command_name = command_text.split()[0] if command_text else ""
