@@ -828,7 +828,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         user = guild.get_member(user_id)
         if user is None:
             user = await guild.fetch_member(user_id)
-        support_role = guild.get_role(self.SUPPORT_ROLE)
+        support_role = guild.get_role(settings['support_role_id']) if settings.get('support_role_id') else None
         # Create the ticket channel
         channel = await guild.create_text_channel(
             name=f"ticket-{ticket_id}",
@@ -838,7 +838,8 @@ class TicketCog(commands.Cog, name='Tickets'):
         # Set permissions
         await channel.set_permissions(guild.default_role, read_messages=False)
         await channel.set_permissions(user, read_messages=True, send_messages=True)
-        await channel.set_permissions(support_role, read_messages=True, send_messages=True)
+        if support_role:
+            await channel.set_permissions(support_role, read_messages=True, send_messages=True)
         # Welcome message for the user
         await channel.send(f"Welcome to your support ticket channel, {user.mention}!")
         # Create an embed with instructions
@@ -857,7 +858,8 @@ class TicketCog(commands.Cog, name='Tickets'):
         )
         await channel.send(embed=embed)  # Send the embed message to the channel
         # Notify the support team about the new ticket
-        await channel.send(f"{support_role.mention} A new support ticket has been created!")
+        if support_role:
+            await channel.send(f"{support_role.mention} A new support ticket has been created!")
         return channel
 
     async def create_ticket(self, guild_id: int, user_id: int, username: str) -> int:
@@ -927,9 +929,11 @@ class TicketCog(commands.Cog, name='Tickets'):
                     )
                     # Set permissions for Closed Tickets category
                     await closed_category.set_permissions(channel.guild.default_role, read_messages=False)
-                    owner = channel.guild.get_member(self.OWNER_ID)
-                    if owner:
-                        await closed_category.set_permissions(owner, read_messages=True, send_messages=False)
+                    # Give owner access if they exist in settings
+                    if settings.get('owner_id'):
+                        owner = channel.guild.get_member(settings['owner_id'])
+                        if owner:
+                            await closed_category.set_permissions(owner, read_messages=True, send_messages=False)
                 # Remove ticket creator's access
                 if ticket_creator:
                     await channel.set_permissions(ticket_creator, overwrite=discord.PermissionOverwrite())
@@ -1016,26 +1020,30 @@ class TicketCog(commands.Cog, name='Tickets'):
                     await ctx.send(embed=embed)
                     return
                 # Check if the user has the support role
-                support_role = ctx.guild.get_role(self.SUPPORT_ROLE)
-                if support_role not in ctx.author.roles:
-                    # Send closure message in channel
-                    embed = discord.Embed(
-                        title="Ticket Closure Notice",
-                        description=(
-                            "Only the support team can close tickets." + os.linesep +
-                            "If you need further assistance, please provide more details in this ticket channel" + os.linesep +
-                            "before a support team member closes this ticket for you." +
-                            os.linesep + os.linesep +
-                            "The support team has been notified that you wish to close this ticket." + os.linesep +
-                            "When we close tickets, this ticket will be marked as closed and archived." + os.linesep + os.linesep +
-                            "If you need further assistance in the future, please create a new ticket."
-                        ),
-                        color=discord.Color.yellow()
-                    )
-                    await ctx.send(embed=embed)
-                    # Notify support team with a plain text message
-                    await ctx.channel.send(f"{support_role.mention} requested ticket closure.")
-                    return
+                support_role_id = None
+                settings = await self.get_settings(ctx.guild.id)
+                if settings and settings.get('support_role_id'):
+                    support_role_id = settings['support_role_id']
+                    support_role = ctx.guild.get_role(support_role_id)
+                    if support_role and support_role not in ctx.author.roles:
+                        # Send closure message in channel
+                        embed = discord.Embed(
+                            title="Ticket Closure Notice",
+                            description=(
+                                "Only the support team can close tickets." + os.linesep +
+                                "If you need further assistance, please provide more details in this ticket channel" + os.linesep +
+                                "before a support team member closes this ticket for you." +
+                                os.linesep + os.linesep +
+                                "The support team has been notified that you wish to close this ticket." + os.linesep +
+                                "When we close tickets, this ticket will be marked as closed and archived." + os.linesep + os.linesep +
+                                "If you need further assistance in the future, please create a new ticket."
+                            ),
+                            color=discord.Color.yellow()
+                        )
+                        await ctx.send(embed=embed)
+                        # Notify support team with a plain text message
+                        await ctx.channel.send(f"{support_role.mention} requested ticket closure.")
+                        return
                 await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason, ctx.guild.id)
                 self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author} with reason: {reason}")
             except Exception as e:
@@ -1117,7 +1125,10 @@ class TicketCog(commands.Cog, name='Tickets'):
             await ctx.send("Invalid actions. Use `!ticket create` to create a ticket, `!ticket close` to close your ticket, or `!ticket issue` to update your ticket description.")
 
     @commands.command(name="setuptickets")
-    async def setup_tickets(self, ctx):
+    @commands.has_permissions(administrator=True)
+    async def setup_tickets(self, ctx, support_role: discord.Role = None, mod_channel: discord.TextChannel = None):
+        if not self.pool:
+            await self.init_ticket_database()
         try:
             # Create the category if it doesn't exist
             category = discord.utils.get(ctx.guild.categories, name="Open Tickets")
@@ -1145,14 +1156,19 @@ class TicketCog(commands.Cog, name='Tickets'):
                 async with conn.cursor() as cur:
                     await cur.execute("""
                         INSERT INTO ticket_settings 
-                        (guild_id, info_channel_id, category_id, enabled) 
-                        VALUES (%s, %s, %s, TRUE)
+                        (guild_id, owner_id, info_channel_id, category_id, support_role_id, mod_channel_id, enabled) 
+                        VALUES (%s, %s, %s, %s, %s, %s, TRUE)
                         ON DUPLICATE KEY UPDATE 
+                        owner_id = VALUES(owner_id),
                         info_channel_id = VALUES(info_channel_id),
                         category_id = VALUES(category_id),
+                        support_role_id = VALUES(support_role_id),
+                        mod_channel_id = VALUES(mod_channel_id),
                         enabled = TRUE,
                         updated_at = CURRENT_TIMESTAMP
-                    """, (ctx.guild.id, info_channel.id, category.id))
+                    """, (ctx.guild.id, ctx.author.id, info_channel.id, category.id, 
+                          support_role.id if support_role else None, 
+                          mod_channel.id if mod_channel else None))
             # Set channel permissions
             await info_channel.set_permissions(
                 ctx.guild.default_role,  # or interaction.guild.default_role for slash command
@@ -1202,8 +1218,15 @@ class TicketCog(commands.Cog, name='Tickets'):
             # Send the new info message
             await info_channel.send(embed=embed)
             await info_channel.send(embed=warning_embed)
-            await ctx.send(f"✅ Ticket system has been set up successfully!" + os.linesep + f"Please check {info_channel.mention} for the info message.")
-            self.logger.info(f"Ticket system set up completed in {ctx.guild.name}")
+            # Create setup confirmation message
+            setup_msg = f"✅ Ticket system has been set up successfully!" + os.linesep + f"Please check {info_channel.mention} for the info message."
+            if support_role:
+                setup_msg += os.linesep + f"Support role: {support_role.mention}"
+            if mod_channel:
+                setup_msg += os.linesep + f"Mod channel: {mod_channel.mention}"
+            
+            await ctx.send(setup_msg)
+            self.logger.info(f"Ticket system set up completed in {ctx.guild.name} by {ctx.author}")
         except Exception as e:
             self.logger.error(f"Error setting up ticket system: {e}")
             await ctx.send("❌ An error occurred while setting up the ticket system.")
