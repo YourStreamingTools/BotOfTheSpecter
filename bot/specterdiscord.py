@@ -852,7 +852,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 "3. Any relevant screenshots or files" + os.linesep + os.linesep +
                 "Our support team will assist you as soon as possible." + os.linesep +
                 "Please be patient and remain respectful throughout the process." + os.linesep + os.linesep +
-                "If you wish to close the ticket at any time, use '!ticket close' to notify the support team."
+                "If you wish to close the ticket at any time, use `!ticket close` to notify the support team."
             ),
             color=config.bot_color
         )
@@ -1019,12 +1019,10 @@ class TicketCog(commands.Cog, name='Tickets'):
                     )
                     await ctx.send(embed=embed)
                     return
-                # Check if the user has the support role
-                support_role_id = None
                 settings = await self.get_settings(ctx.guild.id)
+                support_role = None
                 if settings and settings.get('support_role_id'):
-                    support_role_id = settings['support_role_id']
-                    support_role = ctx.guild.get_role(support_role_id)
+                    support_role = ctx.guild.get_role(settings['support_role_id'])
                     if support_role and support_role not in ctx.author.roles:
                         # Send closure message in channel
                         embed = discord.Embed(
