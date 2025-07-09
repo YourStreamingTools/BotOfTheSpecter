@@ -262,6 +262,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
         await self.add_cog(VoiceCog(self, self.logger))
+        await self.add_cog(StreamerPosting(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
         self.websocket_listener = WebsocketListener(self, self.logger)
@@ -2306,20 +2307,13 @@ class VoiceCog(commands.Cog, name='Voice'):
         self.voice_clients = {}  # Guild ID -> VoiceClient mapping
         self.music_player = MusicPlayer(bot, logger)
         self.logger.info("VoiceCog initialized successfully")
+
     async def cog_check(self, ctx):
         return ctx.guild is not None
+
     @commands.command(name="connect", aliases=["join", "summon"])
     async def connect_voice(self, ctx, *, channel: discord.VoiceChannel = None):
         self.logger.info(f"Connect command called by {ctx.author} in {ctx.guild.name}")
-        await self._handle_connect(ctx, channel)
-    @app_commands.command(name="connect", description="Connect the bot to a voice channel")
-    @app_commands.describe(channel="The voice channel to connect to (optional - defaults to your current channel)")
-    async def slash_connect_voice(self, interaction: discord.Interaction, channel: discord.VoiceChannel = None):
-        ctx = await commands.Context.from_interaction(interaction)
-        await self._handle_connect(ctx, channel)
-
-    async def _handle_connect(self, ctx, channel: discord.VoiceChannel = None):
-        self.logger.info(f"_handle_connect called by {ctx.author} in {ctx.guild.name}")
         try:
             # If no channel specified, try to get the user's current voice channel
             if channel is None:
@@ -2440,14 +2434,6 @@ class VoiceCog(commands.Cog, name='Voice'):
 
     @commands.command(name="disconnect", aliases=["leave", "dc"])
     async def disconnect_voice(self, ctx):
-        await self._handle_disconnect(ctx)
-
-    @app_commands.command(name="disconnect", description="Disconnect the bot from the voice channel")
-    async def slash_disconnect_voice(self, interaction: discord.Interaction):
-        ctx = await commands.Context.from_interaction(interaction)
-        await self._handle_disconnect(ctx)
-
-    async def _handle_disconnect(self, ctx):
         try:
             if ctx.guild.id not in self.voice_clients:
                 embed = discord.Embed(
@@ -2502,14 +2488,6 @@ class VoiceCog(commands.Cog, name='Voice'):
 
     @commands.command(name="voice_status", aliases=["vstatus"])
     async def voice_status(self, ctx):
-        await self._handle_voice_status(ctx)
-
-    @app_commands.command(name="voice_status", description="Check the bot's current voice connection status")
-    async def slash_voice_status(self, interaction: discord.Interaction):
-        ctx = await commands.Context.from_interaction(interaction)
-        await self._handle_voice_status(ctx)
-
-    async def _handle_voice_status(self, ctx):
         if ctx.guild.id in self.voice_clients and self.voice_clients[ctx.guild.id].is_connected():
             voice_client = self.voice_clients[ctx.guild.id]
             channel = voice_client.channel
@@ -2636,29 +2614,6 @@ class VoiceCog(commands.Cog, name='Voice'):
                 return
         await self.music_player.add_to_queue(ctx, query)
 
-    @app_commands.command(name="play", description="Play music from YouTube or add to queue")
-    @app_commands.describe(query="The song name or YouTube URL to play")
-    async def slash_play_music(self, interaction: discord.Interaction, query: str):
-        await interaction.response.defer()
-        if not interaction.user.voice:
-            await interaction.followup.send("You need to be in a voice channel to use this command!")
-            return
-        if not interaction.guild.voice_client:
-            try:
-                voice_channel = interaction.user.voice.channel
-                await voice_channel.connect()
-            except Exception as e:
-                await interaction.followup.send(f"Failed to connect to voice channel: {str(e)}")
-                return
-        class MockContext:
-            def __init__(self, interaction):
-                self.guild = interaction.guild
-                self.author = interaction.user
-                self.voice_client = interaction.guild.voice_client
-                self.send = interaction.followup.send
-        ctx = MockContext(interaction)
-        await self.music_player.add_to_queue(ctx, query)
-
     @commands.command(name="skip", aliases=["s", "next"])
     async def skip_music(self, ctx):
         if not ctx.author.voice or not self._user_in_linked_voice_text_channel(ctx):
@@ -2676,17 +2631,6 @@ class VoiceCog(commands.Cog, name='Voice'):
             return
         await self.music_player.skip(ctx)
 
-    @app_commands.command(name="skip", description="Skip the current song")
-    async def slash_skip_music(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        class MockContext:
-            def __init__(self, interaction):
-                self.guild = interaction.guild
-                self.voice_client = interaction.guild.voice_client
-                self.send = interaction.followup.send
-        ctx = MockContext(interaction)
-        await self.music_player.skip(ctx)
-
     @commands.command(name="stop", aliases=["pause"])
     async def stop_music(self, ctx):
         if not ctx.author.voice or not self._user_in_linked_voice_text_channel(ctx):
@@ -2702,17 +2646,6 @@ class VoiceCog(commands.Cog, name='Voice'):
             except Exception:
                 pass
             return
-        await self.music_player.stop(ctx)
-
-    @app_commands.command(name="stop", description="Stop music and clear the queue")
-    async def slash_stop_music(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        class MockContext:
-            def __init__(self, interaction):
-                self.guild = interaction.guild
-                self.voice_client = interaction.guild.voice_client
-                self.send = interaction.followup.send
-        ctx = MockContext(interaction)
         await self.music_player.stop(ctx)
 
     @commands.command(name="queue", aliases=["q", "playlist"])
@@ -2743,17 +2676,6 @@ class VoiceCog(commands.Cog, name='Voice'):
             except Exception as e:
                 self.logger.warning(f"Failed to delete messages on !queue command (wrong channel): {e}")
             return
-        await self.music_player.get_queue(ctx)
-
-    @app_commands.command(name="queue", description="Show the current music queue")
-    async def slash_show_queue(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        class MockContext:
-            def __init__(self, interaction):
-                self.guild = interaction.guild
-                self.voice_client = interaction.guild.voice_client
-                self.send = interaction.followup.send
-        ctx = MockContext(interaction)
         await self.music_player.get_queue(ctx)
 
     @commands.command(name="song")
@@ -2789,35 +2711,6 @@ class VoiceCog(commands.Cog, name='Voice'):
             await ctx.message.delete(delay=5)
         except Exception:
             pass
-
-    @app_commands.command(name="song", description="Show the current song playing")
-    async def slash_current_song(self, interaction: discord.Interaction):
-        guild_id = interaction.guild.id
-        current = self.music_player.current_track.get(guild_id)
-        # If idle, enqueue and play random CDN track
-        if not current:
-            await interaction.response.send_message("No song is currently playing.", ephemeral=True)
-            return
-        title = current['title']
-        if not current.get('is_youtube') and title.lower().endswith('.mp3'):
-            title = title[:-4]
-        source_label = 'YouTube' if current.get('is_youtube') else 'CDN'
-        duration = self.music_player.track_duration.get(guild_id)
-        start = self.music_player.track_start.get(guild_id)
-        desc = f"{title}"
-        embed = discord.Embed(
-            title="Now Playing",
-            description=desc,
-            color=discord.Color.purple()
-        )
-        embed.add_field(name="Source", value=source_label, inline=True)
-        embed.add_field(name="Requested by", value=current.get('user', 'Unknown'), inline=True)
-        if duration and start:
-            elapsed = int(time.time() - start)
-            elapsed_str = str(datetime.timedelta(seconds=elapsed))
-            duration_str = str(datetime.timedelta(seconds=int(duration)))
-            embed.add_field(name="Progress", value=f"{elapsed_str} / {duration_str}", inline=True)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @commands.command(name="volume")
     async def set_volume(self, ctx, volume: int = None):
@@ -2870,47 +2763,104 @@ class VoiceCog(commands.Cog, name='Voice'):
         except Exception:
             pass
 
-    @app_commands.command(name="volume", description="Show current volume or set playback volume (0-100)")
-    @app_commands.describe(volume="Volume percentage (0-100) - leave empty to see current volume")
-    async def slash_volume(self, interaction: discord.Interaction, volume: int = None):
-        # If no volume provided, show current volume
-        if volume is None:
-            current_vol = self.music_player.volumes.get(interaction.guild.id, config.volume_default)
-            current_vol_percent = int(current_vol * 100)
-            embed = discord.Embed(
-                title="🔊 Current Volume",
-                description=f"Volume is currently set to **{current_vol_percent}%**",
-                color=discord.Color.blue()
+# Twitch to Discord Streamer Posting
+class StreamerPosting:
+    def __init__(self, bot, logger=None):
+        self.bot = bot
+        self.logger = logger
+        self.mysql = MySQLHelper(logger)
+        self.channel_mapping = ChannelMapping()
+
+    async def get_users(self):
+        mapping = self.channel_mapping
+        for guilds in mapping.get_mapping():
+            guild_id = self.get_guild(guilds["guild_id"])
+            get_user_id = await self.mysql.fetchone(
+                "SELECT user_id FROM discord_users WHERE guild_id = %s", (guild_id,), database_name='website', dict_cursor=True
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-        # Validate volume range
-        if volume < 0 or volume > 100:
-            embed = discord.Embed(
-                title="❌ Invalid Volume",
-                description="Please provide a volume between 0 and 100.",
-                color=discord.Color.red()
+            if not get_user_id:
+                continue
+            user_id = get_user_id['user_id']
+            get_channel_info = await self.mysql.fetchone(
+                "SELECT username, twitch_user_id FROM users WHERE id = %s", (user_id,), database_name='website', dict_cursor=True
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-        # Set new volume
-        vol = volume / 100
-        self.music_player.volumes[interaction.guild.id] = vol
-        vc = interaction.guild.voice_client
-        if vc and hasattr(vc, 'source') and isinstance(vc.source, discord.PCMVolumeTransformer):
-            vc.source.volume = vol
-        embed = discord.Embed(
-            title="🔊 Volume Changed",
-            description=f"Set volume to **{volume}%**",
-            color=discord.Color.green()
+            if not get_channel_info:
+                continue
+            channel_name = get_channel_info['username']
+            twitch_user_id = get_channel_info['twitch_user_id']
+        users = await self.mysql.fetchall(
+            "SELECT username, stream_url FROM member_streams",
+            database_name=channel_name, dict_cursor=True
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        get_auth_token = await self.mysql.fetchone(
+            "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", (twitch_user_id,), database_name='website'
+        )
+        auth_token = get_auth_token['twitch_access_token']  # Get twitch Auth Token from databse
+        member_streams_channel = await self.mysql.fetchone(
+            "SELECT member_streams_id FROM discord_users WHERE guild_id = %s",
+            (guild_id,), database_name='website', dict_cursor=True
+        )
+        member_streams_id = member_streams_channel['member_streams_id'] # Get the channel id where to post the message here
+        if not users:
+            self.logger.warning("No users found in database for member streams.")
+            return []
+        return users, auth_token, member_streams_id
+
+    async def get_streams(self):
+        get_users, auth_token, member_streams_id = await self.get_users()
+        users = [user for user in users if user['username'] in get_users]
+        async with aiohttp.ClientSession() as session:
+            url = "https://api.twitch.tv/helix/streams"
+            headers = {"Client-ID": config.twitch_client_id,"Authorization": f"Bearer {auth_token}"}
+            params = {"user_login": [user['username'] for user in users],"type": "live","first": 1}
+            for user in get_users:
+                stream_url = user['stream_url']
+            async with session.get(url, headers=headers, params=params) as response:
+                if response.status != 200:
+                    self.logger.error(f"Failed to fetch streams: {response.status} {await response.text()}")
+                    return []
+                data = await response.json()
+                stream_data = data.get('data', [])
+                return stream_data, stream_url, member_streams_id
+
+    async def post_streams(self):
+        while True:
+            try:
+                streams, stream_url, member_streams_id = await self.get_streams()
+                if not streams:
+                    self.logger.info("No active streams found")
+                    await asyncio.sleep(60)  # Wait before checking again
+                    continue
+                for stream in streams:
+                    user_login = stream['user_login']
+                    title = stream['title']
+                    game_name = stream['game_name']
+                    embed = discord.Embed(
+                        title=f"{user_login} is now live on Twitch!",
+                        description=f"""
+                        ({user_login})[{stream_url}] just started a new Twitch stream titled:
+                        {os.linesep}**{title}**
+                        {os.linesep}Playing: {game_name}
+                        """,
+                        color=discord.Color.purple()
+                    )
+                    embed.add_field(index=1, name="Watch Here", value=f"{stream_url}", inline=False)
+                    embed.set_thumbnail(url=stream['thumbnail_url'])
+                    channel = self.bot.get_channel(member_streams_id)
+                    if channel:
+                        await channel.send(embed=embed)
+                        self.logger.info(f"Posted live notification for {user_login} in {channel.name}")
+                await asyncio.sleep(300)  # Check every 5 minutes
+            except Exception as e:
+                self.logger.error(f"Error in post_streams: {e}")
+                await asyncio.sleep(60)
 
 # ChannelManagementCog class
 class DiscordChannelResolver:
     def __init__(self, logger=None, mysql_helper=None):
         self.logger = logger
         self.mysql = mysql_helper or MySQLHelper(logger)
+
     async def get_user_id_from_api_key(self, api_key):
         self.logger.info(f"Looking up user_id for api_key/code: {api_key}")
         row = await self.mysql.fetchone(
@@ -2919,11 +2869,8 @@ class DiscordChannelResolver:
             self.logger.info(f"Query result for api_key/code {api_key}: user_id={row[0]}, username={row[1]}")
         else:
             self.logger.warning(f"No user found for api_key/code {api_key}")
-            # Extra debug: list all api_keys in the table
-            all_keys = await self.mysql.fetchall(
-                "SELECT api_key, username FROM users", database_name='website')
-            self.logger.warning(f"All api_keys in users table: {[(k[0], k[1]) for k in all_keys] if all_keys else 'None found'}")
         return row[0] if row else None
+
     async def get_discord_info_from_user_id(self, user_id):
         self.logger.info(f"Looking up discord info for user_id: {user_id}")
         user_row = await self.mysql.fetchone(
@@ -2937,6 +2884,7 @@ class DiscordChannelResolver:
         else:
             self.logger.warning(f"No discord info found for {username} (user_id: {user_id})")
         return row if row else None
+
     async def get_discord_info_from_guild_id(self, guild_id):
         # Find discord_users row by guild_id
         row = await self.mysql.fetchone(
@@ -2958,6 +2906,7 @@ class DiscordChannelResolver:
 class MySQLHelper:
     def __init__(self, logger=None):
         self.logger = logger
+
     async def get_connection(self, database_name):
         sql_host = config.sql_host
         sql_user = config.sql_user
@@ -2976,6 +2925,7 @@ class MySQLHelper:
         except Exception as e:
             self.logger.error(f"Error connecting to MySQL: {e}")
             return None
+
     async def fetchone(self, query, params=None, database_name='website', dict_cursor=False):
         conn = await self.get_connection(database_name)
         if not conn:
@@ -2996,6 +2946,7 @@ class MySQLHelper:
             return None
         finally:
             conn.close()
+
     async def fetchall(self, query, params=None, database_name='website', dict_cursor=False):
         conn = await self.get_connection(database_name)
         if not conn:
@@ -3016,6 +2967,7 @@ class MySQLHelper:
             return None
         finally:
             conn.close()
+
     async def execute(self, query, params=None, database_name='website'):
         conn = await self.get_connection(database_name)
         if not conn:
