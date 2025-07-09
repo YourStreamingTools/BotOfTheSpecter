@@ -2839,14 +2839,11 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 if not get_channel_info:
                     self.logger.warning(f"Guild {guild_id} ({guild.name}): No user info found for user_id {user_id}")
                     continue
-                
                 channel_name = get_channel_info.get('username')
                 twitch_user_id = get_channel_info.get('twitch_user_id')
-                
                 if not channel_name or not twitch_user_id:
                     self.logger.warning(f"Guild {guild_id} ({guild.name}): Missing user configuration")
                     continue
-                
                 # Get auth token
                 get_auth_token = await self.mysql.fetchone(
                     "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", 
@@ -2855,14 +2852,12 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 if not get_auth_token:
                     self.logger.warning(f"Guild {guild_id} ({guild.name}): No auth token found for twitch_user_id {twitch_user_id}")
                     continue
-                
                 # Handle both dict and tuple response formats for auth token query
                 if isinstance(get_auth_token, dict):
                     auth_token = get_auth_token.get('twitch_access_token')
                 else:
                     # Fallback to tuple access (first column)
                     auth_token = get_auth_token[0] if get_auth_token else None
-                
                 if not auth_token:
                     self.logger.warning(f"Guild {guild_id} ({guild.name}): No valid auth token available")
                     continue
@@ -2983,13 +2978,14 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         stream_url = stream_data.get('stream_url', f"https://twitch.tv/{user_login}")
         thumbnail_url = stream_data['thumbnail_url'].replace('{width}', '320').replace('{height}', '180')
         embed = discord.Embed(
-            title=f"{user_login} is now live on Twitch!",
-            description=f"[{user_login}]({stream_url}) just started a new Twitch stream titled:\n\n**{title}**\n\nPlaying: {game_name}",
+            description=f"""
+                ### **[{user_login}]({stream_url}) is now live on Twitch!**
+                {title}{os.linesep}Playing: {game_name}
+            """,
             color=discord.Color.purple()
         )
-        embed.add_field(name="Watch Here", value=f"[{stream_url}]({stream_url})", inline=False)
-        embed.set_thumbnail(url=thumbnail_url)
-        embed.set_footer(text=f"Stream ID: {stream_data['id']}")
+        embed.add_field(name="Watch Here", value=f"{stream_url}", inline=True)
+        embed.set_image(url=thumbnail_url)
         try:
             channel = self.bot.get_channel(discord_channel_id)
             if channel:
