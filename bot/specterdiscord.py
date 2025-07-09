@@ -2774,11 +2774,9 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         if current_time - self.last_db_check < self.db_check_interval:
             return
         self.last_db_check = current_time
-        self.logger.info("Refreshing guild data from database...")
         new_monitored_guilds = {}
         # Get all guilds the bot is currently connected to
         bot_guilds = self.bot.guilds
-        self.logger.info(f"Bot is connected to {len(bot_guilds)} guilds")
         for guild in bot_guilds:
             guild_id = guild.id
             try:
@@ -2869,9 +2867,6 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                         'users': users,
                         'user_id': user_id
                     }
-                    self.logger.info(f"Guild {guild_id} ({guild.name}): Monitoring {len(users)} users in #{discord_channel.name}")
-                else:
-                    self.logger.info(f"Guild {guild_id} ({guild.name}): No member streams to monitor")
             except Exception as e:
                 self.logger.error(f"Error processing guild {guild_id} ({guild.name if guild else 'Unknown'}): {e}")
                 continue
@@ -2880,15 +2875,10 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         new_guilds = set(new_monitored_guilds.keys())
         added_guilds = new_guilds - old_guilds
         removed_guilds = old_guilds - new_guilds
-        if added_guilds:
-            guild_names = [f"{gid} ({new_monitored_guilds[gid]['guild_name']})" for gid in added_guilds]
-            self.logger.info(f"Added monitoring for guilds: {guild_names}")
         if removed_guilds:
-            self.logger.info(f"Removed monitoring for guilds: {removed_guilds}")
             # Clean up live users for removed guilds
             self.live_users = {k: v for k, v in self.live_users.items() if k[0] not in removed_guilds}
         self.monitored_guilds = new_monitored_guilds
-        self.logger.info(f"Total guilds being monitored: {len(self.monitored_guilds)}")
 
     async def check_streams_for_guild(self, guild_id, guild_data):
         users = guild_data['users']
