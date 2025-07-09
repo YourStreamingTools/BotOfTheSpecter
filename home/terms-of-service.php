@@ -1,5 +1,10 @@
 <?php
 ob_start();
+?>
+<script type="application/ld+json">{"@context": "https://schema.org","@type": "WebPage","name": "BotOfTheSpecter - Terms of Service","description": "Terms of Service for BotOfTheSpecter, outlining user obligations, payment terms, privacy, and more.","url": "https://botofthespecter.com/terms-of-service.php"}</script>
+<?php
+$extraScripts = ob_get_clean();
+ob_start();
 $pageTitle = "BotOfTheSpecter - Terms of Service";
 $pageDescription = "BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics.";
 ?>
