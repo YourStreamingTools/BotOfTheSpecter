@@ -1142,7 +1142,7 @@ async def read_root():
 # Any favicon ico request get's passed onto CDN for the ico
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    return "https://cdn.botofthespecter.com/logo.ico"
+    return "https://cdn.botofthespecter.com/favicon.ico"
 
 if __name__ == "__main__":
     # Use Let's Encrypt certificates only
