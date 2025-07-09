@@ -436,6 +436,13 @@ try {
                 author VARCHAR(255),
                 message TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'member_streams' => "
+            CREATE TABLE IF NOT EXISTS member_streams (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                username VARCHAR(255) NOT NULL,
+                stream_url VARCHAR(255) NOT NULL,
+                UNIQUE (username)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)
@@ -495,7 +502,8 @@ try {
         'twitch_chat_alerts' => ['alert_type' => "VARCHAR(255)",'alert_message' => "TEXT"],
         'reward_streaks' => ['reward_id' => "VARCHAR(255)",'current_user' => "VARCHAR(255)",'streak' => "INT DEFAULT 1"],
         'stream_status' => ['status' => "VARCHAR(255)"],
-        'chat_history' => ['author' => "VARCHAR(255)",'message' => "TEXT",'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"]
+        'chat_history' => ['author' => "VARCHAR(255)",'message' => "TEXT",'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
+        'member_streams' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'username' => "VARCHAR(255) NOT NULL",'stream_url' => "VARCHAR(255) NOT NULL"]
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
