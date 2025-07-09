@@ -728,10 +728,11 @@ ob_start();
                     </div>
                     <div class="field">
                       <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;">
-                          <span class="icon"><i class="fas fa-save"></i></span>
-                          <span><?php echo t('discordbot_webhook_save_btn'); ?></span>
-                        </button>
+                      <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;" disabled>
+                        <span class="icon"><i class="fas fa-save"></i></span>
+                        <span><?php echo t('discordbot_webhook_save_btn'); ?></span>
+                      </button>
+                      <p class="help has-text-warning mt-2 has-text-centered">This feature is deprecated and cannot be used.</p>
                       </div>
                     </div>
                   </form>
