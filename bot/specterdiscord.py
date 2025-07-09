@@ -2986,6 +2986,8 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         )
         embed.add_field(name="Watch Here", value=f"{stream_url}", inline=True)
         embed.set_image(url=thumbnail_url)
+        embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
+        embed.set_author(name="BotOfTheSpecter", icon_url="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg")
         try:
             channel = self.bot.get_channel(discord_channel_id)
             if channel:
