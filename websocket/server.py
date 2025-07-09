@@ -138,7 +138,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.settings_manager = SettingsManager(logger)
         self.tts_handler = TTSHandler(logger, self.ssh_manager)
         self.event_handler = EventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid)
-        self.donation_handler = DonationEventHandler(None, logger, lambda: self.registered_clients)
+        self.donation_handler = DonationEventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals)
         socketio_logger = logging.getLogger('socketio')
         socketio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from socketio
         engineio_logger = logging.getLogger('engineio')
@@ -583,40 +583,16 @@ class BotOfTheSpecter_WebsocketServer:
         await self.sio.emit("WALKON", walkon_data)
 
     async def handle_fourthwall_event(self, code, data):
-        # Log and broadcast the FOURTHWALL event to the clients
-        self.logger.info(f"Handling FOURTHWALL event with data: {data}")
-        count = 0
-        if code in self.registered_clients:
-            for client in self.registered_clients[code]:
-                sid = client['sid']
-                await self.sio.emit("FOURTHWALL", data, to=sid)
-                self.logger.info(f"Emitted FOURTHWALL event to client {sid}")
-                count += 1
-        self.logger.info(f"Broadcasted FOURTHWALL event to {count} clients")
+        # Use the donation handler to handle FOURTHWALL events
+        return await self.donation_handler.handle_fourthwall_event(code, data)
 
     async def handle_kofi_event(self, code, data):
-        # Log and broadcast the KOFI event to the clients
-        self.logger.info(f"Handling KOFI event with data: {data}")
-        count = 0
-        if code in self.registered_clients:
-            for client in self.registered_clients[code]:
-                sid = client['sid']
-                await self.sio.emit("KOFI", data, to=sid)
-                self.logger.info(f"Emitted KOFI event to client {sid}")
-                count += 1
-        self.logger.info(f"Broadcasted KOFI event to {count} clients")
+        # Use the donation handler to handle KOFI events
+        return await self.donation_handler.handle_kofi_event(code, data)
 
     async def handle_patreon_event(self, code, data):
-        # Log and broadcast the PATREON event to the clients
-        self.logger.info(f"Handling PATREON event with data: {data}")
-        count = 0
-        if code in self.registered_clients:
-            for client in self.registered_clients[code]:
-                sid = client['sid']
-                await self.sio.emit("PATREON", data, to=sid)
-                self.logger.info(f"Emitted PATREON event to client {sid}")
-                count += 1
-        self.logger.info(f"Broadcasted PATREON event to {count} clients")
+        # Use the donation handler to handle PATREON events
+        return await self.donation_handler.handle_patreon_event(code, data)
 
     async def handle_obs_event(self, sid, data):
         # Handle the OBS_EVENT event
