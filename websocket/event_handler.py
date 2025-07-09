@@ -199,8 +199,13 @@ class EventHandler:
         if not event:
             self.logger.error('Missing event information for NOTIFY event')
             return
-        # Broadcast the event to all clients
-        await self.sio.emit(event, data, sid)
+        # Get the channel code for this SID
+        code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
+        # Broadcast the event to clients and global listeners
+        if self.broadcast_with_globals:
+            await self.broadcast_with_globals(event, data, code)
+        else:
+            await self.sio.emit(event, data)
 
     async def broadcast_to_code_clients(self, code, event, data):
         count = 0
