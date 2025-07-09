@@ -289,6 +289,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $errorMsg = "Error disconnecting Discord account: " . $deleteStmt->error;
       }
       $deleteStmt->close();
+    } elseif (isset($_POST['monitor_username']) && isset($_POST['monitor_url'])) {
+      // Add Twitch streamer monitoring
+      $monitor_username = trim($_POST['monitor_username']);
+      $monitor_url = trim($_POST['monitor_url']);
+      if (empty($monitor_username) || empty($monitor_url)) {
+        $errorMsg = "Twitch Username and URL cannot be empty.";
+      } elseif (!filter_var($monitor_url, FILTER_VALIDATE_URL)) {
+        $errorMsg = "Invalid Twitch URL format.";
+      } else {
+        // Check if the streamer already exists
+        $checkStmt = $db->prepare("SELECT * FROM member_streams WHERE username = ?");
+        $checkStmt->bind_param("s", $monitor_username);
+        $checkStmt->execute();
+        $checkResult = $checkStmt->get_result();
+        if ($checkResult->num_rows > 0) {
+          $buildStatus .= "Streamer already exists in the database.<br>";
+        } else {
+          // Insert new streamer
+          $insertStmt = $db->prepare("INSERT INTO member_streams (username, stream_url) VALUES (?, ?)");
+          $insertStmt->bind_param("ss", $monitor_username, $monitor_url);
+          if ($insertStmt->execute()) {
+            $buildStatus .= "Streamer added successfully.<br>";
+          } else {
+            $errorMsg .= "Error adding streamer: " . $insertStmt->error . "<br>";
+          }
+          $insertStmt->close();
+        }
+        $checkStmt->close();
+      }
     }
   } catch (mysqli_sql_exception $e) {
     if (strpos($e->getMessage(), 'Data too long for column') !== false) {
@@ -312,6 +341,15 @@ foreach ($webhookKeys as $key) {
   $existingWebhooks[$key] = $row ? $row[$key] : "";
   $stmt->close();
 }
+
+$savedStreamers = [];
+$savedStreamersSTMT = $db->prepare("SELECT username, stream_url FROM member_streams");
+$savedStreamersSTMT->execute();
+$savedStreamersResult = $savedStreamersSTMT->get_result();
+while ($row = $savedStreamersResult->fetch_assoc()) {
+  $savedStreamers[] = $row;
+}
+$savedStreamersSTMT->close();
 
 // Fetch existing live_channel_id and guild_id
 $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -683,6 +721,53 @@ ob_start();
                   </form>
                 </div>
               </div>
+              <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
+                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                  <p class="card-header-title has-text-white" style="font-weight: 600;">
+                    <span class="icon mr-2 has-text-primary"><i class="fa-brands fa-twitch"></i></span>
+                    Twitch Stream Monitoring
+                  </p>
+                  <div class="card-header-icon">
+                    <span class="tag is-warning is-light">
+                      <span class="icon"><i class="fas fa-wrench"></i></span>
+                      <span>IN TESTING!</span>
+                    </span>
+                  </div>
+                </header>
+                <div class="card-content">
+                  <form action="" method="post">
+                    <div class="field">
+                      <label class="label has-text-white" for="option" style="font-weight: 500;">Twitch Username</label>
+                      <div class="control has-icons-left">
+                        <input class="input" type="text" id="monitor_username" name="monitor_username" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-person"></i></span>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="label has-text-white" for="monitor_url" style="font-weight: 500;">Twitch URL</label>
+                      <div class="control has-icons-left">
+                        <input class="input" type="text" id="monitor_url" name="monitor_url" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-link"></i></span>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="control">
+                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;">
+                          <span class="icon"><i class="fas fa-save"></i></span>
+                          <span>Add Streamer</span>
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                  <br>
+                  <div>
+                    <button class="button is-link is-fullwidth modal-button" style="border-radius: 6px; font-weight: 600;" data-target="savedStreamersModal">
+                      <span class="icon"><i class="fa-solid fa-people-group"></i></span>
+                      <span>View Saved Streamers</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         <?php } ?>
@@ -690,11 +775,60 @@ ob_start();
     </div>
   </div>
 </div>
+
+<div id="savedStreamersModal" class="modal">
+  <div class="modal-background"></div>
+  <div class="modal-content">
+    <div class="box">
+      <h1 class="title is-4 has-text-centered">Saved Streamers List</h1>
+      <table class="table is-fullwidth has-text-centered">
+        <thead>
+          <tr>
+            <th>Twitch Username</th>
+            <th>Twitch URL</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Dynamic content will be injected here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <button class="modal-close is-large" aria-label="close"></button>
+</div>
 <?php
 $content = ob_get_clean();
 
 ob_start();
 ?>
+<script>
+const tableBody = document.querySelector('#savedStreamersModal tbody');
+const initialSavedStreamers = <?php echo json_encode($savedStreamers); ?>;
+let streamersToDisplay = initialSavedStreamers;
+function populateStreamersTable() {
+  tableBody.innerHTML = '';
+  if (streamersToDisplay.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="3" class="has-text-centered">No streamers saved yet.</td></tr>';
+    return;
+  }
+  streamersToDisplay.forEach(streamer => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${streamer.username}</td>
+      <td><a href="${streamer.stream_url}" target="_blank">${streamer.stream_url}</a></td>
+      <td>
+        <button class="button is-danger is-small" onclick="removeStreamer('${streamer.username}')" disabled>
+          <span class="icon"><i class="fas fa-trash"></i></span>
+          <span>Remove</span>
+        </button>
+      </td>
+    `;
+    tableBody.appendChild(row);
+  });
+}
+populateStreamersTable(streamersToDisplay);
+</script>
 <script>
   $(document).ready(function() {
     var webhooks = <?php echo json_encode($existingWebhooks); ?>;
