@@ -182,7 +182,8 @@ class BotOfTheSpecter_WebsocketServer:
             web.get("/", self.index),
             web.get("/notify", self.notify_http),
             web.get("/heartbeat", self.heartbeat),
-            web.get("/clients", self.list_clients)
+            web.get("/clients", self.list_clients),
+            web.get("/favicon.ico", self.favicon_redirect)
         ])
 
     def setup_event_handlers(self):
@@ -369,6 +370,10 @@ class BotOfTheSpecter_WebsocketServer:
     async def index(self, request):
         # Redirect to the main page
         raise web.HTTPFound(location="https://botofthespecter.com")
+    
+    async def favicon_redirect(self, request):
+        # Redirect favicon.ico requests to the actual favicon.ico file
+        raise web.HTTPFound(location="https://cdn.botofthespecter.com/favicon.ico")
     
     async def heartbeat(self, request):
         if request.method == 'OPTIONS':
@@ -1056,9 +1061,6 @@ class BotOfTheSpecter_WebsocketServer:
             return None
 
     def get_code_by_sid(self, sid):
-        """
-        Get the channel code for a given SID
-        """
         for code, clients in self.registered_clients.items():
             for client in clients:
                 if client['sid'] == sid:
