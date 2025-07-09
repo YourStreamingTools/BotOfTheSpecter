@@ -892,38 +892,19 @@ async def process_twitch_eventsub_message(message):
                             expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
                         else:
                             expires_at_formatted = "No expiration time provided"
-                        discord_message = f'{user_name} has been timed out, their timeout expires at {expires_at_formatted} for the reason "{reason}"'
-                        discord_title = "New User Timeout!"
-                        discord_image = "clock.png"
                     # Handle untimeout action
                     elif event_data["event"].get("action") == "untimeout":
                         untimeout_info = event_data["event"].get("untimeout", {})
                         user_name = untimeout_info.get("user_name", "Unknown User")
-                        discord_message = f"{user_name} has had their timeout removed by {moderator_user_name}."
-                        discord_title = "New Untimeout User!"
-                        discord_image = "clock.png"
                     # Handle ban action
                     elif event_data["event"].get("action") == "ban":
                         banned_info = event_data["event"].get("ban", {})
                         banned_user_name = banned_info.get("user_name", "Unknown User")
                         reason = banned_info.get("reason", "No reason provided")
-                        discord_message = f'{banned_user_name} has been banned for "{reason}" by {moderator_user_name}'
-                        discord_title = "New User Ban!"
-                        discord_image = "ban.png"
                     # Handle unban action
                     elif event_data["event"].get("action") == "unban":
                         unban_info = event_data["event"].get("unban", {})
                         banned_user_name = unban_info.get("user_name", "Unknown User")
-                        discord_message = f'{banned_user_name} has been unbanned by {moderator_user_name}'
-                        discord_title = "New Unban!"
-                        discord_image = "ban.png"
-                    # Check if the necessary data is available
-                    if discord_message and discord_title and discord_image:
-                        # Send to Discord if all checks pass
-                        asyncio.create_task(send_to_discord_mod(discord_message, discord_title, discord_image))
-                    else:
-                        # Log the incomplete event for later analysis
-                        twitch_logger.info(f"Incomplete mod event: {event_data}")
                 # Channel Point Rewards Event
                 elif event_type in [
                     "channel.channel_points_automatic_reward_redemption.add", 
@@ -6019,7 +6000,6 @@ async def process_stream_online_websocket():
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await channel.send(message)
-    await send_to_discord_stream_online(message, image)
     # Log the status to the file
     os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
     with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
@@ -6653,9 +6633,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                     (from_broadcaster_id, from_broadcaster_name, new_points)
                 )
             await connection.commit()
-            # Send raid notification to Discord Logs, Twitch Chat, and Websocket
-            discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
-            await send_to_discord(discord_message, "New Raid!", "raid.png")
+            # Send raid notification to Twitch Chat, and Websocket
             asyncio.create_task(websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
             # Send a message to the Twitch channel
             await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("raid_alert",))
@@ -6703,7 +6681,6 @@ async def process_cheer_event(user_id, user_name, bits):
                 total_bits = bits
                 total_bits = "{:,}".format(total_bits)
                 await cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (user_id, user_name, bits))
-                discord_message = f"{user_name} just cheered {bits} bits!"
                 if bits < 100:
                     image = "cheer.png"
                 elif 100 <= bits < 1000:
@@ -6740,8 +6717,7 @@ async def process_cheer_event(user_id, user_name, bits):
             if subathon_state and not subathon_state[4]:  # If subathon is running
                 cheer_add_time = int(settings['cheer_add'])  # Retrieve the time to add for cheers
                 await addtime_subathon(channel, cheer_add_time)  # Call to add time based on cheers
-            # Send cheer notification to Discord Logs, Twitch Chat, and Websocket
-            await send_to_discord(discord_message, "New Cheer!", image)
+            # Send cheer notification to Twitch Chat, and Websocket
             asyncio.create_task(websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits))
             marker_description = f"New Cheer from {user_name}"
             if await make_stream_marker(marker_description):
@@ -6820,12 +6796,6 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             else:
                 alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
             alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
-            discord_message = f"{user_name} just subscribed at {sub_plan}!"
-            try:
-                await send_to_discord(discord_message, "New Subscriber!", "sub.png")
-                event_logger.info("Sent message to Discord")
-            except Exception as e:
-                event_logger.error(f"Failed to send message to Discord: {e}")
             try:
                 asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -6915,12 +6885,6 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             else:
                 alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
             alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
-            discord_message = f"{user_name} just resubscribed at {sub_plan}!"
-            try:
-                await send_to_discord(discord_message, "New Resubscription!", "sub.png")
-                event_logger.info("Sent message to Discord")
-            except Exception as e:
-                event_logger.error(f"Failed to send message to Discord: {e}")
             try:
                 asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -6961,13 +6925,9 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
             else:
                 alert_message = "Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!"
             if anonymous:
-                discord_message = f"An Anonymous Gifter just gifted {number_gifts} of gift subscriptions!"
-                await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
                 giftsubfrom = "Anonymous"
             else:
                 giftsubfrom = gifter_user_name
-                discord_message = f"{giftsubfrom} just gifted {number_gifts} of gift subscriptions!"
-                await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
             alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
             await channel.send(alert_message)
             marker_description = f"New Gift Subs from {giftsubfrom}"
@@ -7017,7 +6977,7 @@ async def process_followers_event(user_id, user_name):
                     (user_id, user_name, new_points)
                 )
             await connection.commit()
-        # Send follow notification to Discord Logs, Twitch Chat and Websocket
+        # Send follow notification to Twitch Chat and Websocket
         await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("follower_alert",))
         result = await cursor.fetchone()
         if result and result.get("alert_message"):
@@ -7026,8 +6986,6 @@ async def process_followers_event(user_id, user_name):
             alert_message = "Thank you (user) for following! Welcome to the channel!"
         alert_message = alert_message.replace("(user)", user_name)
         await channel.send(alert_message)
-        discord_message = f"{user_name} just followed!"
-        await send_to_discord(discord_message, "New Follower!", "follow.png")
         asyncio.create_task(websocket_notice("TWITCH_FOLLOW", user=user_name))
         marker_description = f"New Twitch Follower: {user_name}"
         if await make_stream_marker(marker_description):
@@ -7075,131 +7033,6 @@ async def ban_user(username, user_id, use_streamer=False):
             else:
                 error_text = await response.text()
                 twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}, Response: {error_text}")
-
-# Function to build the Discord Notice
-async def send_to_discord(message, title, image):
-    connection = await mysql_connection()
-    try:
-        async with connection.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SELECT discord_alert, timezone FROM profile")
-            result = await cursor.fetchone()
-            if not result or not result.get("discord_alert"):
-                bot_logger.error("Discord URL not found or is None.")
-                return
-            discord_url = result.get("discord_alert")
-            timezone = result.get("timezone") if result.get("timezone") else 'UTC'
-            tz = pytz.timezone(timezone)
-            current_time = datetime.now(tz)
-            time_format_date = current_time.strftime("%B %d, %Y")
-            time_format_time = current_time.strftime("%I:%M %p")
-            time_format = f"{time_format_date} at {time_format_time}"
-            payload = {
-                "username": "BotOfTheSpecter",
-                "avatar_url": "https://cdn.botofthespecter.com/logo.png",
-                "embeds": [{
-                    "description": message,
-                    "title": title,
-                    "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
-                    "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
-                }]
-            }
-            async with aiohttp.ClientSession() as session:
-                async with session.post(discord_url, json=payload) as response:
-                    if response.status not in [200, 204]:
-                        bot_logger.error(f"Failed to send to Discord - Error: {response.status}")
-    except Exception as e:
-        bot_logger.error(f"Request to Discord failed: {e}")
-    finally:
-        await connection.ensure_closed()
-
-# Function to build the Discord Mod Notice 
-async def send_to_discord_mod(message, title, image):
-    connection = await mysql_connection()
-    try:
-        async with connection.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SELECT discord_mod FROM profile")
-            result = await cursor.fetchone()
-            if not result or not result.get("discord_mod"):
-                bot_logger.error("Discord URL for mod notifications not found or is None.")
-                return
-            discord_url = result.get("discord_mod")
-            await cursor.execute("SELECT timezone FROM profile")
-            timezone_result = await cursor.fetchone()
-            timezone = timezone_result.get("timezone", 'UTC')
-            tz = pytz.timezone(timezone)
-            current_time = datetime.now(tz)
-            time_format_date = current_time.strftime("%B %d, %Y")
-            time_format_time = current_time.strftime("%I:%M %p")
-            time_format = f"{time_format_date} at {time_format_time}"
-            payload = {
-                "username": "BotOfTheSpecter",
-                "avatar_url": "https://cdn.botofthespecter.com/logo.png",
-                "embeds": [{
-                    "description": message,
-                    "title": title,
-                    "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
-                    "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
-                }]
-            }
-            async with aiohttp.ClientSession() as session:
-                async with session.post(discord_url, json=payload) as response:
-                    if response.status not in [200, 204]:
-                        bot_logger.error(f"Failed to send to Discord - Error: {response.status}")
-    except Exception as e:
-        bot_logger.error(f"Request to Discord failed: {e}")
-    finally:
-        await connection.ensure_closed()
-
-# Function to send a message to Discord when the stream is online
-async def send_to_discord_stream_online(message, image):
-    connection = await mysql_connection()
-    try:
-        async with connection.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SELECT timezone, discord_alert_online FROM profile")
-            result = await cursor.fetchone()
-            if not result:
-                bot_logger.error("Required profile information not found.")
-                return
-            timezone = result.get("timezone") if result.get("timezone") else 'UTC'
-            discord_url = result.get("discord_alert_online")
-            if not discord_url:
-                return
-            # Generate the current time based on the fetched timezone
-            tz = pytz.timezone(timezone)
-            current_time = datetime.now(tz)
-            time_format_date = current_time.strftime("%B %d, %Y")
-            time_format_time = current_time.strftime("%I:%M %p")
-            time_format = f"{time_format_date} at {time_format_time}"
-            title = f"{CHANNEL_NAME} is now live on Twitch!"
-            payload = {
-                "username": "BotOfTheSpecter",
-                "avatar_url": "https://cdn.botofthespecter.com/logo.png",
-                "content": "@everyone",
-                "embeds": [{
-                    "description": message,
-                    "title": title,
-                    "url": f"https://twitch.tv/{CHANNEL_NAME}",
-                    "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
-                }]
-            }
-            if image:
-                payload["embeds"][0]["image"] = {
-                    "url": image,
-                    "height": 720,
-                    "width": 1280
-                }
-            else:
-                bot_logger.warning("No image URL provided; sending message without image.")
-            async with aiohttp.ClientSession() as session:
-                async with session.post(discord_url, json=payload) as response:
-                    if response.status in (200, 204):
-                        bot_logger.info(f"Message sent to Discord successfully - Status Code: {response.status}")
-                    else:
-                        bot_logger.error(f"Failed to send to Discord - Status Code: {response.status}, Response: {await response.text()}")
-    except Exception as e:
-        bot_logger.error(f"An error occurred while sending a message to Discord: {e}")
-    finally:
-        await connection.ensure_closed()
 
 # Unified function to connect to the websocket server and push notices
 async def websocket_notice(
