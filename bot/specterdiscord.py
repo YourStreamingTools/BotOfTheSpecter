@@ -59,15 +59,28 @@ class Config:
 # Initialize the configuration
 config = Config()
 
-# Ensure directories exist
-for directory in [config.logs_directory, config.discord_logs]:
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+# Ensure directories exist with proper error handling
+def ensure_directory_exists(directory_path, description=""):
+    try:
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path, mode=0o755, exist_ok=True)
+            print(f"Created {description} directory: {directory_path}")
+        else:
+            print(f"{description} directory exists: {directory_path}")
+        return True
+    except Exception as e:
+        print(f"Error creating {description} directory {directory_path}: {e}")
+        return False
 
-# Ensure directories exist
-for directory in [config.logs_directory, config.discord_logs]:
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+# Ensure all required directories exist
+directories_to_create = [
+    (config.logs_directory, "logs"),
+    (config.discord_logs, "discord logs"),
+    (os.path.dirname(config.processed_messages_file), "processed messages")
+]
+
+for directory_path, description in directories_to_create:
+    ensure_directory_exists(directory_path, description)
 
 # Function to setup logger
 def setup_logger(name, log_file, level=logging.INFO):
@@ -144,39 +157,80 @@ class WebsocketListener:
 
 # Channel mapping class to manage multiple Discord servers
 class ChannelMapping:
-    def __init__(self):
+    def __init__(self, logger=None):
+        self.logger = logger
+        self.mysql = MySQLHelper(logger)
         self.mappings = {}  # channel_code -> {guild_id, channel_id, channel_name}
-        self.load_mappings()
-    def load_mappings(self):
-        mapping_file = f"{config.discord_logs}/discord_channel_mappings.json"
+        self._refresh_task = None
+        self._ready = asyncio.Event()
+        asyncio.create_task(self._init_and_start_refresh())
+
+    async def _init_and_start_refresh(self):
+        await self.refresh_mappings()
+        self._ready.set()
+        self._refresh_task = asyncio.create_task(self._periodic_refresh())
+
+    async def _periodic_refresh(self):
+        while True:
+            await asyncio.sleep(60)
+            await self.refresh_mappings()
+
+    async def refresh_mappings(self):
         try:
-            if os.path.exists(mapping_file):
-                with open(mapping_file, 'r') as f:
-                    self.mappings = json.load(f)
+            rows = await self.mysql.fetchall(
+                "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings",
+                database_name='specterdiscordbot', dict_cursor=True
+            )
+            self.mappings = {row['channel_code']: {
+                'guild_id': row['guild_id'],
+                'channel_id': row['channel_id'],
+                'channel_name': row['channel_name']
+            } for row in rows}
+            if self.logger:
+                self.logger.info(f"Loaded {len(self.mappings)} channel mappings from database")
         except Exception as e:
-            print(f"Error loading channel mappings: {e}")
-    def save_mappings(self):
-        mapping_file = f"{config.discord_logs}/discord_channel_mappings.json"
+            if self.logger:
+                self.logger.error(f"Error loading channel mappings from DB: {e}")
+            self.mappings = {}
+
+    async def add_mapping(self, channel_code, guild_id, channel_id, channel_name):
         try:
-            with open(mapping_file, 'w') as f:
-                json.dump(self.mappings, f, indent=2)
+            await self.mysql.execute(
+                "REPLACE INTO channel_mappings (channel_code, guild_id, channel_id, channel_name) VALUES (%s, %s, %s, %s)",
+                (channel_code, guild_id, channel_id, channel_name),
+                database_name='specterdiscordbot'
+            )
+            self.mappings[channel_code] = {
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+                "channel_name": channel_name
+            }
+            if self.logger:
+                self.logger.info(f"Added/updated mapping for {channel_code} in DB")
         except Exception as e:
-            print(f"Error saving channel mappings: {e}")
-    def add_mapping(self, channel_code, guild_id, channel_id, channel_name):
-        self.mappings[channel_code] = {
-            "guild_id": guild_id,
-            "channel_id": channel_id,
-            "channel_name": channel_name
-        }
-        self.save_mappings()
-    def get_mapping(self, channel_code):
+            if self.logger:
+                self.logger.error(f"Error adding mapping to DB: {e}")
+
+    async def get_mapping(self, channel_code):
+        await self._ready.wait()
         return self.mappings.get(channel_code)
-    def remove_mapping(self, channel_code):
-        if channel_code in self.mappings:
-            del self.mappings[channel_code]
-            self.save_mappings()
+
+    async def remove_mapping(self, channel_code):
+        try:
+            await self.mysql.execute(
+                "DELETE FROM channel_mappings WHERE channel_code = %s",
+                (channel_code,),
+                database_name='specterdiscordbot'
+            )
+            if channel_code in self.mappings:
+                del self.mappings[channel_code]
+            if self.logger:
+                self.logger.info(f"Removed mapping for {channel_code} from DB")
             return True
-        return False
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error removing mapping from DB: {e}")
+            return False
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
@@ -191,7 +245,7 @@ class BotOfTheSpecter(commands.Bot):
         self.processed_messages_file = config.processed_messages_file
         self.version = config.bot_version
         self.pool = None  # Initialize the pool attribute
-        self.channel_mapping = ChannelMapping()
+        self.channel_mapping = ChannelMapping(logger=discord_logger)
         self.cooldowns = {}
         # Define internal commands that should never be overridden by custom commands
         self.internal_commands = {
@@ -705,7 +759,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def handle_twitch_event(self, event_type, data):
         channel_code = data.get("channel_code", "unknown")
-        mapping = self.channel_mapping.get_mapping(channel_code)
+        mapping = await self.channel_mapping.get_mapping(channel_code)
         if not mapping:
             self.logger.warning(f"No Discord mapping found for channel code: {channel_code}")
             return
@@ -2763,9 +2817,9 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         self.mysql = MySQLHelper(logger)
         # Monitoring state tracking
         self.monitored_guilds = {}  # guild_id -> guild_data
-        self.live_users = {}  # (guild_id, username) -> stream_data
         self.last_db_check = 0  # Timestamp of last database check
         self.db_check_interval = 300  # Check database every 5 minutes
+        self.live_users = {}  # (guild_id, username) -> stream_data
         # Start the monitoring task
         self.monitoring_task = asyncio.create_task(self.start_monitoring())
 
@@ -2985,32 +3039,45 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
     async def process_guild_streams(self, guild_id, guild_data):
         current_streams = await self.check_streams_for_guild(guild_id, guild_data)
         discord_channel_id = guild_data['member_streams_id']
-        # Get currently live users for this guild
-        guild_live_users = {k[1]: v for k, v in self.live_users.items() if k[0] == guild_id}
+        # Get currently live users for this guild from DB
+        # Fetch all live notifications for this guild
+        conn = await self.mysql.get_connection('specterdiscordbot')
+        guild_live_users = {}
+        if conn:
+            try:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute("SELECT * FROM live_notifications WHERE guild_id = %s", (guild_id,))
+                    rows = await cursor.fetchall()
+                    for row in rows:
+                        guild_live_users[row['username']] = row
+            except Exception as e:
+                self.logger.error(f"Error fetching live notifications for guild {guild_id}: {e}")
+            finally:
+                conn.close()
         # Process each current stream
         current_live_usernames = set()
         for stream in current_streams:
             username = stream['user_login']
             current_live_usernames.add(username)
-            live_key = (guild_id, username)
-            if live_key not in self.live_users:
+            # Check if already posted in DB
+            live_notification = await self.mysql.get_live_notification(guild_id, username)
+            if not live_notification or live_notification.get('stream_id') != stream['id']:
                 # New stream detected, post notification
                 success = await self.post_live_notification(guild_id, stream, discord_channel_id)
                 if success:
-                    self.live_users[live_key] = {
-                        'stream_id': stream['id'],
-                        'started_at': stream['started_at'],
-                        'posted_at': time.time()
-                    }
-                    self.logger.info(f"Started monitoring {username} for guild {guild_id}")
+                    # Insert/update in DB
+                    started_at = stream['started_at']
+                    posted_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    await self.mysql.insert_live_notification(
+                        guild_id, username, stream['id'], started_at, posted_at
+                    )
+                    self.logger.info(f"Started monitoring {username} for guild {guild_id} (persisted)")
         # Check for users who went offline
         previously_live = set(guild_live_users.keys())
         went_offline = previously_live - current_live_usernames
         for username in went_offline:
-            live_key = (guild_id, username)
-            if live_key in self.live_users:
-                del self.live_users[live_key]
-                self.logger.info(f"User {username} went offline for guild {guild_id}")
+            await self.mysql.delete_live_notification(guild_id, username)
+            self.logger.info(f"User {username} went offline for guild {guild_id} (removed from DB)")
 
     async def start_monitoring(self):
         await self.bot.wait_until_ready()
@@ -3121,10 +3188,58 @@ class MySQLHelper:
             self.logger.error(f"Error connecting to MySQL: {e}")
             return None
 
+    async def get_live_notification(self, guild_id, username):
+        conn = await self.get_connection('specterdiscordbot')
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT * FROM live_notifications WHERE guild_id = %s AND username = %s",
+                    (guild_id, username)
+                )
+                return await cursor.fetchone()
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error fetching live notification: {e}")
+            return None
+        finally:
+            conn.close()
+
+    async def insert_live_notification(self, guild_id, username, stream_id, started_at, posted_at):
+        conn = await self.get_connection('specterdiscordbot')
+        try:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    """
+                    INSERT INTO live_notifications (guild_id, username, stream_id, started_at, posted_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE stream_id = VALUES(stream_id), started_at = VALUES(started_at), posted_at = VALUES(posted_at)
+                    """,
+                    (guild_id, username, stream_id, started_at, posted_at)
+                )
+                await conn.commit()
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error inserting/updating live notification: {e}")
+        finally:
+            conn.close()
+
+    async def delete_live_notification(self, guild_id, username):
+        conn = await self.get_connection('specterdiscordbot')
+        try:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "DELETE FROM live_notifications WHERE guild_id = %s AND username = %s",
+                    (guild_id, username)
+                )
+                await conn.commit()
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error deleting live notification: {e}")
+        finally:
+            conn.close()
+
     async def fetchone(self, query, params=None, database_name='website', dict_cursor=False):
         conn = await self.get_connection(database_name)
-        if not conn:
-            return None
         try:
             if dict_cursor:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
@@ -3144,8 +3259,6 @@ class MySQLHelper:
 
     async def fetchall(self, query, params=None, database_name='website', dict_cursor=False):
         conn = await self.get_connection(database_name)
-        if not conn:
-            return None
         try:
             if dict_cursor:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
@@ -3165,8 +3278,6 @@ class MySQLHelper:
 
     async def execute(self, query, params=None, database_name='website'):
         conn = await self.get_connection(database_name)
-        if not conn:
-            return None
         try:
             async with conn.cursor() as cursor:
                 await cursor.execute(query, params)
