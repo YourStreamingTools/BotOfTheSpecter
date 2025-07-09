@@ -240,6 +240,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       else { $moderationChannelID = null; }
       if (!empty($_POST['alert_channel_id'])) { $alertChannelID = $_POST['alert_channel_id']; }
       else { $alertChannelID = null; }
+      if (!empty($_POST['twitch_stream_monitor_id'])) { $memberStreamsID = $_POST['twitch_stream_monitor_id']; }
+      else { $memberStreamsID = null; }
       $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
       $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
       if ($stmt->execute()) { $buildStatus .= "Live Channel ID and Guild ID updated successfully<br>"; }
@@ -257,8 +259,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $errorMsg .= "Error updating Online and Offline Text: " . $stmt->error . "<br>";
         }
       }
-      $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, moderation_channel_id = ?, alert_channel_id = ? WHERE user_id = ?");
-      $stmt->bind_param("iiii", $streamChannelID, $moderationChannelID, $alertChannelID, $user_id);
+      $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, moderation_channel_id = ?, alert_channel_id = ?, member_streams_id = ? WHERE user_id = ?");
+      $stmt->bind_param("iiiii", $streamChannelID, $moderationChannelID, $alertChannelID, $memberStreamsID, $user_id);
       if ($stmt->execute()) {
         $buildStatus .= "Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID updated successfully<br>";
       } else {
@@ -364,6 +366,8 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
 $existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
 $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
 $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
+$existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
+$discord_userResult->close();
 
 function updateExistingDiscordValues() {
   global $conn, $user_id;
@@ -379,6 +383,7 @@ function updateExistingDiscordValues() {
   $existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
   $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
   $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
+  $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
   $discord_userResult->close();
 }
 
@@ -601,6 +606,17 @@ ob_start();
                       <p class="help has-text-grey-light mb-2">Channel ID for general bot alerts and notifications</p>
                       <div class="control has-icons-left">
                         <input class="input" type="text" id="alert_channel_id" name="alert_channel_id" value="<?php echo htmlspecialchars($existingAlertChannelID) . "\""; if (empty($existingAlertChannelID)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="label has-text-white" for="twitch_stream_monitor_id" style="font-weight: 500;">
+                        <span class="icon mr-1 has-text-info"><i class="fab fa-twitch"></i></span>
+                        Twitch Stream Monitoring ID
+                      </label>
+                      <p class="help has-text-grey-light mb-2">Channel ID for Twitch Stream Monitoring</p>
+                      <div class="control has-icons-left">
+                        <input class="input" type="text" id="twitch_stream_monitor_id" name="twitch_stream_monitor_id" value="<?php echo htmlspecialchars($existingTwitchStreamMonitoringID) . "\""; if (empty($existingTwitchStreamMonitoringID)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                       </div>
                     </div>
