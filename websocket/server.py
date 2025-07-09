@@ -595,25 +595,12 @@ class BotOfTheSpecter_WebsocketServer:
         return await self.donation_handler.handle_patreon_event(code, data)
 
     async def handle_obs_event(self, sid, data):
-        # Handle the OBS_EVENT event
-        self.logger.info(f"SEND_OBS_EVENT received from SID [{sid}]: {data}")
-        # Process the data here (e.g., extract event-name, scene-name, etc.)
-        # and decide how to handle different OBS events at a later time.
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_obs_event(sid, data)
 
     async def deaths(self, sid, data):
-        self.logger.info(f"Death event from SID [{sid}]: {data}")
-        death_text = data.get('death-text')
-        game = data.get('game')
-        if not death_text or not game:
-            self.logger.error('Missing death-text or game information for DEATHS event')
-            return
-        death_data = {
-            'death-text': death_text,
-            'game': game
-        }
-        self.logger.info(f"Broadcasting DEATHS event with data: {death_data}")
-        # Broadcast the death event to all clients
-        await self.sio.emit("DEATHS", death_data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_deaths(sid, data)
 
     async def tts(self, sid, data):
         # Log the incoming TTS request
