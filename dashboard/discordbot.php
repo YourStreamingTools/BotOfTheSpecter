@@ -794,15 +794,15 @@ ob_start();
 
 <div id="savedStreamersModal" class="modal">
   <div class="modal-background"></div>
-  <div class="modal-content">
+  <div class="modal-content" style="width: 50%;">
     <div class="box">
       <h1 class="title is-4 has-text-centered">Saved Streamers List</h1>
       <table class="table is-fullwidth has-text-centered">
         <thead>
           <tr>
-            <th>Twitch Username</th>
-            <th>Twitch URL</th>
-            <th>Actions</th>
+            <th class="has-text-centered" style="text-align: center;">Twitch Username</th>
+            <th class="has-text-centered" style="text-align: center;">Twitch URL</th>
+            <th class="has-text-centered" style="text-align: center;">Actions</th>
           </tr>
         </thead>
         <tbody>
