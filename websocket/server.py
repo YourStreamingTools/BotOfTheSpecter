@@ -344,8 +344,11 @@ class BotOfTheSpecter_WebsocketServer:
                     self.logger.info(f"Disconnecting old session [{old_sid}] for name [{name}] before registering new session [{sid}]")
                     await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate session for name {name}"}, to=old_sid)
                     await self.sio.disconnect(old_sid)
-                    # Remove the old client
-                    self.registered_clients[code] = [c for c in self.registered_clients[code] if c['sid'] != old_sid]
+                    # Remove the old client, but check if code still exists
+                    if code in self.registered_clients:
+                        self.registered_clients[code] = [c for c in self.registered_clients[code] if c['sid'] != old_sid]
+                    else:
+                        self.logger.warning(f"Code [{code}] was removed from registered_clients before old client removal. Skipping removal.")
                     break # Register the new client
             client_data = {"sid": sid, "name": name, "is_admin": is_admin}
             self.registered_clients[code].append(client_data)
