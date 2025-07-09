@@ -262,7 +262,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
         await self.add_cog(VoiceCog(self, self.logger))
-        await self.add_cog(StreamerPosting(self, self.logger))
+        await self.add_cog(StreamerPostingCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
         self.websocket_listener = WebsocketListener(self, self.logger)
@@ -2764,7 +2764,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             pass
 
 # Twitch to Discord Streamer Posting
-class StreamerPosting:
+class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
     def __init__(self, bot, logger=None):
         self.bot = bot
         self.logger = logger
