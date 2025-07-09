@@ -637,87 +637,52 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.error(f"No text provided in TTS event from SID [{sid}]")
 
     async def twitch_follow(self, sid, data):
-        # Handle the Twitch follow event for SocketIO.
-        self.logger.info(f"Twitch follow event from SID [{sid}]: {data}")
-        # Broadcast the follow event to all clients
-        await self.sio.emit("TWITCH_FOLLOW", data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_twitch_follow(sid, data)
 
     async def twitch_cheer(self, sid, data):
-        # Handle the Twitch cheer event for SocketIO.
-        self.logger.info(f"Twitch cheer event from SID [{sid}]: {data}")
-        # Broadcast the cheer event to all clients
-        await self.sio.emit("TWITCH_CHEER", data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_twitch_cheer(sid, data)
 
     async def twitch_raid(self, sid, data):
-        # Handle the Twitch raid event for SocketIO.
-        self.logger.info(f"Twitch raid event from SID [{sid}]: {data}")
-        # Broadcast the raid event to all clients
-        await self.sio.emit("TWITCH_RAID", data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_twitch_raid(sid, data)
 
     async def twitch_sub(self, sid, data):
-        # Handle the Twitch sub event for SocketIO.
-        self.logger.info(f"Twitch sub event from SID [{sid}]: {data}")
-        # Broadcast the sub event to all clients
-        await self.sio.emit("TWITCH_SUB", data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_twitch_sub(sid, data)
 
     async def twitch_channelpoints(self, sid, data):
-        # Handle the Twitch Channel Points event for SocketIO.
-        self.logger.info(f"Twitch Channel Points event from SID [{sid}]: {data}")
-        # Broadcast the Channel Points event to all clients
-        await self.sio.emit("TWITCH_CHANNELPOINTS", data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_twitch_channelpoints(sid, data)
 
     async def stream_online(self, sid, data):
-        # Handle the STREAM_ONLINE event for SocketIO.
-        self.logger.info(f"Stream online event from SID [{sid}]: {data}")
-        # Broadcast the stream online event to all clients
-        await self.sio.emit("STREAM_ONLINE", data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_stream_online(sid, data)
 
     async def stream_offline(self, sid, data):
-        # Handle the STREAM_OFFLINE event for SocketIO.
-        self.logger.info(f"Stream offline event from SID [{sid}]: {data}")
-        # Broadcast the stream offline event to all clients
-        await self.sio.emit("STREAM_OFFLINE", data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_stream_offline(sid, data)
 
     async def weather(self, sid, data):
-        self.logger.info(f"Weather event from SID [{sid}]: {data}")
-        weather_data = data.get("weather_data")
-        if not weather_data:
-            self.logger.error('Missing weather data for WEATHER event')
-            return
-        self.logger.info(f"Broadcasting WEATHER event with data: {weather_data}")
-        # Broadcast the weather event to all clients
-        await self.sio.emit("WEATHER", weather_data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_weather(sid, data)
 
     async def weather_data(self, sid, data):
-        self.logger.info(f"Weather data event from SID [{sid}]: {data}")
-        weather_data = data.get("weather_data")
-        if not weather_data:
-            self.logger.error('Missing weather data for WEATHER_DATA event')
-            return
-        self.logger.info(f"Broadcasting WEATHER_DATA event with data: {weather_data}")
-        # Broadcast the weather data event to all clients
-        await self.sio.emit("WEATHER_DATA", weather_data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_weather_data(sid, data)
 
     async def discord_join(self, sid, data):
-        # Handle the DISCORD_JOIN event for SocketIO.
-        self.logger.info(f"DISCORD_JOIN event from SID [{sid}]: {data}")
-        member = data.get("member")
-        if not member:
-            self.logger.error("Missing member information for DISCORD_JOIN event")
-            return
-        join_data = {
-            "member": member
-        }
-        # Broadcast the DISCORD_JOIN event to all clients
-        await self.sio.emit("DISCORD_JOIN", join_data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_discord_join(sid, data)
 
     async def sound_alert(self, sid, data):
-        self.logger.info(f"Sound Alert event from SID [{sid}]: {data}")
-        await self.sio.emit("SOUND_ALERT", data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_sound_alert(sid, data)
 
     async def video_alert(self, sid, data):
-        self.logger.info(f"Video Alert event from SID [{sid}]: {data}")
-        await self.sio.emit("VIDEO_ALERT", data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_video_alert(sid, data)
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
