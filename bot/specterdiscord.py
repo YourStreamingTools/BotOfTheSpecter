@@ -7,7 +7,7 @@ import json
 import tempfile
 import random
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import subprocess
 from subprocess import PIPE
 import re
@@ -2769,91 +2769,307 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         self.bot = bot
         self.logger = logger
         self.mysql = MySQLHelper(logger)
-        self.channel_mapping = ChannelMapping()
+        # Monitoring state tracking
+        self.monitored_guilds = {}  # guild_id -> guild_data
+        self.live_users = {}  # (guild_id, username) -> stream_data
+        self.last_db_check = 0  # Timestamp of last database check
+        self.db_check_interval = 300  # Check database every 5 minutes
+        # Start the monitoring task
+        self.monitoring_task = asyncio.create_task(self.start_monitoring())
 
-    async def get_users(self):
-        mapping = self.channel_mapping
-        for guilds in mapping.get_mapping():
-            guild_id = self.get_guild(guilds["guild_id"])
-            get_user_id = await self.mysql.fetchone(
-                "SELECT user_id FROM discord_users WHERE guild_id = %s", (guild_id,), database_name='website', dict_cursor=True
-            )
-            if not get_user_id:
+    async def refresh_guild_data(self):
+        current_time = time.time()
+        if current_time - self.last_db_check < self.db_check_interval:
+            return
+        self.last_db_check = current_time
+        self.logger.info("Refreshing guild data from database...")
+        new_monitored_guilds = {}
+        # Get all guilds the bot is currently connected to
+        bot_guilds = self.bot.guilds
+        self.logger.info(f"Bot is connected to {len(bot_guilds)} guilds")
+        for guild in bot_guilds:
+            guild_id = guild.id
+            try:
+                # Check if this guild is configured in the database
+                discord_user = await self.mysql.fetchone(
+                    "SELECT user_id, member_streams_id FROM discord_users WHERE guild_id = %s AND member_streams_id IS NOT NULL AND member_streams_id != ''",
+                    (guild_id,), database_name='website', dict_cursor=True
+                )
+                if not discord_user:
+                    # Guild is not configured for member streams monitoring
+                    continue
+                user_id = discord_user.get('user_id')
+                member_streams_id = discord_user.get('member_streams_id')
+                if not user_id or not member_streams_id:
+                    self.logger.warning(f"Guild {guild_id} ({guild.name}): Missing configuration data")
+                    continue
+                # Convert to int if stored as string
+                try:
+                    member_streams_id = int(member_streams_id)
+                except (ValueError, TypeError):
+                    self.logger.warning(f"Guild {guild_id} ({guild.name}): Invalid member streams channel ID: {member_streams_id}")
+                    continue
+                # Verify the Discord channel exists and bot has access
+                discord_channel = self.bot.get_channel(member_streams_id)
+                if not discord_channel:
+                    # Try to get channel from guild directly as fallback
+                    discord_channel = guild.get_channel(member_streams_id)
+                    if not discord_channel:
+                        self.logger.warning(f"Guild {guild_id} ({guild.name}): Channel {member_streams_id} not found - may have been deleted or bot lacks access")
+                        continue
+                    else:
+                        self.logger.info(f"Guild {guild_id} ({guild.name}): Found channel via guild lookup: #{discord_channel.name}")
+                # Check if bot has permission to send messages in the channel
+                bot_member = guild.get_member(self.bot.user.id)
+                if not bot_member:
+                    self.logger.warning(f"Guild {guild_id} ({guild.name}): Bot is not a member of this guild")
+                    continue
+                channel_permissions = discord_channel.permissions_for(bot_member)
+                if not channel_permissions.send_messages:
+                    self.logger.warning(f"Guild {guild_id} ({guild.name}): Bot lacks send_messages permission in #{discord_channel.name}")
+                    continue
+                if not channel_permissions.embed_links:
+                    self.logger.warning(f"Guild {guild_id} ({guild.name}): Bot lacks embed_links permission in #{discord_channel.name}")
+                    continue
+                # Get channel info (streamer's info)
+                get_channel_info = await self.mysql.fetchone(
+                    "SELECT username, twitch_user_id FROM users WHERE id = %s", 
+                    (user_id,), database_name='website', dict_cursor=True
+                )
+                if not get_channel_info:
+                    self.logger.warning(f"Guild {guild_id} ({guild.name}): No user info found for user_id {user_id}")
+                    continue
+                
+                channel_name = get_channel_info.get('username')
+                twitch_user_id = get_channel_info.get('twitch_user_id')
+                
+                if not channel_name or not twitch_user_id:
+                    self.logger.warning(f"Guild {guild_id} ({guild.name}): Missing user configuration")
+                    continue
+                
+                # Get auth token
+                get_auth_token = await self.mysql.fetchone(
+                    "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", 
+                    (twitch_user_id,), database_name='website'
+                )
+                if not get_auth_token:
+                    self.logger.warning(f"Guild {guild_id} ({guild.name}): No auth token found for twitch_user_id {twitch_user_id}")
+                    continue
+                
+                # Handle both dict and tuple response formats for auth token query
+                if isinstance(get_auth_token, dict):
+                    auth_token = get_auth_token.get('twitch_access_token')
+                else:
+                    # Fallback to tuple access (first column)
+                    auth_token = get_auth_token[0] if get_auth_token else None
+                
+                if not auth_token:
+                    self.logger.warning(f"Guild {guild_id} ({guild.name}): No valid auth token available")
+                    continue
+                # Get member streams to monitor
+                users = await self.mysql.fetchall(
+                    "SELECT username, stream_url FROM member_streams",
+                    database_name=channel_name, dict_cursor=True
+                )
+                if users:
+                    new_monitored_guilds[guild_id] = {
+                        'guild_name': guild.name,
+                        'channel_name': channel_name,
+                        'twitch_user_id': twitch_user_id,
+                        'auth_token': auth_token,
+                        'member_streams_id': member_streams_id,
+                        'discord_channel': discord_channel,
+                        'users': users,
+                        'user_id': user_id
+                    }
+                    self.logger.info(f"Guild {guild_id} ({guild.name}): Monitoring {len(users)} users in #{discord_channel.name}")
+                else:
+                    self.logger.info(f"Guild {guild_id} ({guild.name}): No member streams to monitor")
+            except Exception as e:
+                self.logger.error(f"Error processing guild {guild_id} ({guild.name if guild else 'Unknown'}): {e}")
                 continue
-            user_id = get_user_id['user_id']
-            get_channel_info = await self.mysql.fetchone(
-                "SELECT username, twitch_user_id FROM users WHERE id = %s", (user_id,), database_name='website', dict_cursor=True
-            )
-            if not get_channel_info:
-                continue
-            channel_name = get_channel_info['username']
-            twitch_user_id = get_channel_info['twitch_user_id']
-        users = await self.mysql.fetchall(
-            "SELECT username, stream_url FROM member_streams",
-            database_name=channel_name, dict_cursor=True
-        )
-        get_auth_token = await self.mysql.fetchone(
-            "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", (twitch_user_id,), database_name='website'
-        )
-        auth_token = get_auth_token['twitch_access_token']  # Get twitch Auth Token from databse
-        member_streams_channel = await self.mysql.fetchone(
-            "SELECT member_streams_id FROM discord_users WHERE guild_id = %s",
-            (guild_id,), database_name='website', dict_cursor=True
-        )
-        member_streams_id = member_streams_channel['member_streams_id'] # Get the channel id where to post the message here
+        # Update monitored guilds
+        old_guilds = set(self.monitored_guilds.keys())
+        new_guilds = set(new_monitored_guilds.keys())
+        added_guilds = new_guilds - old_guilds
+        removed_guilds = old_guilds - new_guilds
+        if added_guilds:
+            guild_names = [f"{gid} ({new_monitored_guilds[gid]['guild_name']})" for gid in added_guilds]
+            self.logger.info(f"Added monitoring for guilds: {guild_names}")
+        if removed_guilds:
+            self.logger.info(f"Removed monitoring for guilds: {removed_guilds}")
+            # Clean up live users for removed guilds
+            self.live_users = {k: v for k, v in self.live_users.items() if k[0] not in removed_guilds}
+        self.monitored_guilds = new_monitored_guilds
+        self.logger.info(f"Total guilds being monitored: {len(self.monitored_guilds)}")
+
+    async def check_streams_for_guild(self, guild_id, guild_data):
+        users = guild_data['users']
+        auth_token = guild_data['auth_token']
         if not users:
-            self.logger.warning("No users found in database for member streams.")
             return []
-        return users, auth_token, member_streams_id
+        usernames = [user['username'] for user in users]
+        all_stream_data = []
+        if len(usernames) <= 100:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    url = "https://api.twitch.tv/helix/streams"
+                    headers = {
+                        "Client-ID": config.twitch_client_id,
+                        "Authorization": f"Bearer {auth_token}"
+                    }
+                    params = {
+                        "user_login": usernames,
+                        "type": "live",
+                        "first": 100
+                    }
+                    async with session.get(url, headers=headers, params=params) as response:
+                        if response.status != 200:
+                            self.logger.error(f"Failed to fetch streams for guild {guild_id}: {response.status} {await response.text()}")
+                            return []
+                        data = await response.json()
+                        all_stream_data = data.get('data', [])
+            except Exception as e:
+                self.logger.error(f"Error checking streams for guild {guild_id}: {e}")
+                return []
+        else:
+            # Handle more than 100 users by batching requests
+            self.logger.info(f"Guild {guild_id} has {len(usernames)} users, using batch requests")
+            # Split usernames into chunks of 100
+            username_chunks = [usernames[i:i + 100] for i in range(0, len(usernames), 100)]
+            try:
+                async with aiohttp.ClientSession() as session:
+                    url = "https://api.twitch.tv/helix/streams"
+                    headers = {
+                        "Client-ID": config.twitch_client_id,
+                        "Authorization": f"Bearer {auth_token}"
+                    }
+                    for chunk_index, username_chunk in enumerate(username_chunks):
+                        params = {
+                            "user_login": username_chunk,
+                            "type": "live",
+                            "first": 100
+                        }
+                        async with session.get(url, headers=headers, params=params) as response:
+                            if response.status != 200:
+                                self.logger.error(f"Failed to fetch streams batch {chunk_index + 1} for guild {guild_id}: {response.status} {await response.text()}")
+                                continue
+                            data = await response.json()
+                            batch_streams = data.get('data', [])
+                            all_stream_data.extend(batch_streams)
+                        # Small delay between requests to be API-friendly
+                        if chunk_index < len(username_chunks) - 1:
+                            await asyncio.sleep(0.1)
+            except Exception as e:
+                self.logger.error(f"Error in batch checking streams for guild {guild_id}: {e}")
+                return []
+        # Enrich stream data with stream URLs
+        for stream in all_stream_data:
+            username = stream['user_login']
+            # Find the corresponding user to get their stream_url
+            user_info = next((user for user in users if user['username'] == username), None)
+            if user_info:
+                stream['stream_url'] = user_info['stream_url']
+            else:
+                stream['stream_url'] = f"https://twitch.tv/{username}"
+        if all_stream_data:
+            self.logger.info(f"Guild {guild_id}: Found {len(all_stream_data)} live streams out of {len(usernames)} monitored users")
+        return all_stream_data
+
+    async def post_live_notification(self, guild_id, stream_data, discord_channel_id):
+        user_login = stream_data['user_login']
+        title = stream_data['title']
+        game_name = stream_data['game_name']
+        stream_url = stream_data.get('stream_url', f"https://twitch.tv/{user_login}")
+        thumbnail_url = stream_data['thumbnail_url'].replace('{width}', '320').replace('{height}', '180')
+        embed = discord.Embed(
+            title=f"{user_login} is now live on Twitch!",
+            description=f"[{user_login}]({stream_url}) just started a new Twitch stream titled:\n\n**{title}**\n\nPlaying: {game_name}",
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="Watch Here", value=f"[{stream_url}]({stream_url})", inline=False)
+        embed.set_thumbnail(url=thumbnail_url)
+        embed.set_footer(text=f"Stream ID: {stream_data['id']}")
+        try:
+            channel = self.bot.get_channel(discord_channel_id)
+            if channel:
+                await channel.send(embed=embed)
+                self.logger.info(f"Posted live notification for {user_login} in guild {guild_id}")
+                return True
+            else:
+                self.logger.error(f"Could not find Discord channel {discord_channel_id} for guild {guild_id}")
+                return False
+        except Exception as e:
+            self.logger.error(f"Error posting live notification for {user_login} in guild {guild_id}: {e}")
+            return False
+
+    async def process_guild_streams(self, guild_id, guild_data):
+        current_streams = await self.check_streams_for_guild(guild_id, guild_data)
+        discord_channel_id = guild_data['member_streams_id']
+        # Get currently live users for this guild
+        guild_live_users = {k[1]: v for k, v in self.live_users.items() if k[0] == guild_id}
+        # Process each current stream
+        current_live_usernames = set()
+        for stream in current_streams:
+            username = stream['user_login']
+            current_live_usernames.add(username)
+            live_key = (guild_id, username)
+            if live_key not in self.live_users:
+                # New stream detected, post notification
+                success = await self.post_live_notification(guild_id, stream, discord_channel_id)
+                if success:
+                    self.live_users[live_key] = {
+                        'stream_id': stream['id'],
+                        'started_at': stream['started_at'],
+                        'posted_at': time.time()
+                    }
+                    self.logger.info(f"Started monitoring {username} for guild {guild_id}")
+        # Check for users who went offline
+        previously_live = set(guild_live_users.keys())
+        went_offline = previously_live - current_live_usernames
+        for username in went_offline:
+            live_key = (guild_id, username)
+            if live_key in self.live_users:
+                del self.live_users[live_key]
+                self.logger.info(f"User {username} went offline for guild {guild_id}")
+
+    async def start_monitoring(self):
+        await self.bot.wait_until_ready()
+        self.logger.info("StreamerPostingCog monitoring started")
+        while not self.bot.is_closed():
+            try:
+                # Refresh guild data periodically
+                await self.refresh_guild_data()
+                # Process each monitored guild
+                for guild_id, guild_data in self.monitored_guilds.items():
+                    await self.process_guild_streams(guild_id, guild_data)
+                # Log monitoring status
+                total_live = len(self.live_users)
+                if total_live > 0:
+                    self.logger.info(f"Currently monitoring {total_live} live streams across {len(self.monitored_guilds)} guilds")
+                # Wait before next check
+                await asyncio.sleep(60)  # Check every minute
+            except Exception as e:
+                self.logger.error(f"Error in monitoring loop: {e}")
+                await asyncio.sleep(60)
+
+    def cog_unload(self):
+        if hasattr(self, 'monitoring_task'):
+            self.monitoring_task.cancel()
+
+    # Legacy methods for backward compatibility
+    async def get_users(self):
+        self.logger.warning("get_users() is deprecated, use refresh_guild_data() instead")
+        await self.refresh_guild_data()
+        return [], None, None
 
     async def get_streams(self):
-        get_users, auth_token, member_streams_id = await self.get_users()
-        users = [user for user in users if user['username'] in get_users]
-        async with aiohttp.ClientSession() as session:
-            url = "https://api.twitch.tv/helix/streams"
-            headers = {"Client-ID": config.twitch_client_id,"Authorization": f"Bearer {auth_token}"}
-            params = {"user_login": [user['username'] for user in users],"type": "live","first": 1}
-            for user in get_users:
-                stream_url = user['stream_url']
-            async with session.get(url, headers=headers, params=params) as response:
-                if response.status != 200:
-                    self.logger.error(f"Failed to fetch streams: {response.status} {await response.text()}")
-                    return []
-                data = await response.json()
-                stream_data = data.get('data', [])
-                return stream_data, stream_url, member_streams_id
+        self.logger.warning("get_streams() is deprecated, monitoring is now automatic")
+        return [], None, None
 
     async def post_streams(self):
-        while True:
-            try:
-                streams, stream_url, member_streams_id = await self.get_streams()
-                if not streams:
-                    self.logger.info("No active streams found")
-                    await asyncio.sleep(60)  # Wait before checking again
-                    continue
-                for stream in streams:
-                    user_login = stream['user_login']
-                    title = stream['title']
-                    game_name = stream['game_name']
-                    embed = discord.Embed(
-                        title=f"{user_login} is now live on Twitch!",
-                        description=f"""
-                        ({user_login})[{stream_url}] just started a new Twitch stream titled:
-                        {os.linesep}**{title}**
-                        {os.linesep}Playing: {game_name}
-                        """,
-                        color=discord.Color.purple()
-                    )
-                    embed.add_field(index=1, name="Watch Here", value=f"{stream_url}", inline=False)
-                    embed.set_thumbnail(url=stream['thumbnail_url'])
-                    channel = self.bot.get_channel(member_streams_id)
-                    if channel:
-                        await channel.send(embed=embed)
-                        self.logger.info(f"Posted live notification for {user_login} in {channel.name}")
-                await asyncio.sleep(300)  # Check every 5 minutes
-            except Exception as e:
-                self.logger.error(f"Error in post_streams: {e}")
-                await asyncio.sleep(60)
+        self.logger.warning("post_streams() is deprecated, monitoring is now automatic via start_monitoring()")
+        pass
 
 # ChannelManagementCog class
 class DiscordChannelResolver:
