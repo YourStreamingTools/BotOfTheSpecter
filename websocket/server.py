@@ -566,21 +566,8 @@ class BotOfTheSpecter_WebsocketServer:
         return len(response.audio_content) / 64000 # Duration in seconds for 64kbps MP3
 
     async def walkon(self, sid, data):
-        # Handle the walkon event for SocketIO.
-        self.logger.info(f"Walkon event from SID [{sid}]: {data}")
-        channel = data.get('channel')
-        user = data.get('user')
-        ext = data.get('ext', 'mp3')
-        if not channel or not user:
-            self.logger.error('Missing channel or user information for WALKON event')
-            return
-        walkon_data = {
-            'channel': channel,
-            'user': user,
-            'ext': ext
-        }
-        # Broadcast the walkon event to all clients
-        await self.sio.emit("WALKON", walkon_data)
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_walkon(sid, data)
 
     async def handle_fourthwall_event(self, code, data):
         # Use the donation handler to handle FOURTHWALL events
