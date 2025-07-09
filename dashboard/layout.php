@@ -313,6 +313,7 @@ $dashboardVersion = '2.0.4';
     <!-- Custom JS -->
     <script src="js/dashboard.js"></script>
     <script src="/js/search.js"></script>
+    <script src="/js/bulmaModals.js"></script>
     <?php echo $scripts; ?>
     <?php include_once "usr_database.php"; ?>
     <script>
