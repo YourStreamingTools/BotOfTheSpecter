@@ -115,27 +115,27 @@ class WebsocketListener:
         # Event handlers for Twitch Follows
         @self.specterSocket.event
         async def TWITCH_FOLLOW(data):
-            await self.handle_twitch_event("FOLLOW", data)
+            await BotOfTheSpecter.handle_twitch_event("FOLLOW", data)
         # Event handlers for Twitch Subscription Events
         @self.specterSocket.event
         async def TWITCH_SUB(data):
-            await self.handle_twitch_event("SUBSCRIPTION", data)
+            await BotOfTheSpecter.handle_twitch_event("SUBSCRIPTION", data)
         # Event handlers for Twitch Bits (Cheer) Events
         @self.specterSocket.event
         async def TWITCH_CHEER(data):
-            await self.handle_twitch_event("CHEER", data)
+            await BotOfTheSpecter.handle_twitch_event("CHEER", data)
         # Event handlers for Twitch Raid Events
         @self.specterSocket.event
         async def TWITCH_RAID(data):
-            await self.handle_twitch_event("RAID", data)
+            await BotOfTheSpecter.handle_twitch_event("RAID", data)
         # Event handlers for Twitch Stream Online Events
         @self.specterSocket.event
         async def STREAM_ONLINE(data):
-            await self.handle_stream_event("ONLINE", data)
+            await BotOfTheSpecter.handle_stream_event("ONLINE", data)
         # Event handlers for Twitch Stream Offline Events
         @self.specterSocket.event
         async def STREAM_OFFLINE(data):
-            await self.handle_stream_event("OFFLINE", data)
+            await BotOfTheSpecter.handle_stream_event("OFFLINE", data)
         # Log all other events generically
         @self.specterSocket.on('*')
         async def catch_all(event, data):
