@@ -755,14 +755,14 @@ ob_start();
                     <div class="field">
                       <label class="label has-text-white" for="option" style="font-weight: 500;">Twitch Username</label>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="monitor_username" name="monitor_username" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="monitor_username" name="monitor_username" placeholder="e.g. botofthespecter" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-person"></i></span>
                       </div>
                     </div>
                     <div class="field">
                       <label class="label has-text-white" for="monitor_url" style="font-weight: 500;">Twitch URL</label>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="monitor_url" name="monitor_url" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="monitor_url" name="monitor_url" placeholder="e.g. https://www.twitch.tv/botofthespecter" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-link"></i></span>
                       </div>
                     </div>
