@@ -320,6 +320,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         $checkStmt->close();
       }
+    } elseif (isset($_POST['remove_streamer'])) {
+      // Remove Twitch streamer monitoring
+      $remove_username = trim($_POST['remove_streamer']);
+      if (empty($remove_username)) {
+        $errorMsg = "Twitch Username cannot be empty.";
+      } else {
+        // Check if the streamer exists
+        $checkStmt = $db->prepare("SELECT * FROM member_streams WHERE username = ?");
+        $checkStmt->bind_param("s", $remove_username);
+        $checkStmt->execute();
+        $checkResult = $checkStmt->get_result();
+        if ($checkResult->num_rows === 0) {
+          $errorMsg .= "Streamer not found in the database.<br>";
+        } else {
+          // Delete the streamer
+          $deleteStmt = $db->prepare("DELETE FROM member_streams WHERE username = ?");
+          $deleteStmt->bind_param("s", $remove_username);
+          if ($deleteStmt->execute()) {
+            $buildStatus .= "Streamer removed successfully.<br>";
+          } else {
+            $errorMsg .= "Error removing streamer: " . $deleteStmt->error . "<br>";
+          }
+          $deleteStmt->close();
+        }
+        $checkStmt->close();
+      }
     }
   } catch (mysqli_sql_exception $e) {
     if (strpos($e->getMessage(), 'Data too long for column') !== false) {
@@ -835,7 +861,7 @@ function populateStreamersTable() {
       <td>${streamer.username}</td>
       <td><a href="${streamer.stream_url}" target="_blank">${streamer.stream_url}</a></td>
       <td>
-        <button class="button is-danger is-small" onclick="removeStreamer('${streamer.username}')" disabled>
+        <button class="button is-danger is-small" onclick="removeStreamer('${streamer.username}')">
           <span class="icon"><i class="fas fa-trash"></i></span>
           <span>Remove</span>
         </button>
@@ -845,6 +871,33 @@ function populateStreamersTable() {
   });
 }
 populateStreamersTable(streamersToDisplay);
+
+function removeStreamer(username) {
+  Swal.fire({
+    title: 'Remove Streamer?',
+    text: `Are you sure you want to remove ${username} from the saved streamers list?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, Remove',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#e74c3c',
+    cancelButtonColor: '#6c757d'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      // Create a form and submit it
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '';
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'remove_streamer';
+      input.value = username;
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+    }
+  });
+}
 </script>
 <script>
   $(document).ready(function() {
