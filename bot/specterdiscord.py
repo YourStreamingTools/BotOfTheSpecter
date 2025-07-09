@@ -359,59 +359,51 @@ class BotOfTheSpecter(commands.Bot):
         elif isinstance(message.channel, (discord.TextChannel, discord.VoiceChannel)):
             try:
                 # TICKET SYSTEM LOGIC - Check if this is a ticket-info channel
-                settings = await self.get_settings(message.guild.id)
-                if settings and message.channel.id == settings['info_channel_id']:
-                    # Check if message is a ticket command
-                    is_ticket_command = message.content.startswith('!ticket')
-                    is_ticket_command_create = message.content.startswith('!ticket create')
-                    if not is_ticket_command:
-                        # Delete non-ticket messages
-                        await message.delete()
-                        # Send a temporary warning message
-                        warning = await message.channel.send(
-                            f"{message.author.mention} This channel is for ticket commands only. "
-                            "Please use `!ticket create` to open a ticket."
-                        )
-                        # Set a delay before deleting the warning message
-                        await asyncio.sleep(10)  # Wait for 10 seconds
-                        await warning.delete()  # Delete the warning message after the delay
-                        self.logger.info(f"Deleted non-ticket message from {message.author} in ticket-info channel")
-                        return
-                    elif not is_ticket_command_create:
-                        # Delete the command message
-                        await message.delete()
-                        warning = await message.channel.send(
-                            f"{message.author.mention} This channel is for ticket commands only. "
-                            "Please use `!ticket create` to open a ticket."
-                        )
-                        # Set a delay before deleting the warning message
-                        await asyncio.sleep(10)  # Wait for 10 seconds
-                        await warning.delete()  # Delete the warning message after the delay
-                        self.logger.info(f"Deleted ticket create command from {message.author} in ticket-info channel")
-                        return
+                ticket_cog = self.get_cog('Tickets')
+                if ticket_cog:
+                    settings = await ticket_cog.get_settings(message.guild.id)
+                    if settings and message.channel.id == settings['info_channel_id']:
+                        # Check if message is a ticket command
+                        is_ticket_command = message.content.startswith('!ticket')
+                        is_ticket_command_create = message.content.startswith('!ticket create')
+                        if not is_ticket_command:
+                            # Delete non-ticket messages
+                            await message.delete()
+                            # Send a temporary warning message
+                            warning = await message.channel.send(
+                                f"{message.author.mention} This channel is for ticket commands only. "
+                                "Please use `!ticket create` to open a ticket."
+                            )
+                            # Set a delay before deleting the warning message
+                            await asyncio.sleep(10)  # Wait for 10 seconds
+                            await warning.delete()  # Delete the warning message after the delay
+                            self.logger.info(f"Deleted non-ticket message from {message.author} in ticket-info channel")
+                            return
+                        elif not is_ticket_command_create:
+                            # Delete the command message
+                            await message.delete()
+                            warning = await message.channel.send(
+                                f"{message.author.mention} This channel is for ticket commands only. "
+                                "Please use `!ticket create` to open a ticket."
+                            )
+                            # Set a delay before deleting the warning message
+                            await asyncio.sleep(10)  # Wait for 10 seconds
+                            await warning.delete()  # Delete the warning message after the delay
+                            self.logger.info(f"Deleted ticket create command from {message.author} in ticket-info channel")
+                            return
             except Exception as e:
                 self.logger.error(f"Error in ticket-info message watcher: {e}")
             try:
+                # Auto-save logic for ticket channels - delegate to TicketCog
                 if hasattr(message.channel, "name") and message.channel.name.startswith("ticket-"):
                     # Ignore commands
                     if message.content.startswith("!ticket"):
                         return
-                    try:
-                        parts = message.channel.name.split("-")
-                        if len(parts) < 2:
-                            return
-                        ticket_id = int(parts[1])
-                    except Exception:
-                        return
-                    if not self.pool:
-                        await self.init_ticket_database()
-                    async with self.pool.acquire() as conn:
-                        async with conn.cursor() as cur:
-                            await cur.execute(
-                                "INSERT INTO ticket_comments (guild_id, ticket_id, user_id, username, comment) VALUES (%s, %s, %s, %s, %s)",
-                                (message.guild.id, ticket_id, message.author.id, str(message.author), message.content)
-                            )
-                    self.logger.info(f"Auto-saved comment for ticket {ticket_id} from {message.author}")
+                    # Let the TicketCog handle the auto-save logic
+                    ticket_cog = self.get_cog('Tickets')
+                    if ticket_cog:
+                        # The TicketCog's on_message listener will handle this
+                        pass
                     return
             except Exception as e:
                 self.logger.error(f"Error in ticket auto-save logic: {e}")
