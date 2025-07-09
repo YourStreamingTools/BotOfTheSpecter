@@ -2303,7 +2303,7 @@ class MusicPlayer:
 class VoiceCog(commands.Cog, name='Voice'):
     def __init__(self, bot: commands.Bot, logger=None):
         self.bot = bot
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.logger = logger
         self.voice_clients = {}  # Guild ID -> VoiceClient mapping
         self.music_player = MusicPlayer(bot, logger)
         self.logger.info("VoiceCog initialized successfully")
