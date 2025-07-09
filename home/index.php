@@ -1,5 +1,11 @@
 <?php
 ob_start();
+?>
+<script type="application/ld+json">{"@context": "https://schema.org","@type": "WebPage","name": "BotOfTheSpecter","description": "BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.","url": "https://botofthespecter.com/"}</script>
+<?php
+$extraScripts = ob_get_clean();
+
+ob_start();
 $pageTitle = "BotOfTheSpecter";
 $pageDescription = "BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.";
 ?>

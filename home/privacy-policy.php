@@ -1,5 +1,11 @@
 <?php
 ob_start();
+?>
+<script type="application/ld+json">{"@context": "https://schema.org","@type": "WebPage","name": "BotOfTheSpecter - Privacy Policy","description": "Privacy Policy for BotOfTheSpecter, outlining data collection, usage, and user rights.","url": "https://botofthespecter.com/privacy-policy.php"}</script>
+<?php
+$extraScripts = ob_get_clean();
+
+ob_start();
 $pageTitle = "BotOfTheSpecter - Privacy Policy";
 $pageDescription = "BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics.";
 ?>

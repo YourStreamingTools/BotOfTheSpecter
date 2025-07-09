@@ -24,6 +24,7 @@ $dashboardVersion = "2.0.4";
     <meta name="twitter:title" content="<?= htmlspecialchars($pageTitle) ?>" />
     <meta name="twitter:description" content="<?= htmlspecialchars($pageDescription) ?>" />
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
+    <?php if (isset($extraScripts)) echo $extraScripts; ?>
 </head>
 <body>
 <nav class="navbar is-fixed-top is-dark" role="navigation" aria-label="main navigation">
