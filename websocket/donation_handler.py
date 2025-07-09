@@ -1,78 +1,103 @@
 class DonationEventHandler:
-    def __init__(self, sio, logger, get_clients):
+    def __init__(self, sio, logger, get_clients, broadcast_with_globals=None):
         self.sio = sio
         self.logger = logger
         self.get_clients = get_clients
+        self.broadcast_with_globals = broadcast_with_globals
 
     async def handle_fourthwall_event(self, code, data):
         self.logger.info(f"Handling FOURTHWALL event with data: {data}")
-        count = 0
-        if code in self.get_clients():
-            for client in self.get_clients()[code]:
-                sid = client['sid']
-                await self.sio.emit("FOURTHWALL", data, to=sid)
-                self.logger.info(f"Emitted FOURTHWALL event to client {sid}")
-                count += 1
+        # Use global broadcasting if available, otherwise fall back to direct emission
+        if self.broadcast_with_globals:
+            count = await self.broadcast_with_globals("FOURTHWALL", data, code)
+        else:
+            count = 0
+            if code in self.get_clients():
+                for client in self.get_clients()[code]:
+                    sid = client['sid']
+                    await self.sio.emit("FOURTHWALL", data, to=sid)
+                    self.logger.info(f"Emitted FOURTHWALL event to client {sid}")
+                    count += 1
         self.logger.info(f"Broadcasted FOURTHWALL event to {count} clients")
         return count
 
     async def handle_kofi_event(self, code, data):
         self.logger.info(f"Handling KOFI event with data: {data}")
-        count = 0
-        if code in self.get_clients():
-            for client in self.get_clients()[code]:
-                sid = client['sid']
-                await self.sio.emit("KOFI", data, to=sid)
-                self.logger.info(f"Emitted KOFI event to client {sid}")
-                count += 1
+        # Use global broadcasting if available, otherwise fall back to direct emission
+        if self.broadcast_with_globals:
+            count = await self.broadcast_with_globals("KOFI", data, code)
+        else:
+            count = 0
+            if code in self.get_clients():
+                for client in self.get_clients()[code]:
+                    sid = client['sid']
+                    await self.sio.emit("KOFI", data, to=sid)
+                    self.logger.info(f"Emitted KOFI event to client {sid}")
+                    count += 1
         self.logger.info(f"Broadcasted KOFI event to {count} clients")
         return count
 
     async def handle_patreon_event(self, code, data):
         self.logger.info(f"Handling PATREON event with data: {data}")
-        count = 0
-        if code in self.get_clients():
-            for client in self.get_clients()[code]:
-                sid = client['sid']
-                await self.sio.emit("PATREON", data, to=sid)
-                self.logger.info(f"Emitted PATREON event to client {sid}")
-                count += 1
+        # Use global broadcasting if available, otherwise fall back to direct emission
+        if self.broadcast_with_globals:
+            count = await self.broadcast_with_globals("PATREON", data, code)
+        else:
+            count = 0
+            if code in self.get_clients():
+                for client in self.get_clients()[code]:
+                    sid = client['sid']
+                    await self.sio.emit("PATREON", data, to=sid)
+                    self.logger.info(f"Emitted PATREON event to client {sid}")
+                    count += 1
         self.logger.info(f"Broadcasted PATREON event to {count} clients")
         return count
 
     async def handle_streamlabs_event(self, code, data):
         self.logger.info(f"Handling STREAMLABS event with data: {data}")
-        count = 0
-        if code in self.get_clients():
-            for client in self.get_clients()[code]:
-                sid = client['sid']
-                await self.sio.emit("STREAMLABS", data, to=sid)
-                self.logger.info(f"Emitted STREAMLABS event to client {sid}")
-                count += 1
+        # Use global broadcasting if available, otherwise fall back to direct emission
+        if self.broadcast_with_globals:
+            count = await self.broadcast_with_globals("STREAMLABS", data, code)
+        else:
+            count = 0
+            if code in self.get_clients():
+                for client in self.get_clients()[code]:
+                    sid = client['sid']
+                    await self.sio.emit("STREAMLABS", data, to=sid)
+                    self.logger.info(f"Emitted STREAMLABS event to client {sid}")
+                    count += 1
         self.logger.info(f"Broadcasted STREAMLABS event to {count} clients")
         return count
 
     async def handle_streamelements_event(self, code, data):
         self.logger.info(f"Handling STREAMELEMENTS event with data: {data}")
-        count = 0
-        if code in self.get_clients():
-            for client in self.get_clients()[code]:
-                sid = client['sid']
-                await self.sio.emit("STREAMELEMENTS", data, to=sid)
-                self.logger.info(f"Emitted STREAMELEMENTS event to client {sid}")
-                count += 1
+        # Use global broadcasting if available, otherwise fall back to direct emission
+        if self.broadcast_with_globals:
+            count = await self.broadcast_with_globals("STREAMELEMENTS", data, code)
+        else:
+            count = 0
+            if code in self.get_clients():
+                for client in self.get_clients()[code]:
+                    sid = client['sid']
+                    await self.sio.emit("STREAMELEMENTS", data, to=sid)
+                    self.logger.info(f"Emitted STREAMELEMENTS event to client {sid}")
+                    count += 1
         self.logger.info(f"Broadcasted STREAMELEMENTS event to {count} clients")
         return count
 
     async def handle_generic_donation_event(self, code, event_type, data):
         self.logger.info(f"Handling {event_type} event with data: {data}")
-        count = 0
-        if code in self.get_clients():
-            for client in self.get_clients()[code]:
-                sid = client['sid']
-                await self.sio.emit(event_type.upper(), data, to=sid)
-                self.logger.info(f"Emitted {event_type} event to client {sid}")
-                count += 1
+        # Use global broadcasting if available, otherwise fall back to direct emission
+        if self.broadcast_with_globals:
+            count = await self.broadcast_with_globals(event_type.upper(), data, code)
+        else:
+            count = 0
+            if code in self.get_clients():
+                for client in self.get_clients()[code]:
+                    sid = client['sid']
+                    await self.sio.emit(event_type.upper(), data, to=sid)
+                    self.logger.info(f"Emitted {event_type} event to client {sid}")
+                    count += 1
         self.logger.info(f"Broadcasted {event_type} event to {count} clients")
         return count
 
