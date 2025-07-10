@@ -599,7 +599,7 @@ try {
             async_log("Default group $group_name ensured.");
         }
     }
-    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'The streamer has snoozed the upcoming ad break.', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default ad_notice_settings options ensured.');
     }
     // Ensure default options for streamer_preferences exist
@@ -608,15 +608,21 @@ try {
     WHERE NOT EXISTS (SELECT 1 FROM streamer_preferences)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default streamer_preferences options ensured.');
     }
+    // Migration and maintenance for ad_snoozed_message column
     $check_column_query = "SHOW COLUMNS FROM ad_notice_settings LIKE 'ad_snoozed_message'";
     $column_exists = $usrDBconn->query($check_column_query);
     if ($column_exists->num_rows == 0) {
-        $add_column_sql = "ALTER TABLE ad_notice_settings ADD ad_snoozed_message VARCHAR(255) DEFAULT 'The streamer has snoozed the upcoming ad break.' AFTER ad_upcoming_message";
+        $add_column_sql = "ALTER TABLE ad_notice_settings ADD ad_snoozed_message VARCHAR(255) DEFAULT 'Ads have been snoozed.' AFTER ad_upcoming_message";
         if ($usrDBconn->query($add_column_sql) === TRUE) {
             async_log('Successfully added ad_snoozed_message column to ad_notice_settings table.');
         } else {
             async_log('Error adding ad_snoozed_message column: ' . $usrDBconn->error);
         }
+    }
+    // Always ensure the ad_snoozed_message has a proper value (for both new and existing installations)
+    $update_sql = "UPDATE ad_notice_settings SET ad_snoozed_message = 'Ads have been snoozed.' WHERE ad_snoozed_message IS NULL OR ad_snoozed_message = '' OR ad_snoozed_message = 'The streamer has snoozed the upcoming ad break.'";
+    if ($usrDBconn->query($update_sql) === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Updated ad_snoozed_message to use the new default message.');
     }
     // Close the connection
     $usrDBconn->close();
