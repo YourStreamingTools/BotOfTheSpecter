@@ -873,6 +873,8 @@ return [
     'modules_ad_start_message_placeholder' => 'Message lorsque la pub commence',
     'modules_ad_end_message' => 'Message fin de pub',
     'modules_ad_end_message_placeholder' => 'Message lorsque la pub se termine',
+    'modules_ad_snoozed_message' => 'Message pub reportée',
+    'modules_ad_snoozed_message_placeholder' => 'Message lorsque la pub est reportée',
     'modules_enable_ad_notice' => 'Activer la notification de pub',
     'modules_save_ad_notice_settings' => 'Enregistrer les paramètres de pub',
     'modules_twitch_event_sound_alerts_title' => 'Gérer les alertes sonores des événements Twitch',
