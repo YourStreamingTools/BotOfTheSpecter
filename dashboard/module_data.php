@@ -43,9 +43,9 @@ $default_mod_welcome_message = isset($preferences['default_mod_welcome_message']
 $new_default_mod_welcome_message = isset($preferences['new_default_mod_welcome_message']) ? $preferences['new_default_mod_welcome_message'] : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!";
 
 // Fetch ad notice settings from the database
-$stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, enable_ad_notice FROM ad_notice_settings WHERE id = 1");
+$stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice FROM ad_notice_settings WHERE id = 1");
 $stmt->execute();
-$stmt->bind_result($ad_upcoming_message_db, $ad_start_message_db, $ad_end_message_db, $enable_ad_notice);
+$stmt->bind_result($ad_upcoming_message_db, $ad_start_message_db, $ad_end_message_db, $ad_snoozed_message_db, $enable_ad_notice);
 $stmt->fetch();
 $stmt->close();
 
@@ -53,15 +53,18 @@ $stmt->close();
 $default_ad_upcoming_message = "Ads will be starting in (minutes).";
 $default_ad_start_message = "Ads are running for (duration). We'll be right back after these ads.";
 $default_ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!";
+$default_ad_snoozed_message = "The streamer has snoozed the upcoming ad break.";
 
 if ($ad_upcoming_message_db !== null) {
     $ad_upcoming_message = !empty($ad_upcoming_message_db) ? $ad_upcoming_message_db : $default_ad_upcoming_message;
     $ad_start_message = !empty($ad_start_message_db) ? $ad_start_message_db : $default_ad_start_message;
     $ad_end_message = !empty($ad_end_message_db) ? $ad_end_message_db : $default_ad_end_message;
+    $ad_snoozed_message = !empty($ad_snoozed_message_db) ? $ad_snoozed_message_db : $default_ad_snoozed_message;
 } else {
     $ad_upcoming_message = $default_ad_upcoming_message;
     $ad_start_message = $default_ad_start_message;
     $ad_end_message = $default_ad_end_message;
+    $ad_snoozed_message = $default_ad_snoozed_message;
     $enable_ad_notice = 1;
 }
 
