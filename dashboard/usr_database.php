@@ -497,7 +497,7 @@ try {
         'tts_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'voice' => "VARCHAR(50)",'language' => "VARCHAR(10)"],'streamer_preferences' => ['id' => "INT AUTO_INCREMENT PRIMARY KEY",'send_welcome_messages' => "TINYINT(1)",'default_welcome_message' => "TEXT",'new_default_welcome_message' => "TEXT",'default_vip_welcome_message' => "TEXT",'new_default_vip_welcome_message' => "TEXT",'default_mod_welcome_message' => "TEXT",'new_default_mod_welcome_message' => "TEXT"],
         'stream_lotto' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'username' => "VARCHAR(255)",'winning_numbers' => "VARCHAR(255)",'supplementary_numbers' => "VARCHAR(255)"],
         'stream_lotto_winning_numbers' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'winning_numbers' => "VARCHAR(255)",'supplementary_numbers' => "VARCHAR(255)"],
-        'ad_notice_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'ad_start_message' => "VARCHAR(255)",'ad_end_message' => "VARCHAR(255)",'ad_upcoming_message' => "VARCHAR(255)",'enable_ad_notice' => "TINYINT(1) DEFAULT 1"],
+        'ad_notice_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'ad_start_message' => "VARCHAR(255)",'ad_end_message' => "VARCHAR(255)",'ad_upcoming_message' => "VARCHAR(255)",'ad_snoozed_message' => "VARCHAR(255)",'enable_ad_notice' => "TINYINT(1) DEFAULT 1"],
         'streaming_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'twitch_key' => "VARCHAR(255)",'forward_to_twitch' => "TINYINT(1)"],
         'twitch_chat_alerts' => ['alert_type' => "VARCHAR(255)",'alert_message' => "TEXT"],
         'reward_streaks' => ['reward_id' => "VARCHAR(255)",'current_user' => "VARCHAR(255)",'streak' => "INT DEFAULT 1"],
@@ -599,7 +599,7 @@ try {
             async_log("Default group $group_name ensured.");
         }
     }
-    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'The streamer has snoozed the upcoming ad break.', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default ad_notice_settings options ensured.');
     }
     // Ensure default options for streamer_preferences exist
@@ -607,6 +607,16 @@ try {
     SELECT 1, 'Welcome back, (user)! It''s great to see you again!', '(user) is new to the community, let''s give them a warm welcome!', 'ATTENTION! A very important person has entered the chat, welcome back (user)', 'ATTENTION! A very important person has entered the chat, welcome (user)', 'MOD ON DUTY! Welcome back (user), the power of the sword has increased!', 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!' 
     WHERE NOT EXISTS (SELECT 1 FROM streamer_preferences)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default streamer_preferences options ensured.');
+    }
+    $check_column_query = "SHOW COLUMNS FROM ad_notice_settings LIKE 'ad_snoozed_message'";
+    $column_exists = $usrDBconn->query($check_column_query);
+    if ($column_exists->num_rows == 0) {
+        $add_column_sql = "ALTER TABLE ad_notice_settings ADD ad_snoozed_message VARCHAR(255) DEFAULT 'The streamer has snoozed the upcoming ad break.' AFTER ad_upcoming_message";
+        if ($usrDBconn->query($add_column_sql) === TRUE) {
+            async_log('Successfully added ad_snoozed_message column to ad_notice_settings table.');
+        } else {
+            async_log('Error adding ad_snoozed_message column: ' . $usrDBconn->error);
+        }
     }
     // Close the connection
     $usrDBconn->close();
