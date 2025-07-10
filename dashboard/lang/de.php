@@ -870,6 +870,8 @@ return [
     'modules_ad_start_message_placeholder' => 'Nachricht, wenn Werbung startet',
     'modules_ad_end_message' => 'Werbung beendet Nachricht',
     'modules_ad_end_message_placeholder' => 'Nachricht, wenn Werbung endet',
+    'modules_ad_snoozed_message' => 'Werbung verschoben Nachricht',
+    'modules_ad_snoozed_message_placeholder' => 'Nachricht, wenn Werbung verschoben wird',
     'modules_enable_ad_notice' => 'Werbehinweis aktivieren',
     'modules_save_ad_notice_settings' => 'Werbehinweise speichern',
     'modules_twitch_event_sound_alerts_title' => 'Twitch-Event-Sound-Alerts verwalten',
