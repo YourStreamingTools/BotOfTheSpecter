@@ -8220,7 +8220,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                             if result and result['ad_snoozed_message']:
                                 snooze_message = result['ad_snoozed_message']
                             else:
-                                snooze_message = "The streamer has snoozed the upcoming ad break."
+                                snooze_message = "Ads have been snoozed."
                     finally:
                         await connection.ensure_closed()
                     await channel.send(snooze_message)

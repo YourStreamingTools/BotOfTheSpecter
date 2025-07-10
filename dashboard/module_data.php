@@ -53,7 +53,7 @@ $stmt->close();
 $default_ad_upcoming_message = "Ads will be starting in (minutes).";
 $default_ad_start_message = "Ads are running for (duration). We'll be right back after these ads.";
 $default_ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!";
-$default_ad_snoozed_message = "The streamer has snoozed the upcoming ad break.";
+$default_ad_snoozed_message = "Ads have been snoozed.";
 
 if ($ad_upcoming_message_db !== null) {
     $ad_upcoming_message = !empty($ad_upcoming_message_db) ? $ad_upcoming_message_db : $default_ad_upcoming_message;
