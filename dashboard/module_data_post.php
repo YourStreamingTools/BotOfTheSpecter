@@ -150,25 +150,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $ad_upcoming_message = $_POST['ad_upcoming_message'];
         $ad_start_message = $_POST['ad_start_message'];
         $ad_end_message = $_POST['ad_end_message'];
+        $ad_snoozed_message = $_POST['ad_snoozed_message'];
         $enable_ad_notice = isset($_POST['enable_ad_notice']) ? 1 : 0;
         $update_sql = "INSERT INTO ad_notice_settings 
-            (id, ad_upcoming_message, ad_start_message, ad_end_message, enable_ad_notice)
-            VALUES (1, ?, ?, ?, ?)
+            (id, ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice)
+            VALUES (1, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
                 ad_upcoming_message = ?,
                 ad_start_message = ?,
                 ad_end_message = ?,
+                ad_snoozed_message = ?,
                 enable_ad_notice = ?";
                 
         $update_stmt = $db->prepare($update_sql);
-        $update_stmt->bind_param('sssisssi', 
+        $update_stmt->bind_param('ssssissssi', 
             $ad_upcoming_message, 
             $ad_start_message, 
             $ad_end_message, 
+            $ad_snoozed_message,
             $enable_ad_notice,
             $ad_upcoming_message, 
             $ad_start_message, 
             $ad_end_message, 
+            $ad_snoozed_message,
             $enable_ad_notice
         );
         $update_stmt->execute();
