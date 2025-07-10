@@ -3060,18 +3060,25 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
             username = stream['user_login']
             current_live_usernames.add(username)
             # Check if already posted in DB
-            live_notification = await self.mysql.get_live_notification(guild_id, username)
-            if not live_notification or live_notification.get('stream_id') != stream['id']:
-                # New stream detected, post notification
-                success = await self.post_live_notification(guild_id, stream, discord_channel_id)
-                if success:
-                    # Insert/update in DB
-                    started_at = stream['started_at']
-                    posted_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    await self.mysql.insert_live_notification(
-                        guild_id, username, stream['id'], started_at, posted_at
-                    )
-                    self.logger.info(f"Started monitoring {username} for guild {guild_id} (persisted)")
+            live_notification = guild_live_users.get(username)
+            if live_notification and live_notification.get('stream_id') == stream['id']:
+                continue  # Already posted for this stream_id, skip
+            success = await self.post_live_notification(guild_id, stream, discord_channel_id)
+            if success:
+                # Convert Twitch API datetime format to MySQL compatible format
+                started_at_raw = stream['started_at']
+                try:
+                    # Parse ISO 8601 format and convert to MySQL datetime format
+                    started_at_dt = datetime.fromisoformat(started_at_raw.replace('Z', '+00:00'))
+                    started_at = started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
+                except Exception as e:
+                    self.logger.error(f"Error parsing started_at datetime '{started_at_raw}': {e}")
+                    started_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                posted_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                await self.mysql.insert_live_notification(
+                    guild_id, username, stream['id'], started_at, posted_at
+                )
+                self.logger.info(f"Started monitoring {username} for guild {guild_id} (persisted)")
         # Check for users who went offline
         previously_live = set(guild_live_users.keys())
         went_offline = previously_live - current_live_usernames
