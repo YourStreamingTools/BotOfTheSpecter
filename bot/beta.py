@@ -8173,33 +8173,34 @@ async def handle_upcoming_ads():
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     last_notification_time = None
     last_ad_time = None
+    last_snooze_count = None
     while stream_online:
         try:
-            last_notification_time, last_ad_time = await check_and_handle_ads(
-                channel, last_notification_time, last_ad_time
+            last_notification_time, last_ad_time, last_snooze_count = await check_and_handle_ads(
+                channel, last_notification_time, last_ad_time, last_snooze_count
             )
             await asyncio.sleep(60)  # Check every minute
         except Exception as e:
             api_logger.error(f"Error in handle_upcoming_ads loop: {e}")
             await asyncio.sleep(60)
 
-async def check_and_handle_ads(channel, last_notification_time, last_ad_time):
+async def check_and_handle_ads(channel, last_notification_time, last_ad_time, last_snooze_count=None):
     global stream_online, CHANNEL_ID, CLIENT_ID, CHANNEL_AUTH
     ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
     headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
     if not stream_online:
-        return last_notification_time, last_ad_time
+        return last_notification_time, last_ad_time, last_snooze_count
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
                 if response.status != 200:
                     api_logger.warning(f"Failed to fetch ad data. Status: {response.status}")
-                    return last_notification_time, last_ad_time
+                    return last_notification_time, last_ad_time, last_snooze_count
                 data = await response.json()
                 ads_data = data.get("data", [])
                 if not ads_data:
                     api_logger.debug("No ad data available")
-                    return last_notification_time, last_ad_time
+                    return last_notification_time, last_ad_time, last_snooze_count
                 ad_info = ads_data[0]
                 next_ad_at = ad_info.get("next_ad_at")
                 duration = int(ad_info.get("duration"))
@@ -8207,6 +8208,26 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time):
                 snooze_count = int(ad_info.get("snooze_count", 0))
                 last_ad_at = ad_info.get("last_ad_at")
                 api_logger.debug(f"Ad info - next_ad_at: {next_ad_at}, duration: {duration}, preroll_free_time: {preroll_free_time}")
+                
+                # Check if the ad was snoozed
+                if last_snooze_count is not None and snooze_count > last_snooze_count:
+                    # Get the ad snoozed message from database
+                    connection = await mysql_connection()
+                    try:
+                        async with connection.cursor(aiomysql.DictCursor) as cursor:
+                            await cursor.execute("SELECT ad_snoozed_message FROM ad_notice_settings WHERE id = 1")
+                            result = await cursor.fetchone()
+                            if result and result['ad_snoozed_message']:
+                                snooze_message = result['ad_snoozed_message']
+                            else:
+                                snooze_message = "The streamer has snoozed the upcoming ad break."
+                    finally:
+                        await connection.ensure_closed()
+                    await channel.send(snooze_message)
+                    api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
+                
+                # Update the last snooze count
+                last_snooze_count = snooze_count
                 # Check if we have a scheduled ad
                 if next_ad_at:
                     try:
@@ -8250,10 +8271,10 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time):
                 # Log preroll free time for debugging
                 if preroll_free_time > 0:
                     api_logger.debug(f"Preroll free time remaining: {preroll_free_time} seconds")
-                return last_notification_time, last_ad_time
+                return last_notification_time, last_ad_time, last_snooze_count
     except Exception as e:
         api_logger.error(f"Error in check_and_handle_ads: {e}")
-        return last_notification_time, last_ad_time
+        return last_notification_time, last_ad_time, last_snooze_count
 
 async def check_next_ad_after_completion(channel, ads_api_url, headers):
     await asyncio.sleep(300)  # Wait 5 minutes after ad completion
