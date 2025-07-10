@@ -103,12 +103,13 @@ if ($activeTab == 'welcome-messages') {
 
 // Load ad notice settings from the database before rendering the form
 if ($activeTab == 'ad-notices') {
-    $stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, enable_ad_notice FROM ad_notice_settings LIMIT 1");
+    $stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice FROM ad_notice_settings LIMIT 1");
     $stmt->execute();
     $stmt->bind_result(
         $ad_upcoming_message,
         $ad_start_message,
         $ad_end_message,
+        $ad_snoozed_message,
         $enable_ad_notice
     );
     $stmt->fetch();
@@ -674,6 +675,22 @@ ob_start();
                                                         </div>
                                                         <p class="help has-text-grey-light">
                                                             <span class="char-count" data-field="ad_end_message">0</span>/255 characters
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="columns is-multiline">
+                                                <div class="column is-12">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i class="fas fa-clock"></i></span>
+                                                            <?php echo t('modules_ad_snoozed_message'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input ad-notice-input" type="text" name="ad_snoozed_message" maxlength="255" placeholder="<?php echo t('modules_ad_snoozed_message_placeholder'); ?>" value="<?php echo htmlspecialchars($ad_snoozed_message ?? ''); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count" data-field="ad_snoozed_message">0</span>/255 characters
                                                         </p>
                                                     </div>
                                                 </div>
