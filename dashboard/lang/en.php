@@ -895,6 +895,8 @@ return [
     'modules_ad_start_message_placeholder' => 'Message when ads start',
     'modules_ad_end_message' => 'Ad Ended Message',
     'modules_ad_end_message_placeholder' => 'Message when ads end',
+    'modules_ad_snoozed_message' => 'Ad Snoozed Message',
+    'modules_ad_snoozed_message_placeholder' => 'Message when ads are snoozed',
     'modules_enable_ad_notice' => 'Enable Ad Notice',
     'modules_save_ad_notice_settings' => 'Save Ad Notice Settings',
     'modules_twitch_event_sound_alerts_title' => 'Manage Twitch Event Sound Alerts',
