@@ -352,6 +352,9 @@ class BotOfTheSpecter_WebsocketServer:
                         self.logger.warning(f"Code [{code}] was removed from registered_clients before old client removal. Skipping removal.")
                     break # Register the new client
             client_data = {"sid": sid, "name": name, "is_admin": is_admin}
+            # Ensure the code key exists before appending
+            if code not in self.registered_clients:
+                self.registered_clients[code] = []
             self.registered_clients[code].append(client_data)
             if is_admin:
                 self.logger.info(f"Admin client [{sid}] with name [{name}] registered with admin key: {code}")
