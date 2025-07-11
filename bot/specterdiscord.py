@@ -218,22 +218,31 @@ class ChannelMapping:
                    FROM channel_mappings WHERE channel_code = %s AND is_active = 1""",
                 (channel_code,), database_name='specterdiscordbot', dict_cursor=True
             )
-            if not row:
+        except Exception as enhanced_error:
+            self.logger.debug(f"Enhanced schema query failed for {channel_code}: {enhanced_error}")
+            row = None
+        if not row:
+            try:
                 # Fallback to basic schema
                 row = await self.mysql.fetchone(
                     "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings WHERE channel_code = %s",
                     (channel_code,), database_name='specterdiscordbot', dict_cursor=True
                 )
-            if row:
-                self.mappings[channel_code] = dict(row)
-                await self._update_last_seen(channel_code)
-                self.logger.info(f"Loaded mapping for {channel_code} from database to memory cache")
-                return self.mappings[channel_code]
+            except Exception as basic_error:
+                self.logger.debug(f"Basic schema query failed for {channel_code}: {basic_error}")
+                row = None
+        if row:
+            self.mappings[channel_code] = dict(row)
+            await self._update_last_seen(channel_code)
+            self.logger.info(f"Loaded mapping for {channel_code} from database to memory cache")
+            return self.mappings[channel_code]
+        # If no mapping found in database, try to create one from users table
+        try:
             mapping = await self._create_mapping_from_users_table(channel_code)
             if mapping:
                 return mapping
         except Exception as e:
-            self.logger.error(f"Error fetching mapping for {channel_code}: {e}")
+            self.logger.error(f"Error creating mapping from users table for {channel_code}: {e}")
         return None
 
     async def _create_mapping_from_users_table(self, channel_code):
@@ -298,14 +307,17 @@ class ChannelMapping:
                     ),
                     database_name='specterdiscordbot'
                 )
-            except Exception:
+                self.logger.debug(f"Inserted mapping using enhanced schema for {mapping_data['channel_code']}")
+            except Exception as enhanced_error:
                 # Fallback to basic schema
+                self.logger.debug(f"Enhanced schema insert failed, using basic schema: {enhanced_error}")
                 await self.mysql.execute(
                     "REPLACE INTO channel_mappings (channel_code, guild_id, channel_id, channel_name) VALUES (%s, %s, %s, %s)",
                     (mapping_data['channel_code'], mapping_data['guild_id'], mapping_data['channel_id'], 
                      mapping_data.get('channel_name', 'Unknown')),
                     database_name='specterdiscordbot'
                 )
+                self.logger.debug(f"Inserted mapping using basic schema for {mapping_data['channel_code']}")
             # Add to memory cache
             self.mappings[mapping_data['channel_code']] = mapping_data
         except Exception as e:
