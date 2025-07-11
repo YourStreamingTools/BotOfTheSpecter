@@ -14,7 +14,7 @@ DB_HOST = os.getenv('SQL_HOST')
 DB_USER = os.getenv('SQL_USER')
 DB_PASS = os.getenv('SQL_PASSWORD')
 DB_NAME = "website"
-TOKEN_URL = "https://discord.com/api/oauth2/token"
+TOKEN_URL = "https://discord.com/api/v10/oauth2/token"
 
 async def refresh_discord_token(session, pool, user_id, refresh_token):
     try:
@@ -29,13 +29,12 @@ async def refresh_discord_token(session, pool, user_id, refresh_token):
                 # Successfully refreshed the token
                 new_access_token = result['access_token']
                 new_refresh_token = result.get('refresh_token', refresh_token)  # Discord may or may not return a new refresh token
-                expires_in = result.get('expires_in', 604800)  # Default to 7 days if not provided
                 # Update the database with new tokens
                 async with pool.acquire() as conn:
                     async with conn.cursor() as cur:
                         await cur.execute(
-                            "UPDATE discord_users SET access_token=%s, refresh_token=%s, expires_in=%s WHERE user_id=%s",
-                            (new_access_token, new_refresh_token, expires_in, user_id)
+                            "UPDATE discord_users SET access_token=%s, refresh_token=%s WHERE user_id=%s",
+                            (new_access_token, new_refresh_token, user_id)
                         )
                         await conn.commit()
                 print(f"✅ Successfully refreshed Discord token for user_id: {user_id}")
