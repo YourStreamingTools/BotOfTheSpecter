@@ -186,6 +186,7 @@ class ChannelMapping:
                 'channel_id': row['channel_id'],
                 'channel_name': row['channel_name']
             } for row in rows}
+            self.logger.info(f"Loaded {len(self.mappings)} channel mappings from database")
         except Exception as e:
             self.logger.error(f"Error loading channel mappings from DB: {e}")
             self.mappings = {}
@@ -224,6 +225,37 @@ class ChannelMapping:
         except Exception as e:
             self.logger.error(f"Error removing mapping from DB: {e}")
             return False
+
+    async def populate_missing_mappings_from_users(self, bot):
+        try:
+            # Get all users with api_key and discord setup
+            users_rows = await self.mysql.fetchall(
+                """SELECT u.api_key, du.guild_id, du.live_channel_id 
+                   FROM users u 
+                   JOIN discord_users du ON u.id = du.user_id 
+                   WHERE u.api_key IS NOT NULL AND u.api_key != ''""",
+                database_name='website', dict_cursor=True
+            )
+            added_count = 0
+            for row in users_rows:
+                channel_code = row['api_key']
+                guild_id = row['guild_id']
+                channel_id = row['live_channel_id']
+                # Skip if mapping already exists
+                if channel_code in self.mappings:
+                    continue
+                # Try to get the actual channel name from Discord
+                guild = bot.get_guild(int(guild_id))
+                if guild:
+                    channel = guild.get_channel(int(channel_id))
+                    if channel:
+                        await self.add_mapping(channel_code, guild_id, channel_id, channel.name)
+                        added_count += 1
+                        self.logger.info(f"Auto-populated mapping for channel_code: {channel_code}")
+            if added_count > 0:
+                self.logger.info(f"Auto-populated {added_count} missing channel mappings from users table")
+        except Exception as e:
+            self.logger.error(f"Error auto-populating channel mappings: {e}")
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
@@ -291,6 +323,8 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.info(f"Updated Discord bot version file: {config.discord_bot_service_version}")
         except Exception as e:
             self.logger.error(f"Failed to update Discord bot version file: {e}")
+        # Auto-populate missing channel mappings from users table
+        await self.channel_mapping.populate_missing_mappings_from_users(self)
         # Set the initial presence and check stream status for each guild
         for guild in self.guilds:
             # Automatic mapping: get Twitch display name from SQL
@@ -754,7 +788,12 @@ class BotOfTheSpecter(commands.Bot):
         channel_code = data.get("channel_code", "unknown")
         mapping = await self.channel_mapping.get_mapping(channel_code)
         if not mapping:
-            self.logger.warning(f"No Discord mapping found for channel code: {channel_code}")
+            # Enhanced error message with debugging info
+            total_mappings = len(self.channel_mapping.mappings)
+            self.logger.warning(f"No Discord mapping found for channel code: {channel_code} (total mappings: {total_mappings})")
+            if total_mappings > 0:
+                sample_codes = list(self.channel_mapping.mappings.keys())[:3]  # Show first 3 as sample
+                self.logger.info(f"Sample existing channel codes: {sample_codes}")
             return
         guild = self.get_guild(mapping["guild_id"])
         if not guild:
@@ -916,6 +955,12 @@ class BotOfTheSpecter(commands.Bot):
         if not channel:
             self.logger.warning(f"Channel {discord_info['live_channel_id']} not found in guild {guild.name}")
             return
+        await self.channel_mapping.add_mapping(
+            code, 
+            int(discord_info["guild_id"]), 
+            int(discord_info["live_channel_id"]), 
+            channel.name
+        )
         # Set message and channel name based on event_type
         if event_type == "ONLINE":
             message = discord_info["online_text"] or "Stream is now LIVE!"
