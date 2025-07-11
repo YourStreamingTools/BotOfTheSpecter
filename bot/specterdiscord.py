@@ -186,11 +186,8 @@ class ChannelMapping:
                 'channel_id': row['channel_id'],
                 'channel_name': row['channel_name']
             } for row in rows}
-            if self.logger:
-                self.logger.info(f"Loaded {len(self.mappings)} channel mappings from database")
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error loading channel mappings from DB: {e}")
+            self.logger.error(f"Error loading channel mappings from DB: {e}")
             self.mappings = {}
 
     async def add_mapping(self, channel_code, guild_id, channel_id, channel_name):
@@ -205,11 +202,9 @@ class ChannelMapping:
                 "channel_id": channel_id,
                 "channel_name": channel_name
             }
-            if self.logger:
-                self.logger.info(f"Added/updated mapping for {channel_code} in DB")
+            self.logger.info(f"Added/updated mapping for {channel_code} in DB")
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error adding mapping to DB: {e}")
+            self.logger.error(f"Error adding mapping to DB: {e}")
 
     async def get_mapping(self, channel_code):
         await self._ready.wait()
@@ -224,12 +219,10 @@ class ChannelMapping:
             )
             if channel_code in self.mappings:
                 del self.mappings[channel_code]
-            if self.logger:
-                self.logger.info(f"Removed mapping for {channel_code} from DB")
+            self.logger.info(f"Removed mapping for {channel_code} from DB")
             return True
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error removing mapping from DB: {e}")
+            self.logger.error(f"Error removing mapping from DB: {e}")
             return False
 
 # Bot class
@@ -3003,8 +2996,6 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 stream['stream_url'] = user_info['stream_url']
             else:
                 stream['stream_url'] = f"https://twitch.tv/{username}"
-        if all_stream_data:
-            self.logger.info(f"Guild {guild_id}: Found {len(all_stream_data)} live streams out of {len(usernames)} monitored users")
         return all_stream_data
 
     async def post_live_notification(self, guild_id, stream_data, discord_channel_id):
@@ -3053,7 +3044,10 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
             except Exception as e:
                 self.logger.error(f"Error fetching live notifications for guild {guild_id}: {e}")
             finally:
-                conn.close()
+                if conn:
+                    conn.close()
+        else:
+            self.logger.error(f"Failed to get database connection for guild {guild_id} live notifications")
         # Process each current stream
         current_live_usernames = set()
         for stream in current_streams:
@@ -3192,11 +3186,14 @@ class MySQLHelper:
             )
             return conn
         except Exception as e:
-            self.logger.error(f"Error connecting to MySQL: {e}")
+            self.logger.error(f"Error connecting to MySQL database '{database_name}': {e}")
             return None
 
     async def get_live_notification(self, guild_id, username):
         conn = await self.get_connection('specterdiscordbot')
+        if conn is None:
+            self.logger.error("Failed to get connection for database: specterdiscordbot")
+            return None
         try:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute(
@@ -3205,14 +3202,17 @@ class MySQLHelper:
                 )
                 return await cursor.fetchone()
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error fetching live notification: {e}")
+            self.logger.error(f"Error fetching live notification: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     async def insert_live_notification(self, guild_id, username, stream_id, started_at, posted_at):
         conn = await self.get_connection('specterdiscordbot')
+        if conn is None:
+            self.logger.error("Failed to get connection for database: specterdiscordbot")
+            return
         try:
             async with conn.cursor() as cursor:
                 await cursor.execute(
@@ -3225,13 +3225,16 @@ class MySQLHelper:
                 )
                 await conn.commit()
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error inserting/updating live notification: {e}")
+            self.logger.error(f"Error inserting/updating live notification: {e}")
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     async def delete_live_notification(self, guild_id, username):
         conn = await self.get_connection('specterdiscordbot')
+        if conn is None:
+            self.logger.error("Failed to get connection for database: specterdiscordbot")
+            return
         try:
             async with conn.cursor() as cursor:
                 await cursor.execute(
@@ -3240,13 +3243,16 @@ class MySQLHelper:
                 )
                 await conn.commit()
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error deleting live notification: {e}")
+            self.logger.error(f"Error deleting live notification: {e}")
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     async def fetchone(self, query, params=None, database_name='website', dict_cursor=False):
         conn = await self.get_connection(database_name)
+        if conn is None:
+            self.logger.error(f"Failed to get connection for database: {database_name}")
+            return None
         try:
             if dict_cursor:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
@@ -3262,10 +3268,14 @@ class MySQLHelper:
             self.logger.error(f"MySQL fetchone error: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     async def fetchall(self, query, params=None, database_name='website', dict_cursor=False):
         conn = await self.get_connection(database_name)
+        if conn is None:
+            self.logger.error(f"Failed to get connection for database: {database_name}")
+            return []
         try:
             if dict_cursor:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
@@ -3279,12 +3289,16 @@ class MySQLHelper:
                     return rows
         except Exception as e:
             self.logger.error(f"MySQL fetchall error: {e}")
-            return None
+            return []
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     async def execute(self, query, params=None, database_name='website'):
         conn = await self.get_connection(database_name)
+        if conn is None:
+            self.logger.error(f"Failed to get connection for database: {database_name}")
+            return 0
         try:
             async with conn.cursor() as cursor:
                 await cursor.execute(query, params)
@@ -3294,7 +3308,8 @@ class MySQLHelper:
             self.logger.error(f"MySQL execute error: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
 # DiscordBotRunner class to manage the bot lifecycle
 class DiscordBotRunner:
