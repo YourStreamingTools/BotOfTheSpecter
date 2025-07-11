@@ -160,7 +160,7 @@ class ChannelMapping:
     def __init__(self, logger=None):
         self.logger = logger
         self.mysql = MySQLHelper(logger)
-        self.mappings = {}  # channel_code -> {guild_id, channel_id, channel_name}
+        self.mappings = {}  # Memory cache: channel_code -> full mapping data
         self._refresh_task = None
         self._ready = asyncio.Event()
         asyncio.create_task(self._init_and_start_refresh())
@@ -172,90 +172,258 @@ class ChannelMapping:
 
     async def _periodic_refresh(self):
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(300)  # Refresh every 5 minutes
             await self.refresh_mappings()
 
     async def refresh_mappings(self):
         try:
             rows = await self.mysql.fetchall(
-                "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings",
+                """SELECT channel_code, user_id, username, twitch_display_name, twitch_user_id,
+                          guild_id, guild_name, channel_id, channel_name, 
+                          stream_alert_channel_id, moderation_channel_id, alert_channel_id,
+                          online_text, offline_text, is_active, event_count, last_event_type,
+                          last_seen_at, created_at, updated_at
+                   FROM channel_mappings WHERE is_active = 1""",
                 database_name='specterdiscordbot', dict_cursor=True
             )
-            self.mappings = {row['channel_code']: {
-                'guild_id': row['guild_id'],
-                'channel_id': row['channel_id'],
-                'channel_name': row['channel_name']
-            } for row in rows}
-            self.logger.info(f"Loaded {len(self.mappings)} channel mappings from database")
+            self.mappings = {row['channel_code']: dict(row) for row in rows}
+            self.logger.info(f"Loaded {len(self.mappings)} active channel mappings from database")
         except Exception as e:
-            self.logger.error(f"Error loading channel mappings from DB: {e}")
-            self.mappings = {}
-
-    async def add_mapping(self, channel_code, guild_id, channel_id, channel_name):
-        try:
-            await self.mysql.execute(
-                "REPLACE INTO channel_mappings (channel_code, guild_id, channel_id, channel_name) VALUES (%s, %s, %s, %s)",
-                (channel_code, guild_id, channel_id, channel_name),
-                database_name='specterdiscordbot'
-            )
-            self.mappings[channel_code] = {
-                "guild_id": guild_id,
-                "channel_id": channel_id,
-                "channel_name": channel_name
-            }
-            self.logger.info(f"Added/updated mapping for {channel_code} in DB")
-        except Exception as e:
-            self.logger.error(f"Error adding mapping to DB: {e}")
+            # Fallback to basic schema if enhanced schema doesn't exist yet
+            try:
+                rows = await self.mysql.fetchall(
+                    "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings",
+                    database_name='specterdiscordbot', dict_cursor=True
+                )
+                self.mappings = {row['channel_code']: dict(row) for row in rows}
+                self.logger.info(f"Loaded {len(self.mappings)} channel mappings from database (basic schema)")
+            except Exception as e2:
+                self.logger.error(f"Error loading channel mappings from DB: {e2}")
+                self.mappings = {}
 
     async def get_mapping(self, channel_code):
         await self._ready.wait()
-        return self.mappings.get(channel_code)
+        if channel_code in self.mappings:
+            # Update last_seen_at for active mappings
+            await self._update_last_seen(channel_code)
+            return self.mappings[channel_code]
+        try:
+            # Try enhanced schema first
+            row = await self.mysql.fetchone(
+                """SELECT channel_code, user_id, username, twitch_display_name, twitch_user_id,
+                          guild_id, guild_name, channel_id, channel_name, 
+                          stream_alert_channel_id, moderation_channel_id, alert_channel_id,
+                          online_text, offline_text, is_active, event_count, last_event_type,
+                          last_seen_at, created_at, updated_at
+                   FROM channel_mappings WHERE channel_code = %s AND is_active = 1""",
+                (channel_code,), database_name='specterdiscordbot', dict_cursor=True
+            )
+            if not row:
+                # Fallback to basic schema
+                row = await self.mysql.fetchone(
+                    "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings WHERE channel_code = %s",
+                    (channel_code,), database_name='specterdiscordbot', dict_cursor=True
+                )
+            if row:
+                self.mappings[channel_code] = dict(row)
+                await self._update_last_seen(channel_code)
+                self.logger.info(f"Loaded mapping for {channel_code} from database to memory cache")
+                return self.mappings[channel_code]
+            mapping = await self._create_mapping_from_users_table(channel_code)
+            if mapping:
+                return mapping
+        except Exception as e:
+            self.logger.error(f"Error fetching mapping for {channel_code}: {e}")
+        return None
+
+    async def _create_mapping_from_users_table(self, channel_code):
+        try:
+            # Get user info from users table using api_key
+            user_row = await self.mysql.fetchone(
+                "SELECT id, username, twitch_display_name, twitch_user_id FROM users WHERE api_key = %s",
+                (channel_code,), database_name='website', dict_cursor=True
+            )
+            if not user_row:
+                self.logger.debug(f"No user found for channel_code: {channel_code}")
+                return None
+            # Get Discord info
+            discord_row = await self.mysql.fetchone(
+                """SELECT guild_id, live_channel_id, stream_alert_channel_id, 
+                          moderation_channel_id, alert_channel_id, online_text, offline_text
+                   FROM discord_users WHERE user_id = %s""",
+                (user_row['id'],), database_name='website', dict_cursor=True
+            )
+            if not discord_row:
+                self.logger.debug(f"No Discord setup found for user {user_row['username']}")
+                return None
+            # Create the mapping in database with available fields
+            mapping_data = {
+                'channel_code': channel_code,
+                'user_id': user_row['id'],
+                'username': user_row['username'],
+                'twitch_display_name': user_row.get('twitch_display_name', user_row['username']),
+                'twitch_user_id': user_row.get('twitch_user_id'),
+                'guild_id': discord_row['guild_id'],
+                'channel_id': discord_row['live_channel_id'],
+                'stream_alert_channel_id': discord_row.get('stream_alert_channel_id'),
+                'moderation_channel_id': discord_row.get('moderation_channel_id'),
+                'alert_channel_id': discord_row.get('alert_channel_id'),
+                'online_text': discord_row.get('online_text'),
+                'offline_text': discord_row.get('offline_text'),
+            }
+            await self._insert_mapping(mapping_data)
+            self.logger.info(f"Auto-created mapping for {channel_code} from users table")
+            return self.mappings.get(channel_code)
+        except Exception as e:
+            self.logger.error(f"Error creating mapping from users table for {channel_code}: {e}")
+            return None
+
+    async def _insert_mapping(self, mapping_data):
+        try:
+            # Try enhanced schema first
+            try:
+                await self.mysql.execute(
+                    """REPLACE INTO channel_mappings 
+                       (channel_code, user_id, username, twitch_display_name, twitch_user_id,
+                        guild_id, channel_id, stream_alert_channel_id, moderation_channel_id, 
+                        alert_channel_id, online_text, offline_text, is_active, event_count, 
+                        last_seen_at, created_at, updated_at)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 0, NOW(), NOW(), NOW())""",
+                    (
+                        mapping_data['channel_code'], mapping_data.get('user_id'), mapping_data.get('username'),
+                        mapping_data.get('twitch_display_name'), mapping_data.get('twitch_user_id'),
+                        mapping_data['guild_id'], mapping_data['channel_id'],
+                        mapping_data.get('stream_alert_channel_id'), mapping_data.get('moderation_channel_id'),
+                        mapping_data.get('alert_channel_id'), mapping_data.get('online_text'), mapping_data.get('offline_text')
+                    ),
+                    database_name='specterdiscordbot'
+                )
+            except Exception:
+                # Fallback to basic schema
+                await self.mysql.execute(
+                    "REPLACE INTO channel_mappings (channel_code, guild_id, channel_id, channel_name) VALUES (%s, %s, %s, %s)",
+                    (mapping_data['channel_code'], mapping_data['guild_id'], mapping_data['channel_id'], 
+                     mapping_data.get('channel_name', 'Unknown')),
+                    database_name='specterdiscordbot'
+                )
+            # Add to memory cache
+            self.mappings[mapping_data['channel_code']] = mapping_data
+        except Exception as e:
+            self.logger.error(f"Error inserting mapping to DB: {e}")
+
+    async def _update_last_seen(self, channel_code):
+        try:
+            await self.mysql.execute(
+                "UPDATE channel_mappings SET last_seen_at = NOW() WHERE channel_code = %s",
+                (channel_code,), database_name='specterdiscordbot'
+            )
+        except Exception:
+            pass  # Ignore if enhanced schema doesn't exist yet
+
+    async def increment_event_count(self, channel_code, event_type):
+        try:
+            await self.mysql.execute(
+                """UPDATE channel_mappings 
+                   SET event_count = event_count + 1, last_event_type = %s, last_seen_at = NOW() 
+                   WHERE channel_code = %s""",
+                (event_type, channel_code), database_name='specterdiscordbot'
+            )
+            # Update memory cache
+            if channel_code in self.mappings:
+                self.mappings[channel_code]['event_count'] = self.mappings[channel_code].get('event_count', 0) + 1
+                self.mappings[channel_code]['last_event_type'] = event_type
+                self.mappings[channel_code]['last_seen_at'] = datetime.now()
+        except Exception:
+            pass  # Ignore if enhanced schema doesn't exist yet
+
+    async def update_discord_info(self, channel_code, guild_name=None, channel_name=None):
+        try:
+            updates = []
+            params = []
+            if guild_name and 'guild_name' in await self._get_table_columns():
+                updates.append("guild_name = %s")
+                params.append(guild_name)
+            if channel_name:
+                updates.append("channel_name = %s")
+                params.append(channel_name)
+            if updates:
+                params.append(channel_code)
+                await self.mysql.execute(
+                    f"UPDATE channel_mappings SET {', '.join(updates)} WHERE channel_code = %s",
+                    params, database_name='specterdiscordbot'
+                )
+                # Update memory cache
+                if channel_code in self.mappings:
+                    if guild_name:
+                        self.mappings[channel_code]['guild_name'] = guild_name
+                    if channel_name:
+                        self.mappings[channel_code]['channel_name'] = channel_name
+        except Exception as e:
+            self.logger.error(f"Error updating Discord info for {channel_code}: {e}")
+
+    async def _get_table_columns(self):
+        try:
+            rows = await self.mysql.fetchall(
+                "DESCRIBE channel_mappings", database_name='specterdiscordbot'
+            )
+            return [row[0] for row in rows]
+        except Exception:
+            return ['channel_code', 'guild_id', 'channel_id', 'channel_name']  # Basic schema
+
+    async def add_mapping(self, channel_code, guild_id, channel_id, channel_name):
+        mapping = await self.get_mapping(channel_code)
+        if mapping:
+            # Update existing mapping with any new Discord info
+            await self.update_discord_info(channel_code, channel_name=channel_name)
+        else:
+            # Create basic mapping
+            mapping_data = {
+                'channel_code': channel_code,
+                'guild_id': guild_id,
+                'channel_id': channel_id,
+                'channel_name': channel_name
+            }
+            await self._insert_mapping(mapping_data)
 
     async def remove_mapping(self, channel_code):
         try:
+            # Try soft delete first
+            await self.mysql.execute(
+                "UPDATE channel_mappings SET is_active = 0 WHERE channel_code = %s",
+                (channel_code,), database_name='specterdiscordbot'
+            )
+        except Exception:
+            # Fallback to hard delete for basic schema
             await self.mysql.execute(
                 "DELETE FROM channel_mappings WHERE channel_code = %s",
-                (channel_code,),
-                database_name='specterdiscordbot'
+                (channel_code,), database_name='specterdiscordbot'
             )
-            if channel_code in self.mappings:
-                del self.mappings[channel_code]
-            self.logger.info(f"Removed mapping for {channel_code} from DB")
-            return True
-        except Exception as e:
-            self.logger.error(f"Error removing mapping from DB: {e}")
-            return False
+        if channel_code in self.mappings:
+            del self.mappings[channel_code]
+        self.logger.info(f"Removed mapping for {channel_code}")
+        return True
 
     async def populate_missing_mappings_from_users(self, bot):
         try:
-            # Get all users with api_key and discord setup
+            # Get all users with Discord setups that might be missing from channel_mappings
             users_rows = await self.mysql.fetchall(
-                """SELECT u.api_key, du.guild_id, du.live_channel_id 
+                """SELECT DISTINCT u.api_key 
                    FROM users u 
                    JOIN discord_users du ON u.id = du.user_id 
                    WHERE u.api_key IS NOT NULL AND u.api_key != ''""",
                 database_name='website', dict_cursor=True
             )
-            added_count = 0
+            created_count = 0
             for row in users_rows:
                 channel_code = row['api_key']
-                guild_id = row['guild_id']
-                channel_id = row['live_channel_id']
-                # Skip if mapping already exists
-                if channel_code in self.mappings:
-                    continue
-                # Try to get the actual channel name from Discord
-                guild = bot.get_guild(int(guild_id))
-                if guild:
-                    channel = guild.get_channel(int(channel_id))
-                    if channel:
-                        await self.add_mapping(channel_code, guild_id, channel_id, channel.name)
-                        added_count += 1
-                        self.logger.info(f"Auto-populated mapping for channel_code: {channel_code}")
-            if added_count > 0:
-                self.logger.info(f"Auto-populated {added_count} missing channel mappings from users table")
+                # Use get_mapping which will auto-create if needed
+                mapping = await self.get_mapping(channel_code)
+                if mapping and channel_code not in self.mappings:
+                    created_count += 1
+            if created_count > 0:
+                self.logger.info(f"Auto-created {created_count} missing channel mappings")
         except Exception as e:
-            self.logger.error(f"Error auto-populating channel mappings: {e}")
+            self.logger.error(f"Error in populate_missing_mappings_from_users: {e}")
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
@@ -795,15 +963,27 @@ class BotOfTheSpecter(commands.Bot):
                 sample_codes = list(self.channel_mapping.mappings.keys())[:3]  # Show first 3 as sample
                 self.logger.info(f"Sample existing channel codes: {sample_codes}")
             return
+        # Increment event counter
+        await self.channel_mapping.increment_event_count(channel_code, event_type)
         guild = self.get_guild(mapping["guild_id"])
         if not guild:
             self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel {channel_code}")
             return
+        # Use cached data when available, fallback to database lookup
         guild_id = mapping["guild_id"]
-        mysql_helper = MySQLHelper(self.logger)
-        discord_info = await mysql_helper.fetchone(
-            "SELECT stream_alert_channel_id, moderation_channel_id, alert_channel_id FROM discord_users WHERE guild_id = %s",
-            (guild_id,), database_name='website', dict_cursor=True)
+        stream_alert_channel_id = mapping.get("stream_alert_channel_id")
+        moderation_channel_id = mapping.get("moderation_channel_id") 
+        alert_channel_id = mapping.get("alert_channel_id")
+        # If not in cache, get from database
+        if not stream_alert_channel_id:
+            mysql_helper = MySQLHelper(self.logger)
+            discord_info = await mysql_helper.fetchone(
+                "SELECT stream_alert_channel_id, moderation_channel_id, alert_channel_id FROM discord_users WHERE guild_id = %s",
+                (guild_id,), database_name='website', dict_cursor=True)
+            if discord_info:
+                stream_alert_channel_id = discord_info.get("stream_alert_channel_id")
+                moderation_channel_id = discord_info.get("moderation_channel_id")
+                alert_channel_id = discord_info.get("alert_channel_id")
         if not discord_info:
             self.logger.warning(f"No Discord info found for guild {guild_id}")
             return
@@ -937,37 +1117,35 @@ class BotOfTheSpecter(commands.Bot):
                     return None
 
     async def handle_stream_event(self, event_type, data):
-        resolver = DiscordChannelResolver(self.logger)
         code = data.get("channel_code", "unknown")
         self.logger.info(f"Processing {event_type} event for channel_code: {code}")
-        user_id = await resolver.get_user_id_from_api_key(code)
-        if not user_id:
-            self.logger.warning(f"No user_id found for channel_code: {code}")
+        # Use enhanced caching system - this will auto-create mapping if needed
+        mapping = await self.channel_mapping.get_mapping(code)
+        if not mapping:
+            self.logger.warning(f"Could not resolve mapping for channel_code: {code}")
             return
-        discord_info = await resolver.get_discord_info_from_user_id(user_id)
-        if not discord_info:
-            return
-        guild = self.get_guild(int(discord_info["guild_id"]))
+        # Increment event counter
+        await self.channel_mapping.increment_event_count(code, event_type)
+        guild = self.get_guild(int(mapping["guild_id"]))
         if not guild:
-            self.logger.warning(f"Bot not in guild {discord_info['guild_id']} for user_id {user_id}")
+            self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel_code {code}")
             return
-        channel = guild.get_channel(int(discord_info["live_channel_id"]))
+        channel = guild.get_channel(int(mapping["channel_id"]))
         if not channel:
-            self.logger.warning(f"Channel {discord_info['live_channel_id']} not found in guild {guild.name}")
+            self.logger.warning(f"Channel {mapping['channel_id']} not found in guild {guild.name}")
             return
-        await self.channel_mapping.add_mapping(
-            code, 
-            int(discord_info["guild_id"]), 
-            int(discord_info["live_channel_id"]), 
-            channel.name
-        )
+        # Update Discord info in cache
+        await self.channel_mapping.update_discord_info(code, guild.name, channel.name)
+        # Use cached message text or defaults
+        online_text = mapping.get("online_text") or "Stream is now LIVE!"
+        offline_text = mapping.get("offline_text") or "Stream is now OFFLINE"
         # Set message and channel name based on event_type
         if event_type == "ONLINE":
-            message = discord_info["online_text"] or "Stream is now LIVE!"
-            channel_update = f"🟢 {message}"
+            message = online_text
+            channel_update = f"🟢 Live"
         else:
-            message = discord_info["offline_text"] or "Stream is now OFFLINE"
-            channel_update = f"🔴 {message}"
+            message = offline_text
+            channel_update = f"🔴 Not Live"
         await channel.send(message)
         # Attempt to update the channel name if it is different
         if channel.name != channel_update:
