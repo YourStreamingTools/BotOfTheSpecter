@@ -837,7 +837,9 @@ class BotOfTheSpecter(commands.Bot):
                 )
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
-        await self.add_cog(TicketCog(self, self.logger))
+        ticket_cog = TicketCog(self, self.logger)
+        await self.add_cog(ticket_cog)
+        await ticket_cog.init_ticket_database()
         await self.add_cog(VoiceCog(self, self.logger))
         await self.add_cog(StreamerPostingCog(self, self.logger))
         await self.add_cog(AdminCog(self, self.logger))
@@ -1757,11 +1759,13 @@ class TicketCog(commands.Cog, name='Tickets'):
                 await cur.execute("INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
                     (ticket_id, closer_id, closer_name, "closed", reason))
         if ticket_data:
+            # Get settings once at the beginning for use throughout the method
+            settings = await self.get_settings(channel.guild.id)
+            ticket_creator = None
             # Try to send DM to ticket creator with the reason
             try:
                 ticket_creator = channel.guild.get_member(ticket_data['user_id'])
                 if ticket_creator:
-                    settings = await self.get_settings(channel.guild.id)
                     dm_embed = discord.Embed(
                         title="Support Ticket Closed",
                         description=(
@@ -1792,7 +1796,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     # Set permissions for Closed Tickets category
                     await closed_category.set_permissions(channel.guild.default_role, read_messages=False)
                     # Give owner access if they exist in settings
-                    if settings.get('owner_id'):
+                    if settings and settings.get('owner_id'):
                         owner = channel.guild.get_member(int(settings['owner_id']))
                         if owner:
                             await closed_category.set_permissions(owner, read_messages=True, send_messages=False)
