@@ -36,6 +36,8 @@ class Config:
         self.sql_user = os.getenv('SQL_USER')
         self.sql_password = os.getenv('SQL_PASSWORD')
         self.twitch_client_id = os.getenv('CLIENT_ID')
+        self.bot_owner_id = 127783626917150720
+        self.discord_application_id = os.getenv('DISCORD_APPLICATION_ID')
         # Bot information
         self.bot_color = 0x001C1D
         self.discord_bot_service_version = "5.3.0"
@@ -463,7 +465,9 @@ class BotOfTheSpecter(commands.Bot):
             'stop', 'pause', 'queue', 'q', 'playlist',
             'song', 'volume',
             # Utility commands
-            'quote', 'ticket', 'setuptickets', 'settings'
+            'quote', 'ticket', 'setuptickets', 'settings',
+            # Admin commands
+            'linkedroles'
         }
         # Ensure the log directory and file exist
         messages_dir = os.path.dirname(self.processed_messages_file)
@@ -518,6 +522,7 @@ class BotOfTheSpecter(commands.Bot):
                     f"stream is {'online' if online else 'offline'} for channel key '{channel_key}'."
                 )
         await self.update_presence()
+        await self.add_cog(LinkedRolesCog(self, self.logger))
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
         await self.add_cog(VoiceCog(self, self.logger))
@@ -1167,6 +1172,122 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.info(f"Set status to \"{event_type}\" for {guild.name}#{channel.name}")
         else:
             self.logger.info(f"Status not set to \"{event_type}\" for {guild.name}#{channel.name} - channel name already matches \"{channel_update}\"")
+
+# LinkedRoles cog for managing Discord linked roles metadata
+class LinkedRolesCog(commands.Cog, name='LinkedRoles'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.application_id = config.discord_application_id
+        self.bot_owner_id = config.bot_owner_id
+
+    def is_bot_owner():
+        async def predicate(ctx):
+            return ctx.author.id == config.bot_owner_id
+        return commands.check(predicate)
+
+    @commands.command(name="linkedroles")
+    @is_bot_owner()
+    async def register_linked_roles_metadata(self, ctx):
+        if not self.application_id:
+            embed = discord.Embed(
+                title="❌ Configuration Error",
+                description="Discord Application ID not configured. Please set DISCORD_APPLICATION_ID in environment variables.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+        # Define the metadata schema for linked roles
+        metadata_schema = [
+            {
+                "key": "accountlinked",
+                "name": "Account Linked",
+                "description": "Has linked their Discord account on the website",
+                "type": 7  # BOOLEAN_EQUAL
+            }
+        ]
+        try:
+            # Create the API request to register metadata
+            async with aiohttp.ClientSession() as session:
+                url = f"https://discord.com/api/v10/users/@me/applications/{self.application_id}/role-connection"
+                headers = {
+                    "Authorization": f"Bot {self.bot.http.token}",
+                    "Content-Type": "application/json"
+                }
+                # Send initial status
+                initial_embed = discord.Embed(
+                    title="🔄 Registering Linked Roles Metadata",
+                    description="Sending metadata schema to Discord API...",
+                    color=discord.Color.blue()
+                )
+                message = await ctx.send(embed=initial_embed)
+                async with session.put(url, headers=headers, json=metadata_schema) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        # Success embed
+                        success_embed = discord.Embed(
+                            title="✅ Linked Roles Metadata Registered Successfully",
+                            description="Discord linked roles metadata schema has been registered for your application.",
+                            color=discord.Color.green()
+                        )
+                        # Add field showing registered metadata
+                        metadata_list = []
+                        for item in metadata_schema:
+                            metadata_list.append(f"**{item['name']}** (`{item['key']}`)")
+                        success_embed.add_field(
+                            name="Registered Metadata Fields",
+                            value="\n".join(metadata_list),
+                            inline=False
+                        )
+                        success_embed.add_field(
+                            name="What's Next?",
+                            value=(
+                                "• Server admins can now create linked roles for users with linked Discord accounts\n"
+                                "• Users who have linked their Discord account on your website will automatically qualify\n"
+                                "• Roles will be assigned based on whether the user has completed account linking"
+                            ),
+                            inline=False
+                        )
+                        success_embed.set_footer(text=f"Application ID: {self.application_id}")
+                        await message.edit(embed=success_embed)
+                        self.logger.info(f"Successfully registered linked roles metadata for application {self.application_id}")
+                    else:
+                        error_text = await response.text()
+                        error_embed = discord.Embed(
+                            title="❌ Failed to Register Metadata",
+                            description=f"HTTP {response.status}: {error_text}",
+                            color=discord.Color.red()
+                        )
+                        await message.edit(embed=error_embed)
+                        self.logger.error(f"Failed to register linked roles metadata: {response.status} - {error_text}")
+        except aiohttp.ClientError as e:
+            error_embed = discord.Embed(
+                title="❌ Network Error",
+                description=f"Failed to connect to Discord API: {str(e)}",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=error_embed)
+            self.logger.error(f"Network error while registering linked roles metadata: {e}")
+        except Exception as e:
+            error_embed = discord.Embed(
+                title="❌ Unexpected Error", 
+                description=f"An unexpected error occurred: {str(e)}",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=error_embed)
+            self.logger.error(f"Unexpected error in linkedroles command: {e}")
+
+    @register_linked_roles_metadata.error
+    async def linkedroles_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            embed = discord.Embed(
+                title="❌ Access Denied",
+                description="This command can only be used by the bot owner.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+        else:
+            self.logger.error(f"Error in linkedroles command: {error}")
 
 # QuoteCog class for fetching and sending public quotes
 class QuoteCog(commands.Cog, name='Quote'):
