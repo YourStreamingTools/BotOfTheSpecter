@@ -8,8 +8,10 @@ from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
-import logging
-from logging.handlers import RotatingFileHandler
+from logging import getLogger
+from logging.handlers import RotatingFileHandler as LoggerFileHandler
+from logging import Formatter as loggingFormatter
+from logging import INFO as LoggingLevel
 
 # Third-party imports
 import websockets
@@ -115,20 +117,20 @@ for log_type in log_types:
     os.makedirs(directory_path, mode=0o755, exist_ok=True)
 
 # Create a function to setup individual loggers for clarity
-def setup_logger(name, log_file, level=logging.INFO):
-    logger = logging.getLogger(name)
+def setup_logger(name, log_file, level=LoggingLevel):
+    logger = getLogger(name)
     logger.setLevel(level)
     # Clear any existing handlers to prevent duplicates
     if logger.hasHandlers():
         logger.handlers.clear()
     # Setup rotating file handler
-    handler = RotatingFileHandler(
+    handler = LoggerFileHandler(
         log_file,
         maxBytes=10485760, # 10MB
         backupCount=5,
         encoding='utf-8'
     )
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    formatter = loggingFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger
