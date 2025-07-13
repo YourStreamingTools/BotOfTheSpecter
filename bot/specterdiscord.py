@@ -94,6 +94,152 @@ def setup_logger(name, log_file, level=logging.INFO):
     logger.addHandler(handler)
     return logger
 
+# MySQLHelper class for database operations
+class MySQLHelper:
+    def __init__(self, logger=None):
+        self.logger = logger
+
+    async def get_connection(self, database_name):
+        sql_host = config.sql_host
+        sql_user = config.sql_user
+        sql_password = config.sql_password
+        if not sql_host or not sql_user or not sql_password:
+            self.logger.error("Missing SQL connection parameters. Please check the .env file.")
+            return None
+        try:
+            conn = await aiomysql.connect(
+                host=sql_host,
+                user=sql_user,
+                password=sql_password,
+                db=database_name
+            )
+            return conn
+        except Exception as e:
+            self.logger.error(f"Error connecting to MySQL database '{database_name}': {e}")
+            return None
+
+    async def get_live_notification(self, guild_id, username):
+        conn = await self.get_connection('specterdiscordbot')
+        if conn is None:
+            self.logger.error("Failed to get connection for database: specterdiscordbot")
+            return None
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT * FROM live_notifications WHERE guild_id = %s AND username = %s",
+                    (guild_id, username)
+                )
+                return await cursor.fetchone()
+        except Exception as e:
+            self.logger.error(f"Error fetching live notification: {e}")
+            return None
+        finally:
+            if conn:
+                conn.close()
+
+    async def insert_live_notification(self, guild_id, username, stream_id, started_at, posted_at):
+        conn = await self.get_connection('specterdiscordbot')
+        if conn is None:
+            self.logger.error("Failed to get connection for database: specterdiscordbot")
+            return
+        try:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    """
+                    INSERT INTO live_notifications (guild_id, username, stream_id, started_at, posted_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE stream_id = VALUES(stream_id), started_at = VALUES(started_at), posted_at = VALUES(posted_at)
+                    """,
+                    (guild_id, username, stream_id, started_at, posted_at)
+                )
+                await conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error inserting/updating live notification: {e}")
+        finally:
+            if conn:
+                conn.close()
+
+    async def delete_live_notification(self, guild_id, username):
+        conn = await self.get_connection('specterdiscordbot')
+        if conn is None:
+            self.logger.error("Failed to get connection for database: specterdiscordbot")
+            return
+        try:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "DELETE FROM live_notifications WHERE guild_id = %s AND username = %s",
+                    (guild_id, username)
+                )
+                await conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error deleting live notification: {e}")
+        finally:
+            if conn:
+                conn.close()
+
+    async def fetchone(self, query, params=None, database_name='website', dict_cursor=False):
+        conn = await self.get_connection(database_name)
+        if conn is None:
+            self.logger.error(f"Failed to get connection for database: {database_name}")
+            return None
+        try:
+            if dict_cursor:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(query, params)
+                    row = await cursor.fetchone()
+                    return row
+            else:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(query, params)
+                    row = await cursor.fetchone()
+                    return row
+        except Exception as e:
+            self.logger.error(f"MySQL fetchone error: {e}")
+            return None
+        finally:
+            if conn:
+                conn.close()
+
+    async def fetchall(self, query, params=None, database_name='website', dict_cursor=False):
+        conn = await self.get_connection(database_name)
+        if conn is None:
+            self.logger.error(f"Failed to get connection for database: {database_name}")
+            return []
+        try:
+            if dict_cursor:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(query, params)
+                    rows = await cursor.fetchall()
+                    return rows
+            else:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(query, params)
+                    rows = await cursor.fetchall()
+                    return rows
+        except Exception as e:
+            self.logger.error(f"MySQL fetchall error: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+
+    async def execute(self, query, params=None, database_name='website'):
+        conn = await self.get_connection(database_name)
+        if conn is None:
+            self.logger.error(f"Failed to get connection for database: {database_name}")
+            return 0
+        try:
+            async with conn.cursor() as cursor:
+                await cursor.execute(query, params)
+                await conn.commit()
+                return cursor.rowcount
+        except Exception as e:
+            self.logger.error(f"MySQL execute error: {e}")
+            return None
+        finally:
+            if conn:
+                conn.close()
+
 # Setup websocket listener for global actions
 class WebsocketListener:
     def __init__(self, bot, logger=None):
@@ -167,7 +313,101 @@ class ChannelMapping:
         self._ready = asyncio.Event()
         asyncio.create_task(self._init_and_start_refresh())
 
+    async def _ensure_table_schema(self):
+        try:
+            # Define the complete enhanced schema
+            required_columns = {
+                'channel_code': 'VARCHAR(255) NOT NULL PRIMARY KEY',
+                'user_id': 'INT DEFAULT NULL',
+                'username': 'VARCHAR(255) DEFAULT NULL',
+                'twitch_display_name': 'VARCHAR(255) DEFAULT NULL',
+                'twitch_user_id': 'VARCHAR(255) DEFAULT NULL',
+                'guild_id': 'BIGINT NOT NULL',
+                'guild_name': 'VARCHAR(255) DEFAULT NULL',
+                'channel_id': 'BIGINT NOT NULL',
+                'channel_name': 'VARCHAR(255) DEFAULT NULL',
+                'stream_alert_channel_id': 'BIGINT DEFAULT NULL',
+                'moderation_channel_id': 'BIGINT DEFAULT NULL',
+                'alert_channel_id': 'BIGINT DEFAULT NULL',
+                'online_text': 'TEXT DEFAULT NULL',
+                'offline_text': 'TEXT DEFAULT NULL',
+                'is_active': 'TINYINT DEFAULT 1',
+                'event_count': 'INT DEFAULT 0',
+                'last_event_type': 'VARCHAR(50) DEFAULT NULL',
+                'last_seen_at': 'TIMESTAMP DEFAULT NULL',
+                'created_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+                'updated_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
+            }
+            # Check if table exists first to avoid warnings
+            table_exists = await self._check_table_exists()
+            if not table_exists:
+                try:
+                    await self.mysql.execute(
+                        """CREATE TABLE channel_mappings (
+                            channel_code VARCHAR(255) NOT NULL PRIMARY KEY,
+                            guild_id BIGINT NOT NULL,
+                            channel_id BIGINT NOT NULL,
+                            channel_name VARCHAR(255) DEFAULT NULL
+                        )""",
+                        database_name='specterdiscordbot'
+                    )
+                    self.logger.info("Created channel_mappings table with basic schema")
+                except Exception as e:
+                    self.logger.error(f"Error creating channel_mappings table: {e}")
+                    return
+            else:
+                self.logger.debug("Channel_mappings table already exists")
+            # Get existing columns
+            existing_columns = await self._get_table_columns()
+            missing_columns = []
+            # Check which columns are missing
+            for column_name, column_definition in required_columns.items():
+                if column_name not in existing_columns:
+                    missing_columns.append((column_name, column_definition))
+            # Add missing columns
+            if missing_columns:
+                self.logger.info(f"Found {len(missing_columns)} missing columns in channel_mappings table")
+                for column_name, column_definition in missing_columns:
+                    try:
+                        # Skip primary key constraint for existing tables
+                        if 'PRIMARY KEY' in column_definition and column_name != 'channel_code':
+                            column_definition = column_definition.replace(' PRIMARY KEY', '')
+                        
+                        await self.mysql.execute(
+                            f"ALTER TABLE channel_mappings ADD COLUMN {column_name} {column_definition}",
+                            database_name='specterdiscordbot'
+                        )
+                        self.logger.info(f"Added column {column_name} to channel_mappings table")
+                    except Exception as e:
+                        self.logger.error(f"Error adding column {column_name}: {e}")
+            else:
+                self.logger.info("Channel_mappings table schema is up to date")
+            # Create indexes for better performance if they don't exist
+            indexes = [
+                ('idx_guild_id', 'guild_id'),
+                ('idx_is_active', 'is_active'),
+                ('idx_last_seen', 'last_seen_at')
+            ]
+            for index_name, column in indexes:
+                try:
+                    # Check if index exists first
+                    index_exists = await self._check_index_exists(index_name)
+                    if not index_exists:
+                        await self.mysql.execute(
+                            f"CREATE INDEX {index_name} ON channel_mappings ({column})",
+                            database_name='specterdiscordbot'
+                        )
+                        self.logger.debug(f"Created index {index_name}")
+                    else:
+                        self.logger.debug(f"Index {index_name} already exists")
+                except Exception as e:
+                    # Ignore errors for index creation (might not be supported in all MySQL versions)
+                    self.logger.debug(f"Could not create index {index_name}: {e}")
+        except Exception as e:
+            self.logger.error(f"Error ensuring table schema: {e}")
+
     async def _init_and_start_refresh(self):
+        await self._ensure_table_schema()
         await self.refresh_mappings()
         self._ready.set()
         self._refresh_task = asyncio.create_task(self._periodic_refresh())
@@ -179,6 +419,7 @@ class ChannelMapping:
 
     async def refresh_mappings(self):
         try:
+            # Since we ensure schema exists, always try enhanced schema first
             rows = await self.mysql.fetchall(
                 """SELECT channel_code, user_id, username, twitch_display_name, twitch_user_id,
                           guild_id, guild_name, channel_id, channel_name, 
@@ -191,16 +432,17 @@ class ChannelMapping:
             self.mappings = {row['channel_code']: dict(row) for row in rows}
             self.logger.info(f"Loaded {len(self.mappings)} active channel mappings from database")
         except Exception as e:
-            # Fallback to basic schema if enhanced schema doesn't exist yet
+            self.logger.error(f"Error loading channel mappings from DB: {e}")
+            # Fallback to basic schema if there's still an issue
             try:
                 rows = await self.mysql.fetchall(
                     "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings",
                     database_name='specterdiscordbot', dict_cursor=True
                 )
                 self.mappings = {row['channel_code']: dict(row) for row in rows}
-                self.logger.info(f"Loaded {len(self.mappings)} channel mappings from database (basic schema)")
+                self.logger.info(f"Loaded {len(self.mappings)} channel mappings from database (basic schema fallback)")
             except Exception as e2:
-                self.logger.error(f"Error loading channel mappings from DB: {e2}")
+                self.logger.error(f"Error loading channel mappings with basic schema: {e2}")
                 self.mappings = {}
 
     async def get_mapping(self, channel_code):
@@ -210,29 +452,28 @@ class ChannelMapping:
             await self._update_last_seen(channel_code)
             return self.mappings[channel_code]
         try:
-            # Try enhanced schema first
-            row = await self.mysql.fetchone(
-                """SELECT channel_code, user_id, username, twitch_display_name, twitch_user_id,
-                          guild_id, guild_name, channel_id, channel_name, 
-                          stream_alert_channel_id, moderation_channel_id, alert_channel_id,
-                          online_text, offline_text, is_active, event_count, last_event_type,
-                          last_seen_at, created_at, updated_at
-                   FROM channel_mappings WHERE channel_code = %s AND is_active = 1""",
-                (channel_code,), database_name='specterdiscordbot', dict_cursor=True
-            )
-        except Exception as enhanced_error:
-            self.logger.debug(f"Enhanced schema query failed for {channel_code}: {enhanced_error}")
-            row = None
-        if not row:
-            try:
-                # Fallback to basic schema
+            # Check if enhanced schema exists by checking for user_id column
+            columns = await self._get_table_columns()
+            if 'user_id' in columns:
+                # Use enhanced schema
+                row = await self.mysql.fetchone(
+                    """SELECT channel_code, user_id, username, twitch_display_name, twitch_user_id,
+                              guild_id, guild_name, channel_id, channel_name, 
+                              stream_alert_channel_id, moderation_channel_id, alert_channel_id,
+                              online_text, offline_text, is_active, event_count, last_event_type,
+                              last_seen_at, created_at, updated_at
+                       FROM channel_mappings WHERE channel_code = %s AND is_active = 1""",
+                    (channel_code,), database_name='specterdiscordbot', dict_cursor=True
+                )
+            else:
+                # Use basic schema
                 row = await self.mysql.fetchone(
                     "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings WHERE channel_code = %s",
                     (channel_code,), database_name='specterdiscordbot', dict_cursor=True
                 )
-            except Exception as basic_error:
-                self.logger.debug(f"Basic schema query failed for {channel_code}: {basic_error}")
-                row = None
+        except Exception as e:
+            self.logger.debug(f"Database query failed for {channel_code}: {e}")
+            row = None
         if row:
             self.mappings[channel_code] = dict(row)
             await self._update_last_seen(channel_code)
@@ -275,7 +516,9 @@ class ChannelMapping:
                 'twitch_display_name': user_row.get('twitch_display_name', user_row['username']),
                 'twitch_user_id': user_row.get('twitch_user_id'),
                 'guild_id': discord_row['guild_id'],
+                'guild_name': None,
                 'channel_id': discord_row['live_channel_id'],
+                'channel_name': None,
                 'stream_alert_channel_id': discord_row.get('stream_alert_channel_id'),
                 'moderation_channel_id': discord_row.get('moderation_channel_id'),
                 'alert_channel_id': discord_row.get('alert_channel_id'),
@@ -291,39 +534,42 @@ class ChannelMapping:
 
     async def _insert_mapping(self, mapping_data):
         try:
-            # Try enhanced schema first
+            # Use enhanced schema since we ensure it exists
+            await self.mysql.execute(
+                """REPLACE INTO channel_mappings 
+                   (channel_code, user_id, username, twitch_display_name, twitch_user_id,
+                    guild_id, guild_name, channel_id, channel_name, stream_alert_channel_id, 
+                    moderation_channel_id, alert_channel_id, online_text, offline_text, 
+                    is_active, event_count, last_seen_at, created_at, updated_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 0, NOW(), NOW(), NOW())""",
+                (
+                    mapping_data['channel_code'], mapping_data.get('user_id'), mapping_data.get('username'),
+                    mapping_data.get('twitch_display_name'), mapping_data.get('twitch_user_id'),
+                    mapping_data['guild_id'], mapping_data.get('guild_name'), mapping_data['channel_id'], 
+                    mapping_data.get('channel_name'), mapping_data.get('stream_alert_channel_id'), 
+                    mapping_data.get('moderation_channel_id'), mapping_data.get('alert_channel_id'), 
+                    mapping_data.get('online_text'), mapping_data.get('offline_text')
+                ),
+                database_name='specterdiscordbot'
+            )
+            self.logger.debug(f"Inserted mapping using enhanced schema for {mapping_data['channel_code']}")
+            # Add to memory cache
+            self.mappings[mapping_data['channel_code']] = mapping_data
+        except Exception as e:
+            self.logger.error(f"Error inserting mapping to DB: {e}")
+            # Fallback to basic schema if enhanced schema fails
             try:
-                await self.mysql.execute(
-                    """REPLACE INTO channel_mappings 
-                       (channel_code, user_id, username, twitch_display_name, twitch_user_id,
-                        guild_id, channel_id, stream_alert_channel_id, moderation_channel_id, 
-                        alert_channel_id, online_text, offline_text, is_active, event_count, 
-                        last_seen_at, created_at, updated_at)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 0, NOW(), NOW(), NOW())""",
-                    (
-                        mapping_data['channel_code'], mapping_data.get('user_id'), mapping_data.get('username'),
-                        mapping_data.get('twitch_display_name'), mapping_data.get('twitch_user_id'),
-                        mapping_data['guild_id'], mapping_data['channel_id'],
-                        mapping_data.get('stream_alert_channel_id'), mapping_data.get('moderation_channel_id'),
-                        mapping_data.get('alert_channel_id'), mapping_data.get('online_text'), mapping_data.get('offline_text')
-                    ),
-                    database_name='specterdiscordbot'
-                )
-                self.logger.debug(f"Inserted mapping using enhanced schema for {mapping_data['channel_code']}")
-            except Exception as enhanced_error:
-                # Fallback to basic schema
-                self.logger.debug(f"Enhanced schema insert failed, using basic schema: {enhanced_error}")
                 await self.mysql.execute(
                     "REPLACE INTO channel_mappings (channel_code, guild_id, channel_id, channel_name) VALUES (%s, %s, %s, %s)",
                     (mapping_data['channel_code'], mapping_data['guild_id'], mapping_data['channel_id'], 
                      mapping_data.get('channel_name', 'Unknown')),
                     database_name='specterdiscordbot'
                 )
-                self.logger.debug(f"Inserted mapping using basic schema for {mapping_data['channel_code']}")
-            # Add to memory cache
-            self.mappings[mapping_data['channel_code']] = mapping_data
-        except Exception as e:
-            self.logger.error(f"Error inserting mapping to DB: {e}")
+                self.logger.debug(f"Inserted mapping using basic schema fallback for {mapping_data['channel_code']}")
+                # Add to memory cache
+                self.mappings[mapping_data['channel_code']] = mapping_data
+            except Exception as e2:
+                self.logger.error(f"Error inserting mapping with basic schema fallback: {e2}")
 
     async def _update_last_seen(self, channel_code):
         try:
@@ -332,7 +578,7 @@ class ChannelMapping:
                 (channel_code,), database_name='specterdiscordbot'
             )
         except Exception:
-            pass  # Ignore if enhanced schema doesn't exist yet
+            pass  # Ignore if there's an error
 
     async def increment_event_count(self, channel_code, event_type):
         try:
@@ -348,13 +594,13 @@ class ChannelMapping:
                 self.mappings[channel_code]['last_event_type'] = event_type
                 self.mappings[channel_code]['last_seen_at'] = datetime.now()
         except Exception:
-            pass  # Ignore if enhanced schema doesn't exist yet
+            pass  # Ignore if there's an error
 
     async def update_discord_info(self, channel_code, guild_name=None, channel_name=None):
         try:
             updates = []
             params = []
-            if guild_name and 'guild_name' in await self._get_table_columns():
+            if guild_name:
                 updates.append("guild_name = %s")
                 params.append(guild_name)
             if channel_name:
@@ -375,13 +621,35 @@ class ChannelMapping:
         except Exception as e:
             self.logger.error(f"Error updating Discord info for {channel_code}: {e}")
 
+    async def _check_table_exists(self):
+        try:
+            rows = await self.mysql.fetchall(
+                "SHOW TABLES LIKE 'channel_mappings'", database_name='specterdiscordbot'
+            )
+            return len(rows) > 0
+        except Exception as e:
+            self.logger.debug(f"Could not check if table exists: {e}")
+            return False
+
+    async def _check_index_exists(self, index_name):
+        try:
+            rows = await self.mysql.fetchall(
+                "SHOW INDEX FROM channel_mappings WHERE Key_name = %s",
+                (index_name,), database_name='specterdiscordbot'
+            )
+            return len(rows) > 0
+        except Exception as e:
+            self.logger.debug(f"Could not check if index {index_name} exists: {e}")
+            return False
+
     async def _get_table_columns(self):
         try:
             rows = await self.mysql.fetchall(
                 "DESCRIBE channel_mappings", database_name='specterdiscordbot'
             )
             return [row[0] for row in rows]
-        except Exception:
+        except Exception as e:
+            self.logger.debug(f"Could not get table columns: {e}")
             return ['channel_code', 'guild_id', 'channel_id', 'channel_name']  # Basic schema
 
     async def add_mapping(self, channel_code, guild_id, channel_id, channel_name):
@@ -390,12 +658,22 @@ class ChannelMapping:
             # Update existing mapping with any new Discord info
             await self.update_discord_info(channel_code, channel_name=channel_name)
         else:
-            # Create basic mapping
+            # Create enhanced mapping with all fields
             mapping_data = {
                 'channel_code': channel_code,
+                'user_id': None,
+                'username': None,
+                'twitch_display_name': None,
+                'twitch_user_id': None,
                 'guild_id': guild_id,
+                'guild_name': None,
                 'channel_id': channel_id,
-                'channel_name': channel_name
+                'channel_name': channel_name,
+                'stream_alert_channel_id': None,
+                'moderation_channel_id': None,
+                'alert_channel_id': None,
+                'online_text': None,
+                'offline_text': None
             }
             await self._insert_mapping(mapping_data)
 
@@ -3645,152 +3923,6 @@ class DiscordChannelResolver:
         else:
             row['twitch_display_name'] = None
         return row
-
-# MySQLHelper class for database operations
-class MySQLHelper:
-    def __init__(self, logger=None):
-        self.logger = logger
-
-    async def get_connection(self, database_name):
-        sql_host = config.sql_host
-        sql_user = config.sql_user
-        sql_password = config.sql_password
-        if not sql_host or not sql_user or not sql_password:
-            self.logger.error("Missing SQL connection parameters. Please check the .env file.")
-            return None
-        try:
-            conn = await aiomysql.connect(
-                host=sql_host,
-                user=sql_user,
-                password=sql_password,
-                db=database_name
-            )
-            return conn
-        except Exception as e:
-            self.logger.error(f"Error connecting to MySQL database '{database_name}': {e}")
-            return None
-
-    async def get_live_notification(self, guild_id, username):
-        conn = await self.get_connection('specterdiscordbot')
-        if conn is None:
-            self.logger.error("Failed to get connection for database: specterdiscordbot")
-            return None
-        try:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(
-                    "SELECT * FROM live_notifications WHERE guild_id = %s AND username = %s",
-                    (guild_id, username)
-                )
-                return await cursor.fetchone()
-        except Exception as e:
-            self.logger.error(f"Error fetching live notification: {e}")
-            return None
-        finally:
-            if conn:
-                conn.close()
-
-    async def insert_live_notification(self, guild_id, username, stream_id, started_at, posted_at):
-        conn = await self.get_connection('specterdiscordbot')
-        if conn is None:
-            self.logger.error("Failed to get connection for database: specterdiscordbot")
-            return
-        try:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    """
-                    INSERT INTO live_notifications (guild_id, username, stream_id, started_at, posted_at)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE stream_id = VALUES(stream_id), started_at = VALUES(started_at), posted_at = VALUES(posted_at)
-                    """,
-                    (guild_id, username, stream_id, started_at, posted_at)
-                )
-                await conn.commit()
-        except Exception as e:
-            self.logger.error(f"Error inserting/updating live notification: {e}")
-        finally:
-            if conn:
-                conn.close()
-
-    async def delete_live_notification(self, guild_id, username):
-        conn = await self.get_connection('specterdiscordbot')
-        if conn is None:
-            self.logger.error("Failed to get connection for database: specterdiscordbot")
-            return
-        try:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    "DELETE FROM live_notifications WHERE guild_id = %s AND username = %s",
-                    (guild_id, username)
-                )
-                await conn.commit()
-        except Exception as e:
-            self.logger.error(f"Error deleting live notification: {e}")
-        finally:
-            if conn:
-                conn.close()
-
-    async def fetchone(self, query, params=None, database_name='website', dict_cursor=False):
-        conn = await self.get_connection(database_name)
-        if conn is None:
-            self.logger.error(f"Failed to get connection for database: {database_name}")
-            return None
-        try:
-            if dict_cursor:
-                async with conn.cursor(aiomysql.DictCursor) as cursor:
-                    await cursor.execute(query, params)
-                    row = await cursor.fetchone()
-                    return row
-            else:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(query, params)
-                    row = await cursor.fetchone()
-                    return row
-        except Exception as e:
-            self.logger.error(f"MySQL fetchone error: {e}")
-            return None
-        finally:
-            if conn:
-                conn.close()
-
-    async def fetchall(self, query, params=None, database_name='website', dict_cursor=False):
-        conn = await self.get_connection(database_name)
-        if conn is None:
-            self.logger.error(f"Failed to get connection for database: {database_name}")
-            return []
-        try:
-            if dict_cursor:
-                async with conn.cursor(aiomysql.DictCursor) as cursor:
-                    await cursor.execute(query, params)
-                    rows = await cursor.fetchall()
-                    return rows
-            else:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(query, params)
-                    rows = await cursor.fetchall()
-                    return rows
-        except Exception as e:
-            self.logger.error(f"MySQL fetchall error: {e}")
-            return []
-        finally:
-            if conn:
-                conn.close()
-
-    async def execute(self, query, params=None, database_name='website'):
-        conn = await self.get_connection(database_name)
-        if conn is None:
-            self.logger.error(f"Failed to get connection for database: {database_name}")
-            return 0
-        try:
-            async with conn.cursor() as cursor:
-                await cursor.execute(query, params)
-                await conn.commit()
-                return cursor.rowcount
-        except Exception as e:
-            self.logger.error(f"MySQL execute error: {e}")
-            return None
-        finally:
-            if conn:
-                conn.close()
 
 # DiscordBotRunner class to manage the bot lifecycle
 class DiscordBotRunner:
