@@ -466,7 +466,9 @@ class BotOfTheSpecter(commands.Bot):
             'stop', 'pause', 'queue', 'q', 'playlist',
             'song', 'volume',
             # Utility commands
-            'quote', 'ticket', 'setuptickets', 'settings'
+            'quote', 'ticket', 'setuptickets', 'settings',
+            # Admin commands
+            'checklinked'
         }
         # Ensure the log directory and file exist
         messages_dir = os.path.dirname(self.processed_messages_file)
