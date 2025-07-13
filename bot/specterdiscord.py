@@ -445,6 +445,7 @@ class BotOfTheSpecter(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.voice_states = True
+        intents.members = True
         super().__init__(command_prefix="!", intents=intents, **kwargs)
         self.discord_token = discord_token
         self.logger = discord_logger
