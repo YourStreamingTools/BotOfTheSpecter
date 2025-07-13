@@ -19,7 +19,7 @@ from websockets import ConnectionClosed as WebSocketConnectionClosed
 from websockets import ConnectionClosedError as WebSocketConnectionClosedError
 from aiohttp import ClientSession as httpClientSession
 from aiohttp import ClientError as aiohttpClientError
-from socketio import AsyncClient as specterSocket
+from socketio import AsyncClient
 from aiomysql import connect as sql_connect
 from aiomysql import IntegrityError as MySQLIntegrityError
 from socketio.exceptions import ConnectionError as ConnectionExecptionError
@@ -197,7 +197,8 @@ active_timed_messages = {}                              # Dictionary to track ac
 message_tasks = {}                                      # Dictionary to track individual message tasks by ID
 
 # Initialize global variables
-bot_started = time_right_now()                           # Time the bot started
+specterSocket = AsyncClient()                           # Specter Socket Client instance
+bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
 SPOTIFY_REFRESH_TOKEN = None                            # Spotify API refresh token 
 SPOTIFY_ACCESS_TOKEN = None                             # Spotify API access token 
