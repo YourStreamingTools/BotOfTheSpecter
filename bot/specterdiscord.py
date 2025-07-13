@@ -382,6 +382,21 @@ class ChannelMapping:
                         self.logger.error(f"Error adding column {column_name}: {e}")
             else:
                 self.logger.info("Channel_mappings table schema is up to date")
+            # Ensure existing columns have proper NULL/DEFAULT properties
+            columns_to_modify = [
+                ('channel_name', 'VARCHAR(255) DEFAULT NULL'),
+                ('guild_name', 'VARCHAR(255) DEFAULT NULL'),
+            ]
+            for column_name, column_definition in columns_to_modify:
+                if column_name in existing_columns:
+                    try:
+                        await self.mysql.execute(
+                            f"ALTER TABLE channel_mappings MODIFY COLUMN {column_name} {column_definition}",
+                            database_name='specterdiscordbot'
+                        )
+                        self.logger.debug(f"Modified column {column_name} to ensure proper NULL handling")
+                    except Exception as e:
+                        self.logger.debug(f"Could not modify column {column_name}: {e}")
             # Create indexes for better performance if they don't exist
             indexes = [
                 ('idx_guild_id', 'guild_id'),
