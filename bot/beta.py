@@ -31,7 +31,8 @@ from aiomysql import Error as MySQLOtherErrors
 from deep_translator import GoogleTranslator as translator
 from twitchio.ext import commands, routines
 from streamlink import Streamlink
-import pytz
+import pytz as set_timezone
+from pytz import timezone as pytz_timezone
 from geopy.geocoders import Nominatim
 from jokeapi import Jokes
 import websockets
@@ -1382,10 +1383,10 @@ class TwitchBot(commands.Bot):
                     tz_result = await cursor.fetchone()
                     if tz_result and tz_result.get("timezone"):
                         timezone = tz_result.get("timezone")
-                        tz = pytz.timezone(timezone)
+                        tz = pytz_timezone(timezone)
                         chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
                     else:
-                        tz = pytz.UTC
+                        tz = set_timezone.UTC
                         chat_logger.info("Timezone not set, defaulting to UTC")
                     await cursor.execute('SELECT response, status, cooldown FROM custom_commands WHERE command = %s', (command,))
                     cc_result = await cursor.fetchone()
@@ -2288,7 +2289,7 @@ class TwitchBot(commands.Bot):
                                 chat_logger.info(f"Could not find the time location that you requested.")
                                 return
                             timezone_str = timezone_data["zoneName"]
-                            tz = pytz.timezone(timezone_str)
+                            tz = pytz_timezone(timezone_str)
                             chat_logger.info(f"TZ: {tz} | Timezone: {timezone_str}")
                             current_time = datetime.now(tz)
                             time_format_date = current_time.strftime("%B %d, %Y")
@@ -2300,7 +2301,7 @@ class TwitchBot(commands.Bot):
                             result = await cursor.fetchone()
                             if result and result.get("timezone"):
                                 timezone = result.get("timezone")
-                                tz = pytz.timezone(timezone)
+                                tz = pytz_timezone(timezone)
                                 chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
                                 current_time = datetime.now(tz)
                                 time_format_date = current_time.strftime("%B %d, %Y")
@@ -4301,7 +4302,7 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT timezone FROM profile")
                 timezone_row = await cursor.fetchone()
                 timezone = timezone_row["timezone"] if timezone_row else 'UTC'
-                tz = pytz.timezone(timezone)
+                tz = pytz_timezone(timezone)
                 current_time = datetime.now(tz)
                 headers = {
                     'Client-ID': CLIENT_ID,
@@ -4320,12 +4321,12 @@ class TwitchBot(commands.Bot):
                                 vacation = data['data'].get('vacation')
                                 # Check if vacation is ongoing
                                 if vacation and 'start_time' in vacation and 'end_time' in vacation:
-                                    vacation_start = datetime.strptime(vacation['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(tz)
-                                    vacation_end = datetime.strptime(vacation['end_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(tz)
+                                    vacation_start = datetime.strptime(vacation['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc).astimezone(tz)
+                                    vacation_end = datetime.strptime(vacation['end_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc).astimezone(tz)
                                     if vacation_start <= current_time <= vacation_end:
                                         # Check if there is a stream within 2 days after the vacation ends
                                         for segment in segments:
-                                            start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
+                                            start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
                                             start_time = start_time_utc.astimezone(tz)
                                             if start_time >= vacation_end and (start_time - current_time).days <= 2:
                                                 await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). My next stream is on {start_time.strftime('%A, %d %B %Y')} ({start_time.strftime('%H:%M %Z')} UTC).")
@@ -4337,11 +4338,11 @@ class TwitchBot(commands.Bot):
                                 for segment in segments:
                                     # Check if the segment is canceled
                                     if segment.get('canceled_until'):
-                                        canceled_until = datetime.strptime(segment['canceled_until'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(tz)
-                                        start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
+                                        canceled_until = datetime.strptime(segment['canceled_until'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc).astimezone(tz)
+                                        start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
                                         canceled_stream = (start_time_utc.astimezone(tz), canceled_until)
                                         continue
-                                    start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
+                                    start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
                                     start_time = start_time_utc.astimezone(tz)
                                     if start_time > current_time:
                                         next_stream = segment
@@ -4351,7 +4352,7 @@ class TwitchBot(commands.Bot):
                                     await ctx.send(f"The next stream scheduled for {canceled_time.strftime('%A, %d %B %Y')} ({canceled_time.strftime('%H:%M %Z')} UTC) has been canceled.")
                                 if next_stream:
                                     start_date_utc = next_stream['start_time'].split('T')[0]  # Extract date from start_time
-                                    start_time_utc = datetime.strptime(next_stream['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
+                                    start_time_utc = datetime.strptime(next_stream['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
                                     start_time = start_time_utc.astimezone(tz)
                                     time_until = start_time - current_time
                                     # Format time_until
@@ -5954,7 +5955,7 @@ async def process_weather_websocket(data):
     wind_direction = weather_data.get('wind', 'Unknown').split()[-1]
     humidity = weather_data.get('humidity', 'Unknown').split('%')[0].strip()
     # Get the current UTC time using timezone-aware datetime
-    now = datetime.now(pytz.timezone("UTC"))
+    now = datetime.now(pytz_timezone("UTC"))
     minutes_ago = now.minute  # Get current minutes (0-59)
     # Format the message
     message = (f"The weather as of {minutes_ago} min ago in {location} is {status} with a temperature of "
@@ -7817,11 +7818,11 @@ async def midnight():
         result = await cursor.fetchone()
         if result and result.get("timezone"):
             timezone = result.get("timezone")
-            tz = pytz.timezone(timezone)
+            tz = pytz_timezone(timezone)
         else:
             # Default to UTC if no timezone is set
             bot_logger.info("No timezone set for the user. Defaulting to UTC.")
-            tz = pytz.UTC  # Set to UTC
+            tz = set_timezone.UTC  # Set to UTC
     while True:
         # Get the current time in the user's timezone
         current_time = datetime.now(tz)
@@ -8231,8 +8232,8 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                 if next_ad_at:
                     try:
                         # Parse the next ad time
-                        next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), pytz.UTC)
-                        current_time = datetime.now(pytz.UTC)
+                        next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), set_timezone.UTC)
+                        current_time = datetime.now(set_timezone.UTC)
                         # Notify if ad is coming up in exactly 5 minutes and we haven't notified recently
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
                         if 270 <= time_until_ad <= 330:  # 4.5 to 5.5 minutes (30 second tolerance)
@@ -8294,8 +8295,8 @@ async def check_next_ad_after_completion(channel, ads_api_url, headers):
                 if next_ad_at:
                     try:
                         # Parse the next ad time
-                        next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), pytz.UTC)
-                        current_time = datetime.now(pytz.UTC)
+                        next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), set_timezone.UTC)
+                        current_time = datetime.now(set_timezone.UTC)
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
                         api_logger.info(f"Next ad scheduled in {time_until_ad} seconds ({time_until_ad/60:.1f} minutes)")
                         # If the next ad is 5 minutes or less away, send immediate notification
