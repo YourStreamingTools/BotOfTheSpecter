@@ -1576,6 +1576,23 @@ class TicketCog(commands.Cog, name='Tickets'):
                             )
                         """)
                         self.logger.info("Ensured ticket_history table exists")
+                        # Create ticket_comments table if it doesn't exist
+                        await cur.execute("""
+                            CREATE TABLE IF NOT EXISTS ticket_comments (
+                                comment_id INT AUTO_INCREMENT PRIMARY KEY,
+                                guild_id VARCHAR(255) NOT NULL,
+                                ticket_id INT NOT NULL,
+                                user_id VARCHAR(255) NOT NULL,
+                                username VARCHAR(255) NOT NULL,
+                                comment TEXT NOT NULL,
+                                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                INDEX idx_ticket_id (ticket_id),
+                                INDEX idx_guild_id (guild_id),
+                                INDEX idx_timestamp (timestamp),
+                                FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id) ON DELETE CASCADE
+                            )
+                        """)
+                        self.logger.info("Ensured ticket_comments table exists")
                         # Check if info_channel_id column exists in ticket_settings
                         await cur.execute("SHOW COLUMNS FROM ticket_settings LIKE 'info_channel_id'")
                         result = await cur.fetchone()
