@@ -1539,7 +1539,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 host=config.sql_host,
                 user=config.sql_user,
                 password=config.sql_password,
-                db='tickets',
+                db='specterdiscordbot',
                 autocommit=True
             )
             # Ensure the info_channel_id column exists in ticket_settings table
