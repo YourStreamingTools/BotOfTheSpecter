@@ -157,6 +157,10 @@ startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VE
 for logger in loggers.values():
     logger.info(startup_msg)
 
+# Function to get the current time
+def time_right_now():
+    return datetime.now()
+
 # Setup Globals
 global bot_owner
 global stream_online
@@ -193,7 +197,7 @@ active_timed_messages = {}                              # Dictionary to track ac
 message_tasks = {}                                      # Dictionary to track individual message tasks by ID
 
 # Initialize global variables
-bot_started = datetime.now()                            # Time the bot started
+bot_started = time_right_now()                           # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
 SPOTIFY_REFRESH_TOKEN = None                            # Spotify API refresh token 
 SPOTIFY_ACCESS_TOKEN = None                             # Spotify API access token 
@@ -912,7 +916,7 @@ async def process_twitch_eventsub_message(message):
                         poll_id = event_data.get("id")
                         poll_title = event_data.get("title")
                         poll_ends_at = datetime.fromisoformat(event_data["ends_at"].replace("Z", "+00:00"))
-                        utc_now = datetime.now(timezone.utc)
+                        utc_now = time_right_now(timezone.utc)
                         time_until_end = (poll_ends_at - utc_now).total_seconds()
                         half_time = int(time_until_end / 2)
                         minutes, seconds = divmod(time_until_end, 60)
@@ -1394,13 +1398,13 @@ class TwitchBot(commands.Bot):
                             # Checking if the command is on cooldown
                             last_used = command_last_used.get(command, None)
                             if last_used:
-                                time_since_last_used = (datetime.now() - last_used).total_seconds()
+                                time_since_last_used = (time_right_now() - last_used).total_seconds()
                                 if time_since_last_used < cooldown:
                                     remaining_time = cooldown - time_since_last_used
                                     chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
                                     await channel.send(f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
                                     return
-                            command_last_used[command] = datetime.now()
+                            command_last_used[command] = time_right_now()
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
                                 '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
@@ -1453,7 +1457,7 @@ class TwitchBot(commands.Bot):
                                     if get_date:
                                         date_str = get_date.group(1)
                                         event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                                        current_date = datetime.now(tz).date()
+                                        current_date = time_right_now(tz).date()
                                         days_left = (event_date - current_date).days
                                         # If days_left is negative, try next year
                                         if days_left < 0:
@@ -1471,7 +1475,7 @@ class TwitchBot(commands.Bot):
                                             event_datetime = datetime.strptime(datetime_str, "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
                                         else:  # Date only format, default to midnight
                                             event_datetime = datetime.strptime(datetime_str + "-00-00", "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
-                                        current_datetime = datetime.now(tz)
+                                        current_datetime = time_right_now(tz)
                                         time_left = event_datetime - current_datetime
                                         # If time_left is negative, try next year
                                         if time_left.days < 0:
@@ -2013,7 +2017,7 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         # Check premium feature status
                         premium_tier = await check_premium_feature()
-                        uptime = datetime.now() - bot_started
+                        uptime = time_right_now()- bot_started
                         uptime_days = uptime.days
                         uptime_hours, remainder = divmod(uptime.seconds, 3600)
                         uptime_minutes, _ = divmod(remainder, 60)
@@ -2286,7 +2290,7 @@ class TwitchBot(commands.Bot):
                             timezone_str = timezone_data["zoneName"]
                             tz = pytz_timezone(timezone_str)
                             chat_logger.info(f"TZ: {tz} | Timezone: {timezone_str}")
-                            current_time = datetime.now(tz)
+                            current_time = time_right_now(tz)
                             time_format_date = current_time.strftime("%B %d, %Y")
                             time_format_time = current_time.strftime("%I:%M %p")
                             time_format_week = current_time.strftime("%A")
@@ -2298,7 +2302,7 @@ class TwitchBot(commands.Bot):
                                 timezone = result.get("timezone")
                                 tz = pytz_timezone(timezone)
                                 chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
-                                current_time = datetime.now(tz)
+                                current_time = time_right_now(tz)
                                 time_format_date = current_time.strftime("%B %d, %Y")
                                 time_format_time = current_time.strftime("%I:%M %p")
                                 time_format_week = current_time.strftime("%A")
@@ -2688,7 +2692,7 @@ class TwitchBot(commands.Bot):
                                 await ctx.send(f"Sorry, I don't accept karaoke or instrumental versions.")
                                 return
                             api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
-                            song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": datetime.now() }
+                            song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
                         else:
                             api_logger.error(f"Spotify returned response code: {response.status}")
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -2715,7 +2719,7 @@ class TwitchBot(commands.Bot):
                                 await ctx.send(f"No song found: {message_content}")
                                 return
                             api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
-                            song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": datetime.now() }
+                            song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
                         else:
                             api_logger.error(f"Spotify returned response code: {response.status}")
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -2893,7 +2897,7 @@ class TwitchBot(commands.Bot):
                 except ValueError:
                     # Default to 5 minutes if the user didn't provide a valid value
                     minutes = 5
-                end_time = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+                end_time = time_right_now(timezone.utc) + timedelta(minutes=minutes)
                 await cursor.execute("INSERT INTO active_timers (user_id, end_time) VALUES (%s, %s)", (ctx.author.id, end_time))
                 await connection.commit()
                 await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
@@ -2968,7 +2972,7 @@ class TwitchBot(commands.Bot):
                     await ctx.send(f"@{ctx.author.name}, you don't have an active timer.")
                     return
                 end_time = active_timer["end_time"]
-                remaining_time = end_time - datetime.now(timezone.utc)
+                remaining_time = end_time - time_right_now(timezone.utc)
                 minutes_left = remaining_time.total_seconds() // 60
                 seconds_left = remaining_time.total_seconds() % 60
                 await ctx.send(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
@@ -3387,7 +3391,7 @@ class TwitchBot(commands.Bot):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
                     user_id = str(ctx.author.id)
-                    now = datetime.now()
+                    now = time_right_now()
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await ctx.send(f"You cannot lurk in your own channel, Streamer.")
                         chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
@@ -3446,7 +3450,7 @@ class TwitchBot(commands.Bot):
                     result = await cursor.fetchone()
                     if result:
                         start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
-                        elapsed_time = datetime.now() - start_time
+                        elapsed_time = time_right_now() - start_time
                         # Calculate the duration
                         days = elapsed_time.days
                         months = days // 30
@@ -3491,7 +3495,7 @@ class TwitchBot(commands.Bot):
                         lurkers = await cursor.fetchall()
                         longest_lurk = None
                         longest_lurk_user_id = None
-                        now = datetime.now()
+                        now = time_right_now()
                         for lurker in lurkers:
                             user_id = lurker['user_id']
                             start_time_str = lurker['start_time']
@@ -3550,7 +3554,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        time_now = datetime.now()
+                        time_now = time_right_now()
                         # Convert start_time from string to datetime
                         start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
                         elapsed_time = time_now - start_time
@@ -3571,7 +3575,7 @@ class TwitchBot(commands.Bot):
                     else:
                         await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
         except Exception as e:
-            chat_logger.error(f"Error in unlurk_command: {e}... Time now: {datetime.now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
+            chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
             await ctx.send("Oops, something went wrong with the unlurk command.")
         finally:
             await connection.ensure_closed()
@@ -3752,7 +3756,7 @@ class TwitchBot(commands.Bot):
                                         if data['data']:  # If stream is live
                                             started_at_str = data['data'][0]['started_at']
                                             started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
-                                            uptime = datetime.now(timezone.utc) - started_at
+                                            uptime = time_right_now(timezone.utc) - started_at
                                             hours, remainder = divmod(uptime.seconds, 3600)
                                             minutes, seconds = divmod(remainder, 60)
                                             await ctx.send(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
@@ -4241,7 +4245,7 @@ class TwitchBot(commands.Bot):
                                 if data['total'] > 0:
                                     followed_at_str = data['data'][0]['followed_at']
                                     followed_at = datetime.strptime(followed_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
-                                    followage = datetime.now(timezone.utc) - followed_at
+                                    followage = time_right_now(timezone.utc) - followed_at
                                     years, days = divmod(followage.days, 365)
                                     months, days = divmod(days, 30)
                                     hours, seconds = divmod(followage.seconds, 3600)
@@ -4298,7 +4302,7 @@ class TwitchBot(commands.Bot):
                 timezone_row = await cursor.fetchone()
                 timezone = timezone_row["timezone"] if timezone_row else 'UTC'
                 tz = pytz_timezone(timezone)
-                current_time = datetime.now(tz)
+                current_time = time_right_now(tz)
                 headers = {
                     'Client-ID': CLIENT_ID,
                     'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -5648,7 +5652,7 @@ async def shoutout_worker():
     global last_shoutout_time
     while True:
         user_to_shoutout, user_id = await shoutout_queue.get()
-        now = datetime.now()
+        now = time_right_now()
         # Check global cooldown
         if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
             wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
@@ -5667,7 +5671,7 @@ async def shoutout_worker():
         shoutout_user[user_to_shoutout] = {"timestamp": time.time()}
         create_task(remove_shoutout_user(user_to_shoutout, 60))
         # Update cooldown trackers
-        last_shoutout_time = datetime.now()
+        last_shoutout_time = time_right_now()
         shoutout_tracker[user_id] = last_shoutout_time
         # Mark the task as done
         shoutout_queue.task_done()
@@ -5950,7 +5954,7 @@ async def process_weather_websocket(data):
     wind_direction = weather_data.get('wind', 'Unknown').split()[-1]
     humidity = weather_data.get('humidity', 'Unknown').split('%')[0].strip()
     # Get the current UTC time using timezone-aware datetime
-    now = datetime.now(pytz_timezone("UTC"))
+    now = time_right_now(pytz_timezone("UTC"))
     minutes_ago = now.minute  # Get current minutes (0-59)
     # Format the message
     message = (f"The weather as of {minutes_ago} min ago in {location} is {status} with a temperature of "
@@ -6943,7 +6947,7 @@ async def process_followers_event(user_id, user_name):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     connection = await mysql_connection()
     try:
-        time_now = datetime.now()
+        time_now = time_right_now()
         followed_at = time_now.strftime("%Y-%m-%d %H:%M:%S")
         async with connection.cursor(DictCursor) as cursor:
             # Insert follower data
@@ -7669,7 +7673,7 @@ async def start_subathon(ctx):
                 settings = await cursor.fetchone()
                 if settings:
                     starting_minutes = settings["starting_minutes"]
-                    subathon_start_time = datetime.now()
+                    subathon_start_time = time_right_now()
                     subathon_end_time = subathon_start_time + timedelta(minutes=starting_minutes)
                     await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
                     await connection.commit()
@@ -7709,7 +7713,7 @@ async def pause_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
-                remaining_minutes = (subathon_state["end_time"] - datetime.now()).total_seconds() // 60
+                remaining_minutes = (subathon_state["end_time"] - time_right_now()).total_seconds() // 60
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state["id"]))
                 await connection.commit()
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
@@ -7729,7 +7733,7 @@ async def resume_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and subathon_state["paused"]:
-                subathon_end_time = datetime.now() + timedelta(minutes=subathon_state["remaining_minutes"])
+                subathon_end_time = time_right_now()+ timedelta(minutes=subathon_state["remaining_minutes"])
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))
                 await connection.commit()
                 await ctx.send(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
@@ -7768,7 +7772,7 @@ async def subathon_status(ctx):
         if subathon_state["paused"]:
             await ctx.send(f"Subathon is paused with {subathon_state['remaining_minutes']} minutes remaining.")
         else:
-            remaining = subathon_state["end_time"] - datetime.now()
+            remaining = subathon_state["end_time"] - time_right_now()
             await ctx.send(f"Subathon time remaining: {remaining}.")
     else:
         await ctx.send("No subathon is active!")
@@ -7779,7 +7783,7 @@ async def subathon_countdown():
     while True:
         subathon_state = await get_subathon_state()
         if subathon_state and not subathon_state["paused"]:
-            now = datetime.now()
+            now = time_right_now()
             if now >= subathon_state["end_time"]:
                 await channel.send(f"Subathon has ended!")
                 connection = await mysql_connection()
@@ -7820,7 +7824,7 @@ async def midnight():
             tz = set_timezone.UTC  # Set to UTC
     while True:
         # Get the current time in the user's timezone
-        current_time = datetime.now(tz)
+        current_time = time_right_now(tz)
         # Check if it's exactly midnight (00:00:00)
         if current_time.hour == 0 and current_time.minute == 0:
             # Reload the .env file at midnight
@@ -8228,7 +8232,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                     try:
                         # Parse the next ad time
                         next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), set_timezone.UTC)
-                        current_time = datetime.now(set_timezone.UTC)
+                        current_time = time_right_now(set_timezone.UTC)
                         # Notify if ad is coming up in exactly 5 minutes and we haven't notified recently
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
                         if 270 <= time_until_ad <= 330:  # 4.5 to 5.5 minutes (30 second tolerance)
@@ -8291,7 +8295,7 @@ async def check_next_ad_after_completion(channel, ads_api_url, headers):
                     try:
                         # Parse the next ad time
                         next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), set_timezone.UTC)
-                        current_time = datetime.now(set_timezone.UTC)
+                        current_time = time_right_now(set_timezone.UTC)
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
                         api_logger.info(f"Next ad scheduled in {time_until_ad} seconds ({time_until_ad/60:.1f} minutes)")
                         # If the next ad is 5 minutes or less away, send immediate notification
