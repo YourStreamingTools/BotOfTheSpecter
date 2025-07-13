@@ -630,7 +630,6 @@ class BotOfTheSpecter(commands.Bot):
                     if settings and message.channel.id == settings['info_channel_id']:
                         # Check if message is a ticket command
                         is_ticket_command = message.content.startswith('!ticket')
-                        is_ticket_command_create = message.content.startswith('!ticket create')
                         if not is_ticket_command:
                             # Delete non-ticket messages
                             await message.delete()
@@ -643,18 +642,6 @@ class BotOfTheSpecter(commands.Bot):
                             await asyncio.sleep(10)  # Wait for 10 seconds
                             await warning.delete()  # Delete the warning message after the delay
                             self.logger.info(f"Deleted non-ticket message from {message.author} in ticket-info channel")
-                            return
-                        elif not is_ticket_command_create:
-                            # Delete the command message
-                            await message.delete()
-                            warning = await message.channel.send(
-                                f"{message.author.mention} This channel is for ticket commands only. "
-                                "Please use `!ticket create` to open a ticket."
-                            )
-                            # Set a delay before deleting the warning message
-                            await asyncio.sleep(10)  # Wait for 10 seconds
-                            await warning.delete()  # Delete the warning message after the delay
-                            self.logger.info(f"Deleted ticket create command from {message.author} in ticket-info channel")
                             return
             except Exception as e:
                 self.logger.error(f"Error in ticket-info message watcher: {e}")
@@ -1242,6 +1229,69 @@ class TicketCog(commands.Cog, name='Tickets'):
                 db='tickets',
                 autocommit=True
             )
+            # Ensure the info_channel_id column exists in ticket_settings table
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    try:
+                        # Check if info_channel_id column exists
+                        await cur.execute("SHOW COLUMNS FROM ticket_settings LIKE 'info_channel_id'")
+                        result = await cur.fetchone()
+                        if not result:
+                            # Add the info_channel_id column if it doesn't exist
+                            await cur.execute("ALTER TABLE ticket_settings ADD COLUMN info_channel_id BIGINT DEFAULT NULL")
+                            self.logger.info("Added info_channel_id column to ticket_settings table")
+                        else:
+                            self.logger.debug("info_channel_id column already exists in ticket_settings table")
+                    except Exception as e:
+                        self.logger.error(f"Error checking/adding info_channel_id column: {e}")
+
+    async def validate_ticket_command_channel(self, ctx, action):
+        if action != "create":
+            return True  # Only validate 'create' commands for channel restrictions
+        settings = await self.get_settings(ctx.guild.id)
+        if not settings or not settings.get('info_channel_id'):
+            return True  # No restrictions if no info channel is set
+        if ctx.channel.id != settings['info_channel_id']:
+            # Remove the command message
+            try:
+                await ctx.message.delete()
+            except discord.NotFound:
+                pass
+            # Get the info channel
+            info_channel = ctx.guild.get_channel(settings['info_channel_id'])
+            if info_channel:
+                # Send warning message with channel mention
+                await ctx.send(
+                    f"{ctx.author.mention} Ticket creation is only allowed in {info_channel.mention}. "
+                    f"Please go to that channel and use `!ticket create` there.",
+                    delete_after=15
+                )
+                self.logger.info(f"Redirected {ctx.author} to use ticket command in correct channel")
+            else:
+                # Info channel not found, send generic warning
+                await ctx.send(
+                    f"{ctx.author.mention} Ticket creation is only allowed in the designated ticket info channel. "
+                    f"Please ask an admin for the correct channel.",
+                    delete_after=15
+                )
+                self.logger.warning(f"Info channel {settings['info_channel_id']} not found in guild {ctx.guild.id}")
+            return False
+        return True
+
+    async def check_other_ticket_commands_in_wrong_channel(self, ctx, action):
+        settings = await self.get_settings(ctx.guild.id)
+        if not settings:
+            return True
+        # For commands like 'close' and 'issue', they should be used in ticket channels
+        if action in ["close", "issue"] and not ctx.channel.name.startswith("ticket-"):
+            embed = discord.Embed(
+                title="Ticket Command Error",
+                description=f"The `!ticket {action}` command can only be used in a ticket channel.",
+                color=discord.Color.yellow()
+            )
+            await ctx.send(embed=embed, delete_after=10)
+            return False
+        return True
 
     async def get_settings(self, guild_id: int):
         if not self.pool:
@@ -1410,6 +1460,9 @@ class TicketCog(commands.Cog, name='Tickets'):
             await ctx.send("Please specify an action: `create` to create a ticket or `close` to close your ticket.", delete_after=10)
             return
         if action.lower() == "create":
+            # Validate if the command is being used in the correct channel
+            if not await self.validate_ticket_command_channel(ctx, action.lower()):
+                return  # validation method handles the error response
             try:
                 # Remove the command message for a clear channel
                 await ctx.message.delete()
@@ -1433,6 +1486,9 @@ class TicketCog(commands.Cog, name='Tickets'):
                     delete_after=10
                 )
         elif action.lower() == "close":
+            # Validate if the command is being used in the correct channel type
+            if not await self.check_other_ticket_commands_in_wrong_channel(ctx, action.lower()):
+                return
             # Check if the command is used in a ticket channel
             if not ctx.channel.name.startswith("ticket-"):
                 embed = discord.Embed(
@@ -1488,6 +1544,9 @@ class TicketCog(commands.Cog, name='Tickets'):
                 )
                 await ctx.send(embed=embed)
         elif action.lower() == "issue":
+            # Validate if the command is being used in the correct channel type
+            if not await self.check_other_ticket_commands_in_wrong_channel(ctx, action.lower()):
+                return
             # Update ticket issue description logic:
             if not ctx.channel.name.startswith("ticket-"):
                 embed = discord.Embed(
