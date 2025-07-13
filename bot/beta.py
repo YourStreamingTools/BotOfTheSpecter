@@ -14,7 +14,9 @@ from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
 
 # Third-party imports
-import websockets
+from websockets import connect as WebSocketConnect
+from websockets import ConnectionClosed as WebSocketConnectionClosed
+from websockets import ConnectionClosedError as WebSocketConnectionClosedError
 from aiohttp import ClientSession as httpClientSession
 from aiohttp import ClientError as aiohttpClientError
 from socketio import AsyncClient as specterSocket
@@ -406,7 +408,7 @@ async def twitch_eventsub():
     twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
     while True:
         try:
-            async with websockets.connect(twitch_websocket_uri) as twitch_websocket:
+            async with WebSocketConnect(twitch_websocket_uri) as twitch_websocket:
                 # Receive and parse the welcome message
                 eventsub_welcome_message = await twitch_websocket.recv()
                 eventsub_welcome_data = json.loads(eventsub_welcome_message)
@@ -420,7 +422,7 @@ async def twitch_eventsub():
                     await subscribe_to_events(session_id)
                     # Manage keepalive and listen for messages concurrently
                     await gather(twitch_receive_messages(twitch_websocket, keepalive_timeout))
-        except websockets.ConnectionClosedError as e:
+        except WebSocketConnectionClosedError as e:
             event_logger.error(f"WebSocket connection closed unexpectedly: {e}")
             await sleep(10)  # Wait before retrying
         except Exception as e:
@@ -598,7 +600,7 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
             event_logger.error("Keepalive timeout exceeded, reconnecting...")
             await twitch_websocket.close()
             continue  # Continue the loop to allow reconnection logic
-        except websockets.ConnectionClosedError as e:
+        except WebSocketConnectionClosedError as e:
             event_logger.error(f"WebSocket connection closed unexpectedly: {str(e)}")
             break  # Exit the loop for reconnection
         except Exception as e:
@@ -635,7 +637,7 @@ async def connect_to_streamelements():
     global streamelements_token
     uri = "wss://astro.streamelements.com"
     try:
-        async with websockets.connect(uri) as streamelements_websocket:
+        async with WebSocketConnect(uri) as streamelements_websocket:
             # Send the authentication message
             nonce = str(uuid.uuid4())
             auth_message = {
@@ -657,7 +659,7 @@ async def connect_to_streamelements():
                 sanitized_message = message.replace(streamelements_token, "[REDACTED]")
                 event_logger.info(f"StreamElements Message: {sanitized_message}")
                 await process_message(message, "StreamElements")
-    except websockets.ConnectionClosed as e:
+    except WebSocketConnectionClosed as e:
         event_logger.error(f"StreamElements WebSocket connection closed: {e}")
     except Exception as e:
         event_logger.error(f"StreamElements WebSocket error: {e}")
@@ -667,7 +669,7 @@ async def connect_to_streamlabs():
     uri = f"wss://sockets.streamlabs.com/socket.io/?token={streamlabs_token}&EIO=3&transport=websocket"
     sanitized_uri = uri.replace(streamlabs_token, "[REDACTED]")
     try:
-        async with websockets.connect(uri) as streamlabs_websocket:
+        async with WebSocketConnect(uri) as streamlabs_websocket:
             event_logger.info(f"Connected to StreamLabs WebSocket with URI: {sanitized_uri}")
             # Listen for messages
             while True:
@@ -675,7 +677,7 @@ async def connect_to_streamlabs():
                 sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
                 event_logger.info(f"StreamLabs Message: {sanitized_message}")
                 await process_message(message, "StreamLabs")
-    except websockets.ConnectionClosed as e:
+    except WebSocketConnectionClosed as e:
         event_logger.error(f"StreamLabs WebSocket connection closed: {e}")
     except Exception as e:
         event_logger.error(f"StreamLabs WebSocket error: {e}")
@@ -1125,7 +1127,7 @@ async def hyperate_websocket():
         try:
             bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
             hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
-            async with websockets.connect(hyperate_websocket_uri) as hyperate_websocket:
+            async with WebSocketConnect(hyperate_websocket_uri) as hyperate_websocket:
                 bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
                 # Send 'phx_join' message to join the appropriate channel
                 await join_channel(hyperate_websocket)
@@ -1138,7 +1140,7 @@ async def hyperate_websocket():
                         data = await hyperate_websocket.recv()
                         data = json.loads(data)
                         HEARTRATE = data['payload'].get('hr', None)
-                    except websockets.ConnectionClosed:
+                    except WebSocketConnectionClosed:
                         bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
                         break
         except Exception as e:
