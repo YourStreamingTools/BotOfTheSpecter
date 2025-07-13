@@ -421,7 +421,7 @@ if (!$is_linked) {
     $authURL = "https://discord.com/oauth2/authorize"
         . "?client_id=1170683250797187132"
         . "&response_type=code"
-        . "&scope=" . urlencode('identify guilds connections')
+        . "&scope=" . urlencode('identify guilds connections role_connections.write')
         . "&state={$state}"
         . "&redirect_uri=" . urlencode('https://dashboard.botofthespecter.com/discordbot.php');
 }
