@@ -961,15 +961,11 @@ class BotOfTheSpecter(commands.Bot):
             try:
                 # Auto-save logic for ticket channels - delegate to TicketCog
                 if hasattr(message.channel, "name") and message.channel.name.startswith("ticket-"):
-                    # Ignore commands
-                    if message.content.startswith("!ticket"):
+                    if not message.content.startswith("!"):
+                        ticket_cog = self.get_cog('Tickets')
+                        if ticket_cog:
+                            pass
                         return
-                    # Let the TicketCog handle the auto-save logic
-                    ticket_cog = self.get_cog('Tickets')
-                    if ticket_cog:
-                        # The TicketCog's on_message listener will handle this
-                        pass
-                    return
             except Exception as e:
                 self.logger.error(f"Error in ticket auto-save logic: {e}")
             if message.content.startswith("!"):
