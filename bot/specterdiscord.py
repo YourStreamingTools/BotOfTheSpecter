@@ -1189,6 +1189,15 @@ class LinkedRolesCog(commands.Cog, name='LinkedRoles'):
     @commands.command(name="linkedroles")
     @is_bot_owner()
     async def register_linked_roles_metadata(self, ctx):
+        # Check if command is being used in the StreamingTools Discord server
+        if ctx.guild.id != 1103694163930787880:
+            embed = discord.Embed(
+                title="❌ Wrong Server",
+                description="This command can only be used in the StreamingTools Discord server.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
         if not self.application_id:
             embed = discord.Embed(
                 title="❌ Configuration Error",
@@ -1203,7 +1212,9 @@ class LinkedRolesCog(commands.Cog, name='LinkedRoles'):
                 "key": "accountlinked",
                 "name": "Account Linked",
                 "description": "Has linked their Discord account on the website",
-                "type": 7  # BOOLEAN_EQUAL
+                "type": 7,
+                "name_localizations": None,
+                "description_localizations": None
             }
         ]
         try:
