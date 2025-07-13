@@ -1602,6 +1602,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                                 owner_id VARCHAR(255) NOT NULL,
                                 info_channel_id VARCHAR(255) DEFAULT NULL,
                                 category_id VARCHAR(255) NOT NULL,
+                                closed_category_id VARCHAR(255) DEFAULT NULL,
                                 support_role_id VARCHAR(255) DEFAULT NULL,
                                 mod_channel_id VARCHAR(255) DEFAULT NULL,
                                 enabled BOOLEAN DEFAULT TRUE,
@@ -1621,6 +1622,15 @@ class TicketCog(commands.Cog, name='Tickets'):
                             self.logger.info("Added info_channel_id column to ticket_settings table")
                         else:
                             self.logger.debug("info_channel_id column already exists in ticket_settings table")
+                        # Check if closed_category_id column exists in ticket_settings (for migration)
+                        await cur.execute("SHOW COLUMNS FROM ticket_settings LIKE 'closed_category_id'")
+                        result = await cur.fetchone()
+                        if not result:
+                            # Add the closed_category_id column if it doesn't exist (for older installations)
+                            await cur.execute("ALTER TABLE ticket_settings ADD COLUMN closed_category_id VARCHAR(255) DEFAULT NULL")
+                            self.logger.info("Added closed_category_id column to ticket_settings table")
+                        else:
+                            self.logger.debug("closed_category_id column already exists in ticket_settings table")
                     except Exception as e:
                         self.logger.error(f"Error ensuring ticket database tables: {e}")
 
@@ -1787,12 +1797,24 @@ class TicketCog(commands.Cog, name='Tickets'):
             await asyncio.sleep(10)
             try:
                 # Get or create the Closed Tickets category
-                closed_category = discord.utils.get(channel.guild.categories, name="Closed Tickets")
+                closed_category = None
+                if settings and settings.get('closed_category_id'):
+                    # Try to get the saved closed category first
+                    closed_category = channel.guild.get_channel(int(settings['closed_category_id']))
+                    if not closed_category:
+                        self.logger.warning(f"Saved closed category {settings['closed_category_id']} not found, will create new one")
+                
                 if not closed_category:
+                    # Look for existing "Closed Tickets" category
+                    closed_category = discord.utils.get(channel.guild.categories, name="Closed Tickets")
+                    
+                if not closed_category:
+                    # Create new category if none exists
                     closed_category = await channel.guild.create_category(
                         name="Closed Tickets",
                         reason="Ticket System Archive"
                     )
+                    self.logger.info(f"Created new 'Closed Tickets' category with ID {closed_category.id}")
                     # Set permissions for Closed Tickets category
                     await closed_category.set_permissions(channel.guild.default_role, read_messages=False)
                     # Give owner access if they exist in settings
@@ -1800,6 +1822,15 @@ class TicketCog(commands.Cog, name='Tickets'):
                         owner = channel.guild.get_member(int(settings['owner_id']))
                         if owner:
                             await closed_category.set_permissions(owner, read_messages=True, send_messages=False)
+                # Save the closed category ID to database if it's not already saved or if it changed
+                if not settings or settings.get('closed_category_id') != str(closed_category.id):
+                    async with self.pool.acquire() as conn:
+                        async with conn.cursor() as cur:
+                            await cur.execute(
+                                "UPDATE ticket_settings SET closed_category_id = %s WHERE guild_id = %s",
+                                (closed_category.id, channel.guild.id)
+                            )
+                    self.logger.info(f"Saved closed category ID {closed_category.id} to database for guild {channel.guild.id}")
                 # Remove ticket creator's access
                 if ticket_creator:
                     await channel.set_permissions(ticket_creator, overwrite=discord.PermissionOverwrite())
@@ -2178,22 +2209,35 @@ class TicketCog(commands.Cog, name='Tickets'):
             else:
                 # If the channel already exists, delete existing messages
                 await info_channel.purge()  # This will delete all messages in the channel
+            # Create or find the Closed Tickets category
+            closed_category = discord.utils.get(ctx.guild.categories, name="Closed Tickets")
+            if not closed_category:
+                closed_category = await ctx.guild.create_category(
+                    name="Closed Tickets",
+                    reason="Ticket System Setup"
+                )
+                # Set permissions for Closed Tickets category
+                await closed_category.set_permissions(ctx.guild.default_role, read_messages=False)
+                # Give owner access
+                await closed_category.set_permissions(ctx.author, read_messages=True, send_messages=False)
+                self.logger.info(f"Created 'Closed Tickets' category in {ctx.guild.name}")
             # Save settings to database
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute("""
                         INSERT INTO ticket_settings 
-                        (guild_id, owner_id, info_channel_id, category_id, support_role_id, mod_channel_id, enabled) 
-                        VALUES (%s, %s, %s, %s, %s, %s, TRUE)
+                        (guild_id, owner_id, info_channel_id, category_id, closed_category_id, support_role_id, mod_channel_id, enabled) 
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE)
                         ON DUPLICATE KEY UPDATE 
                         owner_id = VALUES(owner_id),
                         info_channel_id = VALUES(info_channel_id),
                         category_id = VALUES(category_id),
+                        closed_category_id = VALUES(closed_category_id),
                         support_role_id = VALUES(support_role_id),
                         mod_channel_id = VALUES(mod_channel_id),
                         enabled = TRUE,
                         updated_at = CURRENT_TIMESTAMP
-                    """, (ctx.guild.id, ctx.author.id, info_channel.id, category.id, 
+                    """, (ctx.guild.id, ctx.author.id, info_channel.id, category.id, closed_category.id,
                           support_role.id if support_role else None, 
                           mod_channel.id if mod_channel else None))
             # Set channel permissions
@@ -2256,7 +2300,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                 value=(
                     f"**Support Role:** {support_role.mention if support_role else 'None'}" + os.linesep +
                     f"**Management Channel:** {mod_channel.mention + ' (for settings & updates)' if mod_channel else 'None'}" + os.linesep +
-                    f"**Ticket Category:** {category.mention}" + os.linesep +
+                    f"**Open Tickets Category:** {category.mention}" + os.linesep +
+                    f"**Closed Tickets Category:** {closed_category.mention}" + os.linesep +
                     f"**Info Channel:** {info_channel.mention}"
                 ),
                 inline=False
@@ -2340,11 +2385,13 @@ class TicketCog(commands.Cog, name='Tickets'):
                 color=config.bot_color
             )
             # Ticket System Settings
+            closed_category_display = f"<#{settings.get('closed_category_id')}>" if settings.get('closed_category_id') else "Not set"
             embed.add_field(
                 name="🎫 Ticket System",
                 value=(
                     f"**Status:** {'✅ Enabled' if settings.get('enabled') else '❌ Disabled'}\n"
-                    f"**Category:** <#{settings.get('category_id')}>\n"
+                    f"**Open Category:** <#{settings.get('category_id')}>\n"
+                    f"**Closed Category:** {closed_category_display}\n"
                     f"**Info Channel:** <#{settings.get('info_channel_id')}>\n"
                     f"**Support Role:** <@&{settings.get('support_role_id')}>\n"
                     f"**Mod Channel:** <#{settings.get('mod_channel_id')}>"
