@@ -24,7 +24,7 @@ import aiohttp
 from aiohttp import ClientSession as httpClientSession
 import socketio
 from socketio import AsyncClient as specterSocket
-from aiomysql import conenct as sql_connect
+from aiomysql import connect as sql_connect
 from aiomysql import IntegrityError as MySQLIntegrityError
 from aiomysql import DictCursor, MySQLError
 from aiomysql import Error as MySQLOtherErrors
