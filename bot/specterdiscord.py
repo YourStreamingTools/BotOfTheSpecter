@@ -61,6 +61,17 @@ class Config:
 # Initialize the configuration
 config = Config()
 
+# Utility function to safely convert database IDs to integers
+def safe_int_convert(value, default=None, logger=None):
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        if logger:
+            logger.warning(f"Failed to convert '{value}' to int, using default: {default}")
+        return default
+
 # Ensure directories exist with proper error handling
 def ensure_directory_exists(directory_path, description=""):
     try:
@@ -1279,7 +1290,11 @@ class BotOfTheSpecter(commands.Bot):
             return
         # Increment event counter
         await self.channel_mapping.increment_event_count(channel_code, event_type)
-        guild = self.get_guild(mapping["guild_id"])
+        try:
+            guild = self.get_guild(int(mapping["guild_id"]))
+        except (ValueError, TypeError):
+            self.logger.error(f"Invalid guild_id '{mapping['guild_id']}' for channel {channel_code}")
+            return
         if not guild:
             self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel {channel_code}")
             return
@@ -1318,7 +1333,11 @@ class BotOfTheSpecter(commands.Bot):
             if not moderation_channel_id:
                 return
             channel_id = moderation_channel_id
-        channel = guild.get_channel(channel_id)
+        try:
+            channel = guild.get_channel(int(channel_id))
+        except (ValueError, TypeError):
+            self.logger.error(f"Invalid channel_id '{channel_id}' for event {event_type}")
+            return
         if not channel:
             self.logger.warning(f"Channel {channel_id} not found in guild {guild.name}")
             return
@@ -1774,7 +1793,7 @@ class TicketCog(commands.Cog, name='Tickets'):
             ticket_creator = None
             # Try to send DM to ticket creator with the reason
             try:
-                ticket_creator = channel.guild.get_member(ticket_data['user_id'])
+                ticket_creator = channel.guild.get_member(int(ticket_data['user_id']))
                 if ticket_creator:
                     dm_embed = discord.Embed(
                         title="Support Ticket Closed",
@@ -1782,13 +1801,15 @@ class TicketCog(commands.Cog, name='Tickets'):
                             f"Your support ticket ({ticket_id}) has been closed by the support team. "
                             f"{f'Reason for closure: {reason}' if reason != 'No reason provided' else ' '}"
                             f"If you need further assistance or if this ticket was closed by mistake, "
-                            f"please return to <#{settings['info_channel_id']}> and create a new ticket "
+                            f"please return to <#{settings['info_channel_id'] if settings else 'the ticket info channel'}> and create a new ticket "
                             f"using `!ticket create`."
                         ),
                         color=config.bot_color
                     )
                     await ticket_creator.send(embed=dm_embed)
                     self.logger.info(f"Sent closure DM to user {ticket_creator.name} for ticket #{ticket_id} with reason: {reason if reason != 'No reason provided' else 'No reason provided'}")
+            except (ValueError, TypeError):
+                self.logger.warning(f"Invalid user_id '{ticket_data['user_id']}' in ticket database")
             except discord.Forbidden:
                 self.logger.warning(f"Could not send DM to user {ticket_data['user_id']} for ticket #{ticket_id}")
             except Exception as e:
@@ -3741,7 +3762,11 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         embed.set_image(url=thumbnail_url)
         embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
         try:
-            channel = self.bot.get_channel(discord_channel_id)
+            channel = self.bot.get_channel(int(discord_channel_id))
+        except (ValueError, TypeError):
+            self.logger.error(f"Invalid discord_channel_id '{discord_channel_id}' for guild {guild_id}")
+            return False
+        try:
             if channel:
                 await channel.send(embed=embed)
                 self.logger.info(f"Posted live notification for {user_login} in guild {guild_id}")
