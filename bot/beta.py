@@ -1,8 +1,11 @@
 # Standard library imports
 import os, re, sys, ast, signal, argparse, traceback
 import json, time, random, base64, uuid, threading
-import asyncio
 from asyncio import Queue, subprocess
+from asyncio import CancelledError as asyncioCancelledError
+from asyncio import TimeoutError as asyncioTimeoutError
+from asyncio import wait_for as asyncio_wait_for
+from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 import logging
@@ -252,7 +255,7 @@ async def get_spam_patterns():
 async def twitch_token_refresh():
     global REFRESH_TOKEN
     # Wait for 5 minutes before the first token refresh
-    await asyncio.sleep(300)
+    await sleep(300)
     next_refresh_time = await refresh_twitch_token(REFRESH_TOKEN)
     while True:
         current_time = time.time()
@@ -267,7 +270,7 @@ async def twitch_token_refresh():
                 sleep_time = 300  # Sleep for 5 minutes
             else:
                 sleep_time = 60  # Sleep for 1 minute
-            await asyncio.sleep(sleep_time)
+            await sleep(sleep_time)
 
 # Function to refresh Twitch token
 async def refresh_twitch_token(current_refresh_token):
@@ -342,7 +345,7 @@ async def spotify_token_refresh():
                 await connection.ensure_closed()
                 return
         await connection.ensure_closed()
-        await asyncio.sleep(300)  # 5 minutes initial sleep
+        await sleep(300)  # 5 minutes initial sleep
         SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
         # Set next refresh time to 55 minutes from now (1 hour - 5 minutes buffer)
         next_spotify_refresh_time = time.time() + 60 * 60 - 300
@@ -353,7 +356,7 @@ async def spotify_token_refresh():
             else:
                 time_until_expiration = next_spotify_refresh_time - current_time
                 sleep_time = min(60, max(300, time_until_expiration)) # Adjust sleep time dynamically
-                await asyncio.sleep(sleep_time)
+                await sleep(sleep_time)
     except Exception as e:
         bot_logger.error(f"An error occurred in spotify_token_refresh: {e}")
 
@@ -414,13 +417,13 @@ async def twitch_eventsub():
                     # Subscribe to the events using the session ID and auth token
                     await subscribe_to_events(session_id)
                     # Manage keepalive and listen for messages concurrently
-                    await asyncio.gather(twitch_receive_messages(twitch_websocket, keepalive_timeout))
+                    await gather(twitch_receive_messages(twitch_websocket, keepalive_timeout))
         except websockets.ConnectionClosedError as e:
             event_logger.error(f"WebSocket connection closed unexpectedly: {e}")
-            await asyncio.sleep(10)  # Wait before retrying
+            await sleep(10)  # Wait before retrying
         except Exception as e:
             event_logger.error(f"An unexpected error occurred: {e}")
-            await asyncio.sleep(10)  # Wait before reconnecting
+            await sleep(10)  # Wait before reconnecting
 
 async def subscribe_to_events(session_id):
     global CHANNEL_ID, CHANNEL_AUTH, CLIENT_ID
@@ -576,7 +579,7 @@ async def subscribe_to_events(session_id):
 async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
     while True:
         try:
-            message = await asyncio.wait_for(twitch_websocket.recv(), timeout=keepalive_timeout)
+            message = await asyncio_wait_for(twitch_websocket.recv(), timeout=keepalive_timeout)
             message_data = json.loads(message)
             # event_logger.info(f"Received message: {message}")
             if 'metadata' in message_data:
@@ -589,7 +592,7 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
                     await process_twitch_eventsub_message(message_data)
             else:
                 event_logger.error("Received unrecognized message format")
-        except asyncio.TimeoutError:
+        except asyncioTimeoutError:
             event_logger.error("Keepalive timeout exceeded, reconnecting...")
             await twitch_websocket.close()
             continue  # Continue the loop to allow reconnection logic
@@ -616,7 +619,7 @@ async def connect_to_tipping_services():
                 if streamlabs_token:
                     tasks.append(connect_to_streamlabs())
                 if tasks:
-                    await asyncio.gather(*tasks)
+                    await gather(*tasks)
                 else:
                     event_logger.error("No valid token found for either StreamElements or StreamLabs.")
             else:
@@ -761,7 +764,7 @@ async def process_twitch_eventsub_message(message):
                 }
                 # Followers Event
                 if event_type == "channel.follow":
-                    asyncio.create_task(process_followers_event(
+                    create_task(process_followers_event(
                         event_data["user_id"],
                         event_data["user_name"]
                     ))
@@ -769,7 +772,7 @@ async def process_twitch_eventsub_message(message):
                 elif event_type == "channel.subscribe":
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
-                    asyncio.create_task(process_subscription_event(
+                    create_task(process_subscription_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         tier_name,
@@ -780,7 +783,7 @@ async def process_twitch_eventsub_message(message):
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
                     subscription_message = event_data.get("message", {}).get("text", "")
-                    asyncio.create_task(process_subscription_message_event(
+                    create_task(process_subscription_message_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         tier_name,
@@ -790,7 +793,7 @@ async def process_twitch_eventsub_message(message):
                 elif event_type == "channel.subscription.gift":
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
-                    asyncio.create_task(process_giftsub_event(
+                    create_task(process_giftsub_event(
                         event_data["user_name"],
                         tier_name,
                         event_data["total"],
@@ -799,14 +802,14 @@ async def process_twitch_eventsub_message(message):
                     ))
                 # Cheer Event
                 elif event_type == "channel.cheer":
-                    asyncio.create_task(process_cheer_event(
+                    create_task(process_cheer_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         event_data["bits"]
                     ))
                 # Raid Event
                 elif event_type == "channel.raid":
-                    asyncio.create_task(process_raid_event(
+                    create_task(process_raid_event(
                         event_data["from_broadcaster_user_id"],
                         event_data["from_broadcaster_user_name"],
                         event_data["viewers"]
@@ -827,7 +830,7 @@ async def process_twitch_eventsub_message(message):
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
                         sound_file = "twitch/" . result.get("sound_mapping")
-                        asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                        create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
                 # Hype Train End Event
                 elif event_type == "channel.hype_train.end":
                     event_logger.info(f"Hype Train End Event Data: {event_data}")
@@ -844,7 +847,7 @@ async def process_twitch_eventsub_message(message):
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
                         sound_file = "twitch/" . result.get("sound_mapping")
-                        asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                        create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
                 # Channel Update Event
                 elif event_type == 'channel.update':
                     global current_game
@@ -856,7 +859,7 @@ async def process_twitch_eventsub_message(message):
                     event_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
                 # Ad Break Begin Event
                 elif event_type == 'channel.ad_break.begin':
-                    asyncio.create_task(handle_ad_break_start(event_data["duration_seconds"]))
+                    create_task(handle_ad_break_start(event_data["duration_seconds"]))
                 # Charity Campaign Donate Event
                 elif event_type == 'channel.charity_campaign.donate':
                     user = event_data["event"]["user_name"]
@@ -898,7 +901,7 @@ async def process_twitch_eventsub_message(message):
                     "channel.channel_points_automatic_reward_redemption.add", 
                     "channel.channel_points_custom_reward_redemption.add"
                     ]:
-                    asyncio.create_task(process_channel_point_rewards(event_data, event_type))
+                    create_task(process_channel_point_rewards(event_data, event_type))
                 # Poll Event
                 elif event_type in ["channel.poll.begin", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
@@ -915,7 +918,7 @@ async def process_twitch_eventsub_message(message):
                             message = f"Poll '{poll_title}' has started! Poll ending in {int(minutes)} minutes."
                         else:
                             message = f"Poll '{poll_title}' has started! Poll ending in {int(seconds)} seconds."
-                        asyncio.create_task(handel_twitch_poll(event="poll.begin", poll_title=poll_title, half_time=half_time, message=message))
+                        create_task(handel_twitch_poll(event="poll.begin", poll_title=poll_title, half_time=half_time, message=message))
                     elif event_type == "channel.poll.end":
                         poll_id = event_data.get("id")
                         poll_title = event_data.get("title")
@@ -936,15 +939,15 @@ async def process_twitch_eventsub_message(message):
                         params = [sorted_choices[i]["title"] if i < len(sorted_choices) else None for i in range(len(sql_options))] + [poll_id]
                         await cursor.execute(sql_query, params)
                         await connection.commit()
-                        asyncio.create_task(handel_twitch_poll(event="poll.end", poll_title=poll_title, message=message))
+                        create_task(handel_twitch_poll(event="poll.end", poll_title=poll_title, message=message))
                 # Stream Online/Offline Event
                 elif event_type in ["stream.online", "stream.offline"]:
                     if event_type == "stream.online":
                         bot_logger.info(f"Stream is now online!")
-                        asyncio.create_task(websocket_notice(event="STREAM_ONLINE"))
+                        create_task(websocket_notice(event="STREAM_ONLINE"))
                     else:
                         bot_logger.info(f"Stream is now offline.")
-                        asyncio.create_task(websocket_notice(event="STREAM_OFFLINE"))
+                        create_task(websocket_notice(event="STREAM_OFFLINE"))
                 # AutoMod Message Hold Event
                 elif event_type == "automod.message.hold":
                     event_logger.info(f"Got an AutoMod Message Hold: {event_data}")
@@ -955,7 +958,7 @@ async def process_twitch_eventsub_message(message):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
+                            create_task(ban_user(messageAuthor, messageAuthorID))
                 # User Message Hold Event
                 elif event_type == "channel.chat.user_message_hold":
                     event_logger.info(f"Got a User Message Hold in Chat: {event_data}")
@@ -966,7 +969,7 @@ async def process_twitch_eventsub_message(message):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
+                            create_task(ban_user(messageAuthor, messageAuthorID))
                 # Suspicious User Message Event
                 elif event_type == "channel.suspicious_user.message":
                     event_logger.info(f"Got a Suspicious User Message: {event_data}")
@@ -979,7 +982,7 @@ async def process_twitch_eventsub_message(message):
                         twitch_logger.info(f"Suspicious user {messageAuthor} has the following types: {banEvasionTypes}")
                     if lowTrustStatus == "active_monitoring":
                         bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
-                        asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
+                        create_task(ban_user(messageAuthor, messageAuthorID))
                 elif event_type == "channel.shoutout.create" or event_type == "channel.shoutout.receive":
                     if event_type == "channel.shoutout.create":
                         global shoutout_user
@@ -1027,12 +1030,12 @@ async def specter_websocket():
         except ConnectionExecptionError as e:
             bot_logger.error(f"Internal WebSocket Connection Failed: {e}")
             websocket_connected = False  # Set flag to false on connection failure
-            await asyncio.sleep(10)  # Wait and retry connection
+            await sleep(10)  # Wait and retry connection
             continue  # Ensure we continue the loop
         except Exception as e:
             bot_logger.error(f"An unexpected error occurred with Internal WebSocket: {e}")
             websocket_connected = False  # Set flag to false on any error
-            await asyncio.sleep(10)  # Wait and retry connection
+            await sleep(10)  # Wait and retry connection
             continue  # Ensure we continue the loop
 
 @specterSocket.event
@@ -1125,7 +1128,7 @@ async def hyperate_websocket():
                 # Send 'phx_join' message to join the appropriate channel
                 await join_channel(hyperate_websocket)
                 # Send the heartbeat every 10 seconds
-                asyncio.create_task(send_heartbeat(hyperate_websocket))
+                create_task(send_heartbeat(hyperate_websocket))
                 while True:
                     try:
                         # Continuously wait for incoming messages
@@ -1138,11 +1141,11 @@ async def hyperate_websocket():
                         break
         except Exception as e:
             bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
-            await asyncio.sleep(10)  # Retry connection after a brief wait
+            await sleep(10)  # Retry connection after a brief wait
 
 async def send_heartbeat(hyperate_websocket):
     while True:
-        await asyncio.sleep(10)  # Send heartbeat every 10 seconds
+        await sleep(10)  # Send heartbeat every 10 seconds
         heartbeat_payload = {
             "topic": "phoenix",
             "event": "heartbeat",
@@ -1227,7 +1230,7 @@ class SSHConnectionManager:
             # Connect with credentials
             connect_kwargs = {'hostname': hostname,'port': 22,'username': SSH_USERNAME,'password': SSH_PASSWORD,'timeout': 30}
             # Run connection in thread to avoid blocking
-            await asyncio.get_event_loop().run_in_executor(None, lambda: ssh_client.connect(**connect_kwargs))
+            await get_event_loop().run_in_executor(None, lambda: ssh_client.connect(**connect_kwargs))
             # Store connection info
             self.connections[server_name] = {'client': ssh_client,'last_used': time.time(),'hostname': hostname}
             self.logger.info(f"SSH connection established to {server_name} ({hostname})")
@@ -1248,10 +1251,10 @@ class SSHConnectionManager:
         ssh_client = await self.get_connection(server_name)
         try:
             # Execute command in thread to avoid blocking
-            stdin, stdout, stderr = await asyncio.get_event_loop().run_in_executor(None, ssh_client.exec_command, command)
+            stdin, stdout, stderr = await get_event_loop().run_in_executor(None, ssh_client.exec_command, command)
             # Read output in thread
-            stdout_data = await asyncio.get_event_loop().run_in_executor(None, stdout.read)
-            stderr_data = await asyncio.get_event_loop().run_in_executor(None, stderr.read)
+            stdout_data = await get_event_loop().run_in_executor(None, stdout.read)
+            stderr_data = await get_event_loop().run_in_executor(None, stderr.read)
             return_code = stdout.channel.recv_exit_status()
             return {'stdout': stdout_data.decode('utf-8'),'stderr': stderr_data.decode('utf-8'),'return_code': return_code}
         except Exception as e:
@@ -1282,18 +1285,18 @@ class TwitchBot(commands.Bot):
         await update_version_control()
         await builtin_commands_creation()
         await check_stream_online()
-        asyncio.create_task(known_users())
-        asyncio.create_task(channel_point_rewards())
-        looped_tasks["twitch_token_refresh"] = asyncio.create_task(twitch_token_refresh())
-        looped_tasks["spotify_token_refresh"] = asyncio.create_task(spotify_token_refresh())
-        looped_tasks["twitch_eventsub"] = asyncio.create_task(twitch_eventsub())
-        looped_tasks["specter_websocket"] = asyncio.create_task(specter_websocket())
-        looped_tasks["hyperate_websocket"] = asyncio.create_task(hyperate_websocket())
-        looped_tasks["connect_to_tipping_services"] = asyncio.create_task(connect_to_tipping_services())
-        looped_tasks["midnight"] = asyncio.create_task(midnight())
-        looped_tasks["shoutout_worker"] = asyncio.create_task(shoutout_worker())
-        looped_tasks["periodic_watch_time_update"] = asyncio.create_task(periodic_watch_time_update())
-        looped_tasks["check_song_requests"] = asyncio.create_task(check_song_requests())
+        create_task(known_users())
+        create_task(channel_point_rewards())
+        looped_tasks["twitch_token_refresh"] = create_task(twitch_token_refresh())
+        looped_tasks["spotify_token_refresh"] = create_task(spotify_token_refresh())
+        looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
+        looped_tasks["specter_websocket"] = create_task(specter_websocket())
+        looped_tasks["hyperate_websocket"] = create_task(hyperate_websocket())
+        looped_tasks["connect_to_tipping_services"] = create_task(connect_to_tipping_services())
+        looped_tasks["midnight"] = create_task(midnight())
+        looped_tasks["shoutout_worker"] = create_task(shoutout_worker())
+        looped_tasks["periodic_watch_time_update"] = create_task(periodic_watch_time_update())
+        looped_tasks["check_song_requests"] = create_task(check_song_requests())
         await channel.send(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -1357,7 +1360,7 @@ class TwitchBot(commands.Bot):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
+                            create_task(ban_user(messageAuthor, messageAuthorID))
                             bannedUser = messageAuthor
                             return
                 if messageContent.startswith('!'):
@@ -1708,7 +1711,7 @@ class TwitchBot(commands.Bot):
                                     message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
                         await self.send_message_to_channel(message_to_send)
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
-                        asyncio.create_task(self.safe_walkon(messageAuthor))
+                        create_task(self.safe_walkon(messageAuthor))
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
@@ -1943,7 +1946,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now online!")
                         await ctx.send("Stream status has been forcibly set to online.")
-                        asyncio.create_task(websocket_notice(event="STREAM_ONLINE"))
+                        create_task(websocket_notice(event="STREAM_ONLINE"))
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -1974,7 +1977,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now offline.")
                         await ctx.send("Stream status has been forcibly set to offline.")
-                        asyncio.create_task(websocket_notice(event="STREAM_OFFLINE"))
+                        create_task(websocket_notice(event="STREAM_OFFLINE"))
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -2890,7 +2893,7 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("INSERT INTO active_timers (user_id, end_time) VALUES (%s, %s)", (ctx.author.id, end_time))
                 await connection.commit()
                 await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
-                await asyncio.sleep(minutes * 60)
+                await sleep(minutes * 60)
                 await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
                 # Remove the timer from the active_timers table
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
@@ -4042,7 +4045,7 @@ class TwitchBot(commands.Bot):
                 await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times.")
                 if await command_permissions("mod", ctx.author):
                     chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {stream_death_count}")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
             await ctx.send(f"An error occurred while executing the command. {e}")
@@ -4099,7 +4102,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"Total death count has been updated to: {total_death_count}")
                     chat_logger.info(f"Stream death count for {current_game} is now: {stream_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathadd_command: {e}")
@@ -4151,7 +4154,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count} to reflect the removal.")
                     await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathremove_command: {e}")
@@ -5646,7 +5649,7 @@ async def shoutout_worker():
         if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
             wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
             twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
-            await asyncio.sleep(wait_time)
+            await sleep(wait_time)
         # Check user-specific cooldown
         if user_id in shoutout_tracker:
             last_user_shoutout_time = shoutout_tracker[user_id]
@@ -5658,7 +5661,7 @@ async def shoutout_worker():
         await trigger_twitch_shoutout(user_to_shoutout, user_id)
         twitch_logger.info(f"Shoutout sent for {user_to_shoutout}.")
         shoutout_user[user_to_shoutout] = {"timestamp": time.time()}
-        asyncio.create_task(remove_shoutout_user(user_to_shoutout, 60))
+        create_task(remove_shoutout_user(user_to_shoutout, 60))
         # Update cooldown trackers
         last_shoutout_time = datetime.now()
         shoutout_tracker[user_id] = last_shoutout_time
@@ -5958,8 +5961,8 @@ async def process_stream_online_websocket():
     global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
     connection = await mysql_connection()
     stream_online = True
-    looped_tasks["timed_message"] = asyncio.get_event_loop().create_task(timed_message())
-    looped_tasks["handle_upcoming_ads"] = asyncio.get_event_loop().create_task(handle_upcoming_ads())
+    looped_tasks["timed_message"] = get_event_loop().create_task(timed_message())
+    looped_tasks["handle_upcoming_ads"] = get_event_loop().create_task(handle_upcoming_ads())
     await generate_winning_lotto_numbers()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
@@ -6009,7 +6012,7 @@ async def process_stream_offline_websocket():
     if 'scheduled_clear_task' in globals() and scheduled_clear_task:
         scheduled_clear_task.cancel()
     # Schedule the clearing task with a 5-minute delay
-    scheduled_clear_task = asyncio.create_task(delayed_clear_tables())
+    scheduled_clear_task = create_task(delayed_clear_tables())
     bot_logger.info("Scheduled task to clear tables if stream remains offline for 5 minutes.")
     # Log the status to the file
     os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
@@ -6027,7 +6030,7 @@ async def process_stream_offline_websocket():
 async def delayed_clear_tables():
     global stream_online
     for _ in range(30):  # Check every 10 seconds for 5 minutes
-        await asyncio.sleep(10)
+        await sleep(10)
         if stream_online:
             bot_logger.info("Stream is back online. Skipping table clear.")
             return
@@ -6044,7 +6047,7 @@ async def delayed_clear_tables():
             task.cancel()
             try:
                 await task
-            except asyncio.CancelledError:
+            except asyncioCancelledError:
                 bot_logger.info(f"Task {task_name} cancelled successfully.")
     bot_logger.info("Tables and lotto entries cleared after stream remained offline.")
 
@@ -6109,7 +6112,7 @@ async def timed_message():
         await update_timed_messages()
         # Start the periodic checker
         if "timed_message_checker" not in looped_tasks:
-            looped_tasks["timed_message_checker"] = asyncio.create_task(periodic_message_checker())
+            looped_tasks["timed_message_checker"] = create_task(periodic_message_checker())
     else:
         await stop_all_timed_messages()
 
@@ -6117,12 +6120,12 @@ async def periodic_message_checker():
     global stream_online
     try:
         while stream_online:
-            await asyncio.sleep(60)  # Check every minute
+            await sleep(60)  # Check every minute
             if stream_online:
                 await update_timed_messages()
             else:
                 break
-    except asyncio.CancelledError:
+    except asyncioCancelledError:
         chat_logger.info("Periodic message checker cancelled")
     except Exception as e:
         bot_logger.error(f"Error in periodic_message_checker: {e}")
@@ -6186,7 +6189,7 @@ async def start_timed_message(message_id, row):
         # Type 1: Interval-based messages
         interval_mins = max(5, min(60, int(interval)))
         wait_time = interval_mins * 60
-        task = asyncio.create_task(send_interval_message(message_id, message, wait_time))
+        task = create_task(send_interval_message(message_id, message, wait_time))
         message_tasks[message_id] = task
         scheduled_tasks.add(task)
         chat_logger.info(f"Started interval message ID: {message_id} every {interval_mins} minutes")
@@ -6272,13 +6275,13 @@ async def handle_chat_message(messageAuthor, messageContent=""):
             trigger_info["last_trigger_count"] = chat_line_count  # Update last trigger count
             if message_type == "chat_count":
                 # Type 2: Send immediately after chat count reached
-                asyncio.create_task(send_timed_message(message_id, message, 0))
+                create_task(send_timed_message(message_id, message, 0))
                 chat_logger.info(f"Chat count trigger reached for message ID: {message_id}")
             elif message_type == "chat_count_delayed":
                 # Type 3: Send after chat count reached + delay
                 delay_mins = trigger_info["delay_mins"]
                 delay_seconds = delay_mins * 60
-                asyncio.create_task(send_timed_message(message_id, message, delay_seconds))
+                create_task(send_timed_message(message_id, message, delay_seconds))
                 chat_logger.info(f"Chat count with delay trigger reached for message ID: {message_id}, will send in {delay_mins} minutes")
 
 async def send_interval_message(message_id, message, interval_seconds):
@@ -6287,7 +6290,7 @@ async def send_interval_message(message_id, message, interval_seconds):
     if message and any(switch in message for switch in switchs):
         message = message.replace("(game)", current_game or "Unknown Game")
     while stream_online:
-        await asyncio.sleep(interval_seconds)
+        await sleep(interval_seconds)
         if stream_online:
             await send_timed_message(message_id, message, 0)
         else:
@@ -6296,22 +6299,22 @@ async def send_interval_message(message_id, message, interval_seconds):
 async def send_timed_message(message_id, message, delay):
     global stream_online, last_message_time
     if delay > 0:
-        await asyncio.sleep(delay)
+        await sleep(delay)
     if stream_online:
         # Ensure a delay between consecutive messages
-        current_time = asyncio.get_event_loop().time()
+        current_time = get_event_loop().time()
         safe_gap = 60
         if last_message_time != 0: # Check if last_message_time has been initialized
             elapsed = current_time - last_message_time
             if elapsed < safe_gap:
                 wait_time = safe_gap - elapsed
                 chat_logger.info(f"Waiting {wait_time} more seconds before sending Timed Message ID: {message_id}")
-                await asyncio.sleep(wait_time)
+                await sleep(wait_time)
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
         try:
             channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
             await channel.send(message)
-            last_message_time = asyncio.get_event_loop().time()
+            last_message_time = get_event_loop().time()
         except Exception as e:
             bot_logger.error(f"Error sending message: {e}")
     else:
@@ -6467,7 +6470,7 @@ async def shazam_detect_song(raw_audio_b64):
 async def convert_to_raw_audio(in_file, out_file):
     try:
         ffmpeg_path = "/usr/bin/ffmpeg"
-        proc = await asyncio.create_subprocess_exec(
+        proc = await create_subprocess_exec(
             ffmpeg_path, '-i', in_file, "-vn", "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", "-f", "s16le", out_file,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL)
@@ -6551,7 +6554,7 @@ async def handle_ad_break_start(duration_seconds):
             global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
             ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
             headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
-            asyncio.create_task(check_next_ad_after_completion(channel, ads_api_url, headers))
+            create_task(check_next_ad_after_completion(channel, ads_api_url, headers))
         handle_ad_break_end.start(channel)
 
 # Fcuntion for POLLS
@@ -6622,7 +6625,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 )
             await connection.commit()
             # Send raid notification to Twitch Chat, and Websocket
-            asyncio.create_task(websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
+            create_task(websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
             # Send a message to the Twitch channel
             await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("raid_alert",))
             result = await cursor.fetchone()
@@ -6641,7 +6644,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = "twitch/" . result.get("sound_mapping")
-                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         await connection.ensure_closed()
 
@@ -6706,7 +6709,7 @@ async def process_cheer_event(user_id, user_name, bits):
                 cheer_add_time = int(settings['cheer_add'])  # Retrieve the time to add for cheers
                 await addtime_subathon(channel, cheer_add_time)  # Call to add time based on cheers
             # Send cheer notification to Twitch Chat, and Websocket
-            asyncio.create_task(websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits))
+            create_task(websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits))
             marker_description = f"New Cheer from {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6716,7 +6719,7 @@ async def process_cheer_event(user_id, user_name, bits):
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = "twitch/" . result.get("sound_mapping")
-                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         await connection.ensure_closed()
 
@@ -6785,7 +6788,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
             alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
-                asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
+                create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
@@ -6803,7 +6806,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = "twitch/" . result.get("sound_mapping")
-                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     except Exception as e:
         event_logger.error(f"Error processing subscription event for user {user_name} ({user_id}): {e}")
     finally:
@@ -6874,7 +6877,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
             alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
-                asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
+                create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
@@ -6892,7 +6895,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = "twitch/" . result.get("sound_mapping")
-                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     except Exception as e:
         event_logger.error(f"Error processing subscription message event for user {user_name} ({user_id}): {e}")
     finally:
@@ -6927,7 +6930,7 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = "twitch/" . result.get("sound_mapping")
-                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         await connection.ensure_closed()
 
@@ -6974,7 +6977,7 @@ async def process_followers_event(user_id, user_name):
             alert_message = "Thank you (user) for following! Welcome to the channel!"
         alert_message = alert_message.replace("(user)", user_name)
         await channel.send(alert_message)
-        asyncio.create_task(websocket_notice("TWITCH_FOLLOW", user=user_name))
+        create_task(websocket_notice("TWITCH_FOLLOW", user=user_name))
         marker_description = f"New Twitch Follower: {user_name}"
         if await make_stream_marker(marker_description):
             twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6984,7 +6987,7 @@ async def process_followers_event(user_id, user_name):
         result = await cursor.fetchone()
         if result and result.get("sound_mapping"):
             sound_file = "twitch/" . result.get("sound_mapping")
-            asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+            create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         await connection.ensure_closed()
 
@@ -7219,8 +7222,8 @@ async def check_stream_online():
                         bot_logger.info(f"Bot Starting, Stream is offline.")
                     else:
                         stream_online = True
-                        looped_tasks["timed_message"] = asyncio.get_event_loop().create_task(timed_message())
-                        looped_tasks["handle_upcoming_ads"] = asyncio.get_event_loop().create_task(handle_upcoming_ads())
+                        looped_tasks["timed_message"] = get_event_loop().create_task(timed_message())
+                        looped_tasks["handle_upcoming_ads"] = get_event_loop().create_task(handle_upcoming_ads())
                         # Log the status to the file
                         os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
                         with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
@@ -7281,7 +7284,7 @@ async def process_channel_point_rewards(event_data, event_type):
             reward_data = event_data.get("reward", {})
             reward_id = reward_data.get("id")
             reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
-            asyncio.create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
+            create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
@@ -7341,7 +7344,7 @@ async def process_channel_point_rewards(event_data, event_type):
             # Check for TTS reward
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
-                asyncio.create_task(websocket_notice(event="TTS", text=tts_message))
+                create_task(websocket_notice(event="TTS", text=tts_message))
                 return
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
@@ -7368,14 +7371,14 @@ async def process_channel_point_rewards(event_data, event_type):
             if sound_result and sound_result["sound_mapping"]:
                 sound_file = sound_result.get("sound_mapping")
                 event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
-                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
             # Video alert logic
             await cursor.execute("SELECT video_mapping FROM video_alerts WHERE reward_id = %s", (reward_id,))
             video_result = await cursor.fetchone()
             if video_result and video_result["video_mapping"]:
                 video_file = video_result.get("video_mapping")
                 event_logger.info(f"Got {event_type} - Found Video Mapping - {reward_id} - {video_file}")
-                asyncio.create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
+                create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
         except Exception as e:
             event_logger.error(f"An error occurred while processing the reward: {str(e)}")
         finally:
@@ -7667,10 +7670,10 @@ async def start_subathon(ctx):
                     await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
                     await connection.commit()
                     await ctx.send(f"Subathon started!")
-                    asyncio.create_task(subathon_countdown())
+                    create_task(subathon_countdown())
                     # Send websocket notice
                     additional_data = {'starting_minutes': starting_minutes}
-                    asyncio.create_task(websocket_notice("SUBATHON_START", additional_data))
+                    create_task(websocket_notice("SUBATHON_START", additional_data))
                 else:
                     await ctx.send(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
@@ -7688,7 +7691,7 @@ async def stop_subathon(ctx):
                 await connection.commit()
                 await ctx.send(f"Subathon ended!")
                 # Send websocket notice
-                asyncio.create_task(websocket_notice("SUBATHON_STOP"))
+                create_task(websocket_notice("SUBATHON_STOP"))
             else:
                 await ctx.send(f"No subathon active.")
     finally:
@@ -7708,7 +7711,7 @@ async def pause_subathon(ctx):
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
                 additional_data = {'remaining_minutes': remaining_minutes}
-                asyncio.create_task(websocket_notice("SUBATHON_PAUSE", additional_data))
+                create_task(websocket_notice("SUBATHON_PAUSE", additional_data))
             else:
                 await ctx.send("No subathon is active or it's already paused!")
     finally:
@@ -7726,10 +7729,10 @@ async def resume_subathon(ctx):
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))
                 await connection.commit()
                 await ctx.send(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
-                asyncio.create_task(subathon_countdown())
+                create_task(subathon_countdown())
                 # Send websocket notice
                 additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
-                asyncio.create_task(websocket_notice("SUBATHON_RESUME", additional_data))
+                create_task(websocket_notice("SUBATHON_RESUME", additional_data))
     finally:
         await cursor.close()
         await connection.ensure_closed()
@@ -7747,7 +7750,7 @@ async def addtime_subathon(ctx, minutes):
                 await ctx.send(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
                 additional_data = {'added_minutes': minutes}
-                asyncio.create_task(websocket_notice("SUBATHON_ADD_TIME", additional_data))
+                create_task(websocket_notice("SUBATHON_ADD_TIME", additional_data))
             else:
                 await ctx.send("No subathon is active or it's paused!")
     finally:
@@ -7784,7 +7787,7 @@ async def subathon_countdown():
                     await cursor.close()
                     await connection.ensure_closed()
             break
-        await asyncio.sleep(60)  # Check every minute
+        await sleep(60)  # Check every minute
 
 # Function to get the current subathon state
 async def get_subathon_state():
@@ -7827,10 +7830,10 @@ async def midnight():
                 channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
                 await channel.send(message)
             # Sleep for 120 seconds to avoid sending the message multiple times
-            await asyncio.sleep(120)
+            await sleep(120)
         else:
             # Sleep for 10 seconds before checking again
-            await asyncio.sleep(10)
+            await sleep(10)
 
 async def reload_env_vars():
     # Load in all the globals
@@ -8023,7 +8026,7 @@ async def periodic_watch_time_update():
             # Pass the active users (raw data) to the watch time tracker
             await track_watch_time(active_users)
         # Wait for 60 seconds before the next check
-        await asyncio.sleep(60)
+        await sleep(60)
 
 # Function to get a list of users that are active in chat
 async def fetch_active_users():
@@ -8089,7 +8092,7 @@ async def track_watch_time(active_users):
 async def check_song_requests():
     global SPOTIFY_ACCESS_TOKEN, song_requests
     while True:
-        await asyncio.sleep(180)
+        await sleep(180)
         if song_requests:
             headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
             queue_url = "https://api.spotify.com/v1/me/player/queue"
@@ -8150,7 +8153,7 @@ async def return_the_action_back(ctx, author, action):
 # Function to remove the temp user from the shoutout_user dict
 async def remove_shoutout_user(username: str, delay: int):
     global shoutout_user
-    await asyncio.sleep(delay)
+    await sleep(delay)
     if shoutout_user:
         chat_logger.info(f"Removed temporary shoutout data for {username}")
         shoutout_user = None
@@ -8167,10 +8170,10 @@ async def handle_upcoming_ads():
             last_notification_time, last_ad_time, last_snooze_count = await check_and_handle_ads(
                 channel, last_notification_time, last_ad_time, last_snooze_count
             )
-            await asyncio.sleep(60)  # Check every minute
+            await sleep(60)  # Check every minute
         except Exception as e:
             api_logger.error(f"Error in handle_upcoming_ads loop: {e}")
-            await asyncio.sleep(60)
+            await sleep(60)
 
 async def check_and_handle_ads(channel, last_notification_time, last_ad_time, last_snooze_count=None):
     global stream_online, CHANNEL_ID, CLIENT_ID, CHANNEL_AUTH
@@ -8255,7 +8258,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                     last_notification_time = None
                     last_ad_time = last_ad_at
                     # Schedule a check for the next ad after a brief delay
-                    asyncio.create_task(check_next_ad_after_completion(channel, ads_api_url, headers))
+                    create_task(check_next_ad_after_completion(channel, ads_api_url, headers))
                 # Log preroll free time for debugging
                 if preroll_free_time > 0:
                     api_logger.debug(f"Preroll free time remaining: {preroll_free_time} seconds")
@@ -8265,7 +8268,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
         return last_notification_time, last_ad_time, last_snooze_count
 
 async def check_next_ad_after_completion(channel, ads_api_url, headers):
-    await asyncio.sleep(300)  # Wait 5 minutes after ad completion
+    await sleep(300)  # Wait 5 minutes after ad completion
     try:
         async with httpClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
