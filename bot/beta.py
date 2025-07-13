@@ -20,8 +20,8 @@ import traceback
 import threading
 
 # Third-party imports
-import aiohttp
 from aiohttp import ClientSession as httpClientSession
+from aiohttp import ClientError as aiohttpClientError
 from socketio import AsyncClient as specterSocket
 from aiomysql import connect as sql_connect
 from aiomysql import IntegrityError as MySQLIntegrityError
@@ -1859,7 +1859,7 @@ class TwitchBot(commands.Bot):
                         ai_response = await response.text()
                         api_logger.info(f"AI response received: {ai_response}")
                         return ai_response
-            except aiohttp.ClientError as e:
+            except aiohttpClientError as e:
                 bot_logger.error(f"Error getting AI response: {e}")
                 return "Sorry, I could not understand your request."
         else:
@@ -5702,7 +5702,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, user_id):
                         twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
                     else:
                         twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
-        except aiohttp.ClientError as e:
+        except aiohttpClientError as e:
             twitch_logger.error(f"Error triggering shoutout: {e}")
 
 # Function to get the last stream category for a user to shoutout
@@ -7276,7 +7276,7 @@ async def convert_currency(amount, from_currency, to_currency):
                     api_logger.error(f"convert_currency Error: {error_message}")
                     sanitized_error = str(error_message).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
                     return f"Sorry, I got an error: {sanitized_error}"
-    except aiohttp.ClientError as e:
+    except aiohttpClientError as e:
         sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {sanitized_error}")
         raise
@@ -7987,7 +7987,7 @@ async def check_premium_feature():
                     return int(data["data"][0]["tier"])
                 else:
                     return 0  # Return 0 if not subscribed
-    except aiohttp.ClientError as e:
+    except aiohttpClientError as e:
         sanitized_message = str(e).replace(ADMIN_API_KEY, "[ADMIN_API_KEY]")
         twitch_logger.error(f"Error checking user/subscription: {sanitized_message}")
         return 0  # Return 0 for any API error
@@ -8011,7 +8011,7 @@ async def make_stream_marker(description: str):
                     return True
                 else:
                     return False
-    except aiohttp.ClientError as e:
+    except aiohttpClientError as e:
         twitch_logger.error(f"Error creating stream marker: {e}")
         return False
 
