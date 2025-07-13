@@ -25,7 +25,7 @@ import threading
 import aiohttp
 from aiohttp import ClientSession
 import socketio
-from socketio import AsyncClient as SocketClient
+from socketio import AsyncClient as specterSocket
 import aiomysql
 from deep_translator import GoogleTranslator
 from twitchio.ext import commands, routines
@@ -181,7 +181,6 @@ global websocket_connected
 translator = GoogleTranslator()                         # Translator instance 
 scheduled_tasks = set()                                 # Set for scheduled tasks
 shoutout_queue = Queue()                                # Queue for shoutouts
-specterSocket = SocketClient()                          # Socket client instance for specter
 ureg = UnitRegistry()                                   # Unit registry instance
 permitted_users = {}                                    # Dictionary for permitted users
 connected = set()                                       # Set for connected users
