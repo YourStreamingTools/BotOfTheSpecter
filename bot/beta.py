@@ -33,7 +33,7 @@ from geopy.geocoders import Nominatim
 from jokeapi import Jokes
 import websockets
 from pint import UnitRegistry
-import paramiko
+from paramiko import SSHClient, AutoAddPolicy
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -1230,8 +1230,8 @@ class SSHConnectionManager:
     async def _create_connection(self, server_name, hostname):
         try:
             self.logger.info(f"Creating new SSH connection to {server_name} ({hostname})")
-            ssh_client = paramiko.SSHClient()
-            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh_client = SSHClient()
+            ssh_client.set_missing_host_key_policy(AutoAddPolicy())
             # Connect with credentials
             connect_kwargs = {'hostname': hostname,'port': 22,'username': SSH_USERNAME,'password': SSH_PASSWORD,'timeout': 30}
             # Run connection in thread to avoid blocking
