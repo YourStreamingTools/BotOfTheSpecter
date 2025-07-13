@@ -1593,12 +1593,29 @@ class TicketCog(commands.Cog, name='Tickets'):
                             )
                         """)
                         self.logger.info("Ensured ticket_comments table exists")
-                        # Check if info_channel_id column exists in ticket_settings
+                        # Create ticket_settings table if it doesn't exist
+                        await cur.execute("""
+                            CREATE TABLE IF NOT EXISTS ticket_settings (
+                                guild_id VARCHAR(255) PRIMARY KEY,
+                                owner_id VARCHAR(255) NOT NULL,
+                                info_channel_id VARCHAR(255) DEFAULT NULL,
+                                category_id VARCHAR(255) NOT NULL,
+                                support_role_id VARCHAR(255) DEFAULT NULL,
+                                mod_channel_id VARCHAR(255) DEFAULT NULL,
+                                enabled BOOLEAN DEFAULT TRUE,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                INDEX idx_guild_id (guild_id),
+                                INDEX idx_enabled (enabled)
+                            )
+                        """)
+                        self.logger.info("Ensured ticket_settings table exists")
+                        # Check if info_channel_id column exists in ticket_settings (for migration)
                         await cur.execute("SHOW COLUMNS FROM ticket_settings LIKE 'info_channel_id'")
                         result = await cur.fetchone()
                         if not result:
-                            # Add the info_channel_id column if it doesn't exist
-                            await cur.execute("ALTER TABLE ticket_settings ADD COLUMN info_channel_id BIGINT DEFAULT NULL")
+                            # Add the info_channel_id column if it doesn't exist (for older installations)
+                            await cur.execute("ALTER TABLE ticket_settings ADD COLUMN info_channel_id VARCHAR(255) DEFAULT NULL")
                             self.logger.info("Added info_channel_id column to ticket_settings table")
                         else:
                             self.logger.debug("info_channel_id column already exists in ticket_settings table")
