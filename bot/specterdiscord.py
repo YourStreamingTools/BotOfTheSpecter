@@ -524,6 +524,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(TicketCog(self, self.logger))
         await self.add_cog(VoiceCog(self, self.logger))
         await self.add_cog(StreamerPostingCog(self, self.logger))
+        await self.add_cog(AdminCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
         self.websocket_listener = WebsocketListener(self, self.logger)
@@ -3352,6 +3353,189 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
     async def post_streams(self):
         self.logger.warning("post_streams() is deprecated, monitoring is now automatic via start_monitoring()")
         pass
+
+# Admin commands cog - restricted to bot owner
+class AdminCog(commands.Cog, name='Admin'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.admin_key = config.admin_key
+        self.api_base_url = config.api_base_url
+
+    def cog_check(self, ctx):
+        return ctx.author.id == config.bot_owner_id
+
+    @commands.command(name="checklinked")
+    async def check_linked_users(self, ctx):
+        if ctx.guild is None:
+            await ctx.send("This command can only be used in a server.")
+            return
+        # Restrict to StreamingTools server only
+        if ctx.guild.id != 1103694163930787880:
+            await ctx.send("❌ This command can only be used in the StreamingTools server.")
+            return
+        await self.perform_linked_check(ctx)
+
+    async def perform_linked_check(self, ctx):
+        # Send initial message
+        status_msg = await ctx.send("🔍 Checking linked users and assigning roles... This may take a while.")
+        # Get the WebsiteLinked role (we know it exists in StreamingTools server)
+        website_linked_role = ctx.guild.get_role(1393938902364061726)
+        linked_users = []
+        unlinked_users = []
+        error_users = []
+        roles_assigned = 0
+        roles_already_had = 0
+        total_users = 0
+        try:
+            # Get all members in the guild (excluding bots)
+            members = [member for member in ctx.guild.members if not member.bot]
+            total_users = len(members)
+            self.logger.info(f"Checking {total_users} users for link status in guild {ctx.guild.name}")
+            # Process users in batches to avoid rate limits
+            batch_size = 10
+            for i in range(0, len(members), batch_size):
+                batch = members[i:i + batch_size]
+                # Update status every 50 users
+                if i % 50 == 0:
+                    try:
+                        progress_text = f"🔍 Checking linked users and assigning roles... ({i}/{total_users} processed)"
+                        await status_msg.edit(content=progress_text)
+                    except:
+                        pass  # Ignore edit failures
+                # Check each user in the batch
+                tasks = []
+                for member in batch:
+                    tasks.append(self.check_user_link_status(member))
+                # Wait for all tasks in the batch to complete
+                batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+                # Process results
+                for j, result in enumerate(batch_results):
+                    member = batch[j]
+                    if isinstance(result, Exception):
+                        self.logger.error(f"Error checking user {member.display_name} ({member.id}): {result}")
+                        error_users.append(member)
+                    elif result is True:
+                        linked_users.append(member)
+                        # Assign role to linked user if they don't already have it
+                        if website_linked_role:
+                            if website_linked_role not in member.roles:
+                                try:
+                                    await member.add_roles(website_linked_role, reason="Verified as linked to website")
+                                    roles_assigned += 1
+                                    self.logger.info(f"Assigned WebsiteLinked role to {member.display_name} ({member.id})")
+                                except Exception as role_error:
+                                    self.logger.error(f"Failed to assign role to {member.display_name}: {role_error}")
+                            else:
+                                roles_already_had += 1
+                    elif result is False:
+                        unlinked_users.append(member)
+                    else:
+                        error_users.append(member)
+                # Small delay between batches to be respectful to the API
+                await asyncio.sleep(0.5)
+            # Create summary embed
+            embed = discord.Embed(
+                title="🔗 Linked Users Check Results",
+                color=config.bot_color,
+                timestamp=datetime.now(timezone.utc)
+            )
+            summary_text = (f"**Total Users:** {total_users}\n"
+                          f"**Linked:** {len(linked_users)}\n"
+                          f"**Unlinked:** {len(unlinked_users)}\n"
+                          f"**Errors:** {len(error_users)}\n"
+                          f"\n**Role Assignment:**\n"
+                          f"**Roles Assigned:** {roles_assigned}\n"
+                          f"**Already Had Role:** {roles_already_had}")
+            embed.add_field(
+                name="📊 Summary",
+                value=summary_text,
+                inline=False
+            )
+            # Add linked users (limit to prevent embed size issues)
+            if linked_users:
+                linked_list = []
+                for user in linked_users[:20]:  # Limit to first 20
+                    linked_list.append(f"• {user.display_name} ({user.id})")
+                linked_text = "\n".join(linked_list)
+                if len(linked_users) > 20:
+                    linked_text += f"\n... and {len(linked_users) - 20} more"
+                embed.add_field(
+                    name="✅ Linked Users",
+                    value=linked_text if linked_text else "None",
+                    inline=False
+                )
+            # Add unlinked users (limit to prevent embed size issues)
+            if unlinked_users:
+                unlinked_list = []
+                for user in unlinked_users[:20]:  # Limit to first 20
+                    unlinked_list.append(f"• {user.display_name} ({user.id})")
+                unlinked_text = "\n".join(unlinked_list)
+                if len(unlinked_users) > 20:
+                    unlinked_text += f"\n... and {len(unlinked_users) - 20} more"
+                embed.add_field(
+                    name="❌ Unlinked Users",
+                    value=unlinked_text if unlinked_text else "None",
+                    inline=False
+                )
+            # Add errors if any
+            if error_users:
+                error_list = []
+                for user in error_users[:10]:  # Limit to first 10
+                    error_list.append(f"• {user.display_name} ({user.id})")
+                error_text = "\n".join(error_list)
+                if len(error_users) > 10:
+                    error_text += f"\n... and {len(error_users) - 10} more"
+                embed.add_field(
+                    name="⚠️ Errors",
+                    value=error_text,
+                    inline=False
+                )
+            embed.set_footer(text=f"Checked by {ctx.author.display_name}")
+            # Delete status message and send results
+            try:
+                await status_msg.delete()
+            except:
+                pass  # Ignore delete failures
+            await ctx.send(embed=embed)
+            completion_msg = f"Link check completed: {len(linked_users)} linked, {len(unlinked_users)} unlinked, {len(error_users)} errors, {roles_assigned} roles assigned"
+            self.logger.info(completion_msg)
+        except Exception as e:
+            self.logger.error(f"Error in check_linked_users command: {e}")
+            try:
+                await status_msg.edit(content=f"❌ An error occurred while checking users: {e}")
+            except:
+                await ctx.send(f"❌ An error occurred while checking users: {e}")
+
+    async def check_user_link_status(self, member):
+        try:
+            url = f"{self.api_base_url}/discord/linked"
+            params = {
+                'api_key': self.admin_key,
+                'user_id': member.id
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params, timeout=10) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data.get('linked', False)
+                    else:
+                        self.logger.warning(f"API returned status {response.status} for user {member.id}")
+                        return None
+        except asyncio.TimeoutError:
+            self.logger.warning(f"Timeout checking link status for user {member.id}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error checking link status for user {member.id}: {e}")
+            return None
+
+    @check_linked_users.error
+    async def check_linked_users_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("❌ This command can only be used by the bot owner.")
+        else:
+            self.logger.error(f"Error in checklinked command: {error}")
+            await ctx.send("❌ An error occurred while processing the command.")
 
 # ChannelManagementCog class
 class DiscordChannelResolver:
