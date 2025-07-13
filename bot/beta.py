@@ -27,7 +27,7 @@ from socketio import AsyncClient as specterSocket
 import aiomysql
 from deep_translator import GoogleTranslator as translator
 from twitchio.ext import commands, routines
-import streamlink
+from streamlink import Streamlink
 import pytz
 from geopy.geocoders import Nominatim
 from jokeapi import Jokes
@@ -6488,7 +6488,7 @@ async def convert_to_raw_audio(in_file, out_file):
 
 async def record_stream(outfile):
     try:
-        session = streamlink.Streamlink()
+        session = Streamlink()
         session.set_option("http-headers", {"Authorization": f"OAuth {TWITCH_GQL}"})
         streams = session.streams(f"https://twitch.tv/{CHANNEL_NAME}")
         if len(streams) == 0 or "worst" not in streams.keys():
