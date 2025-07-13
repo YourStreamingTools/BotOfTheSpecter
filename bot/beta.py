@@ -1,23 +1,12 @@
 # Standard library imports
-import os
-import re
+import os, re, sys, ast, signal, argparse, traceback
+import json, time, random, base64, uuid, threading
 import asyncio
 from asyncio import Queue, subprocess
-import argparse
 from datetime import datetime, timezone, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
-import json
-import time
-import random
-import base64
-import uuid
 from urllib.parse import urlencode
-import ast
-import signal
-import sys
-import traceback
-import threading
 
 # Third-party imports
 import websockets
