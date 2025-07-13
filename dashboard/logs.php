@@ -161,7 +161,6 @@ ob_start();
               <option value="chat_history" <?php echo $logType === 'chat_history' ? 'selected' : ''; ?>><?php echo t('logs_type_chat_history'); ?></option>
               <option value="event_log" <?php echo $logType === 'event_log' ? 'selected' : ''; ?>><?php echo t('logs_type_event_log'); ?></option>
               <option value="websocket" <?php echo $logType === 'websocket' ? 'selected' : ''; ?>><?php echo t('logs_type_websocket'); ?></option>
-              <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>><?php echo t('logs_type_discord'); ?></option>
             </select>
           </div>
         </div>
