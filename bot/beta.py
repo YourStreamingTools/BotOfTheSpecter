@@ -21,7 +21,7 @@ import threading
 
 # Third-party imports
 import aiohttp
-from aiohttp import ClientSession
+from aiohttp import ClientSession as httpClientSession
 import socketio
 from socketio import AsyncClient as specterSocket
 import aiomysql
@@ -289,7 +289,7 @@ async def refresh_twitch_token(current_refresh_token):
         'client_secret': CLIENT_SECRET,
     }
     try:
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.post(url, data=body) as response:
                 if response.status == 200:
                     response_json = await response.json()
@@ -377,7 +377,7 @@ async def refresh_spotify_token(current_refresh_token, user_id):
         "client_secret": SPOTIFY_CLIENT_SECRET,
     }
     try:
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.post(url, data=data) as response:
                 if response.status == 200:
                     tokens = await response.json()
@@ -466,7 +466,7 @@ async def subscribe_to_events(session_id):
         "channel.update"
     ]
     responses = []
-    async with aiohttp.ClientSession() as v1topic_session:
+    async with httpClientSession() as v1topic_session:
         for v1topic in v1topics:
             if v1topic == "channel.raid":
                 payload = {
@@ -549,7 +549,7 @@ async def subscribe_to_events(session_id):
                 if response.status in (200, 202):
                     responses.append(await response.json())
                     twitch_logger.info(f"Subscribed to {v1topic} successfully.")
-    async with aiohttp.ClientSession() as v2topic_session:
+    async with httpClientSession() as v2topic_session:
         for v2topic in v2topics:
             if v2topic == "channel.follow":
                 payload = {
@@ -1846,7 +1846,7 @@ class TwitchBot(commands.Bot):
         if premium_tier in (2000, 3000, 4000) or message_author_name.lower() == bot_owner.lower():
             # Premium feature access granted or bot owner access
             try:
-                async with aiohttp.ClientSession() as session:
+                async with httpClientSession() as session:
                     payload = {
                         "message": user_message,
                         "channel": CHANNEL_NAME,
@@ -2108,7 +2108,7 @@ class TwitchBot(commands.Bot):
                         if not location:
                             location = await get_streamer_weather()
                         if location:
-                            async with aiohttp.ClientSession() as session:
+                            async with httpClientSession() as session:
                                 response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
                                 result = await response.json()
                                 if "detail" in result and "404: Location" in result["detail"]:
@@ -2274,7 +2274,7 @@ class TwitchBot(commands.Bot):
                                 return
                             timezone_api_key = os.getenv('TIMEZONE_API')
                             timezone_url = f"http://api.timezonedb.com/v2.1/get-time-zone?key={timezone_api_key}&format=json&by=position&lat={location_data.latitude}&lng={location_data.longitude}"
-                            async with aiohttp.ClientSession() as session:
+                            async with httpClientSession() as session:
                                 async with session.get(timezone_url) as response:
                                     if response.status != 200:
                                         await ctx.send(f"Could not retrieve time information from the API.")
@@ -2678,7 +2678,7 @@ class TwitchBot(commands.Bot):
                 # Extract the track ID from the URL or URI
                 track_id = spotify_url_match.group(1) if spotify_url_match else spotify_uri_match.group(1)
                 track_url = f"https://api.spotify.com/v1/tracks/{track_id}"
-                async with aiohttp.ClientSession() as track_session:
+                async with httpClientSession() as track_session:
                     async with track_session.get(track_url, headers=headers) as response:
                         if response.status == 200:
                             track_data = await response.json()
@@ -2700,7 +2700,7 @@ class TwitchBot(commands.Bot):
                 # Use search as before for non-URL requests
                 search = message_content.replace(" ", "%20")
                 search_url = f"https://api.spotify.com/v1/search?q={search}&type=track&limit=1"
-                async with aiohttp.ClientSession() as search_session:
+                async with httpClientSession() as search_session:
                     async with search_session.get(search_url, headers=headers) as response:
                         if response.status == 200:
                             data = await response.json()
@@ -2724,7 +2724,7 @@ class TwitchBot(commands.Bot):
                             await ctx.send(f"Sorry, I couldn't add the song to the queue. {error_message}")
                             return
             request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
-            async with aiohttp.ClientSession() as queue_session:
+            async with httpClientSession() as queue_session:
                 async with queue_session.post(request_url, headers=headers) as response:
                     if response.status == 200:
                         await ctx.send(f"The song {song_name} by {artist_name} has been added to the queue.")
@@ -2758,7 +2758,7 @@ class TwitchBot(commands.Bot):
                     return
             headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
             device_url = "https://api.spotify.com/v1/me/player/devices"
-            async with aiohttp.ClientSession() as session:
+            async with httpClientSession() as session:
                 async with session.get(device_url, headers=headers) as response:
                     if response.status != 200:
                         active_devices = response.json()
@@ -2810,7 +2810,7 @@ class TwitchBot(commands.Bot):
             # Request the queue information from Spotify
             headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
             queue_url = "https://api.spotify.com/v1/me/player/queue"
-            async with aiohttp.ClientSession() as queue_session:
+            async with httpClientSession() as queue_session:
                 async with queue_session.get(queue_url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -3277,7 +3277,7 @@ class TwitchBot(commands.Bot):
                         params = {
                             'count': 1
                         }
-                        async with aiohttp.ClientSession() as session:
+                        async with httpClientSession() as session:
                             async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
                                 if response.status == 200:
                                     data = await response.json()
@@ -3332,7 +3332,7 @@ class TwitchBot(commands.Bot):
                         params = {
                             'user_id': user_id
                         }
-                        async with aiohttp.ClientSession() as session:
+                        async with httpClientSession() as session:
                             async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
                                 if response.status == 200:
                                     data = await response.json()
@@ -3605,7 +3605,7 @@ class TwitchBot(commands.Bot):
                     params = {
                         "broadcaster_id": CHANNEL_ID
                     }
-                    async with aiohttp.ClientSession() as session:
+                    async with httpClientSession() as session:
                         async with session.post('https://api.twitch.tv/helix/clips', headers=headers, params=params) as clip_response:
                             if clip_response.status == 202:
                                 clip_data = await clip_response.json()
@@ -3691,7 +3691,7 @@ class TwitchBot(commands.Bot):
                             "2000": "Tier 2",
                             "3000": "Tier 3"
                         }
-                        async with aiohttp.ClientSession() as session:
+                        async with httpClientSession() as session:
                             async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
                                 if subscription_response.status == 200:
                                     subscription_data = await subscription_response.json()
@@ -3747,7 +3747,7 @@ class TwitchBot(commands.Bot):
                             'type': 'live'
                         }
                         try:
-                            async with aiohttp.ClientSession() as session:
+                            async with httpClientSession() as session:
                                 async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
                                     if response.status == 200:
                                         data = await response.json()
@@ -3986,7 +3986,7 @@ class TwitchBot(commands.Bot):
                 else:
                     raise FileNotFoundError  # Force fetching fresh data
             except (FileNotFoundError, OSError):
-                async with aiohttp.ClientSession() as session:
+                async with httpClientSession() as session:
                     response = await session.get("http://api.steampowered.com/ISteamApps/GetAppList/v2")
                     if response.status == 200:
                         data = await response.json()
@@ -4236,7 +4236,7 @@ class TwitchBot(commands.Bot):
                             'user_id': ctx.author.id,
                             'broadcaster_id': CHANNEL_ID
                         }
-                    async with aiohttp.ClientSession() as session:
+                    async with httpClientSession() as session:
                         async with session.get('https://api.twitch.tv/helix/channels/followers', headers=headers, params=params) as response:
                             if response.status == 200:
                                 data = await response.json()
@@ -4310,7 +4310,7 @@ class TwitchBot(commands.Bot):
                     'first': '3'
                 }
                 try:
-                    async with aiohttp.ClientSession() as session:
+                    async with httpClientSession() as session:
                         async with session.get('https://api.twitch.tv/helix/schedule', headers=headers, params=params) as response:
                             if response.status == 200:
                                 data = await response.json()
@@ -4390,7 +4390,7 @@ class TwitchBot(commands.Bot):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
                 API_URL = "https://api.botofthespecter.com/versions"
-                async with ClientSession() as session:
+                async with httpClientSession() as session:
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
                         if response.status == 200:
                             data = await response.json()
@@ -4774,7 +4774,7 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
-                async with aiohttp.ClientSession() as session:
+                async with httpClientSession() as session:
                     async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
                         if response.status == 200:
                             data = await response.json()
@@ -5325,7 +5325,7 @@ async def is_valid_twitch_user(user_name):
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
                 data = await response.json()
@@ -5346,7 +5346,7 @@ async def get_display_name(user_id):
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
                 data = await response.json()
@@ -5399,7 +5399,7 @@ async def command_permissions(setting, user):
             "broadcaster_id": CHANNEL_ID,
             "user_id": user_id
         }
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
                 if subscription_response.status == 200:
                     subscription_data = await subscription_response.json()
@@ -5428,7 +5428,7 @@ async def is_user_mod(user_id):
         "broadcaster_id": CHANNEL_ID,
         "user_id": user_id
     }
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.get('https://api.twitch.tv/helix/moderation/moderators', headers=headers, params=params) as response:
             if response.status == 200:
                 data = await response.json()
@@ -5451,7 +5451,7 @@ async def is_user_vip(user_id):
         "broadcaster_id": CHANNEL_ID,
         "user_id": user_id
     }
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.get('https://api.twitch.tv/helix/channels/vips', headers=headers, params=params) as response:
             if response.status == 200:
                 data = await response.json()
@@ -5479,7 +5479,7 @@ async def is_user_subscribed(user_id):
         "2000": "Tier 2",
         "3000": "Tier 3"
     }
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
             if subscription_response.status == 200:
                 subscription_data = await subscription_response.json()
@@ -5506,7 +5506,7 @@ async def user_is_seen(username):
 # Function to fetch custom API responses
 async def fetch_api_response(url, json_flag=False):
     try:
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
                     if json_flag:
@@ -5588,7 +5588,7 @@ async def trigger_twitch_title_update(new_title):
         "broadcaster_id": CHANNEL_ID,
         "title": new_title
     }
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.patch(url, headers=headers, json=params) as response:
             if response.status == 200:
                 twitch_logger.info(f'Stream title updated to: {new_title}')
@@ -5608,7 +5608,7 @@ async def update_twitch_game(game_name: str):
         "Content-Type": "application/json",
     }
     # Fetch game ID using internal API
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         # Call internal API to get the game ID
         params = {
             "api_key": API_TOKEN,
@@ -5694,7 +5694,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, user_id):
             "moderator_id": bot_id
         }
         try:
-            async with aiohttp.ClientSession() as session:
+            async with httpClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as response:
                     if response.status in (200, 204):
                         twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
@@ -5713,7 +5713,7 @@ async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
     params = {
         'broadcaster_id': broadcaster_id
     }
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.get('https://api.twitch.tv/helix/channels', headers=headers, params=params) as response:
             if response.status == 200:
                 data = await response.json()
@@ -5735,7 +5735,7 @@ async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
 # Function to process JSON requests
 async def fetch_json(url, headers=None):
     try:
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
                     if "json" in response.headers.get("Content-Type", ""):
@@ -5972,7 +5972,7 @@ async def process_stream_online_websocket():
     await generate_winning_lotto_numbers()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -6330,7 +6330,7 @@ async def send_timed_message(message_id, message, delay):
 async def get_spotify_current_song():
     global SPOTIFY_ACCESS_TOKEN, SPOTIFY_ERROR_MESSAGES, song_requests
     headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers) as response:
             if response.status == 200:
                 data = await response.json()
@@ -6428,7 +6428,7 @@ async def twitch_gql_token_valid():
                 }
             }
         ]
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.post(url, headers=headers, json=data, timeout=10) as response:
                 # Log the status code received
                 api_logger.info(f"Twitch GQL token validation response status code: {response.status}")
@@ -6453,7 +6453,7 @@ async def shazam_detect_song(raw_audio_b64):
         }
         # Convert base64 encoded audio to bytes
         audio_bytes = raw_audio_b64
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15) as response:
                 # Check requests remaining for the API
                 if "x-ratelimit-requests-remaining" in response.headers:
@@ -7023,7 +7023,7 @@ async def ban_user(username, user_id, use_streamer=False):
         }
     }
     # Perform the ban request
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.post(ban_url, headers=headers, json=data) as response:
             if response.status == 200:
                 twitch_logger.info(f"{username} has been banned for sending a spam message in chat.")
@@ -7040,7 +7040,7 @@ async def websocket_notice(
     connection = await mysql_connection()
     try:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
-            async with ClientSession() as session:
+            async with httpClientSession() as session:
                 params = {
                     'code': API_TOKEN,
                     'event': event
@@ -7209,7 +7209,7 @@ async def check_stream_online():
     connection = await mysql_connection()
     try:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
-            async with aiohttp.ClientSession() as session:
+            async with httpClientSession() as session:
                 headers = {
                     'Client-ID': CLIENT_ID,
                     'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -7249,7 +7249,7 @@ async def convert_currency(amount, from_currency, to_currency):
     global EXCHANGE_RATE_API_KEY
     url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/pair/{from_currency}/{to_currency}/{amount}"
     try:
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.get(url) as response:
                 response.raise_for_status()
                 data = await response.json()
@@ -7402,7 +7402,7 @@ async def channel_point_rewards():
         # Get MySQL connection
         connection = await mysql_connection()
         async with connection.cursor(aiomysql.DictCursor) as cursor:
-            async with aiohttp.ClientSession() as session:
+            async with httpClientSession() as session:
                 # Fetch broadcaster info
                 async with session.get(user_api_url, headers=headers) as user_response:
                     if user_response.status == 200:
@@ -7508,7 +7508,7 @@ async def generate_user_lotto_numbers(user_name):
 # Function to fetch a random fortune
 async def tell_fortune():
     url = f"https://api.botofthespecter.com/fortune?api_key={API_TOKEN}"
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         async with session.get(url) as response:
             if response.status == 200:
                 fortune_data = await response.json()
@@ -7921,7 +7921,7 @@ async def known_users():
             "Client-Id": CLIENT_ID,
             "Content-Type": "application/json"
         }
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             # Get all the mods and put them into the database
             url_mods = f'https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={CHANNEL_ID}'
             async with session.get(url_mods, headers=headers) as response:
@@ -7963,7 +7963,7 @@ async def check_premium_feature():
             "Client-ID": CLIENT_ID,
             "Authorization": f"Bearer {CHANNEL_AUTH}",
         }
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             # Check Display Name and get Auth List from Specter API
             async with session.get(twitch_user_url, headers=headers) as response:
                 response.raise_for_status()
@@ -8003,7 +8003,7 @@ async def make_stream_marker(description: str):
         "Content-Type": "application/json"
     }
     try:
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.post('https://api.twitch.tv/helix/streams/markers', headers=headers, json=payload) as marker_response:
                 if marker_response.status == 200:
                     return True
@@ -8042,7 +8042,7 @@ async def fetch_active_users():
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
     url = f"https://api.twitch.tv/helix/chat/chatters?broadcaster_id={CHANNEL_ID}&moderator_id={CHANNEL_ID}"
-    async with aiohttp.ClientSession() as session:
+    async with httpClientSession() as session:
         try:
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
@@ -8102,7 +8102,7 @@ async def check_song_requests():
         if song_requests:
             headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
             queue_url = "https://api.spotify.com/v1/me/player/queue"
-            async with aiohttp.ClientSession() as session:
+            async with httpClientSession() as session:
                 async with session.get(queue_url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -8188,7 +8188,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
     if not stream_online:
         return last_notification_time, last_ad_time, last_snooze_count
     try:
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
                 if response.status != 200:
                     api_logger.warning(f"Failed to fetch ad data. Status: {response.status}")
@@ -8276,7 +8276,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
 async def check_next_ad_after_completion(channel, ads_api_url, headers):
     await asyncio.sleep(300)  # Wait 5 minutes after ad completion
     try:
-        async with aiohttp.ClientSession() as session:
+        async with httpClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
                 if response.status != 200:
                     api_logger.warning(f"Failed to fetch next ad data after completion. Status: {response.status}")
