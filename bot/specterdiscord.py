@@ -1538,11 +1538,45 @@ class TicketCog(commands.Cog, name='Tickets'):
                 db='specterdiscordbot',
                 autocommit=True
             )
-            # Ensure the info_channel_id column exists in ticket_settings table
+            # Ensure required tables exist
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     try:
-                        # Check if info_channel_id column exists
+                        # Create tickets table if it doesn't exist
+                        await cur.execute("""
+                            CREATE TABLE IF NOT EXISTS tickets (
+                                ticket_id INT AUTO_INCREMENT PRIMARY KEY,
+                                guild_id VARCHAR(255) NOT NULL,
+                                user_id VARCHAR(255) NOT NULL,
+                                username VARCHAR(255) NOT NULL,
+                                issue TEXT,
+                                status VARCHAR(50) DEFAULT 'open',
+                                channel_id VARCHAR(255),
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                closed_at TIMESTAMP NULL,
+                                INDEX idx_guild_ticket (guild_id, ticket_id),
+                                INDEX idx_user (user_id),
+                                INDEX idx_status (status)
+                            )
+                        """)
+                        self.logger.info("Ensured tickets table exists")
+                        # Create ticket_history table if it doesn't exist
+                        await cur.execute("""
+                            CREATE TABLE IF NOT EXISTS ticket_history (
+                                history_id INT AUTO_INCREMENT PRIMARY KEY,
+                                ticket_id INT NOT NULL,
+                                user_id VARCHAR(255) NOT NULL,
+                                username VARCHAR(255) NOT NULL,
+                                action VARCHAR(100) NOT NULL,
+                                details TEXT,
+                                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                INDEX idx_ticket_id (ticket_id),
+                                INDEX idx_timestamp (timestamp),
+                                FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id) ON DELETE CASCADE
+                            )
+                        """)
+                        self.logger.info("Ensured ticket_history table exists")
+                        # Check if info_channel_id column exists in ticket_settings
                         await cur.execute("SHOW COLUMNS FROM ticket_settings LIKE 'info_channel_id'")
                         result = await cur.fetchone()
                         if not result:
@@ -1552,7 +1586,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                         else:
                             self.logger.debug("info_channel_id column already exists in ticket_settings table")
                     except Exception as e:
-                        self.logger.error(f"Error checking/adding info_channel_id column: {e}")
+                        self.logger.error(f"Error ensuring ticket database tables: {e}")
 
     async def validate_ticket_command_channel(self, ctx, action):
         if action != "create":
@@ -1560,14 +1594,14 @@ class TicketCog(commands.Cog, name='Tickets'):
         settings = await self.get_settings(ctx.guild.id)
         if not settings or not settings.get('info_channel_id'):
             return True  # No restrictions if no info channel is set
-        if ctx.channel.id != settings['info_channel_id']:
+        if str(ctx.channel.id) != str(settings['info_channel_id']):
             # Remove the command message
             try:
                 await ctx.message.delete()
             except discord.NotFound:
                 pass
             # Get the info channel
-            info_channel = ctx.guild.get_channel(settings['info_channel_id'])
+            info_channel = ctx.guild.get_channel(int(settings['info_channel_id']))
             if info_channel:
                 # Send warning message with channel mention
                 await ctx.send(
@@ -1618,11 +1652,11 @@ class TicketCog(commands.Cog, name='Tickets'):
         if not settings:
             raise ValueError("Ticket system not set up")
         guild = self.bot.get_guild(guild_id)
-        category = guild.get_channel(settings['category_id'])
+        category = guild.get_channel(int(settings['category_id']))
         user = guild.get_member(user_id)
         if user is None:
             user = await guild.fetch_member(user_id)
-        support_role = guild.get_role(settings['support_role_id']) if settings.get('support_role_id') else None
+        support_role = guild.get_role(int(settings['support_role_id'])) if settings.get('support_role_id') else None
         # Create the ticket channel
         channel = await guild.create_text_channel(
             name=f"ticket-{ticket_id}",
@@ -1725,7 +1759,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     await closed_category.set_permissions(channel.guild.default_role, read_messages=False)
                     # Give owner access if they exist in settings
                     if settings.get('owner_id'):
-                        owner = channel.guild.get_member(settings['owner_id'])
+                        owner = channel.guild.get_member(int(settings['owner_id']))
                         if owner:
                             await closed_category.set_permissions(owner, read_messages=True, send_messages=False)
                 # Remove ticket creator's access
@@ -1822,7 +1856,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 settings = await self.get_settings(ctx.guild.id)
                 support_role = None
                 if settings and settings.get('support_role_id'):
-                    support_role = ctx.guild.get_role(settings['support_role_id'])
+                    support_role = ctx.guild.get_role(int(settings['support_role_id']))
                     if support_role and support_role not in ctx.author.roles:
                         # Send closure message in channel
                         embed = discord.Embed(
