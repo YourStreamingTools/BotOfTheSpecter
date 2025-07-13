@@ -533,7 +533,7 @@ class ChannelMapping:
                 'guild_id': discord_row['guild_id'],
                 'guild_name': None,
                 'channel_id': discord_row['live_channel_id'],
-                'channel_name': None,
+                'channel_name': f"live-{user_row['username'].lower()}",
                 'stream_alert_channel_id': discord_row.get('stream_alert_channel_id'),
                 'moderation_channel_id': discord_row.get('moderation_channel_id'),
                 'alert_channel_id': discord_row.get('alert_channel_id'),
@@ -549,6 +549,24 @@ class ChannelMapping:
 
     async def _insert_mapping(self, mapping_data):
         try:
+            # Ensure all required fields have safe default values
+            safe_mapping_data = {
+                'channel_code': mapping_data.get('channel_code'),
+                'user_id': mapping_data.get('user_id'),
+                'username': mapping_data.get('username'),
+                'twitch_display_name': mapping_data.get('twitch_display_name'),
+                'twitch_user_id': mapping_data.get('twitch_user_id'),
+                'guild_id': mapping_data.get('guild_id'),
+                'guild_name': mapping_data.get('guild_name'),
+                'channel_id': mapping_data.get('channel_id'),
+                'channel_name': mapping_data.get('channel_name'),
+                'stream_alert_channel_id': mapping_data.get('stream_alert_channel_id'),
+                'moderation_channel_id': mapping_data.get('moderation_channel_id'),
+                'alert_channel_id': mapping_data.get('alert_channel_id'),
+                'online_text': mapping_data.get('online_text'),
+                'offline_text': mapping_data.get('offline_text')
+            }
+            
             # Use enhanced schema since we ensure it exists
             await self.mysql.execute(
                 """REPLACE INTO channel_mappings 
@@ -558,12 +576,12 @@ class ChannelMapping:
                     is_active, event_count, last_seen_at, created_at, updated_at)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 0, NOW(), NOW(), NOW())""",
                 (
-                    mapping_data['channel_code'], mapping_data.get('user_id'), mapping_data.get('username'),
-                    mapping_data.get('twitch_display_name'), mapping_data.get('twitch_user_id'),
-                    mapping_data['guild_id'], mapping_data.get('guild_name'), mapping_data['channel_id'], 
-                    mapping_data.get('channel_name'), mapping_data.get('stream_alert_channel_id'), 
-                    mapping_data.get('moderation_channel_id'), mapping_data.get('alert_channel_id'), 
-                    mapping_data.get('online_text'), mapping_data.get('offline_text')
+                    safe_mapping_data['channel_code'], safe_mapping_data['user_id'], safe_mapping_data['username'],
+                    safe_mapping_data['twitch_display_name'], safe_mapping_data['twitch_user_id'],
+                    safe_mapping_data['guild_id'], safe_mapping_data['guild_name'], safe_mapping_data['channel_id'], 
+                    safe_mapping_data['channel_name'], safe_mapping_data['stream_alert_channel_id'], 
+                    safe_mapping_data['moderation_channel_id'], safe_mapping_data['alert_channel_id'], 
+                    safe_mapping_data['online_text'], safe_mapping_data['offline_text']
                 ),
                 database_name='specterdiscordbot'
             )
@@ -574,10 +592,12 @@ class ChannelMapping:
             self.logger.error(f"Error inserting mapping to DB: {e}")
             # Fallback to basic schema if enhanced schema fails
             try:
+                # Provide safe defaults for basic schema
+                fallback_channel_name = mapping_data.get('channel_name') or mapping_data.get('username') or 'Unknown'
                 await self.mysql.execute(
                     "REPLACE INTO channel_mappings (channel_code, guild_id, channel_id, channel_name) VALUES (%s, %s, %s, %s)",
                     (mapping_data['channel_code'], mapping_data['guild_id'], mapping_data['channel_id'], 
-                     mapping_data.get('channel_name', 'Unknown')),
+                     fallback_channel_name),
                     database_name='specterdiscordbot'
                 )
                 self.logger.debug(f"Inserted mapping using basic schema fallback for {mapping_data['channel_code']}")
