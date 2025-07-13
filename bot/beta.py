@@ -2,10 +2,8 @@
 import os
 import re
 import asyncio
-from asyncio import Queue
-from asyncio import subprocess
+from asyncio import Queue, subprocess
 import argparse
-import datetime
 from datetime import datetime, timezone, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
