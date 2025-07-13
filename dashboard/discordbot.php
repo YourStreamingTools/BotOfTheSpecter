@@ -551,10 +551,20 @@ ob_start();
               <?php echo t('discordbot_linked_desc'); ?>
             </p>
             <?php if ($expires_str): ?>
-              <div class="notification is-info is-light" style="border-radius: 8px; margin: 0 auto;">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin: 0 auto; margin-bottom: 1rem;">
                 <p><strong>Token Status:</strong> Your current active Discord token will remain valid for <strong><?php echo htmlspecialchars($expires_str) ?></strong> until it automatically renews.</p>
               </div>
             <?php endif; ?>
+            <!-- Invite Bot Button -->
+            <div class="has-text-centered mb-4">
+              <button class="button is-primary is-medium" onclick="inviteBot()" style="border-radius: 8px; font-weight: 600;">
+                <span class="icon"><i class="fas fa-plus-circle"></i></span>
+                <span>Invite Bot to Your Server</span>
+              </button>
+              <p class="help has-text-grey-light mt-2">
+                Add BotOfTheSpecter to your Discord server to enable all features
+              </p>
+            </div>
           </div>
           <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { ?>
             <?php if ($buildStatus) { ?>
@@ -959,6 +969,17 @@ function removeStreamer(username) {
         form.submit();
       }
     });
+  }
+  
+  function inviteBot() {
+    // Discord bot invite URL with necessary permissions
+    const botInviteURL = 'https://discord.com/oauth2/authorize' +
+      '?client_id=1170683250797187132' +
+      '&permissions=581651049737302' +
+      '&integration_type=0' +
+      '&scope=bot';
+    
+    window.open(botInviteURL, '_blank');
   }
 </script>
 <?php } ?>
