@@ -20,6 +20,7 @@ import traceback
 import threading
 
 # Third-party imports
+import websockets
 from aiohttp import ClientSession as httpClientSession
 from aiohttp import ClientError as aiohttpClientError
 from socketio import AsyncClient as specterSocket
@@ -35,8 +36,7 @@ import pytz as set_timezone
 from pytz import timezone as pytz_timezone
 from geopy.geocoders import Nominatim
 from jokeapi import Jokes
-import websockets
-from pint import UnitRegistry
+from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 
 # Load environment variables from .env file
@@ -182,7 +182,6 @@ global websocket_connected
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 scheduled_tasks = set()                                 # Set for scheduled tasks
 shoutout_queue = Queue()                                # Queue for shoutouts
-ureg = UnitRegistry()                                   # Unit registry instance
 permitted_users = {}                                    # Dictionary for permitted users
 connected = set()                                       # Set for connected users
 pending_removals = {}                                   # Dictionary for pending removals
