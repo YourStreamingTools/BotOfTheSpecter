@@ -25,7 +25,7 @@ from aiohttp import ClientSession as httpClientSession
 import socketio
 from socketio import AsyncClient as specterSocket
 import aiomysql
-from deep_translator import GoogleTranslator
+from deep_translator import GoogleTranslator as translator
 from twitchio.ext import commands, routines
 import streamlink
 import pytz
@@ -176,7 +176,6 @@ global last_message_time
 global websocket_connected
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
-translator = GoogleTranslator()                         # Translator instance 
 scheduled_tasks = set()                                 # Set for scheduled tasks
 shoutout_queue = Queue()                                # Queue for shoutouts
 ureg = UnitRegistry()                                   # Unit registry instance
@@ -3235,7 +3234,7 @@ class TwitchBot(commands.Bot):
                             if len(message.strip()) < 5:
                                 await ctx.send("The provided message is too short for reliable translation.")
                                 return
-                            translate_message = GoogleTranslator(source='auto', target='en').translate(text=message)
+                            translate_message = translator(source='auto', target='en').translate(text=message)
                             await ctx.send(f"Translation: {translate_message}")
                         except AttributeError as ae:
                             chat_logger.error(f"AttributeError: {ae}")
