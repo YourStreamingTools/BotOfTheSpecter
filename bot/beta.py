@@ -22,10 +22,10 @@ import threading
 # Third-party imports
 import aiohttp
 from aiohttp import ClientSession as httpClientSession
-import socketio
 from socketio import AsyncClient as specterSocket
 from aiomysql import connect as sql_connect
 from aiomysql import IntegrityError as MySQLIntegrityError
+from socketio.exceptions import ConnectionError as ConnectionExecptionError
 from aiomysql import DictCursor, MySQLError
 from aiomysql import Error as MySQLOtherErrors
 from deep_translator import GoogleTranslator as translator
@@ -1035,7 +1035,7 @@ async def specter_websocket():
             websocket_connected = False  # Reset flag before attempting connection
             await specterSocket.connect(specter_websocket_uri)
             await specterSocket.wait()  # Keep the connection open to receive messages
-        except socketio.exceptions.ConnectionError as e:
+        except ConnectionExecptionError as e:
             bot_logger.error(f"Internal WebSocket Connection Failed: {e}")
             websocket_connected = False  # Set flag to false on connection failure
             await asyncio.sleep(10)  # Wait and retry connection
