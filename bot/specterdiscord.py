@@ -486,10 +486,8 @@ class BotOfTheSpecter(commands.Bot):
                     self.logger.debug(f"Stream status for {normalized_channel_name}: {status} -> {is_online}")
                     return is_online
             except Exception as e:
-                self.logger.error(f"Error reading stream status file for {normalized_channel_name}: {e}")
                 return False
         else:
-            self.logger.warning(f"Stream status file not found for {normalized_channel_name}: {status_file_path}")
             return False
 
     async def on_ready(self):
