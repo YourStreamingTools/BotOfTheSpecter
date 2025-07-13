@@ -158,7 +158,9 @@ for logger in loggers.values():
     logger.info(startup_msg)
 
 # Function to get the current time
-def time_right_now():
+def time_right_now(tz=None):
+    if tz:
+        return datetime.now(tz)
     return datetime.now()
 
 # Setup Globals
