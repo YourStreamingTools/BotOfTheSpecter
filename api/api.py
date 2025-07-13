@@ -1134,6 +1134,33 @@ async def stream_online(api_key: str = Query(...)):
         logging.error(f"Error checking stream online status from database: {e}")
         raise HTTPException(status_code=500, detail=f"Error checking stream online status: {str(e)}")
 
+# Check if Discord user is linked
+@app.get(
+    "/discord/linked",
+    summary="Check if Discord user is linked",
+    include_in_schema=False
+)
+async def discord_linked(api_key: str = Query(...), user_id: str = Query(...)):
+    # Validate the admin API key
+    valid = await verify_admin_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor() as cur:
+                # Check if the Discord user ID exists in the discord_users table
+                await cur.execute("SELECT discord_id FROM discord_users WHERE discord_id = %s", (user_id,))
+                result = await cur.fetchone()
+                # Return the user_id and whether they are linked
+                linked = result is not None
+                return {"user_id": user_id, "linked": linked}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Error checking Discord user link status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error checking Discord user link status: {str(e)}")
+
 # Any root request go to the docs page
 @app.get("/", include_in_schema=False)
 async def read_root():
