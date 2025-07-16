@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import os
+import re
 import signal
 import json
 import tempfile
@@ -3679,7 +3680,12 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         auth_token = guild_data['auth_token']
         if not users:
             return []
-        usernames = [user['username'] for user in users]
+        # Only include usernames that match Twitch login format: lowercase, no spaces, only underscores, numbers, and letters
+        twitch_login_regex = re.compile(r'^[a-z0-9_]+$')
+        usernames = [str(user['username']).strip().lower().replace(' ', '_') for user in users if user.get('username') and str(user['username']).strip() and twitch_login_regex.match(str(user['username']).strip().lower().replace(' ', '_'))]
+        if not usernames:
+            self.logger.warning(f"No valid usernames to check for guild {guild_id}. Users: {users}")
+            return []
         all_stream_data = []
         if len(usernames) <= 100:
             try:
@@ -3689,14 +3695,14 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                         "Client-ID": config.twitch_client_id,
                         "Authorization": f"Bearer {auth_token}"
                     }
-                    params = {
-                        "user_login": usernames,
-                        "type": "live",
-                        "first": 100
-                    }
+                    # Build params as a list of tuples for multiple user_login
+                    params = [("user_login", username) for username in usernames]
+                    params.append(("type", "live"))
+                    params.append(("first", "100"))
+                    self.logger.debug(f"Twitch API params for guild {guild_id}: {params}")
                     async with session.get(url, headers=headers, params=params) as response:
                         if response.status != 200:
-                            self.logger.error(f"Failed to fetch streams for guild {guild_id}: {response.status} {await response.text()}")
+                            self.logger.error(f"Failed to fetch streams for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
                             return []
                         data = await response.json()
                         all_stream_data = data.get('data', [])
@@ -3716,14 +3722,13 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                         "Authorization": f"Bearer {auth_token}"
                     }
                     for chunk_index, username_chunk in enumerate(username_chunks):
-                        params = {
-                            "user_login": username_chunk,
-                            "type": "live",
-                            "first": 100
-                        }
+                        params = [("user_login", username) for username in username_chunk if username]
+                        params.append(("type", "live"))
+                        params.append(("first", "100"))
+                        self.logger.debug(f"Twitch API batch params for guild {guild_id}, batch {chunk_index + 1}: {params}")
                         async with session.get(url, headers=headers, params=params) as response:
                             if response.status != 200:
-                                self.logger.error(f"Failed to fetch streams batch {chunk_index + 1} for guild {guild_id}: {response.status} {await response.text()}")
+                                self.logger.error(f"Failed to fetch streams batch {chunk_index + 1} for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
                                 continue
                             data = await response.json()
                             batch_streams = data.get('data', [])
