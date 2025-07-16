@@ -6101,6 +6101,7 @@ async def clear_per_stream_deaths():
     finally:
         await connection.ensure_closed()
 
+# Function to clear the lotto numbers at the end of stream
 async def clear_lotto_numbers():
     connection = await mysql_connection()
     try:
@@ -6118,13 +6119,20 @@ async def clear_lotto_numbers():
 # Function for timed messages
 async def timed_message():
     global stream_online
+    chat_logger.info(f"Timed message function called. Stream online status: {stream_online}")
     if stream_online:
         chat_logger.info("Starting dynamic timed message system...")
-        await update_timed_messages()
-        # Start the periodic checker
-        if "timed_message_checker" not in looped_tasks:
-            looped_tasks["timed_message_checker"] = create_task(periodic_message_checker())
+        try:
+            await update_timed_messages()
+            chat_logger.info("Successfully updated timed messages")
+            # Start the periodic checker
+            if "timed_message_checker" not in looped_tasks:
+                looped_tasks["timed_message_checker"] = create_task(periodic_message_checker())
+                chat_logger.info("Created periodic message checker task")
+        except Exception as e:
+            bot_logger.error(f"Error in timed_message initialization: {e}")
     else:
+        chat_logger.info("Stream is offline, stopping timed messages")
         await stop_all_timed_messages()
 
 async def periodic_message_checker():
@@ -6151,9 +6159,14 @@ async def update_timed_messages():
             # Fetch all enabled messages
             await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger FROM timed_messages WHERE status = 'Enabled'")
             current_messages = await cursor.fetchall()
+            chat_logger.info(f"Found {len(current_messages)} enabled timed messages in database")
+            if not current_messages:
+                chat_logger.info("No enabled timed messages found in database")
+                return
             # Convert to dictionary for easy lookup
             current_message_dict = {row["id"]: row for row in current_messages}
             current_message_ids = set(current_message_dict.keys())
+            chat_logger.info(f"Message IDs found: {current_message_ids}")
             active_message_ids = set(active_timed_messages.keys())
             # Find new messages to add
             new_message_ids = current_message_ids - active_message_ids
@@ -6177,8 +6190,7 @@ async def update_timed_messages():
                 # Check if message content or settings have changed
                 if (current_row["message"] != active_row["message"] or
                     current_row["interval_count"] != active_row["interval_count"] or
-                    current_row["chat_line_trigger"] != active_row["chat_line_trigger"] or
-                    current_row["message_type"] != active_row["message_type"]):
+                    current_row["chat_line_trigger"] != active_row["chat_line_trigger"]):
                     # Restart the message with new settings
                     await stop_timed_message(message_id)
                     await start_timed_message(message_id, current_row)
@@ -6190,39 +6202,27 @@ async def update_timed_messages():
 
 async def start_timed_message(message_id, row):
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, chat_line_count
-    message_type = row.get("message_type", "interval")
     message = row["message"]
     interval = row["interval_count"]
     chat_line_trigger = row["chat_line_trigger"]
     # Store message details in memory
     active_timed_messages[message_id] = dict(row)
-    if message_type == "interval" and interval and int(interval) > 0:
-        # Type 1: Interval-based messages
+    # If interval_count is set, this is an interval-based message
+    if interval and int(interval) > 0:
         interval_mins = max(5, min(60, int(interval)))
         wait_time = interval_mins * 60
         task = create_task(send_interval_message(message_id, message, wait_time))
         message_tasks[message_id] = task
         scheduled_tasks.add(task)
         chat_logger.info(f"Started interval message ID: {message_id} every {interval_mins} minutes")
-    elif message_type == "chat_count" and chat_line_trigger and int(chat_line_trigger) > 0:
-        # Type 2: Chat count messages
+    # If chat_line_trigger is set, this is a chat-count based message
+    elif chat_line_trigger and int(chat_line_trigger) > 0:
         chat_trigger_tasks[message_id] = {
             "chat_line_trigger": int(chat_line_trigger),
             "message": message,
-            "last_trigger_count": chat_line_count,
-            "message_type": "chat_count"
+            "last_trigger_count": chat_line_count
         }
         chat_logger.info(f"Started chat count message ID: {message_id} - trigger after {chat_line_trigger} messages")
-    elif message_type == "chat_count_delayed" and chat_line_trigger and int(chat_line_trigger) > 0:
-        # Type 3: Chat count with delay messages
-        chat_trigger_tasks[message_id] = {
-            "chat_line_trigger": int(chat_line_trigger),
-            "message": message,
-            "last_trigger_count": chat_line_count,
-            "delay_mins": interval,
-            "message_type": "chat_count_delayed"
-        }
-        chat_logger.info(f"Started delayed chat count message ID: {message_id} - trigger after {chat_line_trigger} messages, delay {interval} minutes")
 
 async def stop_timed_message(message_id):
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks
@@ -6280,20 +6280,11 @@ async def handle_chat_message(messageAuthor, messageContent=""):
         chat_line_trigger = trigger_info["chat_line_trigger"]
         last_trigger_count = trigger_info["last_trigger_count"]
         message = trigger_info["message"]
-        message_type = trigger_info["message_type"]
         # Check if enough new chat lines have occurred since the last trigger
         if chat_line_count - last_trigger_count >= chat_line_trigger:
             trigger_info["last_trigger_count"] = chat_line_count  # Update last trigger count
-            if message_type == "chat_count":
-                # Type 2: Send immediately after chat count reached
-                create_task(send_timed_message(message_id, message, 0))
-                chat_logger.info(f"Chat count trigger reached for message ID: {message_id}")
-            elif message_type == "chat_count_delayed":
-                # Type 3: Send after chat count reached + delay
-                delay_mins = trigger_info["delay_mins"]
-                delay_seconds = delay_mins * 60
-                create_task(send_timed_message(message_id, message, delay_seconds))
-                chat_logger.info(f"Chat count with delay trigger reached for message ID: {message_id}, will send in {delay_mins} minutes")
+            create_task(send_timed_message(message_id, message, 0))
+            chat_logger.info(f"Chat count trigger reached for message ID: {message_id}")
 
 async def send_interval_message(message_id, message, interval_seconds):
     global stream_online, current_game, scheduled_tasks
@@ -6324,10 +6315,16 @@ async def send_timed_message(message_id, message, delay):
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
         try:
             channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+            if not channel:
+                bot_logger.error(f"Failed to get channel {CHANNEL_NAME} - channel is None")
+                return
+            chat_logger.info(f"Channel found, attempting to send message...")
             await channel.send(message)
             last_message_time = get_event_loop().time()
+            chat_logger.info(f"Message sent successfully")
         except Exception as e:
             bot_logger.error(f"Error sending message: {e}")
+            bot_logger.error(f"BOTS_TWITCH_BOT state: {BOTS_TWITCH_BOT._connection._status}")
     else:
         chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
 
