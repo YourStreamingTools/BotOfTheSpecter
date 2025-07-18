@@ -8,6 +8,8 @@ if (!isset($scripts)) $scripts = '';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
 $dashboardVersion = '2.0.4';
+// Maintenance mode control
+$maintenanceMode = true;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -41,6 +43,7 @@ $dashboardVersion = '2.0.4';
             <button id="cookieDeclineBtn" class="button is-danger has-text-weight-bold"><?php echo t('cookie_decline_btn'); ?></button>
         </div>
     </div>
+    <?php if ($maintenanceMode): $modalAcknowledged = isset($_COOKIE['maintenance_modal_acknowledged']) && $_COOKIE['maintenance_modal_acknowledged'] === 'true'; ?>
     <!-- Maintenance Notice Banner -->
     <div style="background:rgb(255, 165, 0); color: #222; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
         <span style="color:rgb(0, 0, 0);">
@@ -49,6 +52,35 @@ $dashboardVersion = '2.0.4';
             We are actively working with the provider to restore full service as soon as possible.
         </span>
     </div>
+    <?php if (!$modalAcknowledged): ?>
+    <!-- Maintenance Modal -->
+    <div id="maintenanceModal" class="modal is-active">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head has-background-warning">
+                <p class="modal-card-title has-text-black"><i class="fas fa-exclamation-triangle"></i> Service Interruption Notice</p>
+                <button class="delete" aria-label="close" onclick="closeMaintenanceModal()"></button>
+            </header>
+            <section class="modal-card-body">
+                <div class="content">
+                    <h4 class="has-text-weight-bold">Current System Status:</h4>
+                    <p>We are currently experiencing an outage with an external provider that our website relies on. This may affect various functions and services across the platform.</p>
+                    <h4 class="has-text-weight-bold mt-4">What This Means:</h4>
+                    <ul>
+                        <li>Some features may be temporarily unavailable</li>
+                        <li>Response times may be slower than usual</li>
+                        <li>Some integrations might not function properly</li>
+                    </ul>
+                    <h4 class="has-text-weight-bold mt-4">What We're Doing:</h4>
+                    <p>Our team is actively working with the provider to resolve these issues and restore full service as quickly as possible. We appreciate your patience during this time.</p>
+                </div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-warning" onclick="closeMaintenanceModal()">Acknowledge</button>
+            </footer>
+        </div>
+    </div>
+    <?php endif; endif; ?>
     <!-- Top Navigation Bar -->
     <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
@@ -326,6 +358,38 @@ $dashboardVersion = '2.0.4';
         var match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
         return match ? match[2] : null;
     }
+    // Maintenance Modal Functions
+    function closeMaintenanceModal() {
+        document.getElementById('maintenanceModal').classList.remove('is-active');
+        // Set a cookie to expire in exactly 24 hours, only for the modal
+        setCookie('maintenance_modal_acknowledged', 'true', 1);
+        // Reload the page to update the server-side state
+        window.location.reload();
+    }
+    function dontShowAgain() {
+        const today = new Date().toDateString();
+        setCookie('maintenance_notice', today, 1);
+        closeMaintenanceModal();
+    }
+    // Check if we should show the maintenance modal
+    document.addEventListener('DOMContentLoaded', function() {
+        <?php if ($maintenanceMode && !$modalAcknowledged): ?>
+            const lastShown = getCookie('maintenance_notice');
+            const today = new Date().toDateString();
+            // Show modal only if "don't show again" isn't set
+            if (!lastShown) {
+                document.getElementById('maintenanceModal').classList.add('is-active');
+            }
+        <?php else: ?>
+            // Clean up maintenance cookies when maintenance mode is disabled
+            if (getCookie('maintenance_notice')) {
+                document.cookie = 'maintenance_notice=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            }
+            if (getCookie('maintenance_acknowledged')) {
+                document.cookie = 'maintenance_acknowledged=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            }
+        <?php endif; ?>
+    });
     function showCookieConsentBox() {
         document.getElementById('cookieConsentBox').style.display = '';
     }
