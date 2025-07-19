@@ -88,14 +88,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         die('Execute failed: ' . htmlspecialchars($stmt->error));
     }
     $stmt->close();
-    // Save auto_record setting to new table, per user and server
+    // Save auto_record setting: only one record per user, update with new server_location and enabled
     $auto_record = isset($_POST['auto_record']) ? 1 : 0;
     $selected_server = isset($_POST['server']) ? $_POST['server'] : (isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedStreamServer']) ? $_COOKIE['selectedStreamServer'] : 'au-east-1'));
-    $stmt = $db->prepare("INSERT INTO auto_record_settings (username, server, enabled) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)");
+    // Use REPLACE INTO to ensure only one row per user
+    $stmt = $db->prepare("REPLACE INTO auto_record_settings (id, server_location, enabled) VALUES (1, ?, ?)");
     if ($stmt === false) {
         die('Prepare failed: ' . htmlspecialchars($db->error));
     }
-    $stmt->bind_param("ssi", $username, $selected_server, $auto_record);
+    $stmt->bind_param("si", $selected_server, $auto_record);
     if ($stmt->execute() === false) {
         die('Execute failed: ' . htmlspecialchars($stmt->error));
     }
@@ -122,14 +123,14 @@ if ($stmt->fetch()) {
 }
 $stmt->close();
 
-// Load auto_record setting from new table for this user and server
+// Load auto_record setting from new table (only one record per user)
 $auto_record = 0;
-$stmt = $db->prepare("SELECT enabled FROM auto_record_settings WHERE username = ? AND server = ?");
+$stmt = $db->prepare("SELECT server_location, enabled FROM auto_record_settings WHERE id = 1");
 if ($stmt) {
-    $stmt->bind_param("ss", $username, $selected_server);
     $stmt->execute();
-    $stmt->bind_result($auto_record_db);
+    $stmt->bind_result($server_location_db, $auto_record_db);
     if ($stmt->fetch()) {
+        $selected_server = $server_location_db ?? $selected_server;
         $auto_record = $auto_record_db ?? 0;
     }
     $stmt->close();
