@@ -9,7 +9,7 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/lang/i18n.php';
 $dashboardVersion = '2.0.4';
 // Maintenance mode control
-$maintenanceMode = true;
+$maintenanceMode = false;
 ?>
 <!DOCTYPE html>
 <html lang="en">
