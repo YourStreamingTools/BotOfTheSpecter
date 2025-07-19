@@ -629,6 +629,13 @@ return [
     'streaming_need_long_term_storage' => 'Need long-term storage for your streams?',
     'streaming_access_persistent_storage' => 'Access your persistent storage from the dedicated page:',
     'streaming_go_to_persistent_storage' => 'Go to Persistent Storage',
+    // Streaming Auto Record Feature
+    'streaming_auto_record_label' => 'Enable Auto Record from Twitch (record your Twitch stream as-is)',
+    'streaming_auto_record_feature_title' => 'Auto Record from Twitch',
+    'streaming_auto_record_feature_desc' => 'When enabled, we will automatically record your Twitch stream directly from Twitch while you are live. You do not need to stream to our server for this feature. All video and audio sent to Twitch will be recorded as-is.',
+    'streaming_auto_record_retention' => 'Recordings are kept for 24 hours for fast download (faster than Twitch VODs).',
+    'streaming_auto_record_vod_speed' => 'Download from our system is much faster than downloading from Twitch VODs.',
+    'streaming_auto_record_content_notice' => 'Everything you stream to Twitch (video and audio) will be recorded exactly as it appears on Twitch.',
     'streaming_missing_parameters' => 'Missing required parameters',
     'streaming_invalid_filename' => 'Invalid filename',
     'streaming_invalid_server_selection' => 'Invalid server selection',
