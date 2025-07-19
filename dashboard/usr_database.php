@@ -28,6 +28,12 @@ try {
     }
     // List of table creation statements
     $tables = [
+        'auto_record_settings' => "
+            CREATE TABLE IF NOT EXISTS auto_record_settings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                server_location VARCHAR(255) NOT NULL,
+                enabled TINYINT(1) DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'everyone' => "
             CREATE TABLE IF NOT EXISTS everyone (
                 username VARCHAR(255),
@@ -447,6 +453,7 @@ try {
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
+        'auto_record_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'server_location' => "VARCHAR(255) NOT NULL", 'enabled' => "TINYINT(1) DEFAULT 0"],
         'everyone' => ['username' => "VARCHAR(255)",'group_name' => "VARCHAR(255) DEFAULT NULL"],
         'groups' => ['id' => "INT NOT NULL AUTO_INCREMENT",'name' => "VARCHAR(255)"],
         'custom_commands' => ['command' => "TEXT",'response' => "TEXT",'status' => "TEXT",'cooldown' => "INT DEFAULT '15'"],
