@@ -78,6 +78,7 @@ $billing_conn->close();
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $twitch_key = $_POST['twitch_key'];
     $forward_to_twitch = isset($_POST['forward_to_twitch']) ? 1 : 0;
+    // Save twitch_key and forward_to_twitch as before
     $stmt = $db->prepare("INSERT INTO streaming_settings (id, twitch_key, forward_to_twitch) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE twitch_key = VALUES(twitch_key), forward_to_twitch = VALUES(forward_to_twitch)");
     if ($stmt === false) {
         die('Prepare failed: ' . htmlspecialchars($db->error));
@@ -87,9 +88,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         die('Execute failed: ' . htmlspecialchars($stmt->error));
     }
     $stmt->close();
+    // Save auto_record setting to new table, per user and server
+    $auto_record = isset($_POST['auto_record']) ? 1 : 0;
+    $selected_server = isset($_POST['server']) ? $_POST['server'] : (isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedStreamServer']) ? $_COOKIE['selectedStreamServer'] : 'au-east-1'));
+    $stmt = $db->prepare("INSERT INTO auto_record_settings (username, server, enabled) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)");
+    if ($stmt === false) {
+        die('Prepare failed: ' . htmlspecialchars($db->error));
+    }
+    $stmt->bind_param("ssi", $username, $selected_server, $auto_record);
+    if ($stmt->execute() === false) {
+        die('Execute failed: ' . htmlspecialchars($stmt->error));
+    }
+    $stmt->close();
     // Set session variable to indicate success
     $_SESSION['settings_saved'] = true;
-    header('Location: streaming.php');
+    header('Location: streaming.php?server=' . urlencode($selected_server));
     exit();
 }
 
@@ -109,6 +122,18 @@ if ($stmt->fetch()) {
 }
 $stmt->close();
 
+// Load auto_record setting from new table for this user and server
+$auto_record = 0;
+$stmt = $db->prepare("SELECT enabled FROM auto_record_settings WHERE username = ? AND server = ?");
+if ($stmt) {
+    $stmt->bind_param("ss", $username, $selected_server);
+    $stmt->execute();
+    $stmt->bind_result($auto_record_db);
+    if ($stmt->fetch()) {
+        $auto_record = $auto_record_db ?? 0;
+    }
+    $stmt->close();
+}
 // Function to get files from the storage server
 function getStorageFiles($server_host, $server_username, $server_password, $user_dir, $api_key, $recording_dir) {
     $files = [];
@@ -406,6 +431,7 @@ ob_start();
                                 </div>
                             <?php endif; ?>
                             <form method="post" action="">
+                                <input type="hidden" name="server" value="<?php echo htmlspecialchars($selected_server); ?>">
                                 <div class="field">
                                     <label class="label" for="twitch_key"><?= t('streaming_twitch_key_label') ?></label>
                                     <div class="field is-grouped" style="align-items:stretch;">
@@ -443,6 +469,14 @@ ob_start();
                                         </label>
                                     </div>
                                 </div>
+                                <div class="field">
+                                    <div class="control">
+                                        <label class="checkbox" for="auto_record">
+                                            <input type="checkbox" id="auto_record" name="auto_record" <?php echo $auto_record ? 'checked' : ''; ?>>
+                                            <span><?= t('streaming_auto_record_label') ?></span>
+                                        </label>
+                                    </div>
+                                </div>
                                 <div class="field is-grouped is-grouped-right">
                                     <div class="control">
                                         <button type="submit" class="button is-primary" id="save-settings" <?php echo !empty($twitch_key) ? 'disabled' : ''; ?>><?= t('streaming_save_settings_btn') ?></button>
@@ -452,6 +486,15 @@ ob_start();
                             <div class="mt-4">
                                 <span class="has-text-weight-semibold"><?= t('streaming_note_label') ?></span>
                                 <?= t('streaming_api_key_note') ?>
+                                <div class="mt-3">
+                                    <span class="has-text-weight-semibold"><?= t('streaming_auto_record_feature_title') ?></span>
+                                    <p><?= t('streaming_auto_record_feature_desc') ?></p>
+                                    <ul>
+                                        <li><?= t('streaming_auto_record_retention') ?></li>
+                                        <li><?= t('streaming_auto_record_vod_speed') ?></li>
+                                        <li><?= t('streaming_auto_record_content_notice') ?></li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
