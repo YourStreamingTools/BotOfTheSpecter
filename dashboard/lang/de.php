@@ -606,6 +606,13 @@ return [
     'streaming_need_long_term_storage' => 'Benötigen Sie Langzeitspeicher für Ihre Streams?',
     'streaming_access_persistent_storage' => 'Greifen Sie über die spezielle Seite auf Ihren persistenten Speicher zu:',
     'streaming_go_to_persistent_storage' => 'Zum persistenten Speicher',
+    // Streaming Auto Record Feature
+    'streaming_auto_record_label' => 'Auto-Recording von Twitch aktivieren (deinen Twitch-Stream direkt aufzeichnen)',
+    'streaming_auto_record_feature_title' => 'Auto-Recording von Twitch',
+    'streaming_auto_record_feature_desc' => 'Wenn aktiviert, zeichnen wir deinen Twitch-Stream automatisch direkt von Twitch auf, während du live bist. Du musst dafür nicht zu unserem Server streamen. Alles, was du an Twitch sendest (Video und Audio), wird exakt so aufgezeichnet.',
+    'streaming_auto_record_retention' => 'Aufzeichnungen werden für 24 Stunden gespeichert und können schnell heruntergeladen werden (schneller als Twitch VODs).',
+    'streaming_auto_record_vod_speed' => 'Der Download von unserem System ist deutlich schneller als von Twitch VODs.',
+    'streaming_auto_record_content_notice' => 'Alles, was du zu Twitch streamst (Video und Audio), wird exakt so aufgezeichnet, wie es auf Twitch erscheint.',
     'streaming_missing_parameters' => 'Erforderliche Parameter fehlen',
     'streaming_invalid_filename' => 'Ungültiger Dateiname',
     'streaming_invalid_server_selection' => 'Ungültige Serverauswahl',
