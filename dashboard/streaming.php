@@ -383,21 +383,46 @@ ob_start();
                 <div class="columns is-variable is-6 is-multiline">
                     <div class="column is-7-tablet is-8-desktop">
                         <div class="content">
-                            <p>
-                                <?= t('streaming_service_intro') ?>
-                            </p>
-                            <ul class="mb-2">
-                                <li><?= t('streaming_service_option_record_and_forward') ?></li>
-                                <li><?= t('streaming_service_option_multistream_record') ?></li>
-                            </ul>
-                            <p>
-                                <span class="has-text-weight-semibold"><?= t('streaming_storage_info_title') ?></span>
-                            </p>
-                            <ul>
-                                <li><?= t('streaming_storage_info_retention') ?></li>
-                                <li><?= t('streaming_storage_info_deletion') ?></li>
-                            </ul>
-                            <div class="mt-4">
+                            <details open>
+                                <summary class="is-size-6 has-text-weight-semibold" style="cursor:pointer;outline:none;">Overview</summary>
+                                <p class="mt-2 mb-2">
+                                    <?= t('streaming_service_intro') ?>
+                                </p>
+                                <ul class="mb-2">
+                                    <li><?= t('streaming_service_option_record_and_forward') ?></li>
+                                    <li><?= t('streaming_service_option_multistream_record') ?></li>
+                                </ul>
+                            </details>
+                            <details class="mt-4 mb-2" open>
+                                <summary class="is-size-6 has-text-weight-semibold" style="cursor:pointer;outline:none;">Auto Record from Twitch</summary>
+                                <div class="mt-2">
+                                    <span class="has-text-weight-semibold"><?= t('streaming_auto_record_feature_title') ?></span>
+                                    <p><?= t('streaming_auto_record_feature_desc') ?></p>
+                                    <ul>
+                                        <li><?= t('streaming_auto_record_content_notice') ?></li>
+                                    </ul>
+                                    <form method="post" action="" style="margin-top:1em;" id="auto-record-form">
+                                        <input type="hidden" name="server" value="<?php echo htmlspecialchars($selected_server); ?>">
+                                        <div class="field">
+                                            <div class="control">
+                                                <label class="checkbox" for="auto_record">
+                                                    <input type="checkbox" id="auto_record" name="auto_record" <?php echo $auto_record ? 'checked' : ''; ?> onchange="document.getElementById('auto-record-form').submit();">
+                                                    <span><?= t('streaming_auto_record_label') ?></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </details>
+                            <details class="mt-3" open>
+                                <summary class="is-size-6 has-text-weight-semibold" style="cursor:pointer;outline:none;">Storage Info</summary>
+                                <ul class="mt-2">
+                                    <li><?= t('streaming_storage_info_retention') ?></li>
+                                    <li><?= t('streaming_storage_info_deletion') ?></li>
+                                    <li><?= t('streaming_auto_record_vod_speed') ?></li>
+                                </ul>
+                            </details>
+                            <div class="mt-3">
                                 <span class="has-text-weight-semibold"><?= t('streaming_server_locations_title') ?></span>
                                 <ul>
                                     <li><?= t('streaming_server_locations_current') ?></li>
@@ -470,14 +495,6 @@ ob_start();
                                         </label>
                                     </div>
                                 </div>
-                                <div class="field">
-                                    <div class="control">
-                                        <label class="checkbox" for="auto_record">
-                                            <input type="checkbox" id="auto_record" name="auto_record" <?php echo $auto_record ? 'checked' : ''; ?>>
-                                            <span><?= t('streaming_auto_record_label') ?></span>
-                                        </label>
-                                    </div>
-                                </div>
                                 <div class="field is-grouped is-grouped-right">
                                     <div class="control">
                                         <button type="submit" class="button is-primary" id="save-settings" <?php echo !empty($twitch_key) ? 'disabled' : ''; ?>><?= t('streaming_save_settings_btn') ?></button>
@@ -487,15 +504,6 @@ ob_start();
                             <div class="mt-4">
                                 <span class="has-text-weight-semibold"><?= t('streaming_note_label') ?></span>
                                 <?= t('streaming_api_key_note') ?>
-                                <div class="mt-3">
-                                    <span class="has-text-weight-semibold"><?= t('streaming_auto_record_feature_title') ?></span>
-                                    <p><?= t('streaming_auto_record_feature_desc') ?></p>
-                                    <ul>
-                                        <li><?= t('streaming_auto_record_retention') ?></li>
-                                        <li><?= t('streaming_auto_record_vod_speed') ?></li>
-                                        <li><?= t('streaming_auto_record_content_notice') ?></li>
-                                    </ul>
-                                </div>
                             </div>
                         </div>
                     </div>
