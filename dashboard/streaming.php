@@ -76,35 +76,46 @@ $billing_conn->close();
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $twitch_key = $_POST['twitch_key'];
-    $forward_to_twitch = isset($_POST['forward_to_twitch']) ? 1 : 0;
-    // Save twitch_key and forward_to_twitch as before
-    $stmt = $db->prepare("INSERT INTO streaming_settings (id, twitch_key, forward_to_twitch) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE twitch_key = VALUES(twitch_key), forward_to_twitch = VALUES(forward_to_twitch)");
-    if ($stmt === false) {
-        die('Prepare failed: ' . htmlspecialchars($db->error));
+    // Check if this is the auto-record form submission
+    if (isset($_POST['auto_record']) || (isset($_POST['server']) && !isset($_POST['twitch_key']))) {
+        // Handle auto-record form submission only
+        $auto_record = isset($_POST['auto_record']) ? 1 : 0;
+        $selected_server = isset($_POST['server']) ? $_POST['server'] : (isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedStreamServer']) ? $_COOKIE['selectedStreamServer'] : 'au-east-1'));
+        // Use REPLACE INTO to ensure only one row per user
+        $stmt = $db->prepare("REPLACE INTO auto_record_settings (id, server_location, enabled) VALUES (1, ?, ?)");
+        if ($stmt === false) {
+            die('Prepare failed: ' . htmlspecialchars($db->error));
+        }
+        $stmt->bind_param("si", $selected_server, $auto_record);
+        if ($stmt->execute() === false) {
+            die('Execute failed: ' . htmlspecialchars($stmt->error));
+        }
+        $stmt->close();
+        // Set session variable to indicate success
+        $_SESSION['settings_saved'] = true;
+        header('Location: streaming.php?server=' . urlencode($selected_server));
+        exit();
+    } else {
+        // Handle streaming settings form submission (twitch key + forward settings)
+        $twitch_key = $_POST['twitch_key'];
+        $forward_to_twitch = isset($_POST['forward_to_twitch']) ? 1 : 0;
+        // Save twitch_key and forward_to_twitch
+        $stmt = $db->prepare("INSERT INTO streaming_settings (id, twitch_key, forward_to_twitch) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE twitch_key = VALUES(twitch_key), forward_to_twitch = VALUES(forward_to_twitch)");
+        if ($stmt === false) {
+            die('Prepare failed: ' . htmlspecialchars($db->error));
+        }
+        $stmt->bind_param("si", $twitch_key, $forward_to_twitch);
+        if ($stmt->execute() === false) {
+            die('Execute failed: ' . htmlspecialchars($stmt->error));
+        }
+        $stmt->close();
+        // Get the selected server for redirect
+        $selected_server = isset($_POST['server']) ? $_POST['server'] : (isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedStreamServer']) ? $_COOKIE['selectedStreamServer'] : 'au-east-1'));
+        // Set session variable to indicate success
+        $_SESSION['settings_saved'] = true;
+        header('Location: streaming.php?server=' . urlencode($selected_server));
+        exit();
     }
-    $stmt->bind_param("si", $twitch_key, $forward_to_twitch);
-    if ($stmt->execute() === false) {
-        die('Execute failed: ' . htmlspecialchars($stmt->error));
-    }
-    $stmt->close();
-    // Save auto_record setting: only one record per user, update with new server_location and enabled
-    $auto_record = isset($_POST['auto_record']) ? 1 : 0;
-    $selected_server = isset($_POST['server']) ? $_POST['server'] : (isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedStreamServer']) ? $_COOKIE['selectedStreamServer'] : 'au-east-1'));
-    // Use REPLACE INTO to ensure only one row per user
-    $stmt = $db->prepare("REPLACE INTO auto_record_settings (id, server_location, enabled) VALUES (1, ?, ?)");
-    if ($stmt === false) {
-        die('Prepare failed: ' . htmlspecialchars($db->error));
-    }
-    $stmt->bind_param("si", $selected_server, $auto_record);
-    if ($stmt->execute() === false) {
-        die('Execute failed: ' . htmlspecialchars($stmt->error));
-    }
-    $stmt->close();
-    // Set session variable to indicate success
-    $_SESSION['settings_saved'] = true;
-    header('Location: streaming.php?server=' . urlencode($selected_server));
-    exit();
 }
 
 // Fetch current settings using MySQLi
