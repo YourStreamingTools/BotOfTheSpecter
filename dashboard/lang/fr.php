@@ -583,6 +583,13 @@ return [
     'streaming_rtmps_url_label' => 'URL RTMPS du serveur sélectionné :',
     'streaming_settings_saved_success' => 'Paramètres enregistrés avec succès.',
     'streaming_twitch_key_label' => 'Clé de stream Twitch',
+    // Streaming Auto Record Feature
+    'streaming_auto_record_label' => 'Activer l’enregistrement automatique depuis Twitch (enregistre votre stream Twitch tel quel)',
+    'streaming_auto_record_feature_title' => 'Enregistrement automatique depuis Twitch',
+    'streaming_auto_record_feature_desc' => 'Lorsque cette option est activée, nous enregistrerons automatiquement votre stream Twitch directement depuis Twitch pendant que vous êtes en direct. Vous n’avez pas besoin de diffuser vers notre serveur pour cette fonctionnalité. Tout ce que vous envoyez à Twitch (vidéo et audio) sera enregistré tel quel.',
+    'streaming_auto_record_retention' => 'Les enregistrements sont conservés pendant 24 heures pour un téléchargement rapide (plus rapide que les VODs Twitch).',
+    'streaming_auto_record_vod_speed' => 'Le téléchargement depuis notre système est bien plus rapide que depuis les VODs Twitch.',
+    'streaming_auto_record_content_notice' => 'Tout ce que vous diffusez sur Twitch (vidéo et audio) sera enregistré exactement comme il apparaît sur Twitch.',
     'streaming_show_hide_twitch_key' => 'Afficher/Masquer la clé de stream Twitch',
     'streaming_forward_to_twitch_label' => 'Transférer vers Twitch',
     'streaming_save_settings_btn' => 'Enregistrer les paramètres',
