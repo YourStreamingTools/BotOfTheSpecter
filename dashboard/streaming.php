@@ -370,6 +370,24 @@ if ($selected_server == 'au-east-1') {
 // Start output buffering for layout
 ob_start();
 ?>
+<?php if (isset($_SESSION['settings_saved'])): ?>
+    <?php unset($_SESSION['settings_saved']); ?>
+    <div class="notification is-success is-light mb-4">
+        <?= t('streaming_settings_saved_success') ?>
+    </div>
+<?php endif; ?>
+<?php if (isset($_SESSION['delete_status'])): ?>
+    <?php $delete_status = $_SESSION['delete_status']; unset($_SESSION['delete_status']); ?>
+    <div class="notification <?= $delete_status['success'] ? 'is-success' : 'is-danger' ?> is-light mb-4">
+        <?= htmlspecialchars($delete_status['message']) ?>
+    </div>
+<?php endif; ?>
+<?php if (isset($_SESSION['edit_status'])): ?>
+    <?php $edit_status = $_SESSION['edit_status']; unset($_SESSION['edit_status']); ?>
+    <div class="notification <?= $edit_status['success'] ? 'is-success' : 'is-danger' ?> is-light mb-4">
+        <?= htmlspecialchars($edit_status['message']) ?>
+    </div>
+<?php endif; ?>
 <div class="columns is-variable is-8 is-multiline">
     <div class="column is-12">
         <div class="card mb-5">
@@ -438,24 +456,6 @@ ob_start();
                     <div class="column is-5-tablet is-4-desktop">
                         <div class="content">
                             <h2 class="is-size-5 mb-3"><span class="icon mr-2"><i class="fas fa-cog"></i></span><?= t('streaming_settings_title') ?></h2>
-                            <?php if (isset($_SESSION['settings_saved'])): ?>
-                                <?php unset($_SESSION['settings_saved']); ?>
-                                <div class="notification is-success is-light mb-4">
-                                    <?= t('streaming_settings_saved_success') ?>
-                                </div>
-                            <?php endif; ?>
-                            <?php if (isset($_SESSION['delete_status'])): ?>
-                                <?php $delete_status = $_SESSION['delete_status']; unset($_SESSION['delete_status']); ?>
-                                <div class="notification <?= $delete_status['success'] ? 'is-success' : 'is-danger' ?> is-light mb-4">
-                                    <?= htmlspecialchars($delete_status['message']) ?>
-                                </div>
-                            <?php endif; ?>
-                            <?php if (isset($_SESSION['edit_status'])): ?>
-                                <?php $edit_status = $_SESSION['edit_status']; unset($_SESSION['edit_status']); ?>
-                                <div class="notification <?= $edit_status['success'] ? 'is-success' : 'is-danger' ?> is-light mb-4">
-                                    <?= htmlspecialchars($edit_status['message']) ?>
-                                </div>
-                            <?php endif; ?>
                             <form method="post" action="">
                                 <input type="hidden" name="server" value="<?php echo htmlspecialchars($selected_server); ?>">
                                 <div class="field">
