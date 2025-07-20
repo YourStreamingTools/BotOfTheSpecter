@@ -23,21 +23,19 @@ if ($isLoggedIn) {
     // Start output buffering for layout system
     ob_start();
     ?>
-    
     <!-- Dashboard Welcome Section -->
-    <div class="hero is-primary is-medium">
+    <div class="hero is-small">
         <div class="hero-body">
             <div class="container">
-                <h1 class="title is-2">
+                <h1 class="title is-2 has-text-white">
                     <i class="fas fa-robot"></i> Welcome back, <?php echo htmlspecialchars($username); ?>!
                 </h1>
-                <h2 class="subtitle is-4">
+                <h2 class="subtitle is-4 has-text-white">
                     Your BotOfTheSpecter Dashboard is ready to go
                 </h2>
             </div>
         </div>
     </div>
-    
     <!-- Quick Actions Section -->
     <div class="section">
         <div class="container">
@@ -46,8 +44,10 @@ if ($isLoggedIn) {
                 <div class="column is-6-tablet is-3-desktop">
                     <div class="card">
                         <div class="card-content has-text-centered">
-                            <div class="icon is-large has-text-info mb-3">
-                                <i class="fas fa-robot fa-2x"></i>
+                            <div class="mb-3">
+                                <span class="icon is-large has-text-info">
+                                    <i class="fas fa-robot fa-2x"></i>
+                                </span>
                             </div>
                             <h4 class="title is-5">Bot Control</h4>
                             <p class="subtitle is-6">Start, stop, and monitor your bot</p>
@@ -61,8 +61,10 @@ if ($isLoggedIn) {
                 <div class="column is-6-tablet is-3-desktop">
                     <div class="card">
                         <div class="card-content has-text-centered">
-                            <div class="icon is-large has-text-success mb-3">
-                                <i class="fas fa-terminal fa-2x"></i>
+                            <div class="mb-3">
+                                <span class="icon is-large has-text-success">
+                                    <i class="fas fa-terminal fa-2x"></i>
+                                </span>
                             </div>
                             <h4 class="title is-5">Commands</h4>
                             <p class="subtitle is-6">Create and edit custom commands</p>
@@ -76,8 +78,10 @@ if ($isLoggedIn) {
                 <div class="column is-6-tablet is-3-desktop">
                     <div class="card">
                         <div class="card-content has-text-centered">
-                            <div class="icon is-large has-text-warning mb-3">
-                                <i class="fas fa-chart-line fa-2x"></i>
+                            <div class="mb-3">
+                                <span class="icon is-large has-text-warning">
+                                    <i class="fas fa-chart-line fa-2x"></i>
+                                </span>
                             </div>
                             <h4 class="title is-5">Analytics</h4>
                             <p class="subtitle is-6">View logs and statistics</p>
@@ -88,12 +92,13 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-                
                 <div class="column is-6-tablet is-3-desktop">
                     <div class="card">
                         <div class="card-content has-text-centered">
-                            <div class="icon is-large has-text-danger mb-3">
-                                <i class="fas fa-gift fa-2x"></i>
+                            <div class="mb-3">
+                                <span class="icon is-large has-text-danger">
+                                    <i class="fas fa-gift fa-2x"></i>
+                                </span>
                             </div>
                             <h4 class="title is-5">Rewards</h4>
                             <p class="subtitle is-6">Manage channel rewards</p>
@@ -107,19 +112,15 @@ if ($isLoggedIn) {
             </div>
         </div>
     </div>
-    
     <?php
     $content = ob_get_clean();
     include "layout.php";
-    
 } else {
     // User is not logged in - show landing page
     $pageTitle = 'Dashboard Login';
-    
     // Start output buffering for content
     ob_start();
     ?>
-    
     <style>
         .hero-gradient {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -146,7 +147,6 @@ if ($isLoggedIn) {
             background-color: #121212 !important;
         }
     </style>
-    
     <!-- Hero Section -->
     <section class="hero is-small hero-gradient">
         <div class="hero-body">
@@ -164,7 +164,6 @@ if ($isLoggedIn) {
             </div>
         </div>
     </section>
-
     <!-- Login Section -->
     <section class="section">
         <div class="container">
@@ -191,7 +190,6 @@ if ($isLoggedIn) {
             </div>
         </div>
     </section>
-
     <!-- Features Section -->
     <section class="section">
         <div class="container">
@@ -215,7 +213,6 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-
                 <!-- Custom Commands -->
                 <div class="column is-4">
                     <div class="card feature-card has-background-dark">
@@ -232,7 +229,6 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-
                 <!-- Analytics -->
                 <div class="column is-4">
                     <div class="card feature-card has-background-dark">
@@ -249,7 +245,6 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-
                 <!-- Channel Rewards -->
                 <div class="column is-4">
                     <div class="card feature-card has-background-dark">
@@ -266,7 +261,6 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-
                 <!-- Stream Alerts -->
                 <div class="column is-4">
                     <div class="card feature-card has-background-dark">
@@ -283,7 +277,6 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-
                 <!-- Integrations -->
                 <div class="column is-4">
                     <div class="card feature-card has-background-dark">
@@ -300,7 +293,6 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-
                 <!-- Points System -->
                 <div class="column is-4">
                     <div class="card feature-card has-background-dark">
@@ -317,7 +309,6 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-
                 <!-- Overlays -->
                 <div class="column is-4">
                     <div class="card feature-card has-background-dark">
@@ -334,7 +325,6 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-
                 <!-- User Management -->
                 <div class="column is-4">
                     <div class="card feature-card has-background-dark">
@@ -354,7 +344,6 @@ if ($isLoggedIn) {
             </div>
         </div>
     </section>
-
     <!-- CTA Section -->
     <section class="section has-background-black-bis">
         <div class="container has-text-centered">
@@ -372,7 +361,6 @@ if ($isLoggedIn) {
             </a>
         </div>
     </section>
-    
     <script>
         // Add smooth scrolling for internal links
         $(document).ready(function() {
@@ -390,10 +378,8 @@ if ($isLoggedIn) {
             });
         });
     </script>
-    
     <?php
     $content = ob_get_clean();
-    
     // For non-logged in users, we'll create a custom layout without the dashboard navigation
     ?>
     <!DOCTYPE html>
@@ -451,12 +437,10 @@ if ($isLoggedIn) {
                 </div>
             </div>
         </nav>
-        
         <!-- Main content -->
         <div style="flex: 1 0 auto;">
             <?php echo $content; ?>
         </div>
-        
         <!-- Footer -->
         <footer class="footer is-dark has-text-white" style="width:100%; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
             <div style="position: absolute; bottom: 12px; left: 12px;" class="is-hidden-mobile">
@@ -490,7 +474,6 @@ if ($isLoggedIn) {
                 All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
             </div>
         </footer>
-        
         <!-- JavaScript dependencies -->
         <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
         <script>
