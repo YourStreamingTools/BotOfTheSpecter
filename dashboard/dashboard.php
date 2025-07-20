@@ -15,12 +15,14 @@ if ($isLoggedIn) {
     $pageTitle = 'Bot Management Dashboard';
     // Include authentication and user data
     require_once "/var/www/config/db_connect.php";
+    include '/var/www/config/twitch.php';
+    include '/var/www/config/ssh.php';
     include 'userdata.php';
-    // Get user information
-    $twitchUserId = $_SESSION['user_id'];
-    $username = $_SESSION['username'];
-    // Include mod access check
+    include 'bot_control.php';
     include "mod_access.php";
+    include_once 'usr_database.php';
+    include 'user_db.php';
+    include 'storage_used.php';
     // Start output buffering for layout system
     ob_start();
     ?>
@@ -137,6 +139,23 @@ if ($isLoggedIn) {
                             <a href="music.php" class="button is-info is-fullwidth">
                                 <span class="icon"><i class="fas fa-play"></i></span>
                                 <span>Browse Music</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-6-tablet is-3-desktop">
+                    <div class="card">
+                        <div class="card-content has-text-centered">
+                            <div class="mb-3">
+                                <span class="icon is-large has-text-link">
+                                    <i class="fas fa-video fa-2x"></i>
+                                </span>
+                            </div>
+                            <h4 class="title is-5">Streaming</h4>
+                            <p class="subtitle is-6">Our custom streaming service</p>
+                            <a href="streaming.php" class="button is-link is-fullwidth">
+                                <span class="icon"><i class="fas fa-broadcast-tower"></i></span>
+                                <span>Manage Streaming</span>
                             </a>
                         </div>
                     </div>
