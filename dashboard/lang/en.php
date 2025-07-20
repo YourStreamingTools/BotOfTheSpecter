@@ -107,6 +107,7 @@ return [
     'location_not_found' => 'Location not found. Please check your entry.',
     'privacy_policy' => 'Privacy Policy',
     'beta_banner' => 'You are using the <strong>BETA</strong> version of the BotOfTheSpecter Dashboard. Some features may be unfinished or not working as expected.<br>If you\'d like you use the <strong>BETA</strong> Dashboard please ensure you\'ve stopped the bot from the old dashboard first.',
+    'navbar_home' => 'Dashboard',
     'navbar_bot_control' => 'Bot Control',
     'navbar_configuration' => 'Configuration',
     'navbar_edit_custom_commands' => 'Edit Custom Commands',

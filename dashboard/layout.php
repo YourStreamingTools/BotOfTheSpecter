@@ -96,6 +96,10 @@ $maintenanceMode = false;
         </div>
         <div id="navbarMain" class="navbar-menu">
             <div class="navbar-start">
+                <a class="navbar-item" href="dashboard.php">
+                    <span class="icon"><i class="fas fa-home"></i></span>
+                    <span><?php echo t('navbar_home'); ?></span>
+                </a>
                 <a class="navbar-item" href="bot.php">
                     <span class="icon"><i class="fas fa-robot"></i></span>
                     <span><?php echo t('navbar_bot_control'); ?></span>
