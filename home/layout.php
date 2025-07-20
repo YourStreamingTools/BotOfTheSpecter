@@ -44,7 +44,7 @@ $dashboardVersion = "2.0.4";
         </div>
         <div class="navbar-end">
             <div class="navbar-item no-hover">
-                <a href="https://dashboard.botofthespecter.com/" class="button is-primary">LOGIN</a>
+                <a href="https://dashboard.botofthespecter.com/dashboard.php" class="button is-primary">DASHBOARD</a>
             </div>
         </div>
     </div>
