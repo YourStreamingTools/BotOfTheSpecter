@@ -15,6 +15,7 @@ if ($isLoggedIn) {
     $pageTitle = 'Bot Management Dashboard';
     // Include authentication and user data
     require_once "/var/www/config/db_connect.php";
+    include 'userdata.php';
     // Get user information
     $twitchUserId = $_SESSION['user_id'];
     $username = $_SESSION['username'];
@@ -28,7 +29,7 @@ if ($isLoggedIn) {
         <div class="hero-body">
             <div class="container">
                 <h1 class="title is-2 has-text-white">
-                    <i class="fas fa-robot"></i> Welcome, <?php echo htmlspecialchars($username); ?>!
+                    <i class="fas fa-robot"></i> Welcome, <?php echo htmlspecialchars($twitchDisplayName); ?>!
                 </h1>
             </div>
         </div>
@@ -77,14 +78,14 @@ if ($isLoggedIn) {
                         <div class="card-content has-text-centered">
                             <div class="mb-3">
                                 <span class="icon is-large has-text-warning">
-                                    <i class="fas fa-chart-line fa-2x"></i>
+                                    <i class="fas fa-list-check fa-2x"></i>
                                 </span>
                             </div>
-                            <h4 class="title is-5">Analytics</h4>
-                            <p class="subtitle is-6">View logs and statistics</p>
-                            <a href="logs.php" class="button is-warning is-fullwidth">
-                                <span class="icon"><i class="fas fa-chart-bar"></i></span>
-                                <span>View Analytics</span>
+                            <h4 class="title is-5">To-Do List</h4>
+                            <p class="subtitle is-6">Manage your streaming tasks</p>
+                            <a href="todolist.php" class="button is-warning is-fullwidth">
+                                <span class="icon"><i class="fas fa-list"></i></span>
+                                <span>Open To-Do</span>
                             </a>
                         </div>
                     </div>
@@ -102,6 +103,40 @@ if ($isLoggedIn) {
                             <a href="channel_rewards.php" class="button is-danger is-fullwidth">
                                 <span class="icon"><i class="fas fa-star"></i></span>
                                 <span>Setup Rewards</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-6-tablet is-3-desktop">
+                    <div class="card">
+                        <div class="card-content has-text-centered">
+                            <div class="mb-3">
+                                <span class="icon is-large has-text-primary">
+                                    <i class="fab fa-discord fa-2x"></i>
+                                </span>
+                            </div>
+                            <h4 class="title is-5">Discord Bot</h4>
+                            <p class="subtitle is-6">Manage your Discord integration</p>
+                            <a href="discordbot.php" class="button is-primary is-fullwidth">
+                                <span class="icon"><i class="fas fa-cog"></i></span>
+                                <span>Manage Discord Bot</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-6-tablet is-3-desktop">
+                    <div class="card">
+                        <div class="card-content has-text-centered">
+                            <div class="mb-3">
+                                <span class="icon is-large has-text-info">
+                                    <i class="fas fa-music fa-2x"></i>
+                                </span>
+                            </div>
+                            <h4 class="title is-5">DMCA Music</h4>
+                            <p class="subtitle is-6">Safe music for streaming</p>
+                            <a href="music.php" class="button is-info is-fullwidth">
+                                <span class="icon"><i class="fas fa-play"></i></span>
+                                <span>Browse Music</span>
                             </a>
                         </div>
                     </div>
