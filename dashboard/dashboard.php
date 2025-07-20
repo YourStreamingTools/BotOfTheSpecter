@@ -28,11 +28,8 @@ if ($isLoggedIn) {
         <div class="hero-body">
             <div class="container">
                 <h1 class="title is-2 has-text-white">
-                    <i class="fas fa-robot"></i> Welcome back, <?php echo htmlspecialchars($username); ?>!
+                    <i class="fas fa-robot"></i> Welcome, <?php echo htmlspecialchars($username); ?>!
                 </h1>
-                <h2 class="subtitle is-4 has-text-white">
-                    Your BotOfTheSpecter Dashboard is ready to go
-                </h2>
             </div>
         </div>
     </div>
