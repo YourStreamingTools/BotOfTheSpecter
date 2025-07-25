@@ -7677,7 +7677,7 @@ async def start_subathon(ctx):
                     create_task(subathon_countdown())
                     # Send websocket notice
                     additional_data = {'starting_minutes': starting_minutes}
-                    create_task(websocket_notice(event="SUBATHON_START", additional_data))
+                    create_task(websocket_notice(event="SUBATHON_START", additional_data=additional_data))
                 else:
                     await ctx.send(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
@@ -7715,7 +7715,7 @@ async def pause_subathon(ctx):
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
                 additional_data = {'remaining_minutes': remaining_minutes}
-                create_task(websocket_notice(event="SUBATHON_PAUSE", additional_data))
+                create_task(websocket_notice(event="SUBATHON_PAUSE", additional_data=additional_data))
             else:
                 await ctx.send("No subathon is active or it's already paused!")
     finally:
@@ -7736,7 +7736,7 @@ async def resume_subathon(ctx):
                 create_task(subathon_countdown())
                 # Send websocket notice
                 additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
-                create_task(websocket_notice(event="SUBATHON_RESUME", additional_data))
+                create_task(websocket_notice(event="SUBATHON_RESUME", additional_data=additional_data))
     finally:
         await cursor.close()
         await connection.ensure_closed()
@@ -7754,7 +7754,7 @@ async def addtime_subathon(ctx, minutes):
                 await ctx.send(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
                 additional_data = {'added_minutes': minutes}
-                create_task(websocket_notice(event="SUBATHON_ADD_TIME", additional_data))
+                create_task(websocket_notice(event="SUBATHON_ADD_TIME", additional_data=additional_data))
             else:
                 await ctx.send("No subathon is active or it's paused!")
     finally:
