@@ -6629,7 +6629,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 )
             await connection.commit()
             # Send raid notification to Twitch Chat, and Websocket
-            create_task(websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
+            create_task(websocket_notice(event="TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
             # Send a message to the Twitch channel
             await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("raid_alert",))
             result = await cursor.fetchone()
@@ -6713,7 +6713,7 @@ async def process_cheer_event(user_id, user_name, bits):
                 cheer_add_time = int(settings['cheer_add'])  # Retrieve the time to add for cheers
                 await addtime_subathon(channel, cheer_add_time)  # Call to add time based on cheers
             # Send cheer notification to Twitch Chat, and Websocket
-            create_task(websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits))
+            create_task(websocket_notice(event="TWITCH_CHEER", user=user_name, cheer_amount=bits))
             marker_description = f"New Cheer from {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6792,7 +6792,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
             alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
-                create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
+                create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
@@ -6881,7 +6881,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
             alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
-                create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
+                create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
@@ -6981,7 +6981,7 @@ async def process_followers_event(user_id, user_name):
             alert_message = "Thank you (user) for following! Welcome to the channel!"
         alert_message = alert_message.replace("(user)", user_name)
         await channel.send(alert_message)
-        create_task(websocket_notice("TWITCH_FOLLOW", user=user_name))
+        create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
         marker_description = f"New Twitch Follower: {user_name}"
         if await make_stream_marker(marker_description):
             twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -7677,7 +7677,7 @@ async def start_subathon(ctx):
                     create_task(subathon_countdown())
                     # Send websocket notice
                     additional_data = {'starting_minutes': starting_minutes}
-                    create_task(websocket_notice("SUBATHON_START", additional_data))
+                    create_task(websocket_notice(event="SUBATHON_START", additional_data))
                 else:
                     await ctx.send(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
@@ -7695,7 +7695,7 @@ async def stop_subathon(ctx):
                 await connection.commit()
                 await ctx.send(f"Subathon ended!")
                 # Send websocket notice
-                create_task(websocket_notice("SUBATHON_STOP"))
+                create_task(websocket_notice(event="SUBATHON_STOP"))
             else:
                 await ctx.send(f"No subathon active.")
     finally:
@@ -7715,7 +7715,7 @@ async def pause_subathon(ctx):
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
                 additional_data = {'remaining_minutes': remaining_minutes}
-                create_task(websocket_notice("SUBATHON_PAUSE", additional_data))
+                create_task(websocket_notice(event="SUBATHON_PAUSE", additional_data))
             else:
                 await ctx.send("No subathon is active or it's already paused!")
     finally:
@@ -7736,7 +7736,7 @@ async def resume_subathon(ctx):
                 create_task(subathon_countdown())
                 # Send websocket notice
                 additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
-                create_task(websocket_notice("SUBATHON_RESUME", additional_data))
+                create_task(websocket_notice(event="SUBATHON_RESUME", additional_data))
     finally:
         await cursor.close()
         await connection.ensure_closed()
@@ -7754,7 +7754,7 @@ async def addtime_subathon(ctx, minutes):
                 await ctx.send(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
                 additional_data = {'added_minutes': minutes}
-                create_task(websocket_notice("SUBATHON_ADD_TIME", additional_data))
+                create_task(websocket_notice(event="SUBATHON_ADD_TIME", additional_data))
             else:
                 await ctx.send("No subathon is active or it's paused!")
     finally:
