@@ -1279,6 +1279,7 @@ class BotOfTheSpecter(commands.Bot):
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
 
     async def handle_twitch_event(self, event_type, data):
+        self.logger.info(f"Handling Twitch event: {event_type} with data: {data}")
         channel_code = data.get("channel_code", "unknown")
         mapping = await self.channel_mapping.get_mapping(channel_code)
         if not mapping:
