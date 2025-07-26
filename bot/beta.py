@@ -840,7 +840,7 @@ async def process_twitch_eventsub_message(message):
                     await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Hype Train Start",))
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
-                        sound_file = "twitch/" . result.get("sound_mapping")
+                        sound_file = "twitch/" + result.get("sound_mapping")
                         create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
                 # Hype Train End Event
                 elif event_type == "channel.hype_train.end":
@@ -857,7 +857,7 @@ async def process_twitch_eventsub_message(message):
                     await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Hype Train End",))
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
-                        sound_file = "twitch/" . result.get("sound_mapping")
+                        sound_file = "twitch/" + result.get("sound_mapping")
                         create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
                 # Channel Update Event
                 elif event_type == 'channel.update':
@@ -6647,7 +6647,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Raid",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" . result.get("sound_mapping")
+                sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         await connection.ensure_closed()
@@ -6722,7 +6722,7 @@ async def process_cheer_event(user_id, user_name, bits):
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Cheer",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" . result.get("sound_mapping")
+                sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         await connection.ensure_closed()
@@ -6809,7 +6809,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Subscription",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" . result.get("sound_mapping")
+                sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     except Exception as e:
         event_logger.error(f"Error processing subscription event for user {user_name} ({user_id}): {e}")
@@ -6898,7 +6898,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Subscription",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" . result.get("sound_mapping")
+                sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     except Exception as e:
         event_logger.error(f"Error processing subscription message event for user {user_name} ({user_id}): {e}")
@@ -6933,7 +6933,7 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Gift Subscription",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" . result.get("sound_mapping")
+                sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         await connection.ensure_closed()
@@ -6990,7 +6990,7 @@ async def process_followers_event(user_id, user_name):
         await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Follow",))
         result = await cursor.fetchone()
         if result and result.get("sound_mapping"):
-            sound_file = "twitch/" . result.get("sound_mapping")
+            sound_file = "twitch/" + result.get("sound_mapping")
             create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         await connection.ensure_closed()
