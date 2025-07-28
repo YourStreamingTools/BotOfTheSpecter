@@ -2675,6 +2675,12 @@ class TwitchBot(commands.Bot):
                 await ctx.send("Please provide a song title, artist, or a Spotify link. Examples: !songrequest [song title] by [artist] or !songrequest https://open.spotify.com/track/...")
                 return
             message_content = parts[1].strip()
+            # Check for album links and prompt user to provide a track link instead
+            spotify_album_url_pattern = re.compile(r'https?://open\.spotify\.com/album/([a-zA-Z0-9]+)')
+            spotify_album_uri_pattern = re.compile(r'spotify:album:([a-zA-Z0-9]+)')
+            if spotify_album_url_pattern.search(message_content) or spotify_album_uri_pattern.search(message_content):
+                await ctx.send("That looks like a Spotify album link. Please provide a Spotify track link instead.")
+                return
             spotify_url_pattern = re.compile(r'https?://open\.spotify\.com/track/([a-zA-Z0-9]+)')
             spotify_uri_pattern = re.compile(r'spotify:track:([a-zA-Z0-9]+)')
             spotify_url_match = spotify_url_pattern.search(message_content)
