@@ -367,51 +367,8 @@ ob_start();
                 </a>
             </p>
         </div>
-        <?php if ($is_subscribed || $is_canceled): ?>
-        <div class="table-container">
-            <table class="table is-fullwidth">
-                <thead>
-                    <tr>
-                        <th class="has-text-centered"><?php echo t('persistent_storage_table_file_name'); ?></th>
-                        <th class="has-text-centered"><?php echo t('persistent_storage_table_upload_date'); ?></th>
-                        <th class="has-text-centered"><?php echo t('persistent_storage_table_size'); ?></th>
-                        <th class="has-text-centered"><?php echo t('persistent_storage_table_actions'); ?></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if ($persistent_storage_error): ?>
-                        <tr>
-                            <td colspan="4" class="has-text-centered has-text-danger"><?php echo htmlspecialchars($persistent_storage_error); ?></td>
-                        </tr>
-                    <?php elseif (empty($persistent_storage_files)): ?>
-                        <tr>
-                            <td colspan="4" class="has-text-centered"><?php echo t('persistent_storage_no_files'); ?></td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($persistent_storage_files as $file): ?>
-                        <tr>
-                            <td class="has-text-centered"><?php echo htmlspecialchars($file['name']); ?></td>
-                            <td class="has-text-centered"><?php echo htmlspecialchars($file['created_at']); ?></td>
-                            <td class="has-text-centered"><?php echo htmlspecialchars($file['size']); ?></td>
-                            <td class="has-text-centered">
-                                <a href="<?php echo $s3Client->getObjectUrl($bucket_name, $file['path']); ?>" class="action-icon" title="<?php echo t('streaming_action_download_video'); ?>" target="_blank">
-                                    <i class="fas fa-download"></i>
-                                </a>
-                                <a href="?delete=<?php echo urlencode($file['path']); ?>&server=<?php echo urlencode($selected_server); ?>" class="action-icon" title="<?php echo t('streaming_action_delete_video'); ?>" onclick="return confirm('<?php echo t('persistent_storage_confirm_delete'); ?>');">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                                <a href="#" class="play-video action-icon" data-video-url="play_stream.php?persistent=true&server=<?php echo urlencode($selected_server); ?>&file=<?php echo urlencode($file['path']); ?>" title="<?php echo t('streaming_action_watch_video'); ?>">
-                                    <i class="fas fa-play"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php else: ?>
-        <div class="notification is-danger">
+        <?php if (!$is_subscribed && !$is_canceled): ?>
+        <div class="notification is-danger mb-5">
             <span class="is-size-4">
                 <p class="has-text-weight-bold has-text-black"><?php echo t('persistent_storage_subscription'); ?> <?php echo htmlspecialchars($subscription_status); ?></p>
                 <?php if (!$is_subscribed && !$is_canceled && !$has_billing_account): ?>
@@ -478,6 +435,48 @@ ob_start();
             </span>
         </div>
         <?php endif; ?>
+        <div class="table-container">
+            <table class="table is-fullwidth">
+                <thead>
+                    <tr>
+                        <th class="has-text-centered"><?php echo t('persistent_storage_table_file_name'); ?></th>
+                        <th class="has-text-centered"><?php echo t('persistent_storage_table_upload_date'); ?></th>
+                        <th class="has-text-centered"><?php echo t('persistent_storage_table_size'); ?></th>
+                        <th class="has-text-centered"><?php echo t('persistent_storage_table_actions'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($persistent_storage_error): ?>
+                        <tr>
+                            <td colspan="4" class="has-text-centered has-text-danger"><?php echo htmlspecialchars($persistent_storage_error); ?></td>
+                        </tr>
+                    <?php elseif (empty($persistent_storage_files)): ?>
+                        <tr>
+                            <td colspan="4" class="has-text-centered"><?php echo t('persistent_storage_no_files'); ?></td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($persistent_storage_files as $file): ?>
+                        <tr>
+                            <td class="has-text-centered"><?php echo htmlspecialchars($file['name']); ?></td>
+                            <td class="has-text-centered"><?php echo htmlspecialchars($file['created_at']); ?></td>
+                            <td class="has-text-centered"><?php echo htmlspecialchars($file['size']); ?></td>
+                            <td class="has-text-centered">
+                                <a href="<?php echo $s3Client->getObjectUrl($bucket_name, $file['path']); ?>" class="action-icon" title="<?php echo t('streaming_action_download_video'); ?>" target="_blank">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                <a href="?delete=<?php echo urlencode($file['path']); ?>&server=<?php echo urlencode($selected_server); ?>" class="action-icon" title="<?php echo t('streaming_action_delete_video'); ?>" onclick="return confirm('<?php echo t('persistent_storage_confirm_delete'); ?>');">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                                <a href="#" class="play-video action-icon" data-video-url="play_stream.php?persistent=true&server=<?php echo urlencode($selected_server); ?>&file=<?php echo urlencode($file['path']); ?>" title="<?php echo t('streaming_action_watch_video'); ?>">
+                                    <i class="fas fa-play"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
