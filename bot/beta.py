@@ -2719,9 +2719,11 @@ class TwitchBot(commands.Bot):
                         'no_warnings': True,
                         'extractaudio': False,
                         'skip_download': True,
+                        'cookiefile': 'ytdl-cookies.txt',
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         info = ydl.extract_info(message_content, download=False)
+                        api_logger.info(f"yt-dlp info fetch: {info}")
                         video_title = info.get('title', '')
                         if not video_title:
                             await ctx.send("Could not extract title from the YouTube video.")
@@ -2731,9 +2733,9 @@ class TwitchBot(commands.Bot):
                         cleanup_patterns = [
                             r'\s*\[.*?\]\s*',  # Remove [Official Video], [Lyrics], etc.
                             r'\s*\(.*?\)\s*',  # Remove (Official Video), (Lyrics), etc.
-                            r'\s*-\s*(Official|Music|Lyric|Audio).*$',  # Remove - Official Video, etc.
+                            r'\s*-\s*(Official|Music|Lyric|Audio).*$' ,  # Remove - Official Video, etc.
                             r'\s*\|\s*.*$',  # Remove everything after |
-                            r'\s*(HD|4K|1080p|720p).*$',  # Remove quality indicators
+                            r'\s*(HD|4K|1080p|720p).*$' ,  # Remove quality indicators
                             r'\s*(feat\.|ft\.|featuring)',  # Normalize featuring
                         ]
                         cleaned_title = video_title
@@ -2778,11 +2780,14 @@ class TwitchBot(commands.Bot):
             else:
                 # Use search for non-Spotify URL requests (including YouTube-extracted titles)
                 search = message_content.replace(" ", "%20")
+                api_logger.info(f"[Final Spotify search string]: {search}")
                 search_url = f"https://api.spotify.com/v1/search?q={search}&type=track&limit=1"
+                api_logger.info(f"[Spotify API search URL]: {search_url}")
                 async with httpClientSession() as search_session:
                     async with search_session.get(search_url, headers=headers) as response:
                         if response.status == 200:
                             data = await response.json()
+                            api_logger.info(f"[Spotify API full response]: {data}")
                             tracks = data.get("tracks", {}).get("items", [])
                             if not tracks:
                                 await ctx.send(f"No song found: {message_content}")
@@ -2791,6 +2796,7 @@ class TwitchBot(commands.Bot):
                             song_id = track["uri"]
                             song_name = track["name"]
                             artist_name = track["artists"][0]["name"]
+                            api_logger.info(f"[Selected track]: {song_name} by {artist_name} (URI: {song_id})")
                             unwanted_keywords = ["instrumental", "karaoke version"]
                             if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
                                 await ctx.send(f"No song found: {message_content}")
