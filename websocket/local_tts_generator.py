@@ -50,9 +50,16 @@ class TTSGenerator:
         # Performance optimizations
         self.use_cache = self.config.get('performance', {}).get('use_cache', False)
         self.cache_dir = self.config.get('performance', {}).get('cache_dir', './tts_cache')
+        # Set TTS model cache directory if specified
+        self.model_cache_dir = self.config.get('performance', {}).get('model_cache_dir')
+        if self.model_cache_dir:
+            os.makedirs(self.model_cache_dir, exist_ok=True)
+            os.environ['TTS_CACHE_PATH'] = self.model_cache_dir
         if self.use_cache:
             os.makedirs(self.cache_dir, exist_ok=True)
     def load_config(self, config_file):
+        # Set a default model cache directory in the user's home directory
+        default_model_cache_dir = os.path.join(str(Path.home()), '.local_tts_model_cache')
         default_config = {
             "tts_model": "tts_models/en/ljspeech/tacotron2-DDC",
             "ssh_config": {
@@ -69,6 +76,11 @@ class TTSGenerator:
             "audio_settings": {
                 "sample_rate": 22050,
                 "format": "mp3"
+            },
+            "performance": {
+                "use_cache": False,
+                "cache_dir": './tts_cache',
+                "model_cache_dir": default_model_cache_dir
             }
         }
         if config_file and os.path.exists(config_file):
@@ -84,6 +96,11 @@ class TTSGenerator:
             except Exception as e:
                 logger.error(f"Error loading config file: {e}")
                 logger.info("Using default configuration")
+        # Ensure model_cache_dir is set
+        if 'performance' not in default_config:
+            default_config['performance'] = {}
+        if not default_config['performance'].get('model_cache_dir'):
+            default_config['performance']['model_cache_dir'] = default_model_cache_dir
         return default_config
 
     def initialize_tts(self):
@@ -93,6 +110,9 @@ class TTSGenerator:
             # Performance settings
             performance_config = self.config.get('performance', {})
             use_gpu = performance_config.get('use_gpu', True)
+            # Set TTS_CACHE_PATH if not already set and model_cache_dir is specified
+            if self.model_cache_dir and not os.environ.get('TTS_CACHE_PATH'):
+                os.environ['TTS_CACHE_PATH'] = self.model_cache_dir
             # Check GPU availability
             gpu_available = torch.cuda.is_available()
             if use_gpu and gpu_available:
