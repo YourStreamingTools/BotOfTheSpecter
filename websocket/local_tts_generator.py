@@ -43,8 +43,8 @@ def suppress_stderr():
             sys.stderr = old_stderr
 
 class TTSGenerator:
-    def __init__(self, config_file=None):
-        self.config = self.load_config(config_file)
+    def __init__(self):
+        self.config = self.load_config()
         self.tts_model = None
         self.ssh_client = None
         # Performance optimizations
@@ -57,10 +57,9 @@ class TTSGenerator:
             os.environ['TTS_CACHE_PATH'] = self.model_cache_dir
         if self.use_cache:
             os.makedirs(self.cache_dir, exist_ok=True)
-    def load_config(self, config_file):
-        # Set a default model cache directory in the user's home directory
+    def load_config(self):
         default_model_cache_dir = os.path.join(str(Path.home()), '.local_tts_model_cache')
-        default_config = {
+        return {
             "tts_model": "tts_models/en/ljspeech/tacotron2-DDC",
             "ssh_config": {
                 "hostname": "your-server.com",
@@ -83,25 +82,6 @@ class TTSGenerator:
                 "model_cache_dir": default_model_cache_dir
             }
         }
-        if config_file and os.path.exists(config_file):
-            try:
-                with open(config_file, 'r') as f:
-                    loaded_config = json.load(f)
-                    # Merge with defaults
-                    for key, value in loaded_config.items():
-                        if isinstance(value, dict) and key in default_config:
-                            default_config[key].update(value)
-                        else:
-                            default_config[key] = value
-            except Exception as e:
-                logger.error(f"Error loading config file: {e}")
-                logger.info("Using default configuration")
-        # Ensure model_cache_dir is set
-        if 'performance' not in default_config:
-            default_config['performance'] = {}
-        if not default_config['performance'].get('model_cache_dir'):
-            default_config['performance']['model_cache_dir'] = default_model_cache_dir
-        return default_config
 
     def initialize_tts(self):
         try:
@@ -128,37 +108,21 @@ class TTSGenerator:
         except Exception as e:
             logger.error(f"Failed to initialize TTS model: {e}")
             raise
-    def generate_filename(self, text, voice=None, custom_filename=None):
-        # Use custom filename if provided, otherwise generate one
-        if custom_filename:
-            # Ensure it has the correct extension
-            if not custom_filename.endswith('.wav'):
-                custom_filename = custom_filename.replace('.mp3', '.wav')
-                if not custom_filename.endswith('.wav'):
-                    custom_filename += '.wav'
-            return custom_filename
-        # Create hash of text and voice for unique filename
-        content = f"{text}_{voice or 'default'}"
+    def generate_filename(self, text):
+        # Always generate a unique filename based on text
+        content = f"{text}_default"
         hash_object = hashlib.md5(content.encode())
         hash_hex = hash_object.hexdigest()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"tts_{timestamp}_{hash_hex[:8]}.wav"
-    def generate_tts(self, text, output_path, voice=None):
+    def generate_tts(self, text, output_path):
         try:
             if not self.tts_model:
                 self.initialize_tts()
             logger.info(f"Generating TTS for text: {text[:50]}...")
-            # Use provided voice or default from config
-            speaker = voice or self.config.get('default_speaker')
-            # Generate TTS with stderr suppression to hide NNPACK warnings
+            # Always use default model voice
             with suppress_stderr():
-                if speaker:
-                    # If speaker is specified and model supports it
-                    logger.info(f"Using speaker: {speaker}")
-                    self.tts_model.tts_to_file(text=text, file_path=output_path, speaker=speaker)
-                else:
-                    logger.info("Using default model voice")
-                    self.tts_model.tts_to_file(text=text, file_path=output_path)
+                self.tts_model.tts_to_file(text=text, file_path=output_path)
             logger.info(f"TTS generated successfully: {output_path}")
             return True
         except Exception as e:
@@ -273,15 +237,13 @@ class TTSGenerator:
         if self.ssh_client:
             self.ssh_client.close()
             logger.info("SSH connection closed")
-    def process_tts_request(self, text, voice=None, keep_local=False, custom_filename=None):
+    def process_tts_request(self, text):
         try:
             # Create temporary directory for processing
             with tempfile.TemporaryDirectory() as temp_dir:
-                # Generate filename
-                wav_filename = self.generate_filename(text, voice, custom_filename)
+                wav_filename = self.generate_filename(text)
                 wav_path = os.path.join(temp_dir, wav_filename)
-                # Generate TTS
-                if not self.generate_tts(text, wav_path, voice):
+                if not self.generate_tts(text, wav_path):
                     return None
                 # Convert to MP3 if required
                 final_path = wav_path
@@ -291,20 +253,10 @@ class TTSGenerator:
                     final_path = self.convert_to_mp3(wav_path, mp3_path)
                 # Transfer to server
                 remote_path = self.transfer_file(final_path)
-                # Keep local copy if requested
-                if keep_local:
-                    local_output_dir = "local_tts_output"
-                    os.makedirs(local_output_dir, exist_ok=True)
-                    local_copy_path = os.path.join(local_output_dir, os.path.basename(final_path))
-                    
-                    import shutil
-                    shutil.copy2(final_path, local_copy_path)
-                    logger.info(f"Local copy saved: {local_copy_path}")
                 return {
                     'success': True,
                     'remote_path': remote_path,
-                    'filename': os.path.basename(final_path),
-                    'local_path': local_copy_path if keep_local else None
+                    'filename': os.path.basename(final_path)
                 }
         except Exception as e:
             logger.error(f"TTS processing failed: {e}")
@@ -313,26 +265,14 @@ class TTSGenerator:
             self.cleanup_ssh()
 
 def main():
-    parser = argparse.ArgumentParser(description='Local TTS Generator with SSH Transfer')
+    parser = argparse.ArgumentParser(description='Local TTS Generator')
     parser.add_argument('--text', '-t', required=True, help='Text to convert to speech')
-    parser.add_argument('--voice', '-v', help='Voice to use (if supported by model)')
-    parser.add_argument('--config', '-c', default='websocket_tts_config.json', help='Configuration file path')
-    parser.add_argument('--keep-local', action='store_true', help='Keep local copy of generated file')
-    parser.add_argument('--filename', '-f', help='Custom filename for the output file')
     args = parser.parse_args()
-    generator = TTSGenerator(args.config)
-    # Process TTS request
-    result = generator.process_tts_request(
-        text=args.text,
-        voice=args.voice,
-        keep_local=args.keep_local,
-        custom_filename=args.filename
-    )
+    generator = TTSGenerator()
+    result = generator.process_tts_request(text=args.text)
     if result and result.get('success'):
         print(f"TTS generation successful!")
         print(f"Remote file: {result['remote_path']}")
-        if result.get('local_path'):
-            print(f"Local copy: {result['local_path']}")
     else:
         error_msg = result.get('error', 'Unknown error') if result else 'Failed to generate TTS'
         print(f"TTS generation failed: {error_msg}")
