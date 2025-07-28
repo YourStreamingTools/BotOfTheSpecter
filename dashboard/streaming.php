@@ -636,8 +636,16 @@ ob_start();
 <div id="videoModal" class="modal">
     <div class="modal-background"></div>
     <button class="modal-close is-large" aria-label="close"></button>
-    <div class="modal-content" style="width:1280px; height:720px;">
-        <iframe id="videoFrame" style="width:100%; height:100%;" frameborder="0" allowfullscreen></iframe>
+    <div class="modal-content" style="width:100%; max-width:900px; min-width:320px;">
+        <div id="customPlayerContainer" style="background:#181c24; border-radius:12px; box-shadow:0 4px 32px rgba(0,0,0,0.4); padding:24px; display:flex; flex-direction:column; align-items:center;">
+            <video id="customVideoPlayer" style="width:100%; max-width:800px; border-radius:8px; background:#000; outline:none;" controls poster="/cdn/BotOfTheSpecter.png">
+                <source id="customVideoSource" src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div style="margin-top:12px; text-align:center;">
+                <span style="color:#fff; font-weight:bold; font-size:1.1em;">BotOfTheSpecter Video Player</span>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -696,33 +704,36 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     updateAllCountdowns();
     setInterval(updateAllCountdowns, 1000);
-    
-    // Video modal functionality
+    // Video modal functionality with custom player
     var videoModal = document.getElementById('videoModal');
-    var videoFrame = document.getElementById('videoFrame');
+    var customVideoPlayer = document.getElementById('customVideoPlayer');
+    var customVideoSource = document.getElementById('customVideoSource');
     document.querySelectorAll('.play-video').forEach(function(el) {
         el.addEventListener('click', function(e) {
             e.preventDefault();
             var url = this.getAttribute('data-video-url');
-            videoFrame.src = url;
+            customVideoSource.src = url;
+            customVideoPlayer.load();
             videoModal.classList.add('is-active');
         });
     });
     document.querySelector('#videoModal .modal-background').addEventListener('click', function() {
         videoModal.classList.remove('is-active');
-        videoFrame.src = '';
+        customVideoPlayer.pause();
+        customVideoSource.src = '';
+        customVideoPlayer.load();
     });
     document.querySelector('#videoModal .modal-close').addEventListener('click', function() {
         videoModal.classList.remove('is-active');
-        videoFrame.src = '';
+        customVideoPlayer.pause();
+        customVideoSource.src = '';
+        customVideoPlayer.load();
     });
-    
     // Edit modal functionality
     var editModal = document.getElementById('editModal');
     var titleInput = document.getElementById('edit-title-input');
     var fileInput = document.getElementById('edit-file-input');
     var serverInput = document.getElementById('edit-server-input');
-    
     // Open edit modal when clicking edit icon
     document.querySelectorAll('.edit-video').forEach(function(el) {
         el.addEventListener('click', function(e) {
@@ -733,27 +744,22 @@ document.addEventListener('DOMContentLoaded', function() {
             editModal.classList.add('is-active');
         });
     });
-    
     // Close edit modal
     function closeEditModal() {
         editModal.classList.remove('is-active');
     }
-    
     document.querySelector('#editModal .delete').addEventListener('click', closeEditModal);
     document.getElementById('cancel-edit-btn').addEventListener('click', closeEditModal);
     document.querySelector('#editModal .modal-background').addEventListener('click', closeEditModal);
-    
     // Handle rename form submission
     document.getElementById('save-edit-btn').addEventListener('click', function() {
         var newTitle = titleInput.value.trim();
         var oldFile = fileInput.value;
         var server = serverInput.value;
-        
         if (newTitle === '') {
             alert('<?= t('streaming_enter_valid_title') ?>');
             return;
         }
-        
         // AJAX request to rename the file
         fetch('edit_stream.php?server=' + encodeURIComponent(server) + '&file=' + encodeURIComponent(oldFile), {
             method: 'POST',
@@ -787,7 +793,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.serverInput = document.getElementById('edit-server-input');
     // Initialize event handlers for the first time
     reattachEventHandlers();
-
     // Handle upload to S3
     document.querySelectorAll('.upload-to-s3').forEach(function(el) {
         el.addEventListener('click', function(e) {
