@@ -191,15 +191,23 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
             }
         }
     }
-    // Check if the directory exists
+    // Check if the directory exists, and create it if it does not
     $dir_path = $user_dir . "/";
-    $sftp_stream = @opendir("ssh2.sftp://" . intval($sftp) . $dir_path);
+    $sftp_dir = "ssh2.sftp://" . intval($sftp) . $dir_path;
+    $sftp_stream = @opendir($sftp_dir);
     if (!$sftp_stream) {
-        // If we found a recording, return that even if user directory doesn't exist
-        if ($recording_active) {
-            return $files;
+        // Try to create the directory if it does not exist
+        if (!@ssh2_sftp_mkdir($sftp, $dir_path, 0775, true)) {
+            // If we found a recording, return that even if user directory doesn't exist
+            if ($recording_active) { return $files; }
+            return ['error' => "User directory could not be created or accessed."];
         }
-        return ['error' => "No files found."];
+        // Try to open again after creating
+        $sftp_stream = @opendir($sftp_dir);
+        if (!$sftp_stream) {
+            if ($recording_active) { return $files; }
+            return ['error' => "User directory could not be accessed after creation."];
+        }
     }
     // List files
     while (($file = readdir($sftp_stream)) !== false) {
