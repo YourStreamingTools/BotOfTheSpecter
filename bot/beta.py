@@ -34,6 +34,7 @@ from geopy.geocoders import Nominatim
 from jokeapi import Jokes
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
+import yt_dlp
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -2672,7 +2673,7 @@ class TwitchBot(commands.Bot):
             message = ctx.message.content
             parts = message.split(" ", 1)
             if len(parts) < 2 or not parts[1].strip():
-                await ctx.send("Please provide a song title, artist, or a Spotify link. Examples: !songrequest [song title] by [artist] or !songrequest https://open.spotify.com/track/...")
+                await ctx.send("Please provide a song title, artist, YouTube link, or a Spotify link. Examples: !songrequest [song title] by [artist] or !songrequest https://www.youtube.com/watch?v=... or !songrequest https://open.spotify.com/track/...")
                 return
             message_content = parts[1].strip()
             # Check for album links and prompt user to provide a track link instead
@@ -2681,6 +2682,57 @@ class TwitchBot(commands.Bot):
             if spotify_album_url_pattern.search(message_content) or spotify_album_uri_pattern.search(message_content):
                 await ctx.send("That looks like a Spotify album link. Please provide a Spotify track link instead.")
                 return
+            # YouTube URL patterns
+            youtube_url_patterns = [
+                re.compile(r'https?://(www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)'),
+                re.compile(r'https?://(www\.)?youtube\.com/v/([a-zA-Z0-9_-]+)'),
+                re.compile(r'https?://youtu\.be/([a-zA-Z0-9_-]+)'),
+                re.compile(r'https?://(www\.)?youtube\.com/embed/([a-zA-Z0-9_-]+)'),
+                re.compile(r'https?://m\.youtube\.com/watch\?v=([a-zA-Z0-9_-]+)')
+            ]
+            # Check if it's a YouTube link
+            youtube_match = None
+            for pattern in youtube_url_patterns:
+                youtube_match = pattern.search(message_content)
+                if youtube_match:
+                    break
+            if youtube_match:
+                # Extract video title using yt-dlp
+                try:
+                    ydl_opts = {
+                        'quiet': True,
+                        'no_warnings': True,
+                        'extractaudio': False,
+                        'skip_download': True,
+                    }
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(message_content, download=False)
+                        video_title = info.get('title', '')
+                        if not video_title:
+                            await ctx.send("Could not extract title from the YouTube video.")
+                            return
+                        # Clean up the title for better Spotify search results
+                        # Remove common YouTube suffixes and prefixes
+                        cleanup_patterns = [
+                            r'\s*\[.*?\]\s*',  # Remove [Official Video], [Lyrics], etc.
+                            r'\s*\(.*?\)\s*',  # Remove (Official Video), (Lyrics), etc.
+                            r'\s*-\s*(Official|Music|Lyric|Audio).*$',  # Remove - Official Video, etc.
+                            r'\s*\|\s*.*$',  # Remove everything after |
+                            r'\s*(HD|4K|1080p|720p).*$',  # Remove quality indicators
+                            r'\s*(feat\.|ft\.|featuring)',  # Normalize featuring
+                        ]
+                        cleaned_title = video_title
+                        for pattern in cleanup_patterns:
+                            cleaned_title = re.sub(pattern, '', cleaned_title, flags=re.IGNORECASE)
+                        cleaned_title = cleaned_title.strip()
+                        # Use the cleaned title for Spotify search
+                        message_content = cleaned_title
+                        api_logger.info(f"YouTube title extracted: '{video_title}' -> cleaned: '{cleaned_title}'")
+                except Exception as e:
+                    api_logger.error(f"Error extracting YouTube video info: {e}")
+                    await ctx.send("Sorry, I couldn't extract information from that YouTube link. Please try a different link or provide the song title manually.")
+                    return
+            # Spotify URL patterns
             spotify_url_pattern = re.compile(r'https?://open\.spotify\.com/track/([a-zA-Z0-9]+)')
             spotify_uri_pattern = re.compile(r'spotify:track:([a-zA-Z0-9]+)')
             spotify_url_match = spotify_url_pattern.search(message_content)
@@ -2708,7 +2760,7 @@ class TwitchBot(commands.Bot):
                             await ctx.send(f"Sorry, I couldn't find that song. {error_message}")
                             return
             else:
-                # Use search as before for non-URL requests
+                # Use search for non-Spotify URL requests (including YouTube-extracted titles)
                 search = message_content.replace(" ", "%20")
                 search_url = f"https://api.spotify.com/v1/search?q={search}&type=track&limit=1"
                 async with httpClientSession() as search_session:
@@ -2734,6 +2786,7 @@ class TwitchBot(commands.Bot):
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
                             await ctx.send(f"Sorry, I couldn't add the song to the queue. {error_message}")
                             return
+            # Add to Spotify queue
             request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
             async with httpClientSession() as queue_session:
                 async with queue_session.post(request_url, headers=headers) as response:
