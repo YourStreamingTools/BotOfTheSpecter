@@ -1,9 +1,4 @@
 <?php
-$access_key = "";
-$secret_key = "";
-$bucket_url = "";
-
-// NEW SERVERS
 // AU
 $au_s3_access_key = "";
 $au_s3_secret_key = "";
