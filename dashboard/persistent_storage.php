@@ -104,172 +104,173 @@ $persistent_storage_files = [];
 $persistent_storage_error = null;
 $total_used_storage = 0; // Initialize total used storage
 
-// Only initialize S3 client and attempt operations if user has an active or canceled subscription
-if ($is_subscribed || $is_canceled) {
-    // Check for cookie consent to determine preferred server region
-    $cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
-    // Server selection handling (default to AU)
-    $selected_server = isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedPersistentServer']) ? $_COOKIE['selectedPersistentServer'] : 'australia');
-    // Set the cookie if the server is selected from the dropdown
-    if (isset($_GET['server']) && $cookieConsent) { setcookie('selectedPersistentServer', $_GET['server'], time() + (86400 * 30), "/"); } // Cookie for 30 days
-    // Define bucket names and S3 configuration based on selected region
-    if ($selected_server == 'australia') {
-        $bucket_name = 'botofthespecter-au-persistent';
-        $s3Client = new S3Client([
-            'version' => 'latest',
-            'region' => 'us-east-1',
-            'endpoint' => "https://" . $au_s3_bucket_url,
-            'credentials' => ['key' => $au_s3_access_key,'secret' => $au_s3_secret_key]
-        ]);
-    } else {
-        // USA servers
-        $bucket_name = 'botofthespecter-us-persistent';
-        $s3Client = new S3Client([
-            'version' => 'latest',
-            'region' => 'us-east-1',
-            'endpoint' => "https://" . $us_s3_bucket_url,
-            'credentials' => ['key' => $us_s3_access_key,'secret' => $us_s3_secret_key]
-        ]);
-    }
-    // Function to fetch files from S3 bucket
-    function getS3Files($bucketName, $userFolder) {
-        global $s3Client;
-        $files = [];
-        try {
-            $result = $s3Client->listObjectsV2(['Bucket' => $bucketName,'Prefix' => $userFolder . '/']);
-            if (!empty($result['Contents'])) {
-                foreach ($result['Contents'] as $object) {
-                    $key = $object['Key'];
-                    // Skip placeholder files and folder markers
-                    if (basename($key) === '.placeholder' || substr($key, -1) === '/') { continue; }
-                    // Only show actual content files (videos, etc.)
-                    $extension = strtolower(pathinfo($key, PATHINFO_EXTENSION));
-                    if (!in_array($extension, ['mp4', 'avi', 'mov', 'mkv', 'flv', 'webm', 'm4v'])) { continue; }
-                    $sizeBytes = $object['Size'];
-                    $lastModified = $object['LastModified']->getTimestamp();
-                    // Format file size
-                    $size = $sizeBytes < 1024 * 1024 ? round($sizeBytes / 1024, 2) . ' KB' :
-                        ($sizeBytes < 1024 * 1024 * 1024 ? round($sizeBytes / (1024 * 1024), 2) . ' MB' :
-                        round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
-                    // Format creation date
-                    $createdAt = date('d-m-Y H:i:s', $lastModified);
-                    $files[] = ['name' => pathinfo(basename($key), PATHINFO_FILENAME),'size' => $size,'created_at' => $createdAt,'path' => $key];
-                }
-            }
-        } catch (AwsException $e) { return ['error' => $e->getMessage()]; }
-        return $files;
-    }
-    // Function to create user folder in S3 bucket
-    function createUserFolder($bucketName, $userFolder) {
-        global $s3Client;
-        try {
-            // Create a placeholder file to establish the folder structure
-            $s3Client->putObject(['Bucket' => $bucketName,'Key' => $userFolder . '/.placeholder','Body' => 'This folder belongs to: ' . $userFolder,'ContentType' => 'text/plain']);
-            return true;
-        } catch (AwsException $e) { return false; }
-    }
-    // Function to check if user folder exists
-    function userFolderExists($bucketName, $userFolder) {
-        global $s3Client;
-        try {
-            $result = $s3Client->listObjectsV2(['Bucket' => $bucketName,'Prefix' => $userFolder . '/','MaxKeys' => 1]);
-            return !empty($result['Contents']);
-        } catch (AwsException $e) { return false; }
-    }
-    // Function to get files for storage calculation (separate from display function)
-    function getS3FilesForStorage($bucketName, $userFolder, $s3ClientInstance) {
-        $files = [];
-        try {
-            $result = $s3ClientInstance->listObjectsV2(['Bucket' => $bucketName,'Prefix' => $userFolder . '/']);
-            if (!empty($result['Contents'])) {
-                foreach ($result['Contents'] as $object) {
-                    $key = $object['Key'];
-                    // Skip placeholder files and folder markers
-                    if (basename($key) === '.placeholder' || substr($key, -1) === '/') { continue; }
-                    // Only count actual content files (videos, etc.)
-                    $extension = strtolower(pathinfo($key, PATHINFO_EXTENSION));
-                    if (!in_array($extension, ['mp4', 'avi', 'mov', 'mkv', 'flv', 'webm', 'm4v'])) { continue; }
-                    $sizeBytes = $object['Size'];
-                    // Format file size
-                    $size = $sizeBytes < 1024 * 1024 ? round($sizeBytes / 1024, 2) . ' KB' :
-                        ($sizeBytes < 1024 * 1024 * 1024 ? round($sizeBytes / (1024 * 1024), 2) . ' MB' :
-                        round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
-                    $files[] = ['size' => $size];
-                }
-            }
-        } catch (AwsException $e) { return ['error' => $e->getMessage()]; }
-        return $files;
-    }
-    // Check if user folder exists and create it if it doesn't (only for active subscribers)
-    if ($is_subscribed && !userFolderExists($bucket_name, $username)) {
-        $folder_created = createUserFolder($bucket_name, $username);
-        if ($folder_created) {
-            $_SESSION['folder_created'] = true;
-        }
-    }
-    // Also ensure folder exists for canceled subscriptions (for access before deletion)
-    if ($is_canceled && !userFolderExists($bucket_name, $username)) {
-        $folder_created = createUserFolder($bucket_name, $username);
-        if ($folder_created) {
-            $_SESSION['folder_created'] = true;
-        }
-    }
-    // Fetch persistent storage files
-    $result = getS3Files($bucket_name, $username);
-    if (isset($result['error'])) {
-        $persistent_storage_error = "Persistent storage is not available at the moment. Please try again later.";
-    } else {
-        $persistent_storage_files = $result;
-        // Calculate total used storage from BOTH regions (AU and US)
-        $total_used_storage = 0;
-        // Get files from Australia region
-        $au_s3Client = new S3Client([
-            'version' => 'latest',
-            'region' => 'us-east-1',
-            'endpoint' => "https://" . $au_s3_bucket_url,
-            'credentials' => ['key' => $au_s3_access_key,'secret' => $au_s3_secret_key]
-        ]);
-        $au_result = getS3FilesForStorage('botofthespecter-au-persistent', $username, $au_s3Client);
-        // Get files from USA region
-        $us_s3Client = new S3Client([
-            'version' => 'latest',
-            'region' => 'us-east-1',
-            'endpoint' => "https://" . $us_s3_bucket_url,
-            'credentials' => ['key' => $us_s3_access_key,'secret' => $us_s3_secret_key]
-        ]);
-        $us_result = getS3FilesForStorage('botofthespecter-us-persistent', $username, $us_s3Client);
-        // Combine storage from both regions
-        $all_files = [];
-        if (!isset($au_result['error'])) { $all_files = array_merge($all_files, $au_result); }
-        if (!isset($us_result['error'])) { $all_files = array_merge($all_files, $us_result); }
-        // Calculate total used storage from all files
-        foreach ($all_files as $file) {
-            if (isset($file['size'])) {
-                // Convert size to bytes for calculation
-                $size = $file['size'];
-                if (strpos($size, 'KB') !== false) {
-                    $total_used_storage += floatval($size) * 1024;
-                } elseif (strpos($size, 'MB') !== false) {
-                    $total_used_storage += floatval($size) * 1024 * 1024;
-                } elseif (strpos($size, 'GB') !== false) {
-                    $total_used_storage += floatval($size) * 1024 * 1024 * 1024;
-                }
+$cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
+// Server selection handling (default to AU)
+$selected_server = isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedPersistentServer']) ? $_COOKIE['selectedPersistentServer'] : 'australia');
+// Set the cookie if the server is selected from the dropdown
+if (isset($_GET['server']) && $cookieConsent) { setcookie('selectedPersistentServer', $_GET['server'], time() + (86400 * 30), "/"); } // Cookie for 30 days
+// Define bucket names and S3 configuration based on selected region
+if ($selected_server == 'australia') {
+    $bucket_name = 'botofthespecter-au-persistent';
+    $s3Client = new S3Client([
+        'version' => 'latest',
+        'region' => 'us-east-1',
+        'endpoint' => "https://" . $au_s3_bucket_url,
+        'credentials' => ['key' => $au_s3_access_key,'secret' => $au_s3_secret_key]
+    ]);
+} else {
+    // USA servers
+    $bucket_name = 'botofthespecter-us-persistent';
+    $s3Client = new S3Client([
+        'version' => 'latest',
+        'region' => 'us-east-1',
+        'endpoint' => "https://" . $us_s3_bucket_url,
+        'credentials' => ['key' => $us_s3_access_key,'secret' => $us_s3_secret_key]
+    ]);
+}
+// Function to fetch files from S3 bucket
+function getS3Files($bucketName, $userFolder) {
+    global $s3Client;
+    $files = [];
+    try {
+        $result = $s3Client->listObjectsV2(['Bucket' => $bucketName,'Prefix' => $userFolder . '/']);
+        if (!empty($result['Contents'])) {
+            foreach ($result['Contents'] as $object) {
+                $key = $object['Key'];
+                // Skip placeholder files and folder markers
+                if (basename($key) === '.placeholder' || substr($key, -1) === '/') { continue; }
+                // Only show actual content files (videos, etc.)
+                $extension = strtolower(pathinfo($key, PATHINFO_EXTENSION));
+                if (!in_array($extension, ['mp4', 'avi', 'mov', 'mkv', 'flv', 'webm', 'm4v'])) { continue; }
+                $sizeBytes = $object['Size'];
+                $lastModified = $object['LastModified']->getTimestamp();
+                // Format file size
+                $size = $sizeBytes < 1024 * 1024 ? round($sizeBytes / 1024, 2) . ' KB' :
+                    ($sizeBytes < 1024 * 1024 * 1024 ? round($sizeBytes / (1024 * 1024), 2) . ' MB' :
+                    round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
+                // Format creation date
+                $createdAt = date('d-m-Y H:i:s', $lastModified);
+                $files[] = ['name' => pathinfo(basename($key), PATHINFO_FILENAME),'size' => $size,'created_at' => $createdAt,'path' => $key];
             }
         }
-        // Convert total used storage to GB for display
-        $total_used_storage = round($total_used_storage / (1024 * 1024 * 1024), 2);
-    }
-    // Handle file deletion if requested
-    if (isset($_GET['delete']) && !empty($_GET['delete'])) {
-        $fileToDelete = $_GET['delete'];
-        try {
-            $s3Client->deleteObject(['Bucket' => $bucket_name,'Key' => $fileToDelete]);
-            $_SESSION['delete_success'] = true;
-            header('Location: persistent_storage.php?server=' . $selected_server);
-            exit();
-        } catch (AwsException $e) {
-            $delete_error = "Error deleting file: " . $e->getMessage();
+    } catch (AwsException $e) { return ['error' => $e->getMessage()]; }
+    return $files;
+}
+// Function to create user folder in S3 bucket with debug output
+function createUserFolder($bucketName, $userFolder) {
+    global $s3Client;
+    try {
+        if (empty($userFolder)) {
+            error_log('[S3 DEBUG] Username/userFolder is empty, cannot create folder.');
+            return false;
         }
+        $result = $s3Client->putObject([
+            'Bucket' => $bucketName,
+            'Key' => $userFolder . '/.placeholder',
+            'Body' => 'This folder belongs to: ' . $userFolder,
+            'ContentType' => 'text/plain'
+        ]);
+        error_log('[S3 DEBUG] putObject result: ' . print_r($result, true));
+        return true;
+    } catch (AwsException $e) {
+        error_log('[S3 DEBUG] putObject exception: ' . $e->getMessage());
+        return false;
+    }
+}
+// Function to check if user folder exists
+function userFolderExists($bucketName, $userFolder) {
+    global $s3Client;
+    try {
+        $result = $s3Client->listObjectsV2(['Bucket' => $bucketName,'Prefix' => $userFolder . '/','MaxKeys' => 1]);
+        return !empty($result['Contents']);
+    } catch (AwsException $e) { return false; }
+}
+// Function to get files for storage calculation (separate from display function)
+function getS3FilesForStorage($bucketName, $userFolder, $s3ClientInstance) {
+    $files = [];
+    try {
+        $result = $s3ClientInstance->listObjectsV2(['Bucket' => $bucketName,'Prefix' => $userFolder . '/']);
+        if (!empty($result['Contents'])) {
+            foreach ($result['Contents'] as $object) {
+                $key = $object['Key'];
+                // Skip placeholder files and folder markers
+                if (basename($key) === '.placeholder' || substr($key, -1) === '/') { continue; }
+                // Only count actual content files (videos, etc.)
+                $extension = strtolower(pathinfo($key, PATHINFO_EXTENSION));
+                if (!in_array($extension, ['mp4', 'avi', 'mov', 'mkv', 'flv', 'webm', 'm4v'])) { continue; }
+                $sizeBytes = $object['Size'];
+                // Format file size
+                $size = $sizeBytes < 1024 * 1024 ? round($sizeBytes / 1024, 2) . ' KB' :
+                    ($sizeBytes < 1024 * 1024 * 1024 ? round($sizeBytes / (1024 * 1024), 2) . ' MB' :
+                    round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
+                $files[] = ['size' => $size];
+            }
+        }
+    } catch (AwsException $e) { return ['error' => $e->getMessage()]; }
+    return $files;
+}
+// Always ensure the user folder is created for both active and canceled users
+if (!empty($username) && (!userFolderExists($bucket_name, $username))) {
+    $folder_created = createUserFolder($bucket_name, $username);
+    if ($folder_created) {
+        $_SESSION['folder_created'] = true;
+    }
+}
+// Fetch persistent storage files
+$result = getS3Files($bucket_name, $username);
+if (isset($result['error'])) {
+    $persistent_storage_error = "Persistent storage is not available at the moment. Please try again later.";
+} else {
+    $persistent_storage_files = $result;
+    // Calculate total used storage from BOTH regions (AU and US)
+    $total_used_storage = 0;
+    // Get files from Australia region
+    $au_s3Client = new S3Client([
+        'version' => 'latest',
+        'region' => 'us-east-1',
+        'endpoint' => "https://" . $au_s3_bucket_url,
+        'credentials' => ['key' => $au_s3_access_key,'secret' => $au_s3_secret_key]
+    ]);
+    $au_result = getS3FilesForStorage('botofthespecter-au-persistent', $username, $au_s3Client);
+    // Get files from USA region
+    $us_s3Client = new S3Client([
+        'version' => 'latest',
+        'region' => 'us-east-1',
+        'endpoint' => "https://" . $us_s3_bucket_url,
+        'credentials' => ['key' => $us_s3_access_key,'secret' => $us_s3_secret_key]
+    ]);
+    $us_result = getS3FilesForStorage('botofthespecter-us-persistent', $username, $us_s3Client);
+    // Combine storage from both regions
+    $all_files = [];
+    if (!isset($au_result['error'])) { $all_files = array_merge($all_files, $au_result); }
+    if (!isset($us_result['error'])) { $all_files = array_merge($all_files, $us_result); }
+    // Calculate total used storage from all files
+    foreach ($all_files as $file) {
+        if (isset($file['size'])) {
+            // Convert size to bytes for calculation
+            $size = $file['size'];
+            if (strpos($size, 'KB') !== false) {
+                $total_used_storage += floatval($size) * 1024;
+            } elseif (strpos($size, 'MB') !== false) {
+                $total_used_storage += floatval($size) * 1024 * 1024;
+            } elseif (strpos($size, 'GB') !== false) {
+                $total_used_storage += floatval($size) * 1024 * 1024 * 1024;
+            }
+        }
+    }
+    // Convert total used storage to GB for display
+    $total_used_storage = round($total_used_storage / (1024 * 1024 * 1024), 2);
+}
+// Handle file deletion if requested
+if (isset($_GET['delete']) && !empty($_GET['delete'])) {
+    $fileToDelete = $_GET['delete'];
+    try {
+        $s3Client->deleteObject(['Bucket' => $bucket_name,'Key' => $fileToDelete]);
+        $_SESSION['delete_success'] = true;
+        header('Location: persistent_storage.php?server=' . $selected_server);
+        exit();
+    } catch (AwsException $e) {
+        $delete_error = "Error deleting file: " . $e->getMessage();
     }
 }
 
