@@ -2676,10 +2676,25 @@ class TwitchBot(commands.Bot):
                 await ctx.send("Please provide a song title, artist, YouTube link, or a Spotify link. Examples: !songrequest [song title] by [artist] or !songrequest https://www.youtube.com/watch?v=... or !songrequest https://open.spotify.com/track/...")
                 return
             message_content = parts[1].strip()
+            # Spotify URL patterns - both track and album
+            spotify_track_url_patterns = [
+                re.compile(r'https?://open\.spotify\.com/track/([a-zA-Z0-9]+)'),
+                re.compile(r'https?://open\.spotify\.com/intl-[a-z]{2}/track/([a-zA-Z0-9]+)'),
+                re.compile(r'https?://spotify\.link/([a-zA-Z0-9]+)'),  # Short links
+                re.compile(r'spotify:track:([a-zA-Z0-9]+)')
+            ]
+            spotify_album_url_patterns = [
+                re.compile(r'https?://open\.spotify\.com/album/([a-zA-Z0-9]+)'),
+                re.compile(r'https?://open\.spotify\.com/intl-[a-z]{2}/album/([a-zA-Z0-9]+)'),
+                re.compile(r'spotify:album:([a-zA-Z0-9]+)')
+            ]
             # Check for album links and prompt user to provide a track link instead
-            spotify_album_url_pattern = re.compile(r'https?://open\.spotify\.com/album/([a-zA-Z0-9]+)')
-            spotify_album_uri_pattern = re.compile(r'spotify:album:([a-zA-Z0-9]+)')
-            if spotify_album_url_pattern.search(message_content) or spotify_album_uri_pattern.search(message_content):
+            album_match = None
+            for pattern in spotify_album_url_patterns:
+                album_match = pattern.search(message_content)
+                if album_match:
+                    break
+            if album_match:
                 await ctx.send("That looks like a Spotify album link. Please provide a Spotify track link instead.")
                 return
             # YouTube URL patterns
@@ -2732,12 +2747,15 @@ class TwitchBot(commands.Bot):
                     api_logger.error(f"Error extracting YouTube video info: {e}")
                     await ctx.send("Sorry, I couldn't extract information from that YouTube link. Please try a different link or provide the song title manually.")
                     return
-            # Spotify URL patterns
-            spotify_url_pattern = re.compile(r'https?://open\.spotify\.com/track/([a-zA-Z0-9]+)')
-            spotify_uri_pattern = re.compile(r'spotify:track:([a-zA-Z0-9]+)')
-            spotify_url_match = spotify_url_pattern.search(message_content)
-            spotify_uri_match = spotify_uri_pattern.search(message_content)
-            if spotify_url_match or spotify_uri_match:
+            # Check for Spotify track links
+            track_match = None
+            track_id = None
+            for pattern in spotify_track_url_patterns:
+                track_match = pattern.search(message_content)
+                if track_match:
+                    track_id = track_match.group(1)
+                    break
+            if track_match:
                 # Extract the track ID from the URL or URI
                 track_id = spotify_url_match.group(1) if spotify_url_match else spotify_uri_match.group(1)
                 track_url = f"https://api.spotify.com/v1/tracks/{track_id}"
