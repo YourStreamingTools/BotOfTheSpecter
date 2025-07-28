@@ -207,6 +207,13 @@ if ($is_subscribed || $is_canceled) {
             $_SESSION['folder_created'] = true;
         }
     }
+    // Also ensure folder exists for canceled subscriptions (for access before deletion)
+    if ($is_canceled && !userFolderExists($bucket_name, $username)) {
+        $folder_created = createUserFolder($bucket_name, $username);
+        if ($folder_created) {
+            $_SESSION['folder_created'] = true;
+        }
+    }
     // Fetch persistent storage files
     $result = getS3Files($bucket_name, $username);
     if (isset($result['error'])) {
@@ -318,7 +325,6 @@ ob_start();
                     </p>
                 <?php endif; ?>
             </div>
-            <?php if ($is_subscribed || $is_canceled): ?>
             <div style="position:absolute; right:1.5rem; bottom:1.5rem; z-index:2;">
                 <form method="get" id="server-selection-form">
                     <div class="field is-grouped is-align-items-center mb-0">
@@ -334,7 +340,6 @@ ob_start();
                     </div>
                 </form>
             </div>
-            <?php endif; ?>
             <p class="has-text-weight-bold has-text-black"><?php echo t('persistent_storage_info_title'); ?></p>
             <p class="has-text-black"><?php echo t('persistent_storage_info_desc'); ?></p>
             <ul style="list-style-type: disc; padding-left: 20px;">
@@ -351,7 +356,7 @@ ob_start();
                 <p class="has-text-black">
                     Files are automatically uploaded to the persistent storage region that matches your streaming server location. 
                     If you stream to AU servers, files go to Australia persistent storage. If you stream to US servers, files go to USA persistent storage.
-                    Use the dropdown above to view files from different regions.
+                    Use the dropdown below to view files from different regions.
                 </p>
             </div>
             <p class="has-text-black"><?php echo t('persistent_storage_info_upload_hint'); ?></p>
@@ -409,6 +414,12 @@ ob_start();
         <div class="notification is-danger">
             <span class="is-size-4">
                 <p class="has-text-weight-bold has-text-black"><?php echo t('persistent_storage_subscription'); ?> <?php echo htmlspecialchars($subscription_status); ?></p>
+                <?php if (!$is_subscribed && !$is_canceled && !$has_billing_account): ?>
+                    <div class="notification is-warning mt-3 mb-3">
+                        <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                        <span class="has-text-weight-bold">Signups in our billing panel are currently unavailable. Please check back later or contact support for more information.</span>
+                    </div>
+                <?php endif; ?>
                 <?php if (strtolower($subscription_status) === 'canceled'): ?>
                     <?php if (!empty($suspend_reason)): ?>
                         <p class="has-text-black">
