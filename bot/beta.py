@@ -2840,21 +2840,35 @@ class TwitchBot(commands.Bot):
             headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
             device_url = "https://api.spotify.com/v1/me/player/devices"
             async with httpClientSession() as session:
+                device_id = None
                 async with session.get(device_url, headers=headers) as response:
                     if response.status != 200:
-                        active_devices = response.json()
+                        active_devices = await response.json()
                         current_active_devices = active_devices.get("devices", [])
                         if not current_active_devices:
                             await ctx.send("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
                             return
                         for device in current_active_devices:
-                            current_device = device["is_active"] == True
-                            if current_device:
+                            if device.get("is_active"):
                                 device_id = device["id"]
                                 break
+                        if device_id is None:
+                            await ctx.send("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
+                            return
+                    else:
+                        # If status is 200, still need to parse devices
+                        active_devices = await response.json()
+                        current_active_devices = active_devices.get("devices", [])
+                        for device in current_active_devices:
+                            if device.get("is_active"):
+                                device_id = device["id"]
+                                break
+                        if device_id is None:
+                            await ctx.send("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
+                            return
                 next_url = f"https://api.spotify.com/v1/me/player/next?device_id={device_id}"
                 async with session.post(next_url, headers=headers) as response:
-                    if response.status == 204:
+                    if response.status in (200, 204):
                         api_logger.info(f"Song skipped successfully by {ctx.message.author.name}")
                         await ctx.send("Song skipped successfully.")
                     else:
