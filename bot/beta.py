@@ -2756,8 +2756,6 @@ class TwitchBot(commands.Bot):
                     track_id = track_match.group(1)
                     break
             if track_match:
-                # Extract the track ID from the URL or URI
-                track_id = spotify_url_match.group(1) if spotify_url_match else spotify_uri_match.group(1)
                 track_url = f"https://api.spotify.com/v1/tracks/{track_id}"
                 async with httpClientSession() as track_session:
                     async with track_session.get(track_url, headers=headers) as response:
