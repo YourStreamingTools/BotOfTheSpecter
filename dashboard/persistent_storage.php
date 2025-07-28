@@ -484,8 +484,16 @@ ob_start();
 <div id="videoModal" class="modal">
     <div class="modal-background"></div>
     <button class="modal-close is-large" aria-label="close"></button>
-    <div class="modal-content" style="width:1280px; height:720px;">
-        <iframe id="videoFrame" style="width:100%; height:100%;" frameborder="0" allowfullscreen></iframe>
+    <div class="modal-content" style="width:100%; max-width:900px; min-width:320px;">
+        <div id="customPlayerContainer" style="background:#181c24; border-radius:12px; box-shadow:0 4px 32px rgba(0,0,0,0.4); padding:24px; display:flex; flex-direction:column; align-items:center;">
+            <video id="customVideoPlayer" style="width:100%; max-width:800px; border-radius:8px; background:#000; outline:none;" controls poster="/cdn/BotOfTheSpecter.png">
+                <source id="customVideoSource" src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div style="margin-top:12px; text-align:center;">
+                <span style="color:#fff; font-weight:bold; font-size:1.1em;">BotOfTheSpecter Video Player</span>
+            </div>
+        </div>
     </div>
 </div>
 <?php
@@ -497,27 +505,30 @@ ob_start();
 document.addEventListener('DOMContentLoaded', function() {
     // Video modal functionality
     var videoModal = document.getElementById('videoModal');
-    var videoFrame = document.getElementById('videoFrame');
-    
+    var customVideoPlayer = document.getElementById('customVideoPlayer');
+    var customVideoSource = document.getElementById('customVideoSource');
     document.querySelectorAll('.play-video').forEach(function(el) {
         el.addEventListener('click', function(e) {
             e.preventDefault();
             var url = this.getAttribute('data-video-url');
-            videoFrame.src = url;
+            // Set the video source and load
+            customVideoSource.src = url;
+            customVideoPlayer.load();
             videoModal.classList.add('is-active');
         });
     });
-    
     document.querySelector('#videoModal .modal-background').addEventListener('click', function() {
         videoModal.classList.remove('is-active');
-        videoFrame.src = '';
+        customVideoPlayer.pause();
+        customVideoSource.src = '';
+        customVideoPlayer.load();
     });
-    
     document.querySelector('#videoModal .modal-close').addEventListener('click', function() {
         videoModal.classList.remove('is-active');
-        videoFrame.src = '';
+        customVideoPlayer.pause();
+        customVideoSource.src = '';
+        customVideoPlayer.load();
     });
-    
     // Deletion countdown timer functionality
     var countdownElement = document.getElementById('deletion-countdown');
     if (countdownElement) {
@@ -546,7 +557,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateCountdown();
         setInterval(updateCountdown, 1000);
     }
-    
     // Billing buttons functionality - handles all billing buttons with class 'billing-btn'
     const billingButtons = document.querySelectorAll('.billing-btn');
     billingButtons.forEach(function(button) {
