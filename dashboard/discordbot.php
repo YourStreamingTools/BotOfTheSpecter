@@ -1121,7 +1121,6 @@ function removeStreamer(username) {
       }
     });
   }
-  
   function inviteBot() {
     // Discord bot invite URL with necessary permissions
     const botInviteURL = 'https://discord.com/oauth2/authorize' +
@@ -1132,7 +1131,6 @@ function removeStreamer(username) {
     
     window.open(botInviteURL, '_blank');
   }
-  
   function toggleDeprecatedCard() {
     const content = document.getElementById('deprecatedCardContent');
     const toggle = document.getElementById('deprecatedCardToggle');
@@ -1145,6 +1143,88 @@ function removeStreamer(username) {
       toggle.innerHTML = '<i class="fas fa-chevron-down"></i>';
     }
   }
+  // Discord Settings AJAX Handler
+  function updateDiscordSetting(settingName, value) {
+    fetch('save_discord_server_management_settings.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        setting: settingName,
+        value: value
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Show success notification
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Setting updated successfully',
+          showConfirmButton: false,
+          timer: 2000,
+          timerProgressBar: true
+        });
+      } else {
+        // Show error and revert toggle
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'error',
+          title: 'Failed to update setting: ' + data.message,
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true
+        });
+        // Revert the toggle state
+        const toggle = document.getElementById(settingName);
+        if (toggle) {
+          toggle.checked = !value;
+        }
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      // Show error notification and revert toggle
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'error',
+        title: 'Network error occurred',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      // Revert the toggle state
+      const toggle = document.getElementById(settingName);
+      if (toggle) {
+        toggle.checked = !value;
+      }
+    });
+  }
+  // Add event listeners to all Discord setting toggles
+  document.addEventListener('DOMContentLoaded', function() {
+    const settingToggles = [
+      'welcomeMessage',
+      'autoRole',
+      'roleHistory', 
+      'messageTracking',
+      'roleTracking',
+      'serverRoleManagement',
+      'userTracking'
+    ];
+    settingToggles.forEach(settingName => {
+      const toggle = document.getElementById(settingName);
+      if (toggle) {
+        toggle.addEventListener('change', function() {
+          updateDiscordSetting(settingName, this.checked);
+        });
+      }
+    });
+  });
 </script>
 <?php } ?>
 <?php
