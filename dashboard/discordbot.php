@@ -951,10 +951,28 @@ ob_start();
                           <label for="messageTracking" class="has-text-white">Message Tracking (Edited/Deleted messages)</label>
                         </div>
                       </div>
-                      <div class="field">
+                      <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
                           <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded" disabled>
                           <label for="roleTracking" class="has-text-white">Role Tracking (User added/removed from roles)</label>
+                        </div>
+                      </div>
+                      <div class="field" style="margin-bottom: 0.75rem;">
+                        <div class="control">
+                          <input id="serverRoleAdded" type="checkbox" name="serverRoleAdded" class="switch is-rounded" disabled>
+                          <label for="serverRoleAdded" class="has-text-white">Server Role Added (Track when new roles are created)</label>
+                        </div>
+                      </div>
+                      <div class="field" style="margin-bottom: 0.75rem;">
+                        <div class="control">
+                          <input id="serverRoleRemoved" type="checkbox" name="serverRoleRemoved" class="switch is-rounded" disabled>
+                          <label for="serverRoleRemoved" class="has-text-white">Server Role Removed (Track when roles are deleted)</label>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <div class="control">
+                          <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded" disabled>
+                          <label for="userTracking" class="has-text-white">User Tracking (Nickname, profile picture, status changes)</label>
                         </div>
                       </div>
                     </div>
