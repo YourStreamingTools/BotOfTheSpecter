@@ -589,7 +589,7 @@ ob_start();
                     <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
                     Discord Event Channels
                   </p>
-                  <div class="card-header-icon">
+                  <div class="card-header-icon" style="cursor: default;">
                     <span class="tag is-warning is-light">
                       <span class="icon"><i class="fas fa-wrench"></i></span>
                       <span>IN TESTING!</span>
@@ -730,7 +730,7 @@ ob_start();
                     <span class="icon mr-2 has-text-primary"><i class="fas fa-link"></i></span>
                     <?php echo t('discordbot_webhook_card_title'); ?> (Legacy)
                   </p>
-                  <div class="card-header-icon">
+                  <div class="card-header-icon" style="cursor: default;">
                     <span class="tag is-warning is-light">
                       <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
                       <span>Deprecated</span>
@@ -780,10 +780,10 @@ ob_start();
                     <span class="icon mr-2 has-text-primary"><i class="fa-brands fa-twitch"></i></span>
                     Twitch Stream Monitoring
                   </p>
-                  <div class="card-header-icon">
-                    <span class="tag is-warning is-light">
-                      <span class="icon"><i class="fas fa-wrench"></i></span>
-                      <span>IN TESTING!</span>
+                  <div class="card-header-icon" style="cursor: default;">
+                    <span class="tag is-success is-light">
+                      <span class="icon"><i class="fas fa-check-circle"></i></span>
+                      <span>Fully integrated & live</span>
                     </span>
                   </div>
                 </header>
