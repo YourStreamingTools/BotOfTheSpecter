@@ -812,6 +812,59 @@ ob_start();
                   </div>
                 </div>
               </div>
+              <!-- Discord Server Monitoring Box -->
+              <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
+                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                  <p class="card-header-title has-text-white" style="font-weight: 600;">
+                    <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
+                    Discord Server Monitoring
+                  </p>
+                  <div class="card-header-icon" style="cursor: default;">
+                    <span class="tag is-warning is-light">
+                      <span class="icon"><i class="fas fa-hourglass-half"></i></span>
+                      <span>COMING SOON</span>
+                    </span>
+                  </div>
+                </header>
+                <div class="card-content">
+                  <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                    <strong>Moderate your Discord server with automated actions and event monitoring. This feature will allow the bot to perform moderation actions based on server events and user preferences.</strong>
+                  </div>
+                  <form action="" method="post">
+                    <div class="field">
+                      <label class="label has-text-white" style="font-weight: 500;">Server Features</label>
+                      <div class="field" style="margin-bottom: 0.75rem;">
+                        <div class="control">
+                          <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded" disabled>
+                          <label for="welcomeMessage" class="has-text-white">Welcome Message</label>
+                        </div>
+                      </div>
+                      <div class="field" style="margin-bottom: 0.75rem;">
+                        <div class="control">
+                          <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded" disabled>
+                          <label for="autoRole" class="has-text-white">Auto Role on Join</label>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <div class="control">
+                          <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded" disabled>
+                          <label for="roleHistory" class="has-text-white">Role History (Restore roles on rejoin)</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="control">
+                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;" disabled>
+                          <span class="icon"><i class="fas fa-save"></i></span>
+                          <span>Save Moderation Settings</span>
+                        </button>
+                      </div>
+                      <p class="help has-text-warning mt-2 has-text-centered">This feature is not yet available.</p>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
           </div>
         <?php } ?>
