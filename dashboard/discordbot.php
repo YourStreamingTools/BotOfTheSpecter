@@ -810,19 +810,22 @@ ob_start();
             <!-- Webhook URL Form - Legacy - Deprecated -->
             <div class="column is-6">
               <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
-                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0; cursor: pointer;" onclick="toggleDeprecatedCard()">
                   <p class="card-header-title has-text-white" style="font-weight: 600;">
                     <span class="icon mr-2 has-text-primary"><i class="fas fa-link"></i></span>
                     <?php echo t('discordbot_webhook_card_title'); ?> (Legacy)
                   </p>
-                  <div class="card-header-icon" style="cursor: default;">
+                  <div class="card-header-icon">
                     <span class="tag is-warning is-light">
                       <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
                       <span>Deprecated</span>
                     </span>
+                    <span class="icon has-text-grey-light ml-2" id="deprecatedCardToggle">
+                      <i class="fas fa-chevron-down"></i>
+                    </span>
                   </div>
                 </header>
-                <div class="card-content">
+                <div class="card-content" id="deprecatedCardContent" style="display: none;">
                   <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
                     <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
                     <strong>Note:</strong> This feature is being phased out.
@@ -1113,6 +1116,19 @@ function removeStreamer(username) {
       '&scope=bot';
     
     window.open(botInviteURL, '_blank');
+  }
+  
+  function toggleDeprecatedCard() {
+    const content = document.getElementById('deprecatedCardContent');
+    const toggle = document.getElementById('deprecatedCardToggle');
+    
+    if (content.style.display === 'none') {
+      content.style.display = 'block';
+      toggle.innerHTML = '<i class="fas fa-chevron-up"></i>';
+    } else {
+      content.style.display = 'none';
+      toggle.innerHTML = '<i class="fas fa-chevron-down"></i>';
+    }
   }
 </script>
 <?php } ?>
