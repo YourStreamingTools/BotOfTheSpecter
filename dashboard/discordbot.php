@@ -959,14 +959,8 @@ ob_start();
                       </div>
                       <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
-                          <input id="serverRoleAdded" type="checkbox" name="serverRoleAdded" class="switch is-rounded" disabled>
-                          <label for="serverRoleAdded" class="has-text-white">Server Role Added (Track when new roles are created)</label>
-                        </div>
-                      </div>
-                      <div class="field" style="margin-bottom: 0.75rem;">
-                        <div class="control">
-                          <input id="serverRoleRemoved" type="checkbox" name="serverRoleRemoved" class="switch is-rounded" disabled>
-                          <label for="serverRoleRemoved" class="has-text-white">Server Role Removed (Track when roles are deleted)</label>
+                          <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded" disabled>
+                          <label for="serverRoleManagement" class="has-text-white">Server Role Management (Track role creation/deletion)</label>
                         </div>
                       </div>
                       <div class="field">
@@ -975,15 +969,6 @@ ob_start();
                           <label for="userTracking" class="has-text-white">User Tracking (Nickname, profile picture, status changes)</label>
                         </div>
                       </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;" disabled>
-                          <span class="icon"><i class="fas fa-save"></i></span>
-                          <span>Save Moderation Settings</span>
-                        </button>
-                      </div>
-                      <p class="help has-text-warning mt-2 has-text-centered">This feature is not yet available.</p>
                     </div>
                   </form>
                 </div>
