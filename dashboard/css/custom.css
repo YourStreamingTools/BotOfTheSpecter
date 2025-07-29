@@ -1002,3 +1002,189 @@ input[type="range"].modern-volume::-ms-tooltip {
         display: inline-block;
     }
 }
+
+/* Mobile-specific styles */
+@media screen and (max-width: 768px) {
+    .hero-body {
+        padding: 1.5rem !important;
+    }
+    .title.is-5-mobile {
+        font-size: 1.1rem !important;
+    }
+    .title.is-4-mobile {
+        font-size: 1.25rem !important;
+    }
+    .subtitle.is-6-mobile {
+        font-size: 1rem !important;
+    }
+    .subtitle.is-7-mobile {
+        font-size: 0.9rem !important;
+    }
+    .buttons.is-centered-mobile {
+        justify-content: center;
+    }
+    .button.is-fullwidth-mobile {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    .tags.is-centered-mobile {
+        justify-content: center;
+    }
+    .tags.is-right-tablet {
+        justify-content: center;
+    }
+    .has-text-right-tablet.has-text-left-mobile,
+    .has-text-centered-mobile {
+        text-align: center !important;
+    }
+    .image.is-48x48-mobile {
+        height: 48px !important;
+        width: 48px !important;
+    }
+    /* Ensure text wraps properly and doesn't overflow */
+    .title, .subtitle, p {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        hyphens: auto;
+        max-width: 100%;
+    }
+    /* Better spacing for mobile cards */
+    .card-content {
+        padding: 1.5rem !important;
+    }
+    /* Prevent horizontal overflow */
+    .media-content {
+        overflow: hidden;
+        min-width: 0;
+    }
+    /* Better mobile container */
+    .container {
+        padding: 0 0.75rem;
+    }
+    /* Stack buttons vertically on very small screens */
+    @media screen and (max-width: 480px) {
+        .buttons:not(.has-addons) .button {
+            width: 100%;
+            margin-bottom: 0.75rem;
+        }
+        .hero-body {
+            padding: 1rem !important;
+        }
+        .title.is-5-mobile {
+            font-size: 1rem !important;
+        }
+        .subtitle.is-7-mobile {
+            font-size: 0.85rem !important;
+        }
+    }
+}
+
+/* Tablet-specific adjustments */
+@media screen and (min-width: 769px) {
+    .has-text-right-tablet {
+        text-align: right !important;
+    }
+    .tags.is-right-tablet {
+        justify-content: flex-end;
+    }
+    .title.is-3-desktop {
+        font-size: 2rem !important;
+    }
+    .title.is-4-tablet {
+        font-size: 1.5rem !important;
+    }
+    .subtitle.is-5-desktop {
+        font-size: 1.25rem !important;
+    }
+    .subtitle.is-6-tablet {
+        font-size: 1.1rem !important;
+    }
+}
+
+/* Desktop-specific adjustments */
+@media screen and (min-width: 1024px) {
+    .title.is-3-desktop {
+        font-size: 2.25rem !important;
+    }
+    .subtitle.is-5-desktop {
+        font-size: 1.35rem !important;
+    }
+}
+
+/* Discord Bot Card Responsive Styles */
+/* Ensure text wraps properly at all screen sizes */
+.discord-card-content .title,
+.discord-card-content .subtitle,
+.discord-card-content p,
+.discord-card-content .media-content .title,
+.discord-card-content .media-content .subtitle,
+.discord-card-content .media-content p {
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    hyphens: auto !important;
+    max-width: 100% !important;
+    line-height: 1.3 !important;
+    white-space: normal !important;
+}
+
+/* Force wrapping for the media content specifically */
+.discord-card-content .media-content {
+    overflow: hidden !important;
+    min-width: 0 !important;
+    flex: 1 !important;
+    max-width: 100% !important;
+}
+
+/* Level layout fixes for intermediate screen sizes */
+.discord-card-content .level {
+    flex-wrap: wrap !important;
+}
+
+.discord-card-content .level-left,
+.discord-card-content .level-right {
+    flex-shrink: 1 !important;
+    min-width: 0 !important;
+}
+
+.discord-card-content .level-left .media-content {
+    overflow: hidden !important;
+    min-width: 0 !important;
+    flex: 1 !important;
+    max-width: 100% !important;
+}
+
+/* Responsive button handling */
+.discord-card-content .buttons {
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+}
+
+/* Intermediate screen sizes (between tablet and mobile) */
+@media screen and (max-width: 1023px) and (min-width: 769px) {
+    .discord-card-content .level {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    .discord-card-content .level-right {
+        margin-top: 1rem !important;
+        justify-content: center !important;
+    }
+    .discord-card-content .buttons {
+        justify-content: center !important;
+    }
+}
+
+/* Small desktop and large tablet adjustments */
+@media screen and (max-width: 1200px) and (min-width: 769px) {
+    .discord-card-content .title {
+        font-size: 1.3rem !important;
+    }
+    .discord-card-content .subtitle {
+        font-size: 1rem !important;
+    }
+    .discord-card-content .button {
+        font-size: 0.9rem !important;
+        padding: 0.5rem 1rem !important;
+    }
+}

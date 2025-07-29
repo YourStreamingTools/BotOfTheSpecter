@@ -476,54 +476,106 @@ ob_start();
     <!-- Modern Discord Integration Hero Section -->
     <div class="hero is-primary" style="background: linear-gradient(135deg, #5865f2 0%, #7289da 100%); border-radius: 16px; overflow: hidden; margin-bottom: 2rem;">
       <div class="hero-body" style="padding: 2rem;">
-        <div class="level is-mobile">
-          <div class="level-left">
-            <div class="level-item">
-              <div class="media">
-                <div class="media-left">
-                  <figure class="image is-64x64" style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-                    <i class="fab fa-discord" style="font-size: 2rem; color: white;"></i>
-                  </figure>
+        <div class="container">
+          <!-- Desktop layout: single row with status on right -->
+          <div class="is-hidden-mobile">
+            <div class="columns is-vcentered">
+              <div class="column">
+                <div class="media">
+                  <div class="media-left">
+                    <figure class="image is-64x64" style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                      <i class="fab fa-discord" style="font-size: 2rem; color: white;"></i>
+                    </figure>
+                  </div>
+                  <div class="media-content">
+                    <p class="title is-3-desktop is-4-tablet has-text-white" style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2;">
+                      Discord Integration
+                    </p>
+                    <p class="subtitle is-5-desktop is-6-tablet has-text-white" style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0;">
+                      Connect your Discord server with BotOfTheSpecter
+                    </p>
+                  </div>
                 </div>
-                <div class="media-content">
-                  <p class="title is-3 has-text-white" style="margin-bottom: 0.5rem; font-weight: 700;">
-                    Discord Integration
-                  </p>
-                  <p class="subtitle is-5 has-text-white" style="opacity: 0.9;">
-                    Connect your Discord server with BotOfTheSpecter
-                  </p>
-                </div>
+              </div>
+              <div class="column is-narrow">
+                <?php if ($is_linked): ?>
+                  <div class="has-text-right">
+                    <div class="tags has-addons is-right mb-2">
+                      <span class="tag is-success is-medium" style="border-radius: 50px; font-weight: 600;">
+                        <span class="icon"><i class="fas fa-check-circle"></i></span>
+                        <span>Connected</span>
+                      </span>
+                    </div>
+                    <?php if ($expires_str): ?>
+                      <p class="is-size-7 has-text-white" style="opacity: 0.8; word-wrap: break-word; line-height: 1.3;">
+                        Active for <?php echo htmlspecialchars($expires_str); ?>
+                      </p>
+                    <?php endif; ?>
+                  </div>
+                <?php else: ?>
+                  <div class="has-text-right">
+                    <span class="tag is-warning is-medium" style="border-radius: 50px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                      <span>Not Connected</span>
+                    </span>
+                  </div>
+                <?php endif; ?>
               </div>
             </div>
           </div>
-          <div class="level-right">
-            <div class="level-item">
-              <?php if ($is_linked): ?>
-                <div class="has-text-right">
-                  <div class="tags">
-                    <span class="tag is-success is-medium" style="border-radius: 50px; font-weight: 600;">
-                      <span class="icon"><i class="fas fa-check-circle"></i></span>
-                      <span>Connected</span>
+          <!-- Mobile layout: stacked rows -->
+          <div class="is-hidden-tablet">
+            <!-- Header with icon and title -->
+            <div class="columns is-mobile is-vcentered mb-4">
+              <div class="column">
+                <div class="media">
+                  <div class="media-left">
+                    <figure class="image is-48x48-mobile" style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                      <i class="fab fa-discord" style="font-size: 1.5rem; color: white;"></i>
+                    </figure>
+                  </div>
+                  <div class="media-content">
+                    <p class="title is-5-mobile has-text-white" style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2;">
+                      Discord Integration
+                    </p>
+                    <p class="subtitle is-7-mobile has-text-white" style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0;">
+                      Connect your Discord server with BotOfTheSpecter
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Status section - separate row for mobile -->
+            <div class="columns is-mobile">
+              <div class="column">
+                <?php if ($is_linked): ?>
+                  <div class="has-text-centered">
+                    <div class="tags has-addons is-centered mb-2">
+                      <span class="tag is-success is-medium" style="border-radius: 50px; font-weight: 600;">
+                        <span class="icon"><i class="fas fa-check-circle"></i></span>
+                        <span>Connected</span>
+                      </span>
+                    </div>
+                    <?php if ($expires_str): ?>
+                      <p class="is-size-7-mobile has-text-white" style="opacity: 0.8; word-wrap: break-word; line-height: 1.3;">
+                        Active for <?php echo htmlspecialchars($expires_str); ?>
+                      </p>
+                    <?php endif; ?>
+                  </div>
+                <?php else: ?>
+                  <div class="has-text-centered">
+                    <span class="tag is-warning is-medium" style="border-radius: 50px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                      <span>Not Connected</span>
                     </span>
                   </div>
-                  <?php if ($expires_str): ?>
-                    <p class="is-size-7 has-text-white" style="opacity: 0.8; margin-top: 0.25rem;">
-                      Active for <?php echo htmlspecialchars($expires_str); ?>
-                    </p>
-                  <?php endif; ?>
-                </div>
-              <?php else: ?>
-                <span class="tag is-warning is-medium" style="border-radius: 50px; font-weight: 600;">
-                  <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                  <span>Not Connected</span>
-                </span>
-              <?php endif; ?>
+                <?php endif; ?>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-
     <!-- Status Cards Section -->
     <?php if ($linkingMessage): ?>
       <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?>" style="border-radius: 12px; margin-bottom: 2rem; border: none; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
@@ -597,53 +649,86 @@ ob_start();
         <!-- Connected Status Card -->
         <div class="column is-12">
           <div class="card has-background-dark" style="border-radius: 16px; border: 2px solid #00d1b2; background: linear-gradient(135deg, #2a2a2a 0%, #363636 100%) !important;">
-            <div class="card-content" style="padding: 2rem;">
-              <div class="level">
-                <div class="level-left">
-                  <div class="level-item">
-                    <div class="media">
-                      <div class="media-left">
-                        <span class="icon is-large has-text-success" style="font-size: 3rem;">
-                          <i class="fas fa-check-circle"></i>
-                        </span>
+            <div class="card-content discord-card-content" style="padding: 2rem;">
+              <!-- Desktop layout: single row with buttons on right -->
+              <div class="is-hidden-mobile">
+                <div class="level" style="flex-wrap: wrap !important; overflow: visible !important;">
+                  <div class="level-left" style="flex: 1 !important; min-width: 0 !important; max-width: calc(100% - 200px) !important; overflow: visible !important;">
+                    <div class="level-item" style="flex: 1 !important; min-width: 0 !important; overflow: visible !important;">
+                      <div class="media" style="overflow: visible !important; min-width: 0 !important; flex: 1 !important;">
+                        <div class="media-left">
+                          <span class="icon is-large has-text-success" style="font-size: 3rem;">
+                            <i class="fas fa-check-circle"></i>
+                          </span>
+                        </div>
+                        <div class="media-content" style="overflow: visible !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; max-width: 100% !important; min-width: 0 !important; flex: 1 !important;">
+                          <h4 class="title is-4 has-text-white mb-2" style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;"><?php echo t('discordbot_linked_title'); ?></h4>
+                          <p class="subtitle is-6 has-text-grey-light mb-0" style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
+                            <?php echo t('discordbot_linked_desc'); ?>
+                          </p>
+                        </div>
                       </div>
-                      <div class="media-content">
-                        <h4 class="title is-4 has-text-white mb-2"><?php echo t('discordbot_linked_title'); ?></h4>
-                        <p class="subtitle is-6 has-text-grey-light mb-3">
-                          <?php echo t('discordbot_linked_desc'); ?>
-                        </p>
+                    </div>
+                  </div>
+                  <div class="level-right">
+                    <div class="level-item">
+                      <div class="buttons">
+                        <button class="button is-primary" onclick="inviteBot()" style="border-radius: 25px; font-weight: 600;">
+                          <span class="icon"><i class="fas fa-plus-circle"></i></span>
+                          <span>Invite Bot</span>
+                        </button>
+                        <button class="button is-danger" onclick="disconnectDiscord()" style="border-radius: 25px; font-weight: 600;">
+                          <span class="icon"><i class="fas fa-unlink"></i></span>
+                          <span>Disconnect</span>
+                        </button>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div class="level-right">
-                  <div class="level-item">
-                    <div class="buttons">
-                      <button class="button is-primary" onclick="inviteBot()" style="border-radius: 25px; font-weight: 600;">
-                        <span class="icon"><i class="fas fa-plus-circle"></i></span>
-                        <span>Invite Bot</span>
-                      </button>
-                      <button class="button is-danger" onclick="disconnectDiscord()" style="border-radius: 25px; font-weight: 600;">
-                        <span class="icon"><i class="fas fa-unlink"></i></span>
-                        <span>Disconnect</span>
-                      </button>
+              </div>
+              
+              <!-- Mobile layout: stacked rows -->
+              <div class="is-hidden-tablet">
+                <!-- Header with icon and title -->
+                <div class="block mb-4">
+                  <div class="media">
+                    <div class="media-left">
+                      <span class="icon is-large has-text-success" style="font-size: 2.5rem;">
+                        <i class="fas fa-check-circle"></i>
+                      </span>
                     </div>
+                    <div class="media-content" style="overflow: visible !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; max-width: 100% !important; min-width: 0 !important; flex: 1 !important;">
+                      <h4 class="title is-5-mobile has-text-white mb-2" style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;"><?php echo t('discordbot_linked_title'); ?></h4>
+                      <p class="subtitle is-6-mobile has-text-grey-light mb-0" style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
+                        <?php echo t('discordbot_linked_desc'); ?>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Buttons section - stacked on mobile -->
+                <div class="block">
+                  <div class="buttons is-centered">
+                    <button class="button is-primary is-fullwidth-mobile" onclick="inviteBot()" style="border-radius: 25px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-plus-circle"></i></span>
+                      <span>Invite Bot</span>
+                    </button>
+                    <button class="button is-danger is-fullwidth-mobile" onclick="disconnectDiscord()" style="border-radius: 25px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-unlink"></i></span>
+                      <span>Disconnect</span>
+                    </button>
                   </div>
                 </div>
               </div>
               <?php if ($expires_str): ?>
                 <div class="notification has-background-grey-darker" style="border-radius: 12px; margin-top: 1rem; border: 1px solid #3273dc;">
-                  <div class="level is-mobile">
-                    <div class="level-left">
-                      <div class="level-item">
-                        <span class="icon has-text-info"><i class="fas fa-clock"></i></span>
-                        <strong class="has-text-white" style="margin-left: 0.5rem;">Token Status:</strong>
-                      </div>
+                  <div class="columns is-mobile is-vcentered">
+                    <div class="column is-narrow">
+                      <span class="icon has-text-info"><i class="fas fa-clock"></i></span>
+                      <strong class="has-text-white" style="margin-left: 0.5rem;">Token Status:</strong>
                     </div>
-                    <div class="level-right">
-                      <div class="level-item">
-                        <span class="has-text-grey-light">Valid for <?php echo htmlspecialchars($expires_str); ?></span>
-                      </div>
+                    <div class="column">
+                      <span class="has-text-grey-light" style="word-wrap: break-word;">Valid for <?php echo htmlspecialchars($expires_str); ?></span>
                     </div>
                   </div>
                 </div>
