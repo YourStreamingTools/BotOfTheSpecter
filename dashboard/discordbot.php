@@ -1193,27 +1193,30 @@ ob_start();
               <?php if ($hasEnabledFeatures && $is_linked && !$needs_relink && $hasGuildId): ?>
               <div class="columns is-multiline">
                 <?php if ($serverManagementSettings['welcomeMessage']): ?>
-                <div class="column is-full">
+                <div class="column is-full mb-1">
                   <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
                     <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                       <p class="card-header-title has-text-white" style="font-weight: 600;">
-                        <span class="icon mr-2 has-text-success"><i class="fas fa-hand-wave"></i></span>
+                        <span class="icon mr-2 has-text-success"><i class="fas fa-door-open"></i></span>
                         Welcome Message Configuration
                       </p>
                       <div class="card-header-icon">
-                        <span class="tag is-success is-light">
-                          <span class="icon"><i class="fas fa-check"></i></span>
-                          <span>Active</span>
+                        <span class="tag is-warning is-light">
+                          <span class="icon"><i class="fas fa-clock"></i></span>
+                          <span>Coming Soon</span>
                         </span>
                       </div>
                     </header>
                     <div class="card-content">
-                      <p class="has-text-white-ter mb-4">Configure automated welcome messages for new members joining your Discord server.</p>
+                      <div class="notification is-warning is-light mb-1">
+                        <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                      </div>
+                      <p class="has-text-white-ter mb-1">Configure automated welcome messages for new members joining your Discord server.</p>
                       <form action="" method="post">
                         <div class="field">
                           <label class="label has-text-white" style="font-weight: 500;">Welcome Channel ID</label>
                           <div class="control has-icons-left">
-                            <input class="input" type="text" name="welcome_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                            <input class="input" type="text" name="welcome_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
                             <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                           </div>
                           <p class="help has-text-grey-light">Channel where welcome messages will be sent</p>
@@ -1221,13 +1224,13 @@ ob_start();
                         <div class="field">
                           <label class="label has-text-white" style="font-weight: 500;">Welcome Message</label>
                           <div class="control">
-                            <textarea class="textarea" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"></textarea>
+                            <textarea class="textarea" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled></textarea>
                           </div>
                           <p class="help has-text-grey-light">Use {user} to mention the new member</p>
                         </div>
                         <div class="field">
                           <div class="control">
-                            <button class="button is-primary is-fullwidth" type="submit" name="save_welcome_message" style="border-radius: 6px; font-weight: 600;">
+                            <button class="button is-primary is-fullwidth" type="submit" name="save_welcome_message" style="border-radius: 6px; font-weight: 600;" disabled>
                               <span class="icon"><i class="fas fa-save"></i></span>
                               <span>Save Welcome Message Settings</span>
                             </button>
@@ -1239,7 +1242,7 @@ ob_start();
                 </div>
                 <?php endif; ?>
                 <?php if ($serverManagementSettings['autoRole']): ?>
-                <div class="column is-full">
+                <div class="column is-full mb-1">
                   <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
                     <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                       <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -1247,26 +1250,29 @@ ob_start();
                         Auto Role Assignment Configuration
                       </p>
                       <div class="card-header-icon">
-                        <span class="tag is-success is-light">
-                          <span class="icon"><i class="fas fa-check"></i></span>
-                          <span>Active</span>
+                        <span class="tag is-warning is-light">
+                          <span class="icon"><i class="fas fa-clock"></i></span>
+                          <span>Coming Soon</span>
                         </span>
                       </div>
                     </header>
                     <div class="card-content">
-                      <p class="has-text-white-ter mb-4">Configure automatic role assignment for new members joining your Discord server.</p>
+                      <div class="notification is-warning is-light mb-1">
+                        <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                      </div>
+                      <p class="has-text-white-ter mb-1">Configure automatic role assignment for new members joining your Discord server.</p>
                       <form action="" method="post">
                         <div class="field">
                           <label class="label has-text-white" style="font-weight: 500;">Auto Role ID</label>
                           <div class="control has-icons-left">
-                            <input class="input" type="text" name="auto_role_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                            <input class="input" type="text" name="auto_role_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
                             <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-user-tag"></i></span>
                           </div>
                           <p class="help has-text-grey-light">Role ID to automatically assign to new members</p>
                         </div>
                         <div class="field">
                           <div class="control">
-                            <button class="button is-primary is-fullwidth" type="submit" name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
+                            <button class="button is-primary is-fullwidth" type="submit" name="save_auto_role" style="border-radius: 6px; font-weight: 600;" disabled>
                               <span class="icon"><i class="fas fa-save"></i></span>
                               <span>Save Auto Role Settings</span>
                             </button>
@@ -1278,7 +1284,7 @@ ob_start();
                 </div>
                 <?php endif; ?>
                 <?php if ($serverManagementSettings['roleHistory']): ?>
-                <div class="column is-full">
+                <div class="column is-full mb-1">
                   <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
                     <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                       <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -1286,20 +1292,23 @@ ob_start();
                         Role History Configuration
                       </p>
                       <div class="card-header-icon">
-                        <span class="tag is-success is-light">
-                          <span class="icon"><i class="fas fa-check"></i></span>
-                          <span>Active</span>
+                        <span class="tag is-warning is-light">
+                          <span class="icon"><i class="fas fa-clock"></i></span>
+                          <span>Coming Soon</span>
                         </span>
                       </div>
                     </header>
                     <div class="card-content">
-                      <p class="has-text-white-ter mb-4">Configure role restoration settings for members who rejoin your Discord server.</p>
+                      <div class="notification is-warning is-light mb-1">
+                        <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                      </div>
+                      <p class="has-text-white-ter mb-1">Configure role restoration settings for members who rejoin your Discord server.</p>
                       <form action="" method="post">
                         <div class="field">
                           <label class="label has-text-white" style="font-weight: 500;">Role History Settings</label>
                           <div class="control">
                             <label class="checkbox has-text-white">
-                              <input type="checkbox" name="restore_all_roles" style="margin-right: 8px;">
+                              <input type="checkbox" name="restore_all_roles" style="margin-right: 8px;" disabled>
                               Restore all previous roles when member rejoins
                             </label>
                           </div>
@@ -1307,14 +1316,14 @@ ob_start();
                         <div class="field">
                           <label class="label has-text-white" style="font-weight: 500;">History Retention (Days)</label>
                           <div class="control has-icons-left">
-                            <input class="input" type="number" name="history_retention_days" value="30" min="1" max="365" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                            <input class="input" type="number" name="history_retention_days" value="30" min="1" max="365" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
                             <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-calendar"></i></span>
                           </div>
                           <p class="help has-text-grey-light">How long to keep role history data</p>
                         </div>
                         <div class="field">
                           <div class="control">
-                            <button class="button is-primary is-fullwidth" type="submit" name="save_role_history" style="border-radius: 6px; font-weight: 600;">
+                            <button class="button is-primary is-fullwidth" type="submit" name="save_role_history" style="border-radius: 6px; font-weight: 600;" disabled>
                               <span class="icon"><i class="fas fa-save"></i></span>
                               <span>Save Role History Settings</span>
                             </button>
@@ -1326,7 +1335,7 @@ ob_start();
                 </div>
                 <?php endif; ?>
                 <?php if ($serverManagementSettings['messageTracking']): ?>
-                <div class="column is-full">
+                <div class="column is-full mb-1">
                   <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
                     <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                       <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -1334,19 +1343,22 @@ ob_start();
                         Message Tracking Configuration
                       </p>
                       <div class="card-header-icon">
-                        <span class="tag is-success is-light">
-                          <span class="icon"><i class="fas fa-check"></i></span>
-                          <span>Active</span>
+                        <span class="tag is-warning is-light">
+                          <span class="icon"><i class="fas fa-clock"></i></span>
+                          <span>Coming Soon</span>
                         </span>
                       </div>
                     </header>
                     <div class="card-content">
-                      <p class="has-text-white-ter mb-4">Configure message tracking for edited and deleted messages in your Discord server.</p>
+                      <div class="notification is-warning is-light mb-1">
+                        <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                      </div>
+                      <p class="has-text-white-ter mb-1">Configure message tracking for edited and deleted messages in your Discord server.</p>
                       <form action="" method="post">
                         <div class="field">
                           <label class="label has-text-white" style="font-weight: 500;">Message Log Channel ID</label>
                           <div class="control has-icons-left">
-                            <input class="input" type="text" name="message_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                            <input class="input" type="text" name="message_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
                             <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                           </div>
                           <p class="help has-text-grey-light">Channel where message edit/delete logs will be sent</p>
@@ -1355,18 +1367,18 @@ ob_start();
                           <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
                           <div class="control">
                             <label class="checkbox has-text-white mb-2" style="display: block;">
-                              <input type="checkbox" name="track_edits" style="margin-right: 8px;">
+                              <input type="checkbox" name="track_edits" style="margin-right: 8px;" disabled>
                               Track message edits
                             </label>
                             <label class="checkbox has-text-white">
-                              <input type="checkbox" name="track_deletes" style="margin-right: 8px;">
+                              <input type="checkbox" name="track_deletes" style="margin-right: 8px;" disabled>
                               Track message deletions
                             </label>
                           </div>
                         </div>
                         <div class="field">
                           <div class="control">
-                            <button class="button is-primary is-fullwidth" type="submit" name="save_message_tracking" style="border-radius: 6px; font-weight: 600;">
+                            <button class="button is-primary is-fullwidth" type="submit" name="save_message_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
                               <span class="icon"><i class="fas fa-save"></i></span>
                               <span>Save Message Tracking Settings</span>
                             </button>
@@ -1378,7 +1390,7 @@ ob_start();
                 </div>
                 <?php endif; ?>
                 <?php if ($serverManagementSettings['roleTracking']): ?>
-                <div class="column is-full">
+                <div class="column is-full mb-1">
                   <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
                     <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                       <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -1386,19 +1398,22 @@ ob_start();
                         Role Tracking Configuration
                       </p>
                       <div class="card-header-icon">
-                        <span class="tag is-success is-light">
-                          <span class="icon"><i class="fas fa-check"></i></span>
-                          <span>Active</span>
+                        <span class="tag is-warning is-light">
+                          <span class="icon"><i class="fas fa-clock"></i></span>
+                          <span>Coming Soon</span>
                         </span>
                       </div>
                     </header>
                     <div class="card-content">
-                      <p class="has-text-white-ter mb-4">Configure role change tracking for audit purposes in your Discord server.</p>
+                      <div class="notification is-warning is-light mb-1">
+                        <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                      </div>
+                      <p class="has-text-white-ter mb-1">Configure role change tracking for audit purposes in your Discord server.</p>
                       <form action="" method="post">
                         <div class="field">
                           <label class="label has-text-white" style="font-weight: 500;">Role Log Channel ID</label>
                           <div class="control has-icons-left">
-                            <input class="input" type="text" name="role_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                            <input class="input" type="text" name="role_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
                             <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                           </div>
                           <p class="help has-text-grey-light">Channel where role change logs will be sent</p>
@@ -1407,18 +1422,18 @@ ob_start();
                           <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
                           <div class="control">
                             <label class="checkbox has-text-white mb-2" style="display: block;">
-                              <input type="checkbox" name="track_role_additions" style="margin-right: 8px;">
+                              <input type="checkbox" name="track_role_additions" style="margin-right: 8px;" disabled>
                               Track role additions
                             </label>
                             <label class="checkbox has-text-white">
-                              <input type="checkbox" name="track_role_removals" style="margin-right: 8px;">
+                              <input type="checkbox" name="track_role_removals" style="margin-right: 8px;" disabled>
                               Track role removals
                             </label>
                           </div>
                         </div>
                         <div class="field">
                           <div class="control">
-                            <button class="button is-primary is-fullwidth" type="submit" name="save_role_tracking" style="border-radius: 6px; font-weight: 600;">
+                            <button class="button is-primary is-fullwidth" type="submit" name="save_role_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
                               <span class="icon"><i class="fas fa-save"></i></span>
                               <span>Save Role Tracking Settings</span>
                             </button>
@@ -1430,7 +1445,7 @@ ob_start();
                 </div>
                 <?php endif; ?>
                 <?php if ($serverManagementSettings['serverRoleManagement']): ?>
-                <div class="column is-full">
+                <div class="column is-full mb-1">
                   <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
                     <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                       <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -1438,19 +1453,22 @@ ob_start();
                         Server Role Management Configuration
                       </p>
                       <div class="card-header-icon">
-                        <span class="tag is-success is-light">
-                          <span class="icon"><i class="fas fa-check"></i></span>
-                          <span>Active</span>
+                        <span class="tag is-warning is-light">
+                          <span class="icon"><i class="fas fa-clock"></i></span>
+                          <span>Coming Soon</span>
                         </span>
                       </div>
                     </header>
                     <div class="card-content">
-                      <p class="has-text-white-ter mb-4">Configure tracking for role creation and deletion within your Discord server.</p>
+                      <div class="notification is-warning is-light mb-1">
+                        <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                      </div>
+                      <p class="has-text-white-ter mb-1">Configure tracking for role creation and deletion within your Discord server.</p>
                       <form action="" method="post">
                         <div class="field">
                           <label class="label has-text-white" style="font-weight: 500;">Server Management Log Channel ID</label>
                           <div class="control has-icons-left">
-                            <input class="input" type="text" name="server_mgmt_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                            <input class="input" type="text" name="server_mgmt_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
                             <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                           </div>
                           <p class="help has-text-grey-light">Channel where server role management logs will be sent</p>
@@ -1459,18 +1477,18 @@ ob_start();
                           <label class="label has-text-white" style="font-weight: 500;">Management Options</label>
                           <div class="control">
                             <label class="checkbox has-text-white mb-2" style="display: block;">
-                              <input type="checkbox" name="track_role_creation" style="margin-right: 8px;">
+                              <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" disabled>
                               Track role creation
                             </label>
                             <label class="checkbox has-text-white">
-                              <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;">
+                              <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" disabled>
                               Track role deletion
                             </label>
                           </div>
                         </div>
                         <div class="field">
                           <div class="control">
-                            <button class="button is-primary is-fullwidth" type="submit" name="save_server_role_management" style="border-radius: 6px; font-weight: 600;">
+                            <button class="button is-primary is-fullwidth" type="submit" name="save_server_role_management" style="border-radius: 6px; font-weight: 600;" disabled>
                               <span class="icon"><i class="fas fa-save"></i></span>
                               <span>Save Server Role Management Settings</span>
                             </button>
@@ -1482,7 +1500,7 @@ ob_start();
                 </div>
                 <?php endif; ?>
                 <?php if ($serverManagementSettings['userTracking']): ?>
-                <div class="column is-full">
+                <div class="column is-full mb-1">
                   <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
                     <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                       <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -1490,19 +1508,22 @@ ob_start();
                         User Tracking Configuration
                       </p>
                       <div class="card-header-icon">
-                        <span class="tag is-success is-light">
-                          <span class="icon"><i class="fas fa-check"></i></span>
-                          <span>Active</span>
+                        <span class="tag is-warning is-light">
+                          <span class="icon"><i class="fas fa-clock"></i></span>
+                          <span>Coming Soon</span>
                         </span>
                       </div>
                     </header>
                     <div class="card-content">
-                      <p class="has-text-white-ter mb-4">Configure user profile change tracking for your Discord server.</p>
+                      <div class="notification is-warning is-light mb-1">
+                        <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                      </div>
+                      <p class="has-text-white-ter mb-1">Configure user profile change tracking for your Discord server.</p>
                       <form action="" method="post">
                         <div class="field">
                           <label class="label has-text-white" style="font-weight: 500;">User Log Channel ID</label>
                           <div class="control has-icons-left">
-                            <input class="input" type="text" name="user_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                            <input class="input" type="text" name="user_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
                             <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
                           </div>
                           <p class="help has-text-grey-light">Channel where user change logs will be sent</p>
@@ -1511,22 +1532,22 @@ ob_start();
                           <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
                           <div class="control">
                             <label class="checkbox has-text-white mb-2" style="display: block;">
-                              <input type="checkbox" name="track_nickname_changes" style="margin-right: 8px;">
+                              <input type="checkbox" name="track_nickname_changes" style="margin-right: 8px;" disabled>
                               Track nickname changes
                             </label>
                             <label class="checkbox has-text-white mb-2" style="display: block;">
-                              <input type="checkbox" name="track_avatar_changes" style="margin-right: 8px;">
+                              <input type="checkbox" name="track_avatar_changes" style="margin-right: 8px;" disabled>
                               Track avatar changes
                             </label>
                             <label class="checkbox has-text-white">
-                              <input type="checkbox" name="track_status_changes" style="margin-right: 8px;">
+                              <input type="checkbox" name="track_status_changes" style="margin-right: 8px;" disabled>
                               Track status changes
                             </label>
                           </div>
                         </div>
                         <div class="field">
                           <div class="control">
-                            <button class="button is-primary is-fullwidth" type="submit" name="save_user_tracking" style="border-radius: 6px; font-weight: 600;">
+                            <button class="button is-primary is-fullwidth" type="submit" name="save_user_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
                               <span class="icon"><i class="fas fa-save"></i></span>
                               <span>Save User Tracking Settings</span>
                             </button>
