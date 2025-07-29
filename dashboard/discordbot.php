@@ -790,14 +790,18 @@ ob_start();
                     </div>
                     <div class="field">
                       <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;">
+                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
                           <span class="icon"><i class="fas fa-cog"></i></span>
                           <span>Save Channel Configuration</span>
                         </button>
                       </div>
+                      <?php if (!$is_linked || $needs_relink): ?>
+                      <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                      <?php else: ?>
                       <p class="help has-text-grey-light has-text-centered mt-2">
                         Most of these features are currently under development. You can still set the channel IDs and text for future use.
                       </p>
+                      <?php endif; ?>
                     </div>
                   </form>
                 </div>
@@ -879,11 +883,14 @@ ob_start();
                     </div>
                     <div class="field">
                       <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;">
+                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
                           <span class="icon"><i class="fas fa-save"></i></span>
                           <span>Add Streamer</span>
                         </button>
                       </div>
+                      <?php if (!$is_linked || $needs_relink): ?>
+                      <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                      <?php endif; ?>
                     </div>
                   </form>
                   <br>
