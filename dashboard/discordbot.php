@@ -1513,7 +1513,29 @@ function removeStreamer(username) {
   }
   // Discord Settings AJAX Handler
   function updateDiscordSetting(settingName, value) {
-    const guildId = document.getElementById('guild_id_config') ? document.getElementById('guild_id_config').value : '';
+    const guildIdElement = document.getElementById('guild_id_config');
+    const guildId = guildIdElement ? guildIdElement.value.trim() : '';
+    // Debug logging
+    console.log('UpdateDiscordSetting called:', { settingName, value, guildId });
+    // Validate that we have a guild ID
+    if (!guildId) {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'error',
+        title: 'Guild ID is required. Please configure your Discord Server ID first.',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+      });
+      // Revert the toggle state
+      const toggle = document.getElementById(settingName);
+      if (toggle) {
+        toggle.checked = !value;
+      }
+      return;
+    }
+    
     fetch('save_discord_server_management_settings.php', {
       method: 'POST',
       headers: {
@@ -1525,8 +1547,16 @@ function removeStreamer(username) {
         server_id: guildId
       })
     })
-    .then(response => response.json())
+    .then(response => {
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
     .then(data => {
+      console.log('Response data:', data);
       if (data.success) {
         // Show success notification
         Swal.fire({
@@ -1548,7 +1578,7 @@ function removeStreamer(username) {
           toast: true,
           position: 'top-end',
           icon: 'error',
-          title: 'Failed to update setting: ' + data.message,
+          title: 'Failed to update setting: ' + (data.message || 'Unknown error'),
           showConfirmButton: false,
           timer: 3000,
           timerProgressBar: true
@@ -1561,15 +1591,24 @@ function removeStreamer(username) {
       }
     })
     .catch(error => {
-      console.error('Error:', error);
-      // Show error notification and revert toggle
+      console.error('Error details:', error);
+      console.error('Error message:', error.message);
+      // Show more specific error notification
+      let errorMessage = 'Network error occurred';
+      if (error.message.includes('HTTP error')) {
+        errorMessage = `Server error: ${error.message}`;
+      } else if (error.name === 'TypeError') {
+        errorMessage = 'Network connection failed. Please check your internet connection.';
+      } else if (error.message.includes('JSON')) {
+        errorMessage = 'Server response format error. Please try again.';
+      }
       Swal.fire({
         toast: true,
         position: 'top-end',
         icon: 'error',
-        title: 'Network error occurred',
+        title: errorMessage,
         showConfirmButton: false,
-        timer: 3000,
+        timer: 4000,
         timerProgressBar: true
       });
       // Revert the toggle state
@@ -1583,6 +1622,9 @@ function removeStreamer(username) {
   document.addEventListener('DOMContentLoaded', function() {
     // Initialize server management settings from PHP
     const serverManagementSettings = <?php echo json_encode($serverManagementSettings); ?>;
+    const isLinked = <?php echo json_encode($is_linked); ?>;
+    const needsRelink = <?php echo json_encode($needs_relink); ?>;
+    const hasGuildId = <?php echo json_encode($hasGuildId); ?>;
     const settingToggles = [
       'welcomeMessage',
       'autoRole',
@@ -1597,10 +1639,34 @@ function removeStreamer(username) {
       const toggle = document.getElementById(settingName);
       if (toggle) {
         toggle.checked = serverManagementSettings[settingName] || false;
-        // Add change event listener
-        toggle.addEventListener('change', function() {
-          updateDiscordSetting(settingName, this.checked);
-        });
+        // Only add event listeners to enabled toggles
+        if (!toggle.disabled) {
+          toggle.addEventListener('change', function() {
+            updateDiscordSetting(settingName, this.checked);
+          });
+        } else {
+          // Add click handler for disabled toggles to show helpful message
+          toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            let message = '';
+            if (!isLinked || needsRelink) {
+              message = 'Please link your Discord account first to enable management features.';
+            } else if (!hasGuildId) {
+              message = 'Please configure your Discord Server ID above to enable management features.';
+            } else {
+              message = 'Management features are currently disabled.';
+            }
+            Swal.fire({
+              toast: true,
+              position: 'top-end',
+              icon: 'warning',
+              title: message,
+              showConfirmButton: false,
+              timer: 3000,
+              timerProgressBar: true
+            });
+          });
+        }
       }
     });
   });
