@@ -41,8 +41,7 @@ class Config:
         self.discord_application_id = os.getenv('DISCORD_APPLICATION_ID')
         # Bot information
         self.bot_color = 0x001C1D
-        self.discord_bot_service_version = "5.3.0"
-        self.bot_version = self.discord_bot_service_version
+        self.bot_version = "5.3.0"
         # File paths
         self.discord_version_file = "/var/www/logs/version/discord_version_control.txt"
         self.logs_directory = "/home/botofthespecter/logs/"
@@ -827,8 +826,8 @@ class BotOfTheSpecter(commands.Bot):
         try:
             os.makedirs(os.path.dirname(config.discord_version_file), exist_ok=True)
             with open(config.discord_version_file, "w") as f:
-                f.write(config.discord_bot_service_version + os.linesep)
-            self.logger.info(f"Updated Discord bot version file: {config.discord_bot_service_version}")
+                f.write(config.bot_version + os.linesep)
+            self.logger.info(f"Updated Discord bot version file: {config.bot_version}")
         except Exception as e:
             self.logger.error(f"Failed to update Discord bot version file: {e}")
         # Auto-populate missing channel mappings from users table
