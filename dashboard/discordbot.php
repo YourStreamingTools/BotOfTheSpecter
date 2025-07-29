@@ -400,6 +400,23 @@ while ($row = $savedStreamersResult->fetch_assoc()) {
 }
 $savedStreamersSTMT->close();
 
+// Fetch existing live_channel_id and guild_id first
+$discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
+$discord_userSTMT->bind_param("i", $user_id);
+$discord_userSTMT->execute();
+$discord_userResult = $discord_userSTMT->get_result();
+$discordData = $discord_userResult->fetch_assoc();
+$existingLiveChannelId = $discordData['live_channel_id'] ?? "";
+$existingGuildId = $discordData['guild_id'] ?? "";
+$existingOnlineText = $discordData['online_text'] ?? "";
+$existingOfflineText = $discordData['offline_text'] ?? "";
+$existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
+$existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
+$existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
+$existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
+$hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
+$discord_userResult->close();
+
 // Fetch server management settings from Discord bot database
 $serverManagementSettings = [
   'welcomeMessage' => false,
@@ -438,23 +455,6 @@ if ($is_linked && $hasGuildId) {
 $hasEnabledFeatures = array_reduce($serverManagementSettings, function($carry, $item) {
   return $carry || $item;
 }, false);
-
-// Fetch existing live_channel_id and guild_id
-$discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
-$discord_userSTMT->bind_param("i", $user_id);
-$discord_userSTMT->execute();
-$discord_userResult = $discord_userSTMT->get_result();
-$discordData = $discord_userResult->fetch_assoc();
-$existingLiveChannelId = $discordData['live_channel_id'] ?? "";
-$existingGuildId = $discordData['guild_id'] ?? "";
-$existingOnlineText = $discordData['online_text'] ?? "";
-$existingOfflineText = $discordData['offline_text'] ?? "";
-$existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
-$existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
-$existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
-$existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
-$hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
-$discord_userResult->close();
 
 function updateExistingDiscordValues() {
   global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings;
