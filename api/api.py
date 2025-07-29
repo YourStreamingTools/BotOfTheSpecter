@@ -926,6 +926,29 @@ async def websocket_deaths(request: DeathsRequest, api_key: str = Query(...)):
     await websocket_notice("DEATHS", params, api_key)
     return {"status": "success"}
 
+# WebSocket Sound Alert Trigger
+@app.get(
+    "/websocket/sound_alert",
+    summary="Trigger Sound Alert via API",
+    description="Trigger a sound alert for the specified sound file via the WebSocket server. The sound file should be located in the channel's sound alerts directory.",
+    tags=["Websocket"],
+    operation_id="trigger_websocket_sound_alert"
+)
+async def websocket_sound_alert(api_key: str = Query(...), sound: str = Query(..., description="Sound file name (defaults to .mp3 extension if no extension provided)")):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    channel = valid
+    # Add .mp3 extension if no extension is provided
+    if not sound.endswith(('.mp3', '.wav', '.ogg', '.m4a')):
+        sound += '.mp3'
+    # Build the sound URL
+    sound_url = f"https://soundalerts.botofthespecter.com/{channel}/{sound}"
+    # Trigger the WebSocket event
+    params = {"event": "SOUND_ALERT", "sound": sound_url}
+    await websocket_notice("SOUND_ALERT", params, api_key)
+    return {"status": "success"}
+
 # WebSocket Stream Online Trigger
 @app.get(
     "/websocket/stream_online",
