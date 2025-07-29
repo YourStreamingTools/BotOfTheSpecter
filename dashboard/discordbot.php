@@ -449,135 +449,218 @@ ob_start();
 ?>
 <div class="columns is-centered">
   <div class="column is-fullwidth">
-    <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">      <header class="card-header" style="border-bottom: 1px solid #23272f;">
-        <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
-          <span class="card-header-title is-size-4 has-text-white" style="font-weight:700; flex-shrink: 0;">
-            <span class="icon mr-2"><i class="fab fa-discord"></i></span>
-            <?php echo t('discordbot_page_title'); ?>
-          </span>
-          <div class="discord-badges" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-left: 1rem;">
-            <?php if ($is_linked): ?>
-              <?php if ($discord_username): ?>
-                <span class="tag is-info is-light" title="Discord Username">
-                  <i class="fa-regular fa-user" style="margin-right:0.3em;"></i>
-                  <?php echo htmlspecialchars($discord_username); ?><?php if ($discord_discriminator && $discord_discriminator !== '0'): ?>#<?php echo htmlspecialchars($discord_discriminator); ?><?php endif; ?>
+    <!-- Modern Discord Integration Hero Section -->
+    <div class="hero is-primary" style="background: linear-gradient(135deg, #5865f2 0%, #7289da 100%); border-radius: 16px; overflow: hidden; margin-bottom: 2rem;">
+      <div class="hero-body" style="padding: 2rem;">
+        <div class="level is-mobile">
+          <div class="level-left">
+            <div class="level-item">
+              <div class="media">
+                <div class="media-left">
+                  <figure class="image is-64x64" style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fab fa-discord" style="font-size: 2rem; color: white;"></i>
+                  </figure>
+                </div>
+                <div class="media-content">
+                  <p class="title is-3 has-text-white" style="margin-bottom: 0.5rem; font-weight: 700;">
+                    Discord Integration
+                  </p>
+                  <p class="subtitle is-5 has-text-white" style="opacity: 0.9;">
+                    Connect your Discord server with BotOfTheSpecter
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="level-right">
+            <div class="level-item">
+              <?php if ($is_linked): ?>
+                <div class="has-text-right">
+                  <div class="tags">
+                    <span class="tag is-success is-medium" style="border-radius: 50px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-check-circle"></i></span>
+                      <span>Connected</span>
+                    </span>
+                  </div>
+                  <?php if ($expires_str): ?>
+                    <p class="is-size-7 has-text-white" style="opacity: 0.8; margin-top: 0.25rem;">
+                      Active for <?php echo htmlspecialchars($expires_str); ?>
+                    </p>
+                  <?php endif; ?>
+                </div>
+              <?php else: ?>
+                <span class="tag is-warning is-medium" style="border-radius: 50px; font-weight: 600;">
+                  <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                  <span>Not Connected</span>
                 </span>
               <?php endif; ?>
-              <?php if ($expires_str): ?>
-                <span class="tag is-success is-light" title="Current Token Status">
-                  <i class="fa-regular fa-clock" style="margin-right:0.3em;"></i>
-                  Active for <?php echo htmlspecialchars($expires_str); ?>
-                </span>
-              <?php endif; ?>
-            <?php else: ?>
-              <span class="tag is-danger is-medium" style="border-radius: 6px; font-weight: 600;">
-                <span class="icon mr-1"><i class="fas fa-times-circle"></i></span>
-                Not Connected
-              </span>
-            <?php endif; ?>
+            </div>
           </div>
         </div>
-        <?php if ($is_linked) { ?>
-          <div class="card-header-icon" style="display: flex; gap: 0.5rem;">
-            <button class="button is-danger is-medium" onclick="disconnectDiscord()" style="border-radius: 6px; font-weight: 600;">
-              <span class="icon"><i class="fas fa-unlink"></i></span>
-              <span>Disconnect</span>
-            </button>
+      </div>
+    </div>
+
+    <!-- Status Cards Section -->
+    <?php if ($linkingMessage): ?>
+      <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?>" style="border-radius: 12px; margin-bottom: 2rem; border: none; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
+        <div class="level is-mobile">
+          <div class="level-left">
+            <div class="level-item">
+              <span class="icon is-medium">
+                <?php if ($linkingMessageType === 'is-danger'): ?>
+                  <i class="fas fa-exclamation-triangle"></i>
+                <?php elseif ($linkingMessageType === 'is-success'): ?>
+                  <i class="fas fa-check-circle"></i>
+                <?php else: ?>
+                  <i class="fas fa-info-circle"></i>
+                <?php endif; ?>
+              </span>
+              <div class="content" style="margin-left: 0.5rem;">
+                <strong><?php echo $linkingMessage; ?></strong>
+              </div>
+            </div>
           </div>
-        <?php } ?>
-      </header>
-      <div class="card-content">
-        <?php if ($linkingMessage): ?>
-          <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?> is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
-            <span class="icon">
-              <?php if ($linkingMessageType === 'is-danger'): ?>
-                <i class="fas fa-exclamation-triangle"></i>
-              <?php elseif ($linkingMessageType === 'is-success'): ?>
-                <i class="fas fa-check"></i>
-              <?php else: ?>
-                <i class="fas fa-info-circle"></i>
-              <?php endif; ?>
-            </span>
-            <?php echo $linkingMessage; ?>
+        </div>
+      </div>
+    <?php endif; ?>
+    <!-- Main Content Cards -->
+    <div class="columns is-multiline">
+      <?php if (!$is_linked): ?>
+        <?php if ($needs_relink): ?>
+          <!-- Reconnection Required Card -->
+          <div class="column is-12">
+            <div class="card has-background-dark" style="border-radius: 16px; border: 2px solid #ff9800; background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%) !important;">
+              <div class="card-content has-text-centered" style="padding: 3rem 2rem;">
+                <div class="mb-4">
+                  <span class="icon is-large has-text-warning" style="font-size: 4rem;">
+                    <i class="fas fa-sync-alt"></i>
+                  </span>
+                </div>
+                <h3 class="title is-3 has-text-white mb-3">Reconnection Required</h3>
+                <p class="subtitle is-5 has-text-grey-light mb-5" style="max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                  Your Discord account was linked using our previous system. To access all the latest features and improved security, please reconnect your account with our updated integration.
+                </p>
+                <button class="button is-warning is-large" onclick="linkDiscord()" style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3);">
+                  <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                  <span>Reconnect Discord Account</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        <?php else: ?>
+          <!-- Connect Discord Card -->
+          <div class="column is-12">
+            <div class="card has-background-dark" style="border-radius: 16px; border: 2px solid #5865f2; background: linear-gradient(135deg, #2a2a2a 0%, #363636 100%) !important;">
+              <div class="card-content has-text-centered" style="padding: 3rem 2rem;">
+                <div class="mb-4">
+                  <span class="icon is-large has-text-primary" style="font-size: 4rem;">
+                    <i class="fab fa-discord"></i>
+                  </span>
+                </div>
+                <h3 class="title is-3 has-text-white mb-3"><?php echo t('discordbot_link_title'); ?></h3>
+                <p class="subtitle is-5 has-text-grey-light mb-5" style="max-width: 500px; margin: 0 auto; line-height: 1.6;">
+                  <?php echo t('discordbot_link_desc'); ?>
+                </p>
+                <button class="button is-primary is-large" onclick="linkDiscord()" style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(88,101,242,0.3);">
+                  <span class="icon"><i class="fab fa-discord"></i></span>
+                  <span><?php echo t('discordbot_link_btn'); ?></span>
+                </button>
+              </div>
+            </div>
           </div>
         <?php endif; ?>
-          <?php if (!$is_linked) { ?>
-          <?php if ($needs_relink) { ?>
-            <!-- User needs to relink their Discord account -->
-            <div class="has-text-centered" style="padding: 3rem 2rem;">
-              <div class="mb-5">
-                <span class="icon is-large has-text-warning mb-3" style="font-size: 4rem;">
-                  <i class="fas fa-exclamation-triangle"></i>
-                </span>
+      <?php else: ?>
+        <!-- Connected Status Card -->
+        <div class="column is-12">
+          <div class="card has-background-dark" style="border-radius: 16px; border: 2px solid #00d1b2; background: linear-gradient(135deg, #2a2a2a 0%, #363636 100%) !important;">
+            <div class="card-content" style="padding: 2rem;">
+              <div class="level">
+                <div class="level-left">
+                  <div class="level-item">
+                    <div class="media">
+                      <div class="media-left">
+                        <span class="icon is-large has-text-success" style="font-size: 3rem;">
+                          <i class="fas fa-check-circle"></i>
+                        </span>
+                      </div>
+                      <div class="media-content">
+                        <h4 class="title is-4 has-text-white mb-2"><?php echo t('discordbot_linked_title'); ?></h4>
+                        <p class="subtitle is-6 has-text-grey-light mb-3">
+                          <?php echo t('discordbot_linked_desc'); ?>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="level-right">
+                  <div class="level-item">
+                    <div class="buttons">
+                      <button class="button is-primary" onclick="inviteBot()" style="border-radius: 25px; font-weight: 600;">
+                        <span class="icon"><i class="fas fa-plus-circle"></i></span>
+                        <span>Invite Bot</span>
+                      </button>
+                      <button class="button is-danger" onclick="disconnectDiscord()" style="border-radius: 25px; font-weight: 600;">
+                        <span class="icon"><i class="fas fa-unlink"></i></span>
+                        <span>Disconnect</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h3 class="title is-4 has-text-white mb-3">Discord Account Needs Reconnection</h3>
-              <p class="subtitle is-6 has-text-grey-light mb-5" style="max-width: 600px; margin: 0 auto;">
-                Your Discord account was linked using our old system and needs to be reconnected to access the new features. Please click the button below to relink your Discord account with updated permissions and token management.
-              </p>
-              <button class="button is-warning is-large" onclick="linkDiscord()" style="border-radius: 8px; font-weight: 600;">
-                <span class="icon"><i class="fas fa-sync-alt"></i></span>
-                <span>Reconnect Discord Account</span>
-              </button>
-            </div>
-          <?php } else { ?>
-            <!-- User has never linked Discord -->
-            <div class="has-text-centered" style="padding: 3rem 2rem;">
-              <div class="mb-5">
-                <span class="icon is-large has-text-primary mb-3" style="font-size: 4rem;">
-                  <i class="fab fa-discord"></i>
-                </span>
-              </div>
-              <h3 class="title is-4 has-text-white mb-3"><?php echo t('discordbot_link_title'); ?></h3>
-              <p class="subtitle is-6 has-text-grey-light mb-5" style="max-width: 500px; margin: 0 auto;">
-                <?php echo t('discordbot_link_desc'); ?>
-              </p>
-              <button class="button is-primary is-large" onclick="linkDiscord()" style="border-radius: 8px; font-weight: 600;">
-                <span class="icon"><i class="fab fa-discord"></i></span>
-                <span><?php echo t('discordbot_link_btn'); ?></span>
-              </button>
-            </div>
-          <?php } ?>
-        <?php } else { ?>
-          <div class="has-text-centered mb-5" style="padding: 1rem 2rem;">
-            <h4 class="title is-5 has-text-white mb-3">
-              <span class="icon mr-2 has-text-success" style="font-size: 1.2rem;">
-                <i class="fas fa-check-circle"></i>
-              </span>
-              <?php echo t('discordbot_linked_title'); ?>
-            </h4>
-            <p class="subtitle is-6 has-text-grey-light mb-4">
-              <?php echo t('discordbot_linked_desc'); ?>
-            </p>
-            <?php if ($expires_str): ?>
-              <div class="notification is-info is-light" style="border-radius: 8px; margin: 0 auto; margin-bottom: 1rem;">
-                <p><strong>Token Status:</strong> Your current active Discord token will remain valid for <strong><?php echo htmlspecialchars($expires_str) ?></strong> until it automatically renews.</p>
-              </div>
-            <?php endif; ?>
-            <!-- Invite Bot Button -->
-            <div class="has-text-centered mb-4">
-              <button class="button is-primary is-medium" onclick="inviteBot()" style="border-radius: 8px; font-weight: 600;">
-                <span class="icon"><i class="fas fa-plus-circle"></i></span>
-                <span>Invite Bot to Your Server</span>
-              </button>
-              <p class="help has-text-grey-light mt-2">
-                Add BotOfTheSpecter to your Discord server to enable all features
-              </p>
+              <?php if ($expires_str): ?>
+                <div class="notification has-background-grey-darker" style="border-radius: 12px; margin-top: 1rem; border: 1px solid #3273dc;">
+                  <div class="level is-mobile">
+                    <div class="level-left">
+                      <div class="level-item">
+                        <span class="icon has-text-info"><i class="fas fa-clock"></i></span>
+                        <strong class="has-text-white" style="margin-left: 0.5rem;">Token Status:</strong>
+                      </div>
+                    </div>
+                    <div class="level-right">
+                      <div class="level-item">
+                        <span class="has-text-grey-light">Valid for <?php echo htmlspecialchars($expires_str); ?></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
-          <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { ?>
-            <?php if ($buildStatus) { ?>
-              <div class="notification is-success is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
-                <span class="icon"><i class="fas fa-check"></i></span>
-                <?php echo $buildStatus; ?>
+        </div>
+
+        <!-- Success/Error Messages -->
+        <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+          <?php if ($buildStatus): ?>
+            <div class="column is-12">
+              <div class="notification has-background-dark" style="border-radius: 12px; border: 2px solid #48c774; box-shadow: 0 4px 16px rgba(72,199,116,0.2);">
+                <div class="level is-mobile">
+                  <div class="level-left">
+                    <div class="level-item">
+                      <span class="icon has-text-success"><i class="fas fa-check-circle"></i></span>
+                      <div class="has-text-white" style="margin-left: 0.5rem;"><?php echo $buildStatus; ?></div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            <?php } ?>
-            <?php if ($errorMsg) { ?>
-              <div class="notification is-danger is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
-                <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                <?php echo $errorMsg; ?>
+            </div>
+          <?php endif; ?>
+          <?php if ($errorMsg): ?>
+            <div class="column is-12">
+              <div class="notification has-background-dark" style="border-radius: 12px; border: 2px solid #ff4e65; box-shadow: 0 4px 16px rgba(255,78,101,0.2);">
+                <div class="level is-mobile">
+                  <div class="level-left">
+                    <div class="level-item">
+                      <span class="icon has-text-danger"><i class="fas fa-exclamation-triangle"></i></span>
+                      <div class="has-text-white" style="margin-left: 0.5rem;"><?php echo $errorMsg; ?></div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            <?php } ?>
-          <?php } ?>
+            </div>
+          <?php endif; ?>
+        <?php endif; ?>
+        <?php endif; ?>
+    </div>
           <div class="columns is-variable is-6">
             <!-- Left Column: New Discord Channel IDs Form -->
             <div class="column is-6">
@@ -867,7 +950,6 @@ ob_start();
               </div>
             </div>
           </div>
-        <?php } ?>
       </div>
     </div>
   </div>
