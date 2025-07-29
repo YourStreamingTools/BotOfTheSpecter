@@ -930,7 +930,7 @@ async def websocket_deaths(request: DeathsRequest, api_key: str = Query(...)):
 @app.get(
     "/websocket/sound_alert",
     summary="Trigger Sound Alert via API",
-    description="Trigger a sound alert for the specified sound file via the WebSocket server. The sound file should be located in the channel's sound alerts directory.",
+    description="Trigger a sound alert for the specified sound file via the WebSocket server.",
     tags=["Websocket"],
     operation_id="trigger_websocket_sound_alert"
 )
