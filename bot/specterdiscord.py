@@ -453,7 +453,6 @@ class ChannelMapping:
                 database_name='specterdiscordbot', dict_cursor=True
             )
             self.mappings = {row['channel_code']: dict(row) for row in rows}
-            self.logger.info(f"Loaded {len(self.mappings)} active channel mappings from database")
         except Exception as e:
             self.logger.error(f"Error loading channel mappings from DB: {e}")
             # Fallback to basic schema if there's still an issue
