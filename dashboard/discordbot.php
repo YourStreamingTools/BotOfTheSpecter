@@ -291,15 +291,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $errorMsg = "Error disconnecting Discord account: " . $deleteStmt->error;
       }
       $deleteStmt->close();
-    } elseif (isset($_POST['monitor_username']) && isset($_POST['monitor_url'])) {
-      // Add Twitch streamer monitoring
+    } elseif (isset($_POST['monitor_username'])) {
+      // Add Twitch streamer monitoring (URL is auto-generated)
       $monitor_username = trim($_POST['monitor_username']);
-      $monitor_url = trim($_POST['monitor_url']);
-      if (empty($monitor_username) || empty($monitor_url)) {
-        $errorMsg = "Twitch Username and URL cannot be empty.";
-      } elseif (!filter_var($monitor_url, FILTER_VALIDATE_URL)) {
-        $errorMsg = "Invalid Twitch URL format.";
+      if (empty($monitor_username)) {
+        $errorMsg = "Twitch Username cannot be empty.";
       } else {
+        $monitor_url = "https://www.twitch.tv/" . $monitor_username;
         // Check if the streamer already exists
         $checkStmt = $db->prepare("SELECT * FROM member_streams WHERE username = ?");
         $checkStmt->bind_param("s", $monitor_username);
@@ -797,13 +795,6 @@ ob_start();
                       </div>
                     </div>
                     <div class="field">
-                      <label class="label has-text-white" for="monitor_url" style="font-weight: 500;">Twitch URL</label>
-                      <div class="control has-icons-left">
-                        <input class="input" type="text" id="monitor_url" name="monitor_url" placeholder="e.g. https://www.twitch.tv/botofthespecter" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-link"></i></span>
-                      </div>
-                    </div>
-                    <div class="field">
                       <div class="control">
                         <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;">
                           <span class="icon"><i class="fas fa-save"></i></span>
@@ -816,7 +807,7 @@ ob_start();
                   <div>
                     <button class="button is-link is-fullwidth modal-button" style="border-radius: 6px; font-weight: 600;" data-target="savedStreamersModal">
                       <span class="icon"><i class="fa-solid fa-people-group"></i></span>
-                      <span>View Saved Streamers</span>
+                      <span>View Tracked Streamers</span>
                     </button>
                   </div>
                 </div>
@@ -884,8 +875,8 @@ populateStreamersTable(streamersToDisplay);
 
 function removeStreamer(username) {
   Swal.fire({
-    title: 'Remove Streamer?',
-    text: `Are you sure you want to remove ${username} from the saved streamers list?`,
+    title: 'Remove Tracked Streamer?',
+    html: `Are you sure you want to remove <b>${username}</b> from your tracked streamer list?<br><br>This will stop the Discord bot from posting when this streamer goes live in your monitoring channel on your Discord server.`,
     icon: 'warning',
     showCancelButton: true,
     confirmButtonText: 'Yes, Remove',
