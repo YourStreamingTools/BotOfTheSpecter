@@ -414,6 +414,7 @@ $existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
 $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
 $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
 $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
+$hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 $discord_userResult->close();
 
 function updateExistingDiscordValues() {
@@ -647,10 +648,51 @@ ob_start();
                   </div>
                 </div>
               <?php endif; ?>
+              <!-- Guild ID Configuration - Independent Form -->
+              <div class="card has-background-grey-darker mb-4" style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem;">
+                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                  <p class="card-header-title has-text-white" style="font-weight: 600;">
+                    <span class="icon mr-2 has-text-primary"><i class="fas fa-server"></i></span>
+                    Discord Server Configuration
+                  </p>
+                  <div class="card-header-icon" style="cursor: default;">
+                    <span class="tag is-info is-light">
+                      <span class="icon"><i class="fas fa-cog"></i></span>
+                      <span>Required</span>
+                    </span>
+                  </div>
+                </header>
+                <div class="card-content">
+                  <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                    <strong>Required for All Discord Bot Features:</strong> Please configure your Discord Server ID to enable all Discord Bot features including Server Management and Event Channels.
+                  </div>
+                  <form action="" method="post">
+                    <div class="field">
+                      <label class="label has-text-white" for="guild_id_config" style="font-weight: 500;">Discord Server ID (Guild ID)</label>
+                      <div class="control has-icons-left">
+                        <input class="input" type="text" id="guild_id_config" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>"<?php if (empty($existingGuildId)) { echo ' placeholder="e.g. 123456789123456789"'; } ?> style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
+                      </div>
+                      <p class="help has-text-grey-light">Right-click your Discord server name → Copy Server ID (Developer Mode required)</p>
+                    </div>
+                    <div class="field">
+                      <div class="control">
+                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
+                          <span class="icon"><i class="fas fa-save"></i></span>
+                          <span>Save Server Configuration</span>
+                        </button>
+                      </div>
+                      <?php if (!$is_linked || $needs_relink): ?>
+                      <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                      <?php endif; ?>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-
         <!-- Success/Error Messages -->
         <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
           <?php if ($buildStatus): ?>
@@ -705,17 +747,6 @@ ob_start();
                     Configure Discord channels for different bot events. This new system will replace webhook URLs with direct channel integration.
                   </p>
                   <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
-                    <div class="field">
-                      <label class="label has-text-white" for="guild_id" style="font-weight: 500;">
-                        <span class="icon mr-1 has-text-info"><i class="fa-solid fa-users"></i></span>
-                        <?php echo t('discordbot_guild_id_label'); ?>
-                      </label>
-                      <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_guild_id_help'); ?></p>
-                      <div class="control has-icons-left">
-                        <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId) . "\""; if (empty($existingGuildId)) { echo " placeholder=\"e.g. 123456789123456789\""; } ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
-                      </div>
-                    </div>
                     <div class="field">
                       <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
                         <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>
@@ -813,13 +844,15 @@ ob_start();
                     </div>
                     <div class="field">
                       <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
+                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                           <span class="icon"><i class="fas fa-cog"></i></span>
                           <span>Save Channel Configuration</span>
                         </button>
                       </div>
                       <?php if (!$is_linked || $needs_relink): ?>
                       <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                      <?php elseif (!$hasGuildId): ?>
+                      <p class="help has-text-warning has-text-centered mt-2">Guild ID not setup</p>
                       <?php else: ?>
                       <p class="help has-text-grey-light has-text-centered mt-2">
                         Most of these features are currently under development. You can still set the channel IDs and text for future use.
@@ -943,52 +976,64 @@ ob_start();
                   </div>
                 </header>
                 <div class="card-content">
+                  <?php if (!$is_linked || $needs_relink): ?>
+                  <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                    <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                    <strong>Account Not Linked:</strong> Please link your Discord account to access server management features.
+                  </div>
+                  <?php elseif (!$hasGuildId): ?>
+                  <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                    <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                    <strong>Guild ID Required:</strong> Please configure your Discord Server ID above to enable server management features.
+                  </div>
+                  <?php else: ?>
                   <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
                     <span class="icon"><i class="fas fa-info-circle"></i></span>
                     <strong>Comprehensive Discord server management and moderation tools. Features include welcome messages, auto-role assignment, role history tracking, message monitoring (edited/deleted messages), and role change tracking for complete server oversight.</strong>
                   </div>
+                  <?php endif; ?>
                   <form action="" method="post">
                     <div class="field">
                       <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
                       <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
-                          <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded" disabled>
+                          <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                           <label for="welcomeMessage" class="has-text-white">Welcome Message</label>
                         </div>
                       </div>
                       <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
-                          <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded" disabled>
+                          <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                           <label for="autoRole" class="has-text-white">Auto Role on Join</label>
                         </div>
                       </div>
                       <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
-                          <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded" disabled>
+                          <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                           <label for="roleHistory" class="has-text-white">Role History (Restore roles on rejoin)</label>
                         </div>
                       </div>
                       <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
-                          <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded" disabled>
+                          <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                           <label for="messageTracking" class="has-text-white">Message Tracking (Edited/Deleted messages)</label>
                         </div>
                       </div>
                       <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
-                          <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded" disabled>
+                          <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                           <label for="roleTracking" class="has-text-white">Role Tracking (User added/removed from roles)</label>
                         </div>
                       </div>
                       <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
-                          <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded" disabled>
+                          <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                           <label for="serverRoleManagement" class="has-text-white">Server Role Management (Track role creation/deletion)</label>
                         </div>
                       </div>
                       <div class="field">
                         <div class="control">
-                          <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded" disabled>
+                          <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                           <label for="userTracking" class="has-text-white">User Tracking (Nickname, profile picture, status changes)</label>
                         </div>
                       </div>
@@ -1168,7 +1213,7 @@ function removeStreamer(username) {
   }
   // Discord Settings AJAX Handler
   function updateDiscordSetting(settingName, value) {
-    const guildId = document.getElementById('guild_id') ? document.getElementById('guild_id').value : '';
+    const guildId = document.getElementById('guild_id_config') ? document.getElementById('guild_id_config').value : '';
     fetch('save_discord_server_management_settings.php', {
       method: 'POST',
       headers: {
