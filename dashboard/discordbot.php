@@ -400,6 +400,45 @@ while ($row = $savedStreamersResult->fetch_assoc()) {
 }
 $savedStreamersSTMT->close();
 
+// Fetch server management settings from Discord bot database
+$serverManagementSettings = [
+  'welcomeMessage' => false,
+  'autoRole' => false,
+  'roleHistory' => false,
+  'messageTracking' => false,
+  'roleTracking' => false,
+  'serverRoleManagement' => false,
+  'userTracking' => false
+];
+
+if ($is_linked && $hasGuildId) {
+  $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
+  if (!$discord_conn->connect_error) {
+    $serverMgmtStmt = $discord_conn->prepare("SELECT welcomeMessage, autoRole, roleHistory, messageTracking, roleTracking, serverRoleManagement, userTracking FROM server_management WHERE server_id = ?");
+    $serverMgmtStmt->bind_param("s", $existingGuildId);
+    $serverMgmtStmt->execute();
+    $serverMgmtResult = $serverMgmtStmt->get_result();
+    if ($serverMgmtData = $serverMgmtResult->fetch_assoc()) {
+      $serverManagementSettings = [
+        'welcomeMessage' => (bool)$serverMgmtData['welcomeMessage'],
+        'autoRole' => (bool)$serverMgmtData['autoRole'],
+        'roleHistory' => (bool)$serverMgmtData['roleHistory'],
+        'messageTracking' => (bool)$serverMgmtData['messageTracking'],
+        'roleTracking' => (bool)$serverMgmtData['roleTracking'],
+        'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
+        'userTracking' => (bool)$serverMgmtData['userTracking']
+      ];
+    }
+    $serverMgmtStmt->close();
+    $discord_conn->close();
+  }
+}
+
+// Check if any management features are enabled
+$hasEnabledFeatures = array_reduce($serverManagementSettings, function($carry, $item) {
+  return $carry || $item;
+}, false);
+
 // Fetch existing live_channel_id and guild_id
 $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
 $discord_userSTMT->bind_param("i", $user_id);
@@ -418,7 +457,7 @@ $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 $discord_userResult->close();
 
 function updateExistingDiscordValues() {
-  global $conn, $user_id;
+  global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings;
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
   $discord_userSTMT->bind_param("i", $user_id);
   $discord_userSTMT->execute();
@@ -432,6 +471,30 @@ function updateExistingDiscordValues() {
   $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
   $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
   $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
+  $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
+  // Refresh server management settings
+  if ($hasGuildId) {
+    $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
+    if (!$discord_conn->connect_error) {
+      $serverMgmtStmt = $discord_conn->prepare("SELECT welcomeMessage, autoRole, roleHistory, messageTracking, roleTracking, serverRoleManagement, userTracking FROM server_management WHERE server_id = ?");
+      $serverMgmtStmt->bind_param("s", $existingGuildId);
+      $serverMgmtStmt->execute();
+      $serverMgmtResult = $serverMgmtStmt->get_result();
+      if ($serverMgmtData = $serverMgmtResult->fetch_assoc()) {
+        $serverManagementSettings = [
+          'welcomeMessage' => (bool)$serverMgmtData['welcomeMessage'],
+          'autoRole' => (bool)$serverMgmtData['autoRole'],
+          'roleHistory' => (bool)$serverMgmtData['roleHistory'],
+          'messageTracking' => (bool)$serverMgmtData['messageTracking'],
+          'roleTracking' => (bool)$serverMgmtData['roleTracking'],
+          'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
+          'userTracking' => (bool)$serverMgmtData['userTracking']
+        ];
+      }
+      $serverMgmtStmt->close();
+      $discord_conn->close();
+    }
+  }
   $discord_userResult->close();
 }
 
@@ -1003,6 +1066,158 @@ ob_start();
                   </form>
                 </div>
               </div>
+              <!-- Individual Management Feature Cards -->
+              <?php if ($hasEnabledFeatures && $is_linked && !$needs_relink && $hasGuildId): ?>
+              <div class="columns is-multiline">
+                <?php if ($serverManagementSettings['welcomeMessage']): ?>
+                <div class="column is-half">
+                  <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                    <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                      <p class="card-header-title has-text-white" style="font-weight: 600;">
+                        <span class="icon mr-2 has-text-success"><i class="fas fa-hand-wave"></i></span>
+                        Welcome Message
+                      </p>
+                      <div class="card-header-icon">
+                        <span class="tag is-success is-light">
+                          <span class="icon"><i class="fas fa-check"></i></span>
+                          <span>Active</span>
+                        </span>
+                      </div>
+                    </header>
+                    <div class="card-content">
+                      <p class="has-text-white-ter">Automatically sends welcome messages to new members joining your Discord server.</p>
+                    </div>
+                  </div>
+                </div>
+                <?php endif; ?>
+                <?php if ($serverManagementSettings['autoRole']): ?>
+                <div class="column is-half">
+                  <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                    <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                      <p class="card-header-title has-text-white" style="font-weight: 600;">
+                        <span class="icon mr-2 has-text-info"><i class="fas fa-user-plus"></i></span>
+                        Auto Role Assignment
+                      </p>
+                      <div class="card-header-icon">
+                        <span class="tag is-success is-light">
+                          <span class="icon"><i class="fas fa-check"></i></span>
+                          <span>Active</span>
+                        </span>
+                      </div>
+                    </header>
+                    <div class="card-content">
+                      <p class="has-text-white-ter">Automatically assigns roles to new members when they join your Discord server.</p>
+                    </div>
+                  </div>
+                </div>
+                <?php endif; ?>
+                <?php if ($serverManagementSettings['roleHistory']): ?>
+                <div class="column is-half">
+                  <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                    <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                      <p class="card-header-title has-text-white" style="font-weight: 600;">
+                        <span class="icon mr-2 has-text-warning"><i class="fas fa-history"></i></span>
+                        Role History
+                      </p>
+                      <div class="card-header-icon">
+                        <span class="tag is-success is-light">
+                          <span class="icon"><i class="fas fa-check"></i></span>
+                          <span>Active</span>
+                        </span>
+                      </div>
+                    </header>
+                    <div class="card-content">
+                      <p class="has-text-white-ter">Restores previous roles when members rejoin your Discord server after leaving.</p>
+                    </div>
+                  </div>
+                </div>
+                <?php endif; ?>
+                <?php if ($serverManagementSettings['messageTracking']): ?>
+                <div class="column is-half">
+                  <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                    <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                      <p class="card-header-title has-text-white" style="font-weight: 600;">
+                        <span class="icon mr-2 has-text-danger"><i class="fas fa-eye"></i></span>
+                        Message Tracking
+                      </p>
+                      <div class="card-header-icon">
+                        <span class="tag is-success is-light">
+                          <span class="icon"><i class="fas fa-check"></i></span>
+                          <span>Active</span>
+                        </span>
+                      </div>
+                    </header>
+                    <div class="card-content">
+                      <p class="has-text-white-ter">Tracks edited and deleted messages for moderation and audit purposes.</p>
+                    </div>
+                  </div>
+                </div>
+                <?php endif; ?>
+                <?php if ($serverManagementSettings['roleTracking']): ?>
+                <div class="column is-half">
+                  <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                    <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                      <p class="card-header-title has-text-white" style="font-weight: 600;">
+                        <span class="icon mr-2 has-text-primary"><i class="fas fa-users-cog"></i></span>
+                        Role Tracking
+                      </p>
+                      <div class="card-header-icon">
+                        <span class="tag is-success is-light">
+                          <span class="icon"><i class="fas fa-check"></i></span>
+                          <span>Active</span>
+                        </span>
+                      </div>
+                    </header>
+                    <div class="card-content">
+                      <p class="has-text-white-ter">Monitors when users are added to or removed from roles for audit tracking.</p>
+                    </div>
+                  </div>
+                </div>
+                <?php endif; ?>
+                <?php if ($serverManagementSettings['serverRoleManagement']): ?>
+                <div class="column is-half">
+                  <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                    <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                      <p class="card-header-title has-text-white" style="font-weight: 600;">
+                        <span class="icon mr-2 has-text-link"><i class="fas fa-cogs"></i></span>
+                        Server Role Management
+                      </p>
+                      <div class="card-header-icon">
+                        <span class="tag is-success is-light">
+                          <span class="icon"><i class="fas fa-check"></i></span>
+                          <span>Active</span>
+                        </span>
+                      </div>
+                    </header>
+                    <div class="card-content">
+                      <p class="has-text-white-ter">Tracks the creation and deletion of roles within your Discord server.</p>
+                    </div>
+                  </div>
+                </div>
+                <?php endif; ?>
+                <?php if ($serverManagementSettings['userTracking']): ?>
+                <div class="column is-half">
+                  <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                    <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                      <p class="card-header-title has-text-white" style="font-weight: 600;">
+                        <span class="icon mr-2 has-text-info"><i class="fas fa-user-edit"></i></span>
+                        User Tracking
+                      </p>
+                      <div class="card-header-icon">
+                        <span class="tag is-success is-light">
+                          <span class="icon"><i class="fas fa-check"></i></span>
+                          <span>Active</span>
+                        </span>
+                      </div>
+                    </header>
+                    <div class="card-content">
+                      <p class="has-text-white-ter">Monitors user profile changes including nicknames, avatars, and status updates.</p>
+                    </div>
+                  </div>
+                </div>
+                <?php endif; ?>
+              </div>
+              <?php endif; ?>
               <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
                 <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                   <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -1323,6 +1538,10 @@ function removeStreamer(username) {
           timer: 2000,
           timerProgressBar: true
         });
+        // Refresh the page after a short delay to show/hide management feature cards
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       } else {
         // Show error and revert toggle
         Swal.fire({
@@ -1362,6 +1581,8 @@ function removeStreamer(username) {
   }
   // Add event listeners to all Discord setting toggles
   document.addEventListener('DOMContentLoaded', function() {
+    // Initialize server management settings from PHP
+    const serverManagementSettings = <?php echo json_encode($serverManagementSettings); ?>;
     const settingToggles = [
       'welcomeMessage',
       'autoRole',
@@ -1371,9 +1592,12 @@ function removeStreamer(username) {
       'serverRoleManagement',
       'userTracking'
     ];
+    // Set initial toggle states based on saved settings
     settingToggles.forEach(settingName => {
       const toggle = document.getElementById(settingName);
       if (toggle) {
+        toggle.checked = serverManagementSettings[settingName] || false;
+        // Add change event listener
         toggle.addEventListener('change', function() {
           updateDiscordSetting(settingName, this.checked);
         });
