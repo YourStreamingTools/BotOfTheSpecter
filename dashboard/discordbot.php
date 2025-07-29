@@ -36,7 +36,7 @@ if (!$discord_conn->connect_error) {
     // Create server_management table if it doesn't exist
     $createTableSQL = "CREATE TABLE IF NOT EXISTS server_management (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
+        server_id VARCHAR(255) NOT NULL,
         welcomeMessage TINYINT(1) DEFAULT 0,
         autoRole TINYINT(1) DEFAULT 0,
         roleHistory TINYINT(1) DEFAULT 0,
@@ -46,7 +46,7 @@ if (!$discord_conn->connect_error) {
         userTracking TINYINT(1) DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_user (user_id)
+        UNIQUE KEY unique_server (server_id)
     )";
     $discord_conn->query($createTableSQL);
     $discord_conn->close();
@@ -1168,6 +1168,7 @@ function removeStreamer(username) {
   }
   // Discord Settings AJAX Handler
   function updateDiscordSetting(settingName, value) {
+    const guildId = document.getElementById('guild_id') ? document.getElementById('guild_id').value : '';
     fetch('save_discord_server_management_settings.php', {
       method: 'POST',
       headers: {
@@ -1175,7 +1176,8 @@ function removeStreamer(username) {
       },
       body: JSON.stringify({
         setting: settingName,
-        value: value
+        value: value,
+        server_id: guildId
       })
     })
     .then(response => response.json())
