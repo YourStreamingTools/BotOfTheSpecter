@@ -905,12 +905,12 @@ ob_start();
                   </div>
                 </div>
               </div>
-              <!-- Discord Server Monitoring Box -->
+              <!-- Discord Server Management Box -->
               <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
                 <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                   <p class="card-header-title has-text-white" style="font-weight: 600;">
                     <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
-                    Discord Server Monitoring
+                    Discord Server Management
                   </p>
                   <div class="card-header-icon" style="cursor: default;">
                     <span class="tag is-warning is-light">
@@ -922,11 +922,11 @@ ob_start();
                 <div class="card-content">
                   <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
                     <span class="icon"><i class="fas fa-info-circle"></i></span>
-                    <strong>Moderate your Discord server with automated actions and event monitoring. This feature will allow the bot to perform moderation actions based on server events and user preferences.</strong>
+                    <strong>Comprehensive Discord server management and moderation tools. Features include welcome messages, auto-role assignment, role history tracking, message monitoring (edited/deleted messages), and role change tracking for complete server oversight.</strong>
                   </div>
                   <form action="" method="post">
                     <div class="field">
-                      <label class="label has-text-white" style="font-weight: 500;">Server Features</label>
+                      <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
                       <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
                           <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded" disabled>
@@ -939,10 +939,22 @@ ob_start();
                           <label for="autoRole" class="has-text-white">Auto Role on Join</label>
                         </div>
                       </div>
-                      <div class="field">
+                      <div class="field" style="margin-bottom: 0.75rem;">
                         <div class="control">
                           <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded" disabled>
                           <label for="roleHistory" class="has-text-white">Role History (Restore roles on rejoin)</label>
+                        </div>
+                      </div>
+                      <div class="field" style="margin-bottom: 0.75rem;">
+                        <div class="control">
+                          <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded" disabled>
+                          <label for="messageTracking" class="has-text-white">Message Tracking (Edited/Deleted messages)</label>
+                        </div>
+                      </div>
+                      <div class="field">
+                        <div class="control">
+                          <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded" disabled>
+                          <label for="roleTracking" class="has-text-white">Role Tracking (User added/removed from roles)</label>
                         </div>
                       </div>
                     </div>
