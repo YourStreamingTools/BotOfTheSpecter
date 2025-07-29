@@ -29,6 +29,29 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+// Initialize Discord Bot Database Tables
+include '/var/www/config/database.php';
+$discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
+if (!$discord_conn->connect_error) {
+    // Create server_management table if it doesn't exist
+    $createTableSQL = "CREATE TABLE IF NOT EXISTS server_management (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        welcomeMessage TINYINT(1) DEFAULT 0,
+        autoRole TINYINT(1) DEFAULT 0,
+        roleHistory TINYINT(1) DEFAULT 0,
+        messageTracking TINYINT(1) DEFAULT 0,
+        roleTracking TINYINT(1) DEFAULT 0,
+        serverRoleManagement TINYINT(1) DEFAULT 0,
+        userTracking TINYINT(1) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_user (user_id)
+    )";
+    $discord_conn->query($createTableSQL);
+    $discord_conn->close();
+}
+
 // Check if the user is already linked with Discord and validate tokens
 if (isset($username) && $username === 'botofthespecter') {
   // For the bot user, use the old simple existence check

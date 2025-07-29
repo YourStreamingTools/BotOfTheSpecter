@@ -20,28 +20,6 @@ if ($discord_conn->connect_error) {
     exit();
 }
 
-// Create server_management table if it doesn't exist
-$createTableSQL = "CREATE TABLE IF NOT EXISTS server_management (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    welcomeMessage TINYINT(1) DEFAULT 0,
-    autoRole TINYINT(1) DEFAULT 0,
-    roleHistory TINYINT(1) DEFAULT 0,
-    messageTracking TINYINT(1) DEFAULT 0,
-    roleTracking TINYINT(1) DEFAULT 0,
-    serverRoleManagement TINYINT(1) DEFAULT 0,
-    userTracking TINYINT(1) DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_user (user_id)
-)";
-
-if (!$discord_conn->query($createTableSQL)) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Failed to create table']);
-    exit();
-}
-
 // Check if request is POST and has the required data
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
