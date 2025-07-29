@@ -8,17 +8,8 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
-// Include database connection and userdata
+// Include database connection
 include '/var/www/config/database.php';
-include 'userdata.php';
-
-// Connect to specterdiscordbot database
-$discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
-if ($discord_conn->connect_error) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
-    exit();
-}
 
 // Check if request is POST and has the required data
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -64,29 +55,36 @@ if (!in_array($setting, $allowed_settings)) {
     exit();
 }
 
+// Connect to specterdiscordbot database
+$discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
+if ($discord_conn->connect_error) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+    exit();
+}
+
 try {
     // Check if record exists for this server
     $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
     $checkStmt->bind_param("s", $server_id);
     $checkStmt->execute();
     $result = $checkStmt->get_result();
-    
     if ($result->num_rows > 0) {
         // Update existing record
-        $updateStmt = $discord_conn->prepare("UPDATE server_management SET `$setting` = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+        $updateSQL = "UPDATE server_management SET `" . $setting . "` = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?";
+        $updateStmt = $discord_conn->prepare($updateSQL);
         $updateStmt->bind_param("is", $value, $server_id);
         $success = $updateStmt->execute();
         $updateStmt->close();
     } else {
         // Insert new record with default values
-        $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, `$setting`) VALUES (?, ?)");
+        $insertSQL = "INSERT INTO server_management (server_id, `" . $setting . "`) VALUES (?, ?)";
+        $insertStmt = $discord_conn->prepare($insertSQL);
         $insertStmt->bind_param("si", $server_id, $value);
         $success = $insertStmt->execute();
         $insertStmt->close();
     }
-    
     $checkStmt->close();
-    
     if ($success) {
         echo json_encode([
             'success' => true, 
@@ -96,16 +94,13 @@ try {
         ]);
     } else {
         http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'Database error']);
+        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
     }
-    
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 } finally {
     // Close the Discord database connection
-    if (isset($discord_conn)) {
-        $discord_conn->close();
-    }
+    if (isset($discord_conn)) { $discord_conn->close(); }
 }
 ?>
