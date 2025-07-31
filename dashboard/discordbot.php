@@ -1793,7 +1793,7 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
+                      <button class="button is-primary is-fullwidth" type="submit" name="save_auto_role" style="border-radius: 6px; font-weight: 600;" disabled>
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Auto Role Settings</span>
                       </button>
@@ -2191,6 +2191,41 @@ function removeStreamer(username) {
   }
   updateCharCounter('online_text', 'online_text_counter');
   updateCharCounter('offline_text', 'offline_text_counter');
+  // Dropdown validation for form buttons
+  function validateDropdownSelection(fieldId, buttonName) {
+    var fieldElement = $('#' + fieldId);
+    var button = $('button[name="' + buttonName + '"]');
+    function checkSelection() {
+      var selectedValue = fieldElement.val();
+      // Check if it's a select dropdown or text input
+      if (fieldElement.is('select')) {
+        // For dropdowns, ensure a valid option is selected (not empty and not the default "Select..." option)
+        if (selectedValue && selectedValue !== '' && !selectedValue.includes('Select')) {
+          button.prop('disabled', false);
+        } else {
+          button.prop('disabled', true);
+        }
+      } else if (fieldElement.is('input[type="text"]')) {
+        // For text inputs (manual IDs), ensure there's text entered
+        if (selectedValue && selectedValue.trim() !== '') {
+          button.prop('disabled', false);
+        } else {
+          button.prop('disabled', true);
+        }
+      }
+    }
+    // Check on page load
+    checkSelection();
+    // Check when selection/input changes
+    fieldElement.on('change input', checkSelection);
+  }
+  // Apply validation to all relevant dropdowns and inputs
+  validateDropdownSelection('auto_role_id', 'save_auto_role');
+  validateDropdownSelection('welcome_channel_id', 'save_welcome_message');
+  validateDropdownSelection('message_log_channel_id', 'save_message_tracking');
+  validateDropdownSelection('role_log_channel_id', 'save_role_tracking');
+  validateDropdownSelection('server_mgmt_log_channel_id', 'save_server_role_management');
+  validateDropdownSelection('user_log_channel_id', 'save_user_tracking');
 });
 </script>
 <?php if (!$is_linked) { ?>
