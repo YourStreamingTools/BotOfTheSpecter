@@ -859,8 +859,9 @@ function fetchGuildRoles($guild_id, $access_token) {
 function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildChannels, $icon = 'fas fa-hashtag', $required = false) {
   $requiredAttr = $required ? ' required' : '';
   if ($useManualIds || empty($guildChannels)) {
-    // Show manual input field
-    $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$placeholder\"" : '';
+    // Show manual input field with enhanced placeholder for manual mode
+    $manualPlaceholder = $useManualIds ? "Text Channel ID (Right-click channel → Copy Channel ID)" : $placeholder;
+    $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$manualPlaceholder\"" : '';
     return "
       <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
       <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
@@ -885,8 +886,9 @@ function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder,
 function generateRoleInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildRoles, $icon = 'fas fa-user-tag', $required = false) {
   $requiredAttr = $required ? ' required' : '';
   if ($useManualIds || empty($guildRoles)) {
-    // Show manual input field
-    $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$placeholder\"" : '';
+    // Show manual input field with enhanced placeholder for manual mode
+    $manualPlaceholder = $useManualIds ? "Role ID (Right-click role → Copy Role ID)" : $placeholder;
+    $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$manualPlaceholder\"" : '';
     return "
       <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
       <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
@@ -917,8 +919,9 @@ function generateRoleInput($fieldId, $fieldName, $currentValue, $placeholder, $u
 function generateVoiceChannelInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildVoiceChannels, $icon = 'fas fa-volume-up', $required = false) {
   $requiredAttr = $required ? ' required' : '';
   if ($useManualIds || empty($guildVoiceChannels)) {
-    // Show manual input field
-    $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$placeholder\"" : '';
+    // Show manual input field with enhanced placeholder for manual mode
+    $manualPlaceholder = $useManualIds ? "Voice Channel ID (Right-click voice channel → Copy Channel ID)" : $placeholder;
+    $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$manualPlaceholder\"" : '';
     return "
       <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
       <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
@@ -1448,10 +1451,11 @@ ob_start();
                     </p>
                   </div>
                   <div style="flex-grow: 1;"></div>
+                  <?php if ($useManualIds): ?>
                   <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
                     <div class="content">
                       <p><strong>How to get Channel IDs:</strong></p>
-                      <ol class="mb-0">
+                      <ol class="mb-2">
                         <li>Enable Developer Mode in Discord (User Settings → Advanced → Developer Mode)</li>
                         <li>Right-click on the desired channel</li>
                         <li>Select "Copy Channel ID"</li>
@@ -1459,6 +1463,7 @@ ob_start();
                       </ol>
                     </div>
                   </div>
+                  <?php endif; ?>
                   <div class="field">
                     <div class="control">
                       <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
