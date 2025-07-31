@@ -54,10 +54,17 @@ try {
                 exit();
             }
             $welcome_channel_id = $input['welcome_channel_id'];
+            $welcome_message = isset($input['welcome_message']) ? trim($input['welcome_message']) : '';
             $welcome_use_default = isset($input['welcome_message_configuration_default']) ? 1 : 0;
             if (empty($welcome_channel_id)) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'message' => 'Welcome channel ID cannot be empty']);
+                exit();
+            }
+            // If not using default message, require custom welcome message text
+            if (!$welcome_use_default && empty($welcome_message)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Please enter a welcome message or enable "Use default welcome message"']);
                 exit();
             }
             // Check if record exists for this server
@@ -67,14 +74,14 @@ try {
             $result = $checkStmt->get_result();
             if ($result->num_rows > 0) {
                 // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET welcome_message_configuration_channel = ?, welcome_message_configuration_default = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
-                $updateStmt->bind_param("sis", $welcome_channel_id, $welcome_use_default, $server_id);
+                $updateStmt = $discord_conn->prepare("UPDATE server_management SET welcome_message_configuration_channel = ?, welcome_message_configuration_message = ?, welcome_message_configuration_default = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                $updateStmt->bind_param("ssis", $welcome_channel_id, $welcome_message, $welcome_use_default, $server_id);
                 $success = $updateStmt->execute();
                 $updateStmt->close();
             } else {
                 // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, welcome_message_configuration_channel, welcome_message_configuration_default) VALUES (?, ?, ?)");
-                $insertStmt->bind_param("ssi", $server_id, $welcome_channel_id, $welcome_use_default);
+                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, welcome_message_configuration_channel, welcome_message_configuration_message, welcome_message_configuration_default) VALUES (?, ?, ?, ?)");
+                $insertStmt->bind_param("sssi", $server_id, $welcome_channel_id, $welcome_message, $welcome_use_default);
                 $success = $insertStmt->execute();
                 $insertStmt->close();
             }
