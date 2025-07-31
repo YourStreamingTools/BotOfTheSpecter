@@ -594,13 +594,21 @@ function updateExistingDiscordValues() {
 
 // Generate auth URL with state parameter for security
 $authURL = '';
-if (!$is_linked) {
+if (!$is_linked || $needs_relink) {
   $state = bin2hex(random_bytes(16));
   $_SESSION['discord_oauth_state'] = $state;
+  // Determine OAuth scopes based on user status
+  if (!$is_linked) {
+    // New user: Include 'bot' scope to add bot to their server
+    $oauth_scopes = 'identify guilds guilds.members.read connections bot';
+  } else {
+    // Existing user relinking: Exclude 'bot' scope since bot should already be in server
+    $oauth_scopes = 'identify guilds guilds.members.read connections';
+  }
   $authURL = "https://discord.com/oauth2/authorize"
     . "?client_id=1170683250797187132"
     . "&response_type=code"
-    . "&scope=" . urlencode('identify guilds guilds.members.read connections bot')
+    . "&scope=" . urlencode($oauth_scopes)
     . "&state={$state}"
     . "&redirect_uri=" . urlencode('https://dashboard.botofthespecter.com/discordbot.php');
 }
