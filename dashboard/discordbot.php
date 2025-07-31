@@ -67,6 +67,7 @@ if (isset($username) && $username === 'botofthespecter') {
   $discord_discriminator = '';
   $discord_avatar = '';
   $needs_relink = false;
+  $needs_reauth = false;
   if ($has_discord_record) {
     $discordData = $discord_userResult->fetch_assoc();
     $discord_username = $discordData['discord_username'] ?? '';
@@ -89,64 +90,72 @@ if (isset($username) && $username === 'botofthespecter') {
   $discord_discriminator = '';
   $discord_avatar = '';
   $needs_relink = false;
+  $needs_reauth = false;
   if ($has_discord_record) {
     $discordData = $discord_userResult->fetch_assoc();
-    // Check if we have ALL required token data: access_token, refresh_token
-    if (!empty($discordData['access_token']) && 
-        !empty($discordData['refresh_token'])) {
-      // Validate token and get current authorization info using /oauth2/@me
-      $auth_url = 'https://discord.com/api/v10/oauth2/@me';
-      $token = $discordData['access_token'];
-      $auth_options = array(
-        'http' => array(
-          'header' => "Authorization: Bearer $token\r\n",
-          'method' => 'GET'
-        )
-      );
-      $auth_context = stream_context_create($auth_options);
-      $auth_response = @file_get_contents($auth_url, false, $auth_context);
-      if ($auth_response !== false) {
-        $auth_data = json_decode($auth_response, true);
-        if (isset($auth_data['user'])) {
-          // Token is valid, set as properly linked
-          $is_linked = true;
-          $discord_username = $auth_data['user']['username'] ?? '';
-          $discord_discriminator = $auth_data['user']['discriminator'] ?? '';
-          $discord_avatar = $auth_data['user']['avatar'] ?? '';
-          // Get actual expiration from Discord API
-          if (isset($auth_data['expires'])) {
-            try {
-              $expires_datetime = new DateTime($auth_data['expires']);
-              $now = new DateTime();
-              $diff = $now->diff($expires_datetime);
-              // Calculate time remaining
-              $total_seconds = ($diff->days * 86400) + ($diff->h * 3600) + ($diff->i * 60);
-              if ($total_seconds > 0) {
-                $days = $diff->days;
-                $hours = $diff->h;
-                $minutes = $diff->i;
-                $parts = [];
-                if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
-                if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
-                if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
-                $expires_str = implode(', ', $parts);
+    // Check for reauth requirement from database
+    $needs_reauth = (isset($discordData['reauth']) && $discordData['reauth'] == 1);
+    // If reauth is required, force user to relink for new scopes
+    if ($needs_reauth) {
+      $needs_relink = true;
+    } else {
+      // Check if we have ALL required token data: access_token, refresh_token
+      if (!empty($discordData['access_token']) && 
+          !empty($discordData['refresh_token'])) {
+        // Validate token and get current authorization info using /oauth2/@me
+        $auth_url = 'https://discord.com/api/v10/oauth2/@me';
+        $token = $discordData['access_token'];
+        $auth_options = array(
+          'http' => array(
+            'header' => "Authorization: Bearer $token\r\n",
+            'method' => 'GET'
+          )
+        );
+        $auth_context = stream_context_create($auth_options);
+        $auth_response = @file_get_contents($auth_url, false, $auth_context);
+        if ($auth_response !== false) {
+          $auth_data = json_decode($auth_response, true);
+          if (isset($auth_data['user'])) {
+            // Token is valid, set as properly linked
+            $is_linked = true;
+            $discord_username = $auth_data['user']['username'] ?? '';
+            $discord_discriminator = $auth_data['user']['discriminator'] ?? '';
+            $discord_avatar = $auth_data['user']['avatar'] ?? '';
+            // Get actual expiration from Discord API
+            if (isset($auth_data['expires'])) {
+              try {
+                $expires_datetime = new DateTime($auth_data['expires']);
+                $now = new DateTime();
+                $diff = $now->diff($expires_datetime);
+                // Calculate time remaining
+                $total_seconds = ($diff->days * 86400) + ($diff->h * 3600) + ($diff->i * 60);
+                if ($total_seconds > 0) {
+                  $days = $diff->days;
+                  $hours = $diff->h;
+                  $minutes = $diff->i;
+                  $parts = [];
+                  if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
+                  if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
+                  if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+                  $expires_str = implode(', ', $parts);
+                }
+              } catch (Exception $e) {
+                // If there's an error parsing the date, just set expires_str to empty
+                $expires_str = '';
               }
-            } catch (Exception $e) {
-              // If there's an error parsing the date, just set expires_str to empty
-              $expires_str = '';
             }
+          } else {
+            // Token is invalid, needs relink
+            $needs_relink = true;
           }
         } else {
-          // Token is invalid, needs relink
+          // API call failed, token might be invalid, needs relink
           $needs_relink = true;
         }
       } else {
-        // API call failed, token might be invalid, needs relink
+        // Missing required token data (access_token, refresh_token), needs relink
         $needs_relink = true;
       }
-    } else {
-      // Missing required token data (access_token, refresh_token), needs relink
-      $needs_relink = true;
     }
   } else {
     // No Discord record exists, user has never linked
@@ -220,13 +229,13 @@ if (isset($_GET['code']) && !$is_linked) {
         $discord_id = $user_data['id'];
         $access_token = $params['access_token'];
         $refresh_token = $params['refresh_token'] ?? null;
-        // Store Discord user information with tokens if available
+        // Store Discord user information with tokens if available and reset reauth flag
         if ($refresh_token) {
-          $sql = "INSERT INTO discord_users (user_id, discord_id, access_token, refresh_token) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token), refresh_token = VALUES(refresh_token)";
+          $sql = "INSERT INTO discord_users (user_id, discord_id, access_token, refresh_token, reauth) VALUES (?, ?, ?, ?, 0) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token), refresh_token = VALUES(refresh_token), reauth = 0";
           $insertStmt = $conn->prepare($sql);
           $insertStmt->bind_param("isss", $user_id, $discord_id, $access_token, $refresh_token);
         } else {
-          $sql = "INSERT INTO discord_users (user_id, discord_id, access_token) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token)";
+          $sql = "INSERT INTO discord_users (user_id, discord_id, access_token, reauth) VALUES (?, ?, ?, 0) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token), reauth = 0";
           $insertStmt = $conn->prepare($sql);
           $insertStmt->bind_param("iss", $user_id, $discord_id, $access_token);
         }
@@ -421,6 +430,8 @@ error_log("Discord Data Debug for user_id $user_id: " . json_encode([
   'has_discord_record' => $has_discord_record,
   'is_linked' => $is_linked,
   'needs_relink' => $needs_relink,
+  'needs_reauth' => $needs_reauth,
+  'reauth_flag' => (is_array($discordData) && isset($discordData['reauth'])) ? $discordData['reauth'] : 'not_set',
   'discordData_is_null' => ($discordData === null),
   'discordData_is_array' => is_array($discordData),
   'discordData_count' => is_array($discordData) ? count($discordData) : 'N/A',
@@ -469,10 +480,32 @@ $hasEnabledFeatures = array_reduce($serverManagementSettings, function($carry, $
   return $carry || $item;
 }, false);
 
+// Fetch user's administrative guilds if linked
+$userAdminGuilds = array();
+if ($is_linked && !$needs_relink && !empty($discordData['access_token'])) {
+  $userAdminGuilds = getUserAdminGuilds($discordData['access_token']);
+  // Debug logging for guild fetching
+  error_log("Guild Fetch Debug for user_id $user_id: " . json_encode([
+    'is_linked' => $is_linked,
+    'needs_relink' => $needs_relink,
+    'has_access_token' => !empty($discordData['access_token']),
+    'guild_count' => count($userAdminGuilds),
+    'guilds' => array_map(function($guild) {
+      return [
+        'id' => $guild['id'] ?? 'no_id',
+        'name' => $guild['name'] ?? 'no_name',
+        'owner' => $guild['owner'] ?? false,
+        'permissions' => $guild['permissions'] ?? 0
+      ];
+    }, $userAdminGuilds)
+  ]));
+}
+
 function updateExistingDiscordValues() {
   global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $hasGuildId;
+  global $userAdminGuilds, $is_linked, $needs_relink;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
   $discord_userSTMT->bind_param("i", $user_id);
@@ -489,6 +522,11 @@ function updateExistingDiscordValues() {
   $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
   $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
   $discord_userResult->close();
+  // Refresh user's administrative guilds
+  $userAdminGuilds = array();
+  if ($is_linked && !$needs_relink && !empty($discordData['access_token'])) {
+    $userAdminGuilds = getUserAdminGuilds($discordData['access_token']);
+  }
   // Refresh server management settings from specterdiscordbot database
   if ($hasGuildId) {
     $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
@@ -522,7 +560,7 @@ if (!$is_linked) {
   $authURL = "https://discord.com/oauth2/authorize"
     . "?client_id=1170683250797187132"
     . "&response_type=code"
-    . "&scope=" . urlencode('identify guilds connections role_connections.write')
+    . "&scope=" . urlencode('identify guilds guilds.members.read connections role_connections.write')
     . "&state={$state}"
     . "&redirect_uri=" . urlencode('https://dashboard.botofthespecter.com/discordbot.php');
 }
@@ -547,6 +585,74 @@ function revokeDiscordToken($token, $client_id, $client_secret, $token_type_hint
   $response = file_get_contents($revoke_url, false, $context);
   return $response !== false;
 }
+// Helper function to fetch user's Discord guilds
+function fetchUserGuilds($access_token) {
+  $guilds_url = 'https://discord.com/api/v10/users/@me/guilds';
+  $options = array(
+    'http' => array(
+      'header' => "Authorization: Bearer $access_token\r\n",
+      'method' => 'GET'
+    )
+  );
+  $context = stream_context_create($options);
+  $response = @file_get_contents($guilds_url, false, $context);
+  if ($response !== false) {
+    $guilds = json_decode($response, true);
+    if (is_array($guilds)) {
+      return $guilds;
+    } else {
+      error_log("Discord API Error - fetchUserGuilds: Invalid JSON response");
+    }
+  } else {
+    error_log("Discord API Error - fetchUserGuilds: Failed to fetch guilds");
+  }
+  return false;
+}
+// Helper function to check if user is admin/owner of a specific guild
+function checkGuildPermissions($access_token, $guild_id) {
+  $member_url = "https://discord.com/api/v10/users/@me/guilds/$guild_id/member";
+  $options = array(
+    'http' => array(
+      'header' => "Authorization: Bearer $access_token\r\n",
+      'method' => 'GET'
+    )
+  );
+  $context = stream_context_create($options);
+  $response = @file_get_contents($member_url, false, $context);
+  if ($response !== false) {
+    $member_data = json_decode($response, true);
+    if (is_array($member_data)) {
+      return $member_data;
+    } else {
+      error_log("Discord API Error - checkGuildPermissions: Invalid JSON response for guild $guild_id");
+    }
+  } else {
+    error_log("Discord API Error - checkGuildPermissions: Failed to fetch member data for guild $guild_id");
+  }
+  return false;
+}
+// Helper function to get user's administrative guilds
+function getUserAdminGuilds($access_token) {
+  $guilds = fetchUserGuilds($access_token);
+  $admin_guilds = array();
+  if ($guilds && is_array($guilds)) {
+    foreach ($guilds as $guild) {
+      // Check if user is owner or has admin permissions
+      // Permissions field contains bitwise permissions
+      $permissions = intval($guild['permissions'] ?? 0);
+      $is_owner = isset($guild['owner']) && $guild['owner'] === true;
+      $has_admin = ($permissions & 0x8) === 0x8; // ADMINISTRATOR permission bit
+      
+      if ($is_owner || $has_admin) {
+        $admin_guilds[] = $guild;
+      }
+    }
+  } else {
+    error_log("Discord API Error - getUserAdminGuilds: No guilds returned or invalid format");
+  }
+  return $admin_guilds;
+}
+
 // Start output buffering for layout
 ob_start();
 ?>
@@ -691,13 +797,21 @@ ob_start();
                     <i class="fas fa-sync-alt"></i>
                   </span>
                 </div>
-                <h3 class="title is-3 has-text-white mb-3">Reconnection Required</h3>
+                <h3 class="title is-3 has-text-white mb-3">
+                  <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'New Permissions Required' : 'Reconnection Required'; ?>
+                </h3>
                 <p class="subtitle is-5 has-text-grey-light mb-5" style="max-width: 600px; margin: 0 auto; line-height: 1.6;">
-                  Your Discord account was linked using our previous system. To access all the latest features and improved security, please reconnect your account with our updated integration.
+                  <?php if (isset($discordData['reauth']) && $discordData['reauth'] == 1): ?>
+                    We've added new features that require additional Discord permissions. Please re-authorize your account to access guild management features and server selection.
+                  <?php else: ?>
+                    Your Discord account was linked using our previous system. To access all the latest features and improved security, please reconnect your account with our updated integration.
+                  <?php endif; ?>
                 </p>
                 <button class="button is-warning is-large" onclick="linkDiscord()" style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3);">
                   <span class="icon"><i class="fas fa-sync-alt"></i></span>
-                  <span>Reconnect Discord Account</span>
+                  <span>
+                    <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'Grant New Permissions' : 'Reconnect Discord Account'; ?>
+                  </span>
                 </button>
               </div>
             </div>
@@ -827,26 +941,57 @@ ob_start();
                 <div class="card-content">
                   <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
                     <span class="icon"><i class="fas fa-info-circle"></i></span>
-                    <strong>Required for All Discord Bot Features:</strong> Please configure your Discord Server ID to enable all Discord Bot features including Server Management and Event Channels.
+                    <strong>Required for All Discord Bot Features:</strong> Please select your Discord Server to enable all Discord Bot features including Server Management and Event Channels.
                   </div>
                   <form action="" method="post">
                     <div class="field">
-                      <label class="label has-text-white" for="guild_id_config" style="font-weight: 500;">Discord Server ID (Guild ID)</label>
+                      <label class="label has-text-white" for="guild_id_config" style="font-weight: 500;">Discord Server</label>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="guild_id_config" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>"<?php if (empty($existingGuildId)) { echo ' placeholder="e.g. 123456789123456789"'; } ?> style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                        <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
+                        <?php if (!empty($userAdminGuilds) && is_array($userAdminGuilds)): ?>
+                          <div class="select is-fullwidth" style="width: 100%;">
+                            <select id="guild_id_config" name="guild_id" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;">
+                              <option value="" <?php echo empty($existingGuildId) ? 'selected' : ''; ?>>Select a Discord Server...</option>
+                              <?php foreach ($userAdminGuilds as $guild): ?>
+                                <?php 
+                                  $isSelected = ($existingGuildId === $guild['id']) ? 'selected' : '';
+                                  $guildName = htmlspecialchars($guild['name']);
+                                  $ownerBadge = (isset($guild['owner']) && $guild['owner']) ? ' 👑' : ' 🛡️';
+                                ?>
+                                <option value="<?php echo htmlspecialchars($guild['id']); ?>" <?php echo $isSelected; ?>>
+                                  <?php echo $guildName . $ownerBadge; ?>
+                                </option>
+                              <?php endforeach; ?>
+                            </select>
+                          </div>
+                          <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
+                          <p class="help has-text-grey-light">
+                            Only servers where you have Administrator permissions are shown. 
+                            👑 = Owner, 🛡️ = Administrator
+                          </p>
+                        <?php else: ?>
+                          <input class="input" type="text" id="guild_id_config" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" placeholder="Loading servers..." disabled style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                          <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
+                          <p class="help has-text-warning">
+                            <?php if (!$is_linked || $needs_relink): ?>
+                              Please link your Discord account to view available servers.
+                            <?php else: ?>
+                              No servers found where you have Administrator permissions, or servers are still loading.
+                            <?php endif; ?>
+                          </p>
+                        <?php endif; ?>
                       </div>
-                      <p class="help has-text-grey-light">Right-click your Discord server name → Copy Server ID (Developer Mode required)</p>
                     </div>
                     <div class="field">
                       <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
+                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || empty($userAdminGuilds)) ? ' disabled' : ''; ?>>
                           <span class="icon"><i class="fas fa-save"></i></span>
                           <span>Save Server Configuration</span>
                         </button>
                       </div>
                       <?php if (!$is_linked || $needs_relink): ?>
                       <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                      <?php elseif (empty($userAdminGuilds)): ?>
+                      <p class="help has-text-warning has-text-centered mt-2">No servers available with admin permissions</p>
                       <?php endif; ?>
                     </div>
                   </form>
