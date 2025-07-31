@@ -425,6 +425,8 @@ $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
 $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
 $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
+// Check if manual IDs mode is explicitly enabled (only true if database value is 1)
+$useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
 // Debug logging to help track down the issue (can be removed once issue is resolved)
 error_log("Discord Data Debug for user_id $user_id: " . json_encode([
   'has_discord_record' => $has_discord_record,
@@ -432,6 +434,8 @@ error_log("Discord Data Debug for user_id $user_id: " . json_encode([
   'needs_relink' => $needs_relink,
   'needs_reauth' => $needs_reauth,
   'reauth_flag' => (is_array($discordData) && isset($discordData['reauth'])) ? $discordData['reauth'] : 'not_set',
+  'use_manual_ids' => $useManualIds,
+  'manual_ids_flag' => (is_array($discordData) && isset($discordData['manual_ids'])) ? $discordData['manual_ids'] : 'not_set',
   'discordData_is_null' => ($discordData === null),
   'discordData_is_array' => is_array($discordData),
   'discordData_count' => is_array($discordData) ? count($discordData) : 'N/A',
@@ -505,7 +509,7 @@ function updateExistingDiscordValues() {
   global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $hasGuildId;
-  global $userAdminGuilds, $is_linked, $needs_relink;
+  global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
   $discord_userSTMT->bind_param("i", $user_id);
@@ -521,6 +525,8 @@ function updateExistingDiscordValues() {
   $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
   $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
   $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
+  // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
+  $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
   $discord_userResult->close();
   // Refresh user's administrative guilds
   $userAdminGuilds = array();
@@ -947,7 +953,13 @@ ob_start();
                     <div class="field">
                       <label class="label has-text-white" for="guild_id_config" style="font-weight: 500;">Discord Server</label>
                       <div class="control has-icons-left">
-                        <?php if (!empty($userAdminGuilds) && is_array($userAdminGuilds)): ?>
+                        <?php if ($useManualIds): ?>
+                          <!-- Manual ID Input Mode -->
+                          <input class="input" type="text" id="guild_id_config" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>"<?php if (empty($existingGuildId)) { echo ' placeholder="e.g. 123456789123456789"'; } ?> style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                          <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
+                          <p class="help has-text-grey-light">Manual ID mode enabled. Right-click your Discord server name → Copy Server ID (Developer Mode required)</p>
+                        <?php elseif (!empty($userAdminGuilds) && is_array($userAdminGuilds)): ?>
+                          <!-- Dropdown Mode -->
                           <div class="select is-fullwidth" style="width: 100%;">
                             <select id="guild_id_config" name="guild_id" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;">
                               <option value="" <?php echo empty($existingGuildId) ? 'selected' : ''; ?>>Select a Discord Server...</option>
@@ -969,6 +981,7 @@ ob_start();
                             👑 = Owner, 🛡️ = Administrator
                           </p>
                         <?php else: ?>
+                          <!-- Fallback/Loading Mode -->
                           <input class="input" type="text" id="guild_id_config" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" placeholder="Loading servers..." disabled style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                           <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
                           <p class="help has-text-warning">
@@ -983,14 +996,14 @@ ob_start();
                     </div>
                     <div class="field">
                       <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || empty($userAdminGuilds)) ? ' disabled' : ''; ?>>
+                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || (!$useManualIds && empty($userAdminGuilds))) ? ' disabled' : ''; ?>>
                           <span class="icon"><i class="fas fa-save"></i></span>
                           <span>Save Server Configuration</span>
                         </button>
                       </div>
                       <?php if (!$is_linked || $needs_relink): ?>
                       <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
-                      <?php elseif (empty($userAdminGuilds)): ?>
+                      <?php elseif (!$useManualIds && empty($userAdminGuilds)): ?>
                       <p class="help has-text-warning has-text-centered mt-2">No servers available with admin permissions</p>
                       <?php endif; ?>
                     </div>
