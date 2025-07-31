@@ -1743,7 +1743,7 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" name="save_welcome_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveWelcomeMessage()" name="save_welcome_message" style="border-radius: 6px; font-weight: 600;" disabled>
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Welcome Message Settings</span>
                       </button>
@@ -1793,7 +1793,7 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" name="save_auto_role" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveAutoRole()" name="save_auto_role" style="border-radius: 6px; font-weight: 600;" disabled>
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Auto Role Settings</span>
                       </button>
@@ -1898,7 +1898,7 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" name="save_message_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveMessageTracking()" name="save_message_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Message Tracking Settings</span>
                       </button>
@@ -1952,7 +1952,7 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" name="save_role_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveRoleTracking()" name="save_role_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Role Tracking Settings</span>
                       </button>
@@ -2006,7 +2006,7 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" name="save_server_role_management" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveServerRoleManagement()" name="save_server_role_management" style="border-radius: 6px; font-weight: 600;" disabled>
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Server Role Management Settings</span>
                       </button>
@@ -2064,7 +2064,7 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" name="save_user_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveUserTracking()" name="save_user_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save User Tracking Settings</span>
                       </button>
@@ -2265,13 +2265,11 @@ function removeStreamer(username) {
       '&permissions=581651049737302' +
       '&integration_type=0' +
       '&scope=bot';
-    
     window.open(botInviteURL, '_blank');
   }
   function toggleDeprecatedCard() {
     const content = document.getElementById('deprecatedCardContent');
     const toggle = document.getElementById('deprecatedCardToggle');
-    
     if (content.style.display === 'none') {
       content.style.display = 'block';
       toggle.innerHTML = '<i class="fas fa-chevron-up"></i>';
@@ -2304,7 +2302,6 @@ function removeStreamer(username) {
       }
       return;
     }
-    
     fetch('save_discord_server_management_settings.php', {
       method: 'POST',
       headers: {
@@ -2387,6 +2384,200 @@ function removeStreamer(username) {
       }
     });
   }
+
+  // Channel/Role Configuration AJAX Handler
+  function saveChannelConfig(action, formData) {
+    const guildIdElement = document.getElementById('guild_id_config');
+    const guildId = guildIdElement ? guildIdElement.value.trim() : '';
+    // Validate that we have a guild ID
+    if (!guildId) {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'error',
+        title: 'Guild ID is required. Please configure your Discord Server ID first.',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    // Add server_id and action to the form data
+    formData.server_id = guildId;
+    formData.action = action;
+    fetch('save_discord_channel_config.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData)
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.success) {
+        // Show success notification
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: data.message || 'Configuration saved successfully',
+          showConfirmButton: false,
+          timer: 2000,
+          timerProgressBar: true
+        });
+        // Refresh the page after a short delay to update the values
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        // Show error
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'error',
+          title: 'Failed to save: ' + (data.message || 'Unknown error'),
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true
+        });
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'error',
+        title: 'Network error occurred. Please try again.',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+      });
+    });
+  }
+
+  // Handler functions for each save button
+  function saveWelcomeMessage() {
+    const welcomeChannelId = document.getElementById('welcome_channel_id').value;
+    const useDefault = document.getElementById('welcome_message_configuration_default').checked;
+    if (!welcomeChannelId || welcomeChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a welcome channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    saveChannelConfig('save_welcome_message', {
+      welcome_channel_id: welcomeChannelId,
+      welcome_message_configuration_default: useDefault
+    });
+  }
+
+  function saveAutoRole() {
+    const autoRoleId = document.getElementById('auto_role_id').value;
+    if (!autoRoleId || autoRoleId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select an auto role',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    saveChannelConfig('save_auto_role', {
+      auto_role_id: autoRoleId
+    });
+  }
+
+  function saveMessageTracking() {
+    const messageLogChannelId = document.getElementById('message_log_channel_id').value;
+    if (!messageLogChannelId || messageLogChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a message log channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    saveChannelConfig('save_message_tracking', {
+      message_log_channel_id: messageLogChannelId
+    });
+  }
+
+  function saveRoleTracking() {
+    const roleLogChannelId = document.getElementById('role_log_channel_id').value;
+    if (!roleLogChannelId || roleLogChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a role log channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    saveChannelConfig('save_role_tracking', {
+      role_log_channel_id: roleLogChannelId
+    });
+  }
+
+  function saveServerRoleManagement() {
+    const serverMgmtLogChannelId = document.getElementById('server_mgmt_log_channel_id').value;
+    if (!serverMgmtLogChannelId || serverMgmtLogChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a server management log channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    saveChannelConfig('save_server_role_management', {
+      server_mgmt_log_channel_id: serverMgmtLogChannelId
+    });
+  }
+
+  function saveUserTracking() {
+    const userLogChannelId = document.getElementById('user_log_channel_id').value;
+    if (!userLogChannelId || userLogChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a user log channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    saveChannelConfig('save_user_tracking', {
+      user_log_channel_id: userLogChannelId
+    });
+  }
+  
   // Add event listeners to all Discord setting toggles
   document.addEventListener('DOMContentLoaded', function() {
     // Initialize server management settings from PHP
