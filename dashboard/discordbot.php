@@ -505,11 +505,23 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token'])) {
   ]));
 }
 
+// Fetch guild channels if user has a guild selected and is not using manual IDs
+$guildChannels = array();
+if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
+  $guildChannels = fetchGuildChannels($discordData['access_token'], $existingGuildId);
+  // Debug logging for channel fetching
+  error_log("Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId: " . json_encode([
+    'channel_count' => is_array($guildChannels) ? count($guildChannels) : 0,
+    'channels_available' => !empty($guildChannels),
+    'use_manual_ids' => $useManualIds
+  ]));
+}
+
 function updateExistingDiscordValues() {
   global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $hasGuildId;
-  global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds;
+  global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
   $discord_userSTMT->bind_param("i", $user_id);
@@ -555,6 +567,12 @@ function updateExistingDiscordValues() {
       $serverMgmtStmt->close();
       $discord_conn->close();
     }
+  }
+  
+  // Refresh guild channels if user has a guild selected and is not using manual IDs
+  $guildChannels = array();
+  if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
+    $guildChannels = fetchGuildChannels($discordData['access_token'], $existingGuildId);
   }
 }
 
@@ -657,6 +675,68 @@ function getUserAdminGuilds($access_token) {
     error_log("Discord API Error - getUserAdminGuilds: No guilds returned or invalid format");
   }
   return $admin_guilds;
+}
+
+// Helper function to fetch channels from a Discord guild
+function fetchGuildChannels($access_token, $guild_id) {
+  if (empty($guild_id)) {
+    return false;
+  }
+  $channels_url = "https://discord.com/api/v10/guilds/$guild_id/channels";
+  $options = array(
+    'http' => array(
+      'header' => "Authorization: Bearer $access_token\r\n",
+      'method' => 'GET'
+    )
+  );
+  $context = stream_context_create($options);
+  $response = @file_get_contents($channels_url, false, $context);
+  if ($response !== false) {
+    $channels = json_decode($response, true);
+    if (is_array($channels)) {
+      // Filter for text channels (type 0) and sort by position
+      $text_channels = array_filter($channels, function($channel) {
+        return ($channel['type'] ?? -1) === 0; // 0 = GUILD_TEXT
+      });
+      // Sort channels by position
+      usort($text_channels, function($a, $b) {
+        return ($a['position'] ?? 0) - ($b['position'] ?? 0);
+      });
+      return $text_channels;
+    } else {
+      error_log("Discord API Error - fetchGuildChannels: Invalid JSON response for guild $guild_id");
+    }
+  } else {
+    error_log("Discord API Error - fetchGuildChannels: Failed to fetch channels for guild $guild_id");
+  }
+  return false;
+}
+
+// Helper function to generate channel input field or dropdown
+function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildChannels, $icon = 'fas fa-hashtag', $required = false) {
+  $requiredAttr = $required ? ' required' : '';
+  if ($useManualIds || empty($guildChannels)) {
+    // Show manual input field
+    $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$placeholder\"" : '';
+    return "
+      <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
+      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+  } else {
+    // Show dropdown with channels
+    $options = "<option value=\"\"" . (empty($currentValue) ? ' selected' : '') . ">Select a channel...</option>\n";
+    foreach ($guildChannels as $channel) {
+      $channelId = htmlspecialchars($channel['id']);
+      $channelName = htmlspecialchars($channel['name']);
+      $selected = ($currentValue === $channel['id']) ? ' selected' : '';
+      $options .= "        <option value=\"$channelId\"$selected>#$channelName</option>\n";
+    }
+    return "
+      <div class=\"select is-fullwidth\" style=\"width: 100%;\">
+        <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">
+$options        </select>
+      </div>
+      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+  }
 }
 
 // Start output buffering for layout
@@ -1066,6 +1146,28 @@ ob_start();
                 <p class="has-text-grey-light mb-4">
                   Configure Discord channels for different bot events. This new system will replace webhook URLs with direct channel integration.
                 </p>
+                <!-- Channel Input Mode Notification -->
+                <?php if ($useManualIds): ?>
+                  <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                    <span class="icon"><i class="fas fa-keyboard"></i></span>
+                    <strong>Manual Input Mode:</strong> You are in manual ID mode. Enter channel IDs directly.
+                  </div>
+                <?php elseif (!empty($guildChannels)): ?>
+                  <div class="notification is-success is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                    <span class="icon"><i class="fas fa-list"></i></span>
+                    <strong>Channel Selector Mode:</strong> Select channels from your Discord server dropdowns.
+                  </div>
+                <?php elseif (!empty($existingGuildId)): ?>
+                  <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                    <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                    <strong>Loading Channels:</strong> Unable to load channels. You may need to re-authorize your Discord account or check server permissions.
+                  </div>
+                <?php else: ?>
+                  <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                    <span class="icon"><i class="fas fa-server"></i></span>
+                    <strong>Server Required:</strong> Please configure your Discord Server above to enable channel selection.
+                  </div>
+                <?php endif; ?>
                 <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
                   <div class="field">
                     <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
@@ -1074,8 +1176,7 @@ ob_start();
                     </label>
                     <p class="help has-text-grey-light mb-2">Channel ID for stream online/offline notifications</p>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" id="stream_channel_id" name="stream_channel_id" value="<?php echo htmlspecialchars($existingStreamAlertChannelID); ?>"<?php if (empty($existingStreamAlertChannelID)) { echo ' placeholder="e.g. 123456789123456789"'; } ?> style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('stream_channel_id', 'stream_channel_id', $existingStreamAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                   </div>
                   <div class="field">
@@ -1085,8 +1186,7 @@ ob_start();
                     </label>
                     <p class="help has-text-grey-light mb-2">Channel ID for moderation actions and logs</p>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" id="mod_channel_id" name="mod_channel_id" value="<?php echo htmlspecialchars($existingModerationChannelID); ?>"<?php if (empty($existingModerationChannelID)) { echo ' placeholder="e.g. 123456789123456789"'; } ?> style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                   </div>
                   <div class="field">
@@ -1096,8 +1196,7 @@ ob_start();
                     </label>
                     <p class="help has-text-grey-light mb-2">Channel ID for general bot alerts and notifications</p>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" id="alert_channel_id" name="alert_channel_id" value="<?php echo htmlspecialchars($existingAlertChannelID); ?>"<?php if (empty($existingAlertChannelID)) { echo ' placeholder="e.g. 123456789123456789"'; } ?> style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                   </div>
                   <div class="field">
@@ -1107,8 +1206,7 @@ ob_start();
                     </label>
                     <p class="help has-text-grey-light mb-2">Channel ID for Twitch Stream Monitoring</p>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" id="twitch_stream_monitor_id" name="twitch_stream_monitor_id" value="<?php echo htmlspecialchars($existingTwitchStreamMonitoringID); ?>"<?php if (empty($existingTwitchStreamMonitoringID)) { echo ' placeholder="e.g. 123456789123456789"'; } ?> style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('twitch_stream_monitor_id', 'twitch_stream_monitor_id', $existingTwitchStreamMonitoringID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                   </div>
                   <div class="field">
@@ -1118,8 +1216,7 @@ ob_start();
                     </label>
                     <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_live_channel_id_help'); ?></p>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId); ?>"<?php if (empty($existingLiveChannelId)) { echo ' placeholder="e.g. 123456789123456789"'; } ?> required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('live_channel_id', 'live_channel_id', $existingLiveChannelId, 'e.g. 123456789123456789', $useManualIds, $guildChannels, 'fas fa-hashtag', true); ?>
                     </div>
                   </div>
                   <div class="field">
