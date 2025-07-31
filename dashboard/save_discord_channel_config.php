@@ -8,9 +8,8 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
-// Include database connection and user data
+// Include database connection
 include '/var/www/config/database.php';
-include 'userdata.php';
 
 // Check if request is POST and has the required data
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -68,13 +67,13 @@ try {
             $result = $checkStmt->get_result();
             if ($result->num_rows > 0) {
                 // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET welcome_channel_id = ?, welcome_message_configuration_default = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                $updateStmt = $discord_conn->prepare("UPDATE server_management SET welcome_message_configuration_channel = ?, welcome_message_configuration_default = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
                 $updateStmt->bind_param("sis", $welcome_channel_id, $welcome_use_default, $server_id);
                 $success = $updateStmt->execute();
                 $updateStmt->close();
             } else {
                 // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, welcome_channel_id, welcome_message_configuration_default) VALUES (?, ?, ?)");
+                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, welcome_message_configuration_channel, welcome_message_configuration_default) VALUES (?, ?, ?)");
                 $insertStmt->bind_param("ssi", $server_id, $welcome_channel_id, $welcome_use_default);
                 $success = $insertStmt->execute();
                 $insertStmt->close();
@@ -106,18 +105,23 @@ try {
             }
             // Check if record exists for this server
             $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
+            if (!$checkStmt) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Database prepare failed']);
+                exit();
+            }
             $checkStmt->bind_param("s", $server_id);
             $checkStmt->execute();
             $result = $checkStmt->get_result();
             if ($result->num_rows > 0) {
                 // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET auto_role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                $updateStmt = $discord_conn->prepare("UPDATE server_management SET auto_role_assignment_configuration_role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
                 $updateStmt->bind_param("ss", $auto_role_id, $server_id);
                 $success = $updateStmt->execute();
                 $updateStmt->close();
             } else {
                 // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, auto_role_id) VALUES (?, ?)");
+                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, auto_role_assignment_configuration_role_id) VALUES (?, ?)");
                 $insertStmt->bind_param("ss", $server_id, $auto_role_id);
                 $success = $insertStmt->execute();
                 $insertStmt->close();
@@ -153,13 +157,13 @@ try {
             $result = $checkStmt->get_result();
             if ($result->num_rows > 0) {
                 // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET message_log_channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                $updateStmt = $discord_conn->prepare("UPDATE server_management SET message_tracking_configuration_channel = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
                 $updateStmt->bind_param("ss", $message_log_channel_id, $server_id);
                 $success = $updateStmt->execute();
                 $updateStmt->close();
             } else {
                 // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, message_log_channel_id) VALUES (?, ?)");
+                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, message_tracking_configuration_channel) VALUES (?, ?)");
                 $insertStmt->bind_param("ss", $server_id, $message_log_channel_id);
                 $success = $insertStmt->execute();
                 $insertStmt->close();
@@ -195,13 +199,13 @@ try {
             $result = $checkStmt->get_result();
             if ($result->num_rows > 0) {
                 // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET role_log_channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                $updateStmt = $discord_conn->prepare("UPDATE server_management SET role_tracking_configuration_channel = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
                 $updateStmt->bind_param("ss", $role_log_channel_id, $server_id);
                 $success = $updateStmt->execute();
                 $updateStmt->close();
             } else {
                 // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, role_log_channel_id) VALUES (?, ?)");
+                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, role_tracking_configuration_channel) VALUES (?, ?)");
                 $insertStmt->bind_param("ss", $server_id, $role_log_channel_id);
                 $success = $insertStmt->execute();
                 $insertStmt->close();
@@ -237,13 +241,13 @@ try {
             $result = $checkStmt->get_result();
             if ($result->num_rows > 0) {
                 // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET server_mgmt_log_channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                $updateStmt = $discord_conn->prepare("UPDATE server_management SET server_role_management_configuration_channel = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
                 $updateStmt->bind_param("ss", $server_mgmt_log_channel_id, $server_id);
                 $success = $updateStmt->execute();
                 $updateStmt->close();
             } else {
                 // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, server_mgmt_log_channel_id) VALUES (?, ?)");
+                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, server_role_management_configuration_channel) VALUES (?, ?)");
                 $insertStmt->bind_param("ss", $server_id, $server_mgmt_log_channel_id);
                 $success = $insertStmt->execute();
                 $insertStmt->close();
@@ -279,13 +283,13 @@ try {
             $result = $checkStmt->get_result();
             if ($result->num_rows > 0) {
                 // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET user_log_channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                $updateStmt = $discord_conn->prepare("UPDATE server_management SET user_tracking_configuration_channel = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
                 $updateStmt->bind_param("ss", $user_log_channel_id, $server_id);
                 $success = $updateStmt->execute();
                 $updateStmt->close();
             } else {
                 // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, user_log_channel_id) VALUES (?, ?)");
+                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, user_tracking_configuration_channel) VALUES (?, ?)");
                 $insertStmt->bind_param("ss", $server_id, $user_log_channel_id);
                 $success = $insertStmt->execute();
                 $insertStmt->close();
