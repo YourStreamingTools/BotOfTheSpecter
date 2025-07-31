@@ -407,6 +407,7 @@ $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
 // Initialize server management log channel IDs as empty (will be loaded from server_management table)
 $existingWelcomeChannelID = "";
 $existingWelcomeUseDefault = false;
+$existingAutoRoleID = "";
 $existingMessageLogChannelID = "";
 $existingRoleLogChannelID = "";
 $existingServerMgmtLogChannelID = "";
@@ -465,6 +466,9 @@ if ($is_linked && $hasGuildId) {
         $existingWelcomeChannelID = $serverMgmtData['welcome_message_configuration_channel'];
       }
       $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 0) === 1;
+      if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
+        $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
+      }
       if (!empty($serverMgmtData['message_tracking_configuration_channel'])) {
         $existingMessageLogChannelID = $serverMgmtData['message_tracking_configuration_channel'];
       }
@@ -549,7 +553,7 @@ function updateExistingDiscordValues() {
   global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $hasGuildId;
-  global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID;
+  global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -568,6 +572,7 @@ function updateExistingDiscordValues() {
   // Initialize server management log channel IDs as empty (will be loaded from server_management table)
   $existingWelcomeChannelID = "";
   $existingWelcomeUseDefault = false;
+  $existingAutoRoleID = "";
   $existingMessageLogChannelID = "";
   $existingRoleLogChannelID = "";
   $existingServerMgmtLogChannelID = "";
@@ -604,6 +609,9 @@ function updateExistingDiscordValues() {
           $existingWelcomeChannelID = $serverMgmtData['welcome_message_configuration_channel'];
         }
         $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 0) === 1;
+        if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
+          $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
+        }
         if (!empty($serverMgmtData['message_tracking_configuration_channel'])) {
           $existingMessageLogChannelID = $serverMgmtData['message_tracking_configuration_channel'];
         }
@@ -1781,7 +1789,7 @@ ob_start();
                       <?php echo generateRoleInput(
                         'auto_role_id', 
                         'auto_role_id', 
-                        '', // Current value would come from database 
+                        $existingAutoRoleID, // Current value from database 
                         'e.g. 123456789123456789', 
                         $useManualIds, 
                         $guildRoles, 
