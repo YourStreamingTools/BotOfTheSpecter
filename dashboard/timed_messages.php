@@ -41,19 +41,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $message = $_POST['message'];
         $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
         $chat_line_trigger = filter_input(INPUT_POST, 'chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
+        // If chat_line_trigger is NULL or FALSE, set default value
+        if ($chat_line_trigger === null || $chat_line_trigger === false) {
+            $chat_line_trigger = 5; // Default value
+        }
         // Validate input data
         if ($interval === false) {
             $errorMessage = "Interval must be a valid integer between 5 and 60.";
-        } elseif ($chat_line_trigger !== null && $chat_line_trigger === false) {
+        } elseif ($chat_line_trigger < 5) {
             $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
         } else {
             try {
                 $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`, `chat_line_trigger`) VALUES (?, ?, ?, ?)');
-                // Default status is 'True' (Enabled)
-                $stmt->execute([$interval, $message, 'True', $chat_line_trigger]);
+                $stmt->bind_param("issi", $interval, $message, 'True', $chat_line_trigger);
+                $stmt->execute();
                 $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . 
                                   ($chat_line_trigger ? ' and chat line trigger: ' . $chat_line_trigger : '') . ' has been successfully added to the database.';
-            } catch (PDOException $e) {
+                $stmt->close();
+            } catch (mysqli_sql_exception $e) {
                 $errorMessage = "Error adding message: " . $e->getMessage();
             }
         }
@@ -64,15 +69,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Remove the selected message from the database
         try {
             $stmt = $db->prepare("DELETE FROM timed_messages WHERE id = ?");
-            $stmt->execute([$message_id]);
+            $stmt->bind_param("i", $message_id);
+            $stmt->execute();
             // Check if the deletion was successful and provide feedback to the user
-            $deleted = $stmt->rowCount() > 0; // Check if any rows were affected
+            $deleted = $stmt->affected_rows > 0; // Check if any rows were affected
             if ($deleted) {
                 $successMessage = "Message removed successfully.";
             } else {
                 $errorMessage = "Failed to remove message.";
             }
-        } catch (PDOException $e) {
+            $stmt->close();
+        } catch (mysqli_sql_exception $e) {
             $errorMessage = "Error removing message: " . $e->getMessage();
         }
     }
@@ -83,23 +90,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $edit_message_content = $_POST['edit_message_content'];
         $edit_status = $_POST['edit_status'];
         $edit_chat_line_trigger = filter_input(INPUT_POST, 'edit_chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
+        // If edit_chat_line_trigger is NULL or FALSE, set default value
+        if ($edit_chat_line_trigger === null || $edit_chat_line_trigger === false) {
+            $edit_chat_line_trigger = 5; // Default value
+        }
         // Check if the edit_message_id exists in the timed_messages table
         $stmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE id = ?");
-        $stmt->execute([$edit_message_id]);
-        $message_exists = $stmt->fetchColumn();
+        $stmt->bind_param("i", $edit_message_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $message_exists = $result->fetch_row()[0];
+        $stmt->close();
         if ($message_exists && $edit_interval !== false) {
             // Update the message, interval, and status for the selected message in the database
             try {
                 $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ?, `status` = ?, `chat_line_trigger` = ? WHERE id = ?');
-                $stmt->execute([$edit_interval, $edit_message_content, $edit_status, $edit_chat_line_trigger, $edit_message_id]);
+                $stmt->bind_param("issii", $edit_interval, $edit_message_content, $edit_status, $edit_chat_line_trigger, $edit_message_id);
+                $stmt->execute();
                 // Check if the update was successful and provide feedback to the user
-                $updated = $stmt->rowCount() > 0; // Check if any rows were affected
+                $updated = $stmt->affected_rows > 0; // Check if any rows were affected
                 if ($updated) {
                     $successMessage = 'Message with ID ' . $edit_message_id . ' updated successfully.';
                 } else {
                     $errorMessage = "Failed to update message.";
                 }
-            } catch (PDOException $e) {
+                $stmt->close();
+            } catch (mysqli_sql_exception $e) {
                 $errorMessage = "Error updating message: " . $e->getMessage();
             }
         } else {
