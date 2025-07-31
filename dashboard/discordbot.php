@@ -31,26 +31,6 @@ date_default_timezone_set($timezone);
 
 // Initialize Discord Bot Database Tables
 include '/var/www/config/database.php';
-$discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
-if (!$discord_conn->connect_error) {
-    // Create server_management table if it doesn't exist
-    $createTableSQL = "CREATE TABLE IF NOT EXISTS server_management (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        server_id VARCHAR(255) NOT NULL,
-        welcomeMessage TINYINT(1) DEFAULT 0,
-        autoRole TINYINT(1) DEFAULT 0,
-        roleHistory TINYINT(1) DEFAULT 0,
-        messageTracking TINYINT(1) DEFAULT 0,
-        roleTracking TINYINT(1) DEFAULT 0,
-        serverRoleManagement TINYINT(1) DEFAULT 0,
-        userTracking TINYINT(1) DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_server (server_id)
-    )";
-    $discord_conn->query($createTableSQL);
-    $discord_conn->close();
-}
 
 // Check if the user is already linked with Discord and validate tokens
 if (isset($username) && $username === 'botofthespecter') {
@@ -424,6 +404,13 @@ $existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
 $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
 $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
 $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
+// Initialize server management log channel IDs as empty (will be loaded from server_management table)
+$existingWelcomeChannelID = "";
+$existingWelcomeUseDefault = false;
+$existingMessageLogChannelID = "";
+$existingRoleLogChannelID = "";
+$existingServerMgmtLogChannelID = "";
+$existingUserLogChannelID = "";
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -459,7 +446,7 @@ $serverManagementSettings = [
 if ($is_linked && $hasGuildId) {
   $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
   if (!$discord_conn->connect_error) {
-    $serverMgmtStmt = $discord_conn->prepare("SELECT welcomeMessage, autoRole, roleHistory, messageTracking, roleTracking, serverRoleManagement, userTracking FROM server_management WHERE server_id = ?");
+    $serverMgmtStmt = $discord_conn->prepare("SELECT * FROM server_management WHERE server_id = ?");
     $serverMgmtStmt->bind_param("s", $existingGuildId);
     $serverMgmtStmt->execute();
     $serverMgmtResult = $serverMgmtStmt->get_result();
@@ -473,6 +460,23 @@ if ($is_linked && $hasGuildId) {
         'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
         'userTracking' => (bool)$serverMgmtData['userTracking']
       ];
+      // Override channel IDs with values from server_management table if they exist
+      if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
+        $existingWelcomeChannelID = $serverMgmtData['welcome_message_configuration_channel'];
+      }
+      $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 0) === 1;
+      if (!empty($serverMgmtData['message_tracking_configuration_channel'])) {
+        $existingMessageLogChannelID = $serverMgmtData['message_tracking_configuration_channel'];
+      }
+      if (!empty($serverMgmtData['role_tracking_configuration_channel'])) {
+        $existingRoleLogChannelID = $serverMgmtData['role_tracking_configuration_channel'];
+      }
+      if (!empty($serverMgmtData['server_role_management_configuration_channel'])) {
+        $existingServerMgmtLogChannelID = $serverMgmtData['server_role_management_configuration_channel'];
+      }
+      if (!empty($serverMgmtData['user_tracking_configuration_channel'])) {
+        $existingUserLogChannelID = $serverMgmtData['user_tracking_configuration_channel'];
+      }
     }
     $serverMgmtStmt->close();
     $discord_conn->close();
@@ -545,6 +549,7 @@ function updateExistingDiscordValues() {
   global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $hasGuildId;
+  global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -560,6 +565,13 @@ function updateExistingDiscordValues() {
   $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
   $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
   $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
+  // Initialize server management log channel IDs as empty (will be loaded from server_management table)
+  $existingWelcomeChannelID = "";
+  $existingWelcomeUseDefault = false;
+  $existingMessageLogChannelID = "";
+  $existingRoleLogChannelID = "";
+  $existingServerMgmtLogChannelID = "";
+  $existingUserLogChannelID = "";
   $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
   // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
   $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -573,7 +585,7 @@ function updateExistingDiscordValues() {
   if ($hasGuildId) {
     $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
     if (!$discord_conn->connect_error) {
-      $serverMgmtStmt = $discord_conn->prepare("SELECT welcomeMessage, autoRole, roleHistory, messageTracking, roleTracking, serverRoleManagement, userTracking FROM server_management WHERE server_id = ?");
+      $serverMgmtStmt = $discord_conn->prepare("SELECT * FROM server_management WHERE server_id = ?");
       $serverMgmtStmt->bind_param("s", $existingGuildId);
       $serverMgmtStmt->execute();
       $serverMgmtResult = $serverMgmtStmt->get_result();
@@ -587,6 +599,23 @@ function updateExistingDiscordValues() {
           'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
           'userTracking' => (bool)$serverMgmtData['userTracking']
         ];
+        // Override channel IDs with values from server_management table if they exist
+        if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
+          $existingWelcomeChannelID = $serverMgmtData['welcome_message_configuration_channel'];
+        }
+        $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 0) === 1;
+        if (!empty($serverMgmtData['message_tracking_configuration_channel'])) {
+          $existingMessageLogChannelID = $serverMgmtData['message_tracking_configuration_channel'];
+        }
+        if (!empty($serverMgmtData['role_tracking_configuration_channel'])) {
+          $existingRoleLogChannelID = $serverMgmtData['role_tracking_configuration_channel'];
+        }
+        if (!empty($serverMgmtData['server_role_management_configuration_channel'])) {
+          $existingServerMgmtLogChannelID = $serverMgmtData['server_role_management_configuration_channel'];
+        }
+        if (!empty($serverMgmtData['user_tracking_configuration_channel'])) {
+          $existingUserLogChannelID = $serverMgmtData['user_tracking_configuration_channel'];
+        }
       }
       $serverMgmtStmt->close();
       $discord_conn->close();
@@ -1692,8 +1721,7 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Welcome Channel ID</label>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" name="welcome_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('welcome_channel_id', 'welcome_channel_id', $existingWelcomeChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                     <p class="help has-text-grey-light">Channel where welcome messages will be sent</p>
                   </div>
@@ -1703,6 +1731,15 @@ ob_start();
                       <textarea class="textarea" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled></textarea>
                     </div>
                     <p class="help has-text-grey-light">Use {user} to mention the new member</p>
+                  </div>
+                  <div class="field">
+                    <div class="control">
+                      <label class="checkbox has-text-white">
+                        <input type="checkbox" name="use_default_welcome_message" style="margin-right: 8px;"<?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?> disabled>
+                        Use default welcome message
+                      </label>
+                    </div>
+                    <p class="help has-text-grey-light">Enable this to use the bot's default welcome message instead of a custom one</p>
                   </div>
                   <div class="field">
                     <div class="control">
@@ -1842,8 +1879,7 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Message Log Channel ID</label>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" name="message_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('message_log_channel_id', 'message_log_channel_id', $existingMessageLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                     <p class="help has-text-grey-light">Channel where message edit/delete logs will be sent</p>
                   </div>
@@ -1897,8 +1933,7 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Role Log Channel ID</label>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" name="role_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('role_log_channel_id', 'role_log_channel_id', $existingRoleLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                     <p class="help has-text-grey-light">Channel where role change logs will be sent</p>
                   </div>
@@ -1952,8 +1987,7 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Server Management Log Channel ID</label>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" name="server_mgmt_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('server_mgmt_log_channel_id', 'server_mgmt_log_channel_id', $existingServerMgmtLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                     <p class="help has-text-grey-light">Channel where server role management logs will be sent</p>
                   </div>
@@ -2007,8 +2041,7 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">User Log Channel ID</label>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" name="user_log_channel_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-hashtag"></i></span>
+                      <?php echo generateChannelInput('user_log_channel_id', 'user_log_channel_id', $existingUserLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                     <p class="help has-text-grey-light">Channel where user change logs will be sent</p>
                   </div>
