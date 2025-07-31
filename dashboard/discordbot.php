@@ -600,7 +600,7 @@ if (!$is_linked) {
   $authURL = "https://discord.com/oauth2/authorize"
     . "?client_id=1170683250797187132"
     . "&response_type=code"
-    . "&scope=" . urlencode('identify guilds guilds.members.read connections role_connections.write')
+    . "&scope=" . urlencode('identify guilds guilds.members.read connections bot')
     . "&state={$state}"
     . "&redirect_uri=" . urlencode('https://dashboard.botofthespecter.com/discordbot.php');
 }
@@ -695,13 +695,19 @@ function getUserAdminGuilds($access_token) {
 
 // Helper function to fetch channels from a Discord guild
 function fetchGuildChannels($access_token, $guild_id) {
+  // Load Discord bot token for guild API calls
+  require_once '../config/discord.php';
+  global $bot_token;
   if (empty($guild_id)) {
     return false;
   }
+  // Use bot token for guild-specific API calls instead of user access token
+  $auth_token = !empty($bot_token) ? $bot_token : $access_token;
+  $auth_header = !empty($bot_token) ? "Authorization: Bot $bot_token\r\n" : "Authorization: Bearer $access_token\r\n";
   $channels_url = "https://discord.com/api/v10/guilds/$guild_id/channels";
   $options = array(
     'http' => array(
-      'header' => "Authorization: Bearer $access_token\r\n",
+      'header' => $auth_header,
       'method' => 'GET'
     )
   );
@@ -718,25 +724,35 @@ function fetchGuildChannels($access_token, $guild_id) {
       usort($text_channels, function($a, $b) {
         return ($a['position'] ?? 0) - ($b['position'] ?? 0);
       });
+      // Log successful channel fetch
+      error_log("Discord API Success - fetchGuildChannels: Fetched " . count($text_channels) . " channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token"));
       return $text_channels;
     } else {
       error_log("Discord API Error - fetchGuildChannels: Invalid JSON response for guild $guild_id");
     }
   } else {
-    error_log("Discord API Error - fetchGuildChannels: Failed to fetch channels for guild $guild_id");
+    // Get more detailed error information
+    $error_info = error_get_last();
+    error_log("Discord API Error - fetchGuildChannels: Failed to fetch channels for guild $guild_id. Error: " . ($error_info['message'] ?? 'Unknown error'));
   }
   return false;
 }
 
 // Helper function to fetch roles from a Discord guild
 function fetchGuildRoles($guild_id, $access_token) {
+  // Load Discord bot token for guild API calls
+  require_once '../config/discord.php';
+  global $bot_token;
   if (empty($guild_id)) {
     return false;
   }
+  // Use bot token for guild-specific API calls instead of user access token
+  $auth_token = !empty($bot_token) ? $bot_token : $access_token;
+  $auth_header = !empty($bot_token) ? "Authorization: Bot $bot_token\r\n" : "Authorization: Bearer $access_token\r\n";
   $roles_url = "https://discord.com/api/v10/guilds/$guild_id/roles";
   $options = array(
     'http' => array(
-      'header' => "Authorization: Bearer $access_token\r\n",
+      'header' => $auth_header,
       'method' => 'GET'
     )
   );
@@ -755,12 +771,16 @@ function fetchGuildRoles($guild_id, $access_token) {
       usort($assignable_roles, function($a, $b) {
         return ($b['position'] ?? 0) - ($a['position'] ?? 0);
       });
+      // Log successful role fetch
+      error_log("Discord API Success - fetchGuildRoles: Fetched " . count($assignable_roles) . " roles for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token"));
       return $assignable_roles;
     } else {
       error_log("Discord API Error - fetchGuildRoles: Invalid JSON response for guild $guild_id");
     }
   } else {
-    error_log("Discord API Error - fetchGuildRoles: Failed to fetch roles for guild $guild_id");
+    // Get more detailed error information
+    $error_info = error_get_last();
+    error_log("Discord API Error - fetchGuildRoles: Failed to fetch roles for guild $guild_id. Error: " . ($error_info['message'] ?? 'Unknown error'));
   }
   return false;
 }
