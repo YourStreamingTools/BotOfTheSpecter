@@ -95,7 +95,7 @@ if (isset($username) && $username === 'botofthespecter') {
     if (!empty($discordData['access_token']) && 
         !empty($discordData['refresh_token'])) {
       // Validate token and get current authorization info using /oauth2/@me
-      $auth_url = 'https://discord.com/api/oauth2/@me';
+      $auth_url = 'https://discord.com/api/v10/oauth2/@me';
       $token = $discordData['access_token'];
       $auth_options = array(
         'http' => array(
