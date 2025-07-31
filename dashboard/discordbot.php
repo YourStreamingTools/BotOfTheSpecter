@@ -510,9 +510,9 @@ $guildChannels = array();
 if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
   $guildChannels = fetchGuildChannels($discordData['access_token'], $existingGuildId);
   // Debug logging for channel fetching
-  error_log("Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId: " . json_encode([
-    'channel_count' => is_array($guildChannels) ? count($guildChannels) : 0,
-    'channels_available' => !empty($guildChannels),
+  error_log("Text Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId: " . json_encode([
+    'text_channel_count' => is_array($guildChannels) ? count($guildChannels) : 0,
+    'text_channels_available' => !empty($guildChannels),
     'use_manual_ids' => $useManualIds
   ]));
 }
@@ -529,11 +529,23 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$us
   ]));
 }
 
+// Fetch guild voice channels if user has a guild selected and is not using manual IDs
+$guildVoiceChannels = array();
+if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
+  $guildVoiceChannels = fetchGuildVoiceChannels($discordData['access_token'], $existingGuildId);
+  // Debug logging for voice channel fetching
+  error_log("Voice Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId: " . json_encode([
+    'voice_channel_count' => is_array($guildVoiceChannels) ? count($guildVoiceChannels) : 0,
+    'voice_channels_available' => !empty($guildVoiceChannels),
+    'use_manual_ids' => $useManualIds
+  ]));
+}
+
 function updateExistingDiscordValues() {
   global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $hasGuildId;
-  global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles;
+  global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
   $discord_userSTMT->bind_param("i", $user_id);
@@ -589,6 +601,11 @@ function updateExistingDiscordValues() {
   $guildRoles = array();
   if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
     $guildRoles = fetchGuildRoles($existingGuildId, $discordData['access_token']);
+  }
+  // Refresh guild voice channels if user has a guild selected and is not using manual IDs
+  $guildVoiceChannels = array();
+  if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
+    $guildVoiceChannels = fetchGuildVoiceChannels($discordData['access_token'], $existingGuildId);
   }
 }
 
@@ -733,7 +750,7 @@ function fetchGuildChannels($access_token, $guild_id) {
         return ($a['position'] ?? 0) - ($b['position'] ?? 0);
       });
       // Log successful channel fetch
-      error_log("Discord API Success - fetchGuildChannels: Fetched " . count($text_channels) . " channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token"));
+      error_log("Discord API Success - fetchGuildChannels: Fetched " . count($text_channels) . " text channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token"));
       return $text_channels;
     } else {
       error_log("Discord API Error - fetchGuildChannels: Invalid JSON response for guild $guild_id");
@@ -742,6 +759,51 @@ function fetchGuildChannels($access_token, $guild_id) {
     // Get more detailed error information
     $error_info = error_get_last();
     error_log("Discord API Error - fetchGuildChannels: Failed to fetch channels for guild $guild_id. Error: " . ($error_info['message'] ?? 'Unknown error'));
+  }
+  return false;
+}
+
+// Helper function to fetch voice channels from a Discord guild
+function fetchGuildVoiceChannels($access_token, $guild_id) {
+  // Load Discord bot token for guild API calls
+  require_once '../config/discord.php';
+  global $bot_token;
+  if (empty($guild_id)) {
+    return false;
+  }
+  // Use bot token for guild-specific API calls instead of user access token
+  $auth_token = !empty($bot_token) ? $bot_token : $access_token;
+  $auth_header = !empty($bot_token) ? "Authorization: Bot $bot_token\r\n" : "Authorization: Bearer $access_token\r\n";
+  $channels_url = "https://discord.com/api/v10/guilds/$guild_id/channels";
+  $options = array(
+    'http' => array(
+      'header' => $auth_header,
+      'method' => 'GET'
+    )
+  );
+  $context = stream_context_create($options);
+  $response = @file_get_contents($channels_url, false, $context);
+  if ($response !== false) {
+    $channels = json_decode($response, true);
+    if (is_array($channels)) {
+      // Filter for voice channels (type 2) and sort by position
+      $voice_channels = array_filter($channels, function($channel) {
+        return ($channel['type'] ?? -1) === 2; // 2 = GUILD_VOICE
+      });
+      // Sort channels by position
+      usort($voice_channels, function($a, $b) {
+        return ($a['position'] ?? 0) - ($b['position'] ?? 0);
+      });
+      // Log successful voice channel fetch
+      error_log("Discord API Success - fetchGuildVoiceChannels: Fetched " . count($voice_channels) . " voice channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token"));
+      return $voice_channels;
+    } else {
+      error_log("Discord API Error - fetchGuildVoiceChannels: Invalid JSON response for guild $guild_id");
+    }
+  } else {
+    // Get more detailed error information
+    $error_info = error_get_last();
+    error_log("Discord API Error - fetchGuildVoiceChannels: Failed to fetch voice channels for guild $guild_id. Error: " . ($error_info['message'] ?? 'Unknown error'));
   }
   return false;
 }
@@ -842,6 +904,32 @@ function generateRoleInput($fieldId, $fieldName, $currentValue, $placeholder, $u
         $colorIndicator = " style=\"color: $color;\"";
       }
       $options .= "<option value=\"$roleId\"$selected$colorIndicator>@$roleName</option>\n";
+    }
+    return "
+      <div class=\"select is-fullwidth\" style=\"width: 100%;\">
+        <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">$options</select>
+      </div>
+      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+  }
+}
+
+// Helper function to generate voice channel input field or dropdown
+function generateVoiceChannelInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildVoiceChannels, $icon = 'fas fa-volume-up', $required = false) {
+  $requiredAttr = $required ? ' required' : '';
+  if ($useManualIds || empty($guildVoiceChannels)) {
+    // Show manual input field
+    $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$placeholder\"" : '';
+    return "
+      <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
+      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+  } else {
+    // Show dropdown with voice channels
+    $options = "<option value=\"\"" . (empty($currentValue) ? ' selected' : '') . ">Select a voice channel...</option>\n";
+    foreach ($guildVoiceChannels as $channel) {
+      $channelId = htmlspecialchars($channel['id']);
+      $channelName = htmlspecialchars($channel['name']);
+      $selected = ($currentValue === $channel['id']) ? ' selected' : '';
+      $options .= "<option value=\"$channelId\"$selected>🔊 $channelName</option>\n";
     }
     return "
       <div class=\"select is-fullwidth\" style=\"width: 100%;\">
@@ -1328,7 +1416,7 @@ ob_start();
                     </label>
                     <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_live_channel_id_help'); ?></p>
                     <div class="control has-icons-left">
-                      <?php echo generateChannelInput('live_channel_id', 'live_channel_id', $existingLiveChannelId, 'e.g. 123456789123456789', $useManualIds, $guildChannels, 'fas fa-hashtag', true); ?>
+                      <?php echo generateVoiceChannelInput('live_channel_id', 'live_channel_id', $existingLiveChannelId, 'e.g. 123456789123456789', $useManualIds, $guildVoiceChannels, 'fas fa-volume-up', true); ?>
                     </div>
                   </div>
                   <div class="field">
