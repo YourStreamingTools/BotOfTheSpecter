@@ -517,11 +517,23 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$us
   ]));
 }
 
+// Fetch guild roles if user has a guild selected and is not using manual IDs
+$guildRoles = array();
+if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
+  $guildRoles = fetchGuildRoles($existingGuildId, $discordData['access_token']);
+  // Debug logging for role fetching
+  error_log("Role Fetch Debug for user_id $user_id, guild_id $existingGuildId: " . json_encode([
+    'role_count' => is_array($guildRoles) ? count($guildRoles) : 0,
+    'roles_available' => !empty($guildRoles),
+    'use_manual_ids' => $useManualIds
+  ]));
+}
+
 function updateExistingDiscordValues() {
   global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $hasGuildId;
-  global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels;
+  global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
   $discord_userSTMT->bind_param("i", $user_id);
@@ -568,11 +580,15 @@ function updateExistingDiscordValues() {
       $discord_conn->close();
     }
   }
-  
   // Refresh guild channels if user has a guild selected and is not using manual IDs
   $guildChannels = array();
   if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
     $guildChannels = fetchGuildChannels($discordData['access_token'], $existingGuildId);
+  }
+  // Refresh guild roles if user has a guild selected and is not using manual IDs
+  $guildRoles = array();
+  if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
+    $guildRoles = fetchGuildRoles($existingGuildId, $discordData['access_token']);
   }
 }
 
@@ -712,6 +728,43 @@ function fetchGuildChannels($access_token, $guild_id) {
   return false;
 }
 
+// Helper function to fetch roles from a Discord guild
+function fetchGuildRoles($guild_id, $access_token) {
+  if (empty($guild_id)) {
+    return false;
+  }
+  $roles_url = "https://discord.com/api/v10/guilds/$guild_id/roles";
+  $options = array(
+    'http' => array(
+      'header' => "Authorization: Bearer $access_token\r\n",
+      'method' => 'GET'
+    )
+  );
+  $context = stream_context_create($options);
+  $response = @file_get_contents($roles_url, false, $context);
+  if ($response !== false) {
+    $roles = json_decode($response, true);
+    if (is_array($roles)) {
+      // Filter out @everyone role and managed/bot roles, sort by position (highest first)
+      $assignable_roles = array_filter($roles, function($role) {
+        return ($role['name'] !== '@everyone') && 
+               !($role['managed'] ?? false) && // Exclude bot/integration managed roles
+               !($role['tags'] ?? false);      // Exclude roles with special tags
+      });
+      // Sort roles by position (highest position first, which is how Discord shows them)
+      usort($assignable_roles, function($a, $b) {
+        return ($b['position'] ?? 0) - ($a['position'] ?? 0);
+      });
+      return $assignable_roles;
+    } else {
+      error_log("Discord API Error - fetchGuildRoles: Invalid JSON response for guild $guild_id");
+    }
+  } else {
+    error_log("Discord API Error - fetchGuildRoles: Failed to fetch roles for guild $guild_id");
+  }
+  return false;
+}
+
 // Helper function to generate channel input field or dropdown
 function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildChannels, $icon = 'fas fa-hashtag', $required = false) {
   $requiredAttr = $required ? ' required' : '';
@@ -728,12 +781,43 @@ function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder,
       $channelId = htmlspecialchars($channel['id']);
       $channelName = htmlspecialchars($channel['name']);
       $selected = ($currentValue === $channel['id']) ? ' selected' : '';
-      $options .= "        <option value=\"$channelId\"$selected>#$channelName</option>\n";
+      $options .= "<option value=\"$channelId\"$selected>#$channelName</option>\n";
     }
     return "
       <div class=\"select is-fullwidth\" style=\"width: 100%;\">
-        <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">
-$options        </select>
+        <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">$options</select>
+      </div>
+      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+  }
+}
+
+// Helper function to generate role input field or dropdown
+function generateRoleInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildRoles, $icon = 'fas fa-user-tag', $required = false) {
+  $requiredAttr = $required ? ' required' : '';
+  if ($useManualIds || empty($guildRoles)) {
+    // Show manual input field
+    $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$placeholder\"" : '';
+    return "
+      <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
+      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+  } else {
+    // Show dropdown with roles
+    $options = "<option value=\"\"" . (empty($currentValue) ? ' selected' : '') . ">Select a role...</option>\n";
+    foreach ($guildRoles as $role) {
+      $roleId = htmlspecialchars($role['id']);
+      $roleName = htmlspecialchars($role['name']);
+      $selected = ($currentValue === $role['id']) ? ' selected' : '';
+      // Add color indicator if role has a color
+      $colorIndicator = '';
+      if (!empty($role['color']) && $role['color'] != 0) {
+        $color = '#' . str_pad(dechex($role['color']), 6, '0', STR_PAD_LEFT);
+        $colorIndicator = " style=\"color: $color;\"";
+      }
+      $options .= "<option value=\"$roleId\"$selected$colorIndicator>@$roleName</option>\n";
+    }
+    return "
+      <div class=\"select is-fullwidth\" style=\"width: 100%;\">
+        <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">$options</select>
       </div>
       <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
   }
@@ -1528,22 +1612,30 @@ ob_start();
                 </div>
               </header>
               <div class="card-content">
-                <div class="notification is-warning is-light mb-1">
-                  <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                <div class="notification is-info is-light mb-1">
+                  <p class="has-text-dark"><strong>Auto Role Assignment:</strong> Automatically assign a role to new members when they join your Discord server.</p>
                 </div>
                 <p class="has-text-white-ter mb-1">Configure automatic role assignment for new members joining your Discord server.</p>
                 <form action="" method="post">
                   <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Auto Role ID</label>
+                    <label class="label has-text-white" style="font-weight: 500;">Auto Role</label>
                     <div class="control has-icons-left">
-                      <input class="input" type="text" name="auto_role_id" placeholder="e.g. 123456789123456789" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-user-tag"></i></span>
+                      <?php echo generateRoleInput(
+                        'auto_role_id', 
+                        'auto_role_id', 
+                        '', // Current value would come from database 
+                        'e.g. 123456789123456789', 
+                        $useManualIds, 
+                        $guildRoles, 
+                        'fas fa-user-tag', 
+                        false
+                      ); ?>
                     </div>
-                    <p class="help has-text-grey-light">Role ID to automatically assign to new members</p>
+                    <p class="help has-text-grey-light">Role to automatically assign to new members</p>
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" name="save_auto_role" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <button class="button is-primary is-fullwidth" type="submit" name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Auto Role Settings</span>
                       </button>
