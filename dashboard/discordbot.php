@@ -1736,14 +1736,14 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Welcome Message</label>
                     <div class="control">
-                      <textarea class="textarea" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled></textarea>
+                      <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled></textarea>
                     </div>
                     <p class="help has-text-grey-light">Use {user} to mention the new member</p>
                   </div>
                   <div class="field">
                     <div class="control">
                       <label class="checkbox has-text-white">
-                        <input type="checkbox" name="use_default_welcome_message" style="margin-right: 8px;"<?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?> disabled>
+                        <input type="checkbox" id="use_default_welcome_message" name="use_default_welcome_message" style="margin-right: 8px;"<?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?> disabled>
                         Use default welcome message
                       </label>
                     </div>
@@ -2472,7 +2472,9 @@ function removeStreamer(username) {
   // Handler functions for each save button
   function saveWelcomeMessage() {
     const welcomeChannelId = document.getElementById('welcome_channel_id').value;
-    const useDefault = document.getElementById('welcome_message_configuration_default').checked;
+    const welcomeMessage = document.getElementById('welcome_message').value;
+    const useDefault = document.getElementById('use_default_welcome_message').checked;
+    // Always require a channel
     if (!welcomeChannelId || welcomeChannelId === '') {
       Swal.fire({
         toast: true,
@@ -2485,8 +2487,23 @@ function removeStreamer(username) {
       });
       return;
     }
+    // If not using default message, require custom welcome message text
+    if (!useDefault && (!welcomeMessage || welcomeMessage.trim() === '')) {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter a welcome message or enable "Use default welcome message"',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
     saveChannelConfig('save_welcome_message', {
       welcome_channel_id: welcomeChannelId,
+      welcome_message: useDefault ? '' : welcomeMessage,
       welcome_message_configuration_default: useDefault
     });
   }
@@ -2637,6 +2654,26 @@ function removeStreamer(username) {
         }
       }
     });
+    
+    // Handle welcome message default checkbox to enable/disable custom message textarea
+    const useDefaultCheckbox = document.getElementById('use_default_welcome_message');
+    const welcomeMessageTextarea = document.getElementById('welcome_message');
+    if (useDefaultCheckbox && welcomeMessageTextarea) {
+      function toggleWelcomeMessage() {
+        if (useDefaultCheckbox.checked) {
+          welcomeMessageTextarea.disabled = true;
+          welcomeMessageTextarea.style.opacity = '0.5';
+          welcomeMessageTextarea.value = ''; // Clear custom message when using default
+        } else {
+          welcomeMessageTextarea.disabled = false;
+          welcomeMessageTextarea.style.opacity = '1';
+        }
+      }
+      // Set initial state
+      toggleWelcomeMessage();
+      // Add event listener for checkbox changes
+      useDefaultCheckbox.addEventListener('change', toggleWelcomeMessage);
+    }
   });
 </script>
 <?php } ?>
