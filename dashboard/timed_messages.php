@@ -52,11 +52,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
         } else {
             try {
+                $status = 1; // 1 for enabled
                 $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`, `chat_line_trigger`) VALUES (?, ?, ?, ?)');
-                $stmt->bind_param("issi", $interval, $message, 'True', $chat_line_trigger);
+                $stmt->bind_param("isii", $interval, $message, $status, $chat_line_trigger);
                 $stmt->execute();
-                $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . 
-                                  ($chat_line_trigger ? ' and chat line trigger: ' . $chat_line_trigger : '') . ' has been successfully added to the database.';
+                $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ($chat_line_trigger ? ' and chat line trigger: ' . $chat_line_trigger : '') . ' has been successfully added to the database.';
                 $stmt->close();
             } catch (mysqli_sql_exception $e) {
                 $errorMessage = "Error adding message: " . $e->getMessage();
@@ -104,8 +104,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($message_exists && $edit_interval !== false) {
             // Update the message, interval, and status for the selected message in the database
             try {
+                // Convert string status to integer (True -> 1, False -> 0)
+                $status_int = ($edit_status === 'True') ? 1 : 0;
                 $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ?, `status` = ?, `chat_line_trigger` = ? WHERE id = ?');
-                $stmt->bind_param("issii", $edit_interval, $edit_message_content, $edit_status, $edit_chat_line_trigger, $edit_message_id);
+                $stmt->bind_param("isiii", $edit_interval, $edit_message_content, $status_int, $edit_chat_line_trigger, $edit_message_id);
                 $stmt->execute();
                 // Check if the update was successful and provide feedback to the user
                 $updated = $stmt->affected_rows > 0; // Check if any rows were affected
@@ -350,7 +352,8 @@ function showResponse() {
         editMessageContent.value = messageData.message;
         editIntervalInput.value = messageData.interval_count;
         editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
-        if (editStatus) editStatus.value = messageData.status;
+        // Convert integer status (1/0) to string for dropdown (True/False)
+        if (editStatus) editStatus.value = (messageData.status == 1) ? 'True' : 'False';
         updateCharCount('edit_message_content', 'editCharCount');
     } else {
         editMessageContent.value = '';
