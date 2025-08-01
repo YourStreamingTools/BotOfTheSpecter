@@ -9,7 +9,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Include database connection
-include '/var/www/config/database.php';
+require_once "/var/www/config/db_connect.php";
 
 // Check if request is POST and has the required data
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -37,281 +37,127 @@ if (empty($server_id)) {
     exit();
 }
 
-// Connect to specterdiscordbot database
-$discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
-if ($discord_conn->connect_error) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+// We need the user_id to update the discord_users table
+if (!isset($user_id)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'User not identified']);
     exit();
 }
 
 try {
     switch ($action) {
         case 'save_welcome_message':
-            if (!isset($input['welcome_channel_id'])) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Welcome channel ID is required']);
-                exit();
-            }
-            $welcome_channel_id = $input['welcome_channel_id'];
-            $welcome_message = isset($input['welcome_message']) ? trim($input['welcome_message']) : '';
-            $welcome_use_default = isset($input['welcome_message_configuration_default']) ? 1 : 0;
-            if (empty($welcome_channel_id)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Welcome channel ID cannot be empty']);
-                exit();
-            }
-            // If not using default message, require custom welcome message text
-            if (!$welcome_use_default && empty($welcome_message)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Please enter a welcome message or enable "Use default welcome message"']);
-                exit();
-            }
-            // Check if record exists for this server
-            $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
-            $checkStmt->bind_param("s", $server_id);
-            $checkStmt->execute();
-            $result = $checkStmt->get_result();
-            if ($result->num_rows > 0) {
-                // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET welcome_message_configuration_channel = ?, welcome_message_configuration_message = ?, welcome_message_configuration_default = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
-                $updateStmt->bind_param("ssis", $welcome_channel_id, $welcome_message, $welcome_use_default, $server_id);
-                $success = $updateStmt->execute();
-                $updateStmt->close();
-            } else {
-                // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, welcome_message_configuration_channel, welcome_message_configuration_message, welcome_message_configuration_default) VALUES (?, ?, ?, ?)");
-                $insertStmt->bind_param("sssi", $server_id, $welcome_channel_id, $welcome_message, $welcome_use_default);
-                $success = $insertStmt->execute();
-                $insertStmt->close();
-            }
-            $checkStmt->close();
-            if ($success) {
-                echo json_encode([
-                    'success' => true, 
-                    'message' => 'Welcome message configuration saved successfully',
-                    'channel_id' => $welcome_channel_id,
-                    'use_default' => $welcome_use_default
-                ]);
-            } else {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
-            }
-            break;
         case 'save_auto_role':
-            if (!isset($input['auto_role_id'])) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Auto role ID is required']);
-                exit();
-            }
-            $auto_role_id = $input['auto_role_id'];
-            if (empty($auto_role_id)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Auto role ID cannot be empty']);
-                exit();
-            }
-            // Check if record exists for this server
-            $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
-            if (!$checkStmt) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database prepare failed']);
-                exit();
-            }
-            $checkStmt->bind_param("s", $server_id);
-            $checkStmt->execute();
-            $result = $checkStmt->get_result();
-            if ($result->num_rows > 0) {
-                // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET auto_role_assignment_configuration_role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
-                $updateStmt->bind_param("ss", $auto_role_id, $server_id);
-                $success = $updateStmt->execute();
-                $updateStmt->close();
-            } else {
-                // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, auto_role_assignment_configuration_role_id) VALUES (?, ?)");
-                $insertStmt->bind_param("ss", $server_id, $auto_role_id);
-                $success = $insertStmt->execute();
-                $insertStmt->close();
-            }
-            $checkStmt->close();
-            if ($success) {
-                echo json_encode([
-                    'success' => true, 
-                    'message' => 'Auto role configuration saved successfully',
-                    'role_id' => $auto_role_id
-                ]);
-            } else {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
-            }
-            break;
         case 'save_message_tracking':
-            if (!isset($input['message_log_channel_id'])) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Message log channel ID is required']);
-                exit();
-            }
-            $message_log_channel_id = $input['message_log_channel_id'];
-            if (empty($message_log_channel_id)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Message log channel ID cannot be empty']);
-                exit();
-            }
-            // Check if record exists for this server
-            $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
-            $checkStmt->bind_param("s", $server_id);
-            $checkStmt->execute();
-            $result = $checkStmt->get_result();
-            if ($result->num_rows > 0) {
-                // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET message_tracking_configuration_channel = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
-                $updateStmt->bind_param("ss", $message_log_channel_id, $server_id);
-                $success = $updateStmt->execute();
-                $updateStmt->close();
-            } else {
-                // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, message_tracking_configuration_channel) VALUES (?, ?)");
-                $insertStmt->bind_param("ss", $server_id, $message_log_channel_id);
-                $success = $insertStmt->execute();
-                $insertStmt->close();
-            }
-            $checkStmt->close();
-            if ($success) {
-                echo json_encode([
-                    'success' => true, 
-                    'message' => 'Message tracking configuration saved successfully',
-                    'channel_id' => $message_log_channel_id
-                ]);
-            } else {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
-            }
-            break;
         case 'save_role_tracking':
-            if (!isset($input['role_log_channel_id'])) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Role log channel ID is required']);
-                exit();
-            }
-            $role_log_channel_id = $input['role_log_channel_id'];
-            if (empty($role_log_channel_id)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Role log channel ID cannot be empty']);
-                exit();
-            }
-            // Check if record exists for this server
-            $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
-            $checkStmt->bind_param("s", $server_id);
-            $checkStmt->execute();
-            $result = $checkStmt->get_result();
-            if ($result->num_rows > 0) {
-                // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET role_tracking_configuration_channel = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
-                $updateStmt->bind_param("ss", $role_log_channel_id, $server_id);
-                $success = $updateStmt->execute();
-                $updateStmt->close();
-            } else {
-                // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, role_tracking_configuration_channel) VALUES (?, ?)");
-                $insertStmt->bind_param("ss", $server_id, $role_log_channel_id);
-                $success = $insertStmt->execute();
-                $insertStmt->close();
-            }
-            $checkStmt->close();
-            if ($success) {
-                echo json_encode([
-                    'success' => true, 
-                    'message' => 'Role tracking configuration saved successfully',
-                    'channel_id' => $role_log_channel_id
-                ]);
-            } else {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
-            }
-            break;
         case 'save_server_role_management':
-            if (!isset($input['server_mgmt_log_channel_id'])) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Server management log channel ID is required']);
-                exit();
-            }
-            $server_mgmt_log_channel_id = $input['server_mgmt_log_channel_id'];
-            if (empty($server_mgmt_log_channel_id)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Server management log channel ID cannot be empty']);
-                exit();
-            }
-            // Check if record exists for this server
-            $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
-            $checkStmt->bind_param("s", $server_id);
-            $checkStmt->execute();
-            $result = $checkStmt->get_result();
-            if ($result->num_rows > 0) {
-                // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET server_role_management_configuration_channel = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
-                $updateStmt->bind_param("ss", $server_mgmt_log_channel_id, $server_id);
-                $success = $updateStmt->execute();
-                $updateStmt->close();
-            } else {
-                // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, server_role_management_configuration_channel) VALUES (?, ?)");
-                $insertStmt->bind_param("ss", $server_id, $server_mgmt_log_channel_id);
-                $success = $insertStmt->execute();
-                $insertStmt->close();
-            }
-            $checkStmt->close();
-            if ($success) {
-                echo json_encode([
-                    'success' => true, 
-                    'message' => 'Server role management configuration saved successfully',
-                    'channel_id' => $server_mgmt_log_channel_id
-                ]);
-            } else {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
-            }
-            break;
         case 'save_user_tracking':
-            if (!isset($input['user_log_channel_id'])) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'User log channel ID is required']);
+            // These are server management features that go to the Discord bot database
+            // Connect to specterdiscordbot database
+            $discord_conn = new mysqli($servername, $username, $password, "specterdiscordbot");
+            if ($discord_conn->connect_error) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Discord database connection failed']);
                 exit();
             }
-            $user_log_channel_id = $input['user_log_channel_id'];
-            if (empty($user_log_channel_id)) {
+            // Handle server management settings (existing logic)
+            switch ($action) {
+                case 'save_welcome_message':
+                    if (!isset($input['welcome_channel_id'])) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Welcome channel ID is required']);
+                        exit();
+                    }
+                    $welcome_channel_id = $input['welcome_channel_id'];
+                    $welcome_message = isset($input['welcome_message']) ? trim($input['welcome_message']) : '';
+                    $welcome_use_default = isset($input['welcome_message_configuration_default']) ? 1 : 0;
+                    if (empty($welcome_channel_id)) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Welcome channel ID cannot be empty']);
+                        exit();
+                    }
+                    // If not using default message, require custom welcome message text
+                    if (!$welcome_use_default && empty($welcome_message)) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Please enter a welcome message or enable "Use default welcome message"']);
+                        exit();
+                    }
+                    // Check if record exists for this server
+                    $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
+                    $checkStmt->bind_param("s", $server_id);
+                    $checkStmt->execute();
+                    $result = $checkStmt->get_result();
+                    if ($result->num_rows > 0) {
+                        // Update existing record
+                        $updateStmt = $discord_conn->prepare("UPDATE server_management SET welcome_message_configuration_channel = ?, welcome_message_configuration_message = ?, welcome_message_configuration_default = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                        $updateStmt->bind_param("ssis", $welcome_channel_id, $welcome_message, $welcome_use_default, $server_id);
+                        $success = $updateStmt->execute();
+                        $updateStmt->close();
+                    } else {
+                        // Insert new record
+                        $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, welcome_message_configuration_channel, welcome_message_configuration_message, welcome_message_configuration_default) VALUES (?, ?, ?, ?)");
+                        $insertStmt->bind_param("sssi", $server_id, $welcome_channel_id, $welcome_message, $welcome_use_default);
+                        $success = $insertStmt->execute();
+                        $insertStmt->close();
+                    }
+                    $checkStmt->close();
+                    if ($success) {
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Welcome message configuration saved successfully',
+                            'channel_id' => $welcome_channel_id,
+                            'use_default' => $welcome_use_default
+                        ]);
+                    } else {
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
+                    }
+                    break;
+                // Add other server management cases here if needed
+            }
+            $discord_conn->close();
+            break;
+        case 'save_discord_channels':
+            // This saves the main Discord configuration to the website database discord_users table
+            if (!isset($input['guild_id']) || !isset($input['live_channel_id'])) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'User log channel ID cannot be empty']);
+                echo json_encode(['success' => false, 'message' => 'Guild ID and Live Channel ID are required']);
                 exit();
             }
-            // Check if record exists for this server
-            $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
-            $checkStmt->bind_param("s", $server_id);
-            $checkStmt->execute();
-            $result = $checkStmt->get_result();
-            if ($result->num_rows > 0) {
-                // Update existing record
-                $updateStmt = $discord_conn->prepare("UPDATE server_management SET user_tracking_configuration_channel = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
-                $updateStmt->bind_param("ss", $user_log_channel_id, $server_id);
-                $success = $updateStmt->execute();
-                $updateStmt->close();
-            } else {
-                // Insert new record
-                $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, user_tracking_configuration_channel) VALUES (?, ?)");
-                $insertStmt->bind_param("ss", $server_id, $user_log_channel_id);
-                $success = $insertStmt->execute();
-                $insertStmt->close();
+            $guild_id = $input['guild_id'];
+            $live_channel_id = $input['live_channel_id'];
+            $online_text = isset($input['online_text']) ? trim($input['online_text']) : '';
+            $offline_text = isset($input['offline_text']) ? trim($input['offline_text']) : '';
+            $stream_alert_channel_id = isset($input['stream_alert_channel_id']) ? $input['stream_alert_channel_id'] : null;
+            $moderation_channel_id = isset($input['moderation_channel_id']) ? $input['moderation_channel_id'] : null;
+            $alert_channel_id = isset($input['alert_channel_id']) ? $input['alert_channel_id'] : null;
+            $member_streams_id = isset($input['member_streams_id']) ? $input['member_streams_id'] : null;
+            // Validate character limits for online/offline text
+            if (strlen($online_text) > 20) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Online text cannot exceed 20 characters']);
+                exit();
             }
-            $checkStmt->close();
-            if ($success) {
+            if (strlen($offline_text) > 20) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Offline text cannot exceed 20 characters']);
+                exit();
+            }
+            // Update the discord_users table in the website database
+            $updateStmt = $conn->prepare("UPDATE discord_users SET guild_id = ?, live_channel_id = ?, online_text = ?, offline_text = ?, stream_alert_channel_id = ?, moderation_channel_id = ?, alert_channel_id = ?, member_streams_id = ? WHERE user_id = ?");
+            $updateStmt->bind_param("ssssssssi", $guild_id, $live_channel_id, $online_text, $offline_text, $stream_alert_channel_id, $moderation_channel_id, $alert_channel_id, $member_streams_id, $user_id);
+            if ($updateStmt->execute()) {
                 echo json_encode([
                     'success' => true, 
-                    'message' => 'User tracking configuration saved successfully',
-                    'channel_id' => $user_log_channel_id
+                    'message' => 'Discord configuration saved successfully',
+                    'guild_id' => $guild_id,
+                    'live_channel_id' => $live_channel_id
                 ]);
             } else {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
+                echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $conn->error]);
             }
+            $updateStmt->close();
             break;
         default:
             http_response_code(400);
@@ -322,7 +168,8 @@ try {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 } finally {
-    // Close the Discord database connection
+    // Close database connections if they exist
     if (isset($discord_conn)) { $discord_conn->close(); }
+    if (isset($conn)) { $conn->close(); }
 }
 ?>
