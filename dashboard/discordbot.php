@@ -32,6 +32,12 @@ date_default_timezone_set($timezone);
 // Initialize Discord Bot Database Tables
 include '/var/www/config/database.php';
 
+// Initialize Discord Bot Database Connection
+$discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
+if ($discord_conn->connect_error) {
+    die('Discord Database Connection failed: ' . $discord_conn->connect_error);
+}
+
 // Check if the user is already linked with Discord and validate tokens
 if (isset($username) && $username === 'botofthespecter') {
   // For the bot user, use the old simple existence check
@@ -445,7 +451,6 @@ $serverManagementSettings = [
 ];
 
 if ($is_linked && $hasGuildId) {
-  $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
   if (!$discord_conn->connect_error) {
     $serverMgmtStmt = $discord_conn->prepare("SELECT * FROM server_management WHERE server_id = ?");
     $serverMgmtStmt->bind_param("s", $existingGuildId);
@@ -483,7 +488,6 @@ if ($is_linked && $hasGuildId) {
       }
     }
     $serverMgmtStmt->close();
-    $discord_conn->close();
   }
 }
 
@@ -588,7 +592,6 @@ function updateExistingDiscordValues() {
   }
   // Refresh server management settings from specterdiscordbot database
   if ($hasGuildId) {
-    $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
     if (!$discord_conn->connect_error) {
       $serverMgmtStmt = $discord_conn->prepare("SELECT * FROM server_management WHERE server_id = ?");
       $serverMgmtStmt->bind_param("s", $existingGuildId);
@@ -626,7 +629,6 @@ function updateExistingDiscordValues() {
         }
       }
       $serverMgmtStmt->close();
-      $discord_conn->close();
     }
   }
   // Refresh guild channels if user has a guild selected and is not using manual IDs
@@ -2679,5 +2681,11 @@ function removeStreamer(username) {
 <?php } ?>
 <?php
 $scripts = ob_get_clean();
+
+// Close Discord database connection
+if (isset($discord_conn) && !$discord_conn->connect_error) {
+    $discord_conn->close();
+}
+
 include "layout.php";
 ?>
