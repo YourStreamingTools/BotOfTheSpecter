@@ -252,7 +252,19 @@ if (isset($_GET['code']) && !$is_linked) {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   try {
-    if (isset($_POST['live_channel_id']) && isset($_POST['guild_id']) && isset($_POST['online_text']) && isset($_POST['offline_text'])) {
+    if (isset($_POST['guild_id']) && !isset($_POST['live_channel_id'])) {
+      // Server Configuration: Save only guild_id to discord_users table
+      $guild_id = $_POST['guild_id'];
+      $stmt = $conn->prepare("UPDATE discord_users SET guild_id = ? WHERE user_id = ?");
+      $stmt->bind_param("si", $guild_id, $user_id);
+      if ($stmt->execute()) {
+        $buildStatus = "Discord Server configuration saved successfully";
+      } else {
+        $errorMsg = "Error saving Discord Server configuration: " . $stmt->error;
+      }
+      $stmt->close();
+      updateExistingDiscordValues(); // Refresh existing values after update
+    } elseif (isset($_POST['live_channel_id']) && isset($_POST['guild_id']) && isset($_POST['online_text']) && isset($_POST['offline_text'])) {
       // Update live_channel_id and guild_id
       $guild_id = $_POST['guild_id'];
       $live_channel_id = $_POST['live_channel_id'] ?? null;
@@ -554,7 +566,7 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$us
 }
 
 function updateExistingDiscordValues() {
-  global $conn, $user_id, $db_servername, $db_username, $db_password, $serverManagementSettings, $discordData;
+  global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $hasGuildId;
   global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID;
@@ -1411,6 +1423,7 @@ ob_start();
                   </div>
                 <?php endif; ?>
                 <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
+                  <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
                   <div class="field">
                     <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
                       <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>

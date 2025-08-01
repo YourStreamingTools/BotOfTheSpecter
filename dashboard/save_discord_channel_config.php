@@ -10,6 +10,15 @@ if (!isset($_SESSION['access_token'])) {
 
 // Include database connection
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/database.php';
+
+// Get user_id from session (simplified approach)
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'User session not found']);
+    exit();
+}
+$user_id = $_SESSION['user_id'];
 
 // Check if request is POST and has the required data
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -37,13 +46,6 @@ if (empty($server_id)) {
     exit();
 }
 
-// We need the user_id to update the discord_users table
-if (!isset($user_id)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'User not identified']);
-    exit();
-}
-
 try {
     switch ($action) {
         case 'save_welcome_message':
@@ -54,7 +56,7 @@ try {
         case 'save_user_tracking':
             // These are server management features that go to the Discord bot database
             // Connect to specterdiscordbot database
-            $discord_conn = new mysqli($servername, $username, $password, "specterdiscordbot");
+            $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
             if ($discord_conn->connect_error) {
                 http_response_code(500);
                 echo json_encode(['success' => false, 'message' => 'Discord database connection failed']);
