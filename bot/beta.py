@@ -8293,7 +8293,6 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                 snooze_count = int(ad_info.get("snooze_count", 0))
                 last_ad_at = ad_info.get("last_ad_at")
                 api_logger.debug(f"Ad info - next_ad_at: {next_ad_at}, duration: {duration}, preroll_free_time: {preroll_free_time}")
-                
                 # Check if the ad was snoozed
                 if last_snooze_count is not None and snooze_count > last_snooze_count:
                     # Get the ad snoozed message from database
@@ -8310,7 +8309,6 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                         await connection.ensure_closed()
                     await channel.send(snooze_message)
                     api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
-                
                 # Update the last snooze count
                 last_snooze_count = snooze_count
                 # Check if we have a scheduled ad
@@ -8325,8 +8323,16 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                             # Check if we've already notified for this ad
                             if last_notification_time != next_ad_at:
                                 minutes_until = 5  # Always 5 minutes as per requirement
-                                # Get the ad notification message from database
-                                duration_text = f"{duration} second" if duration == "1" else f"{duration} seconds"
+                                # Get the ad notification message from database & Convert duration to a more user-friendly format
+                                if duration >= 60:
+                                    duration_minutes = duration // 60
+                                    remaining_seconds = duration % 60
+                                    if remaining_seconds == 0:
+                                        duration_text = f"{duration_minutes} minute" if duration_minutes == 1 else f"{duration_minutes} minutes"
+                                    else:
+                                        duration_text = f"{duration_minutes} minute{'s' if duration_minutes != 1 else ''} and {remaining_seconds} second{'s' if remaining_seconds != 1 else ''}"
+                                else:
+                                    duration_text = f"{duration} second" if duration == 1 else f"{duration} seconds"
                                 connection = await mysql_connection()
                                 try:
                                     async with connection.cursor(DictCursor) as cursor:
@@ -8387,7 +8393,16 @@ async def check_next_ad_after_completion(channel, ads_api_url, headers):
                         # If the next ad is 5 minutes or less away, send immediate notification
                         if time_until_ad <= 300:  # 5 minutes or less
                             minutes_until = max(1, int(time_until_ad / 60))
-                            duration_text = f"{duration} second" if duration == "1" else f"{duration} seconds"
+                            # Convert duration to a more user-friendly format
+                            if duration >= 60:
+                                duration_minutes = duration // 60
+                                remaining_seconds = duration % 60
+                                if remaining_seconds == 0:
+                                    duration_text = f"{duration_minutes} minute" if duration_minutes == 1 else f"{duration_minutes} minutes"
+                                else:
+                                    duration_text = f"{duration_minutes} minute{'s' if duration_minutes != 1 else ''} and {remaining_seconds} second{'s' if remaining_seconds != 1 else ''}"
+                            else:
+                                duration_text = f"{duration} second" if duration == 1 else f"{duration} seconds"
                             # Get the ad notification message from database
                             connection = await mysql_connection()
                             try:
