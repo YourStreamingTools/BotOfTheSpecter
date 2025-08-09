@@ -155,6 +155,7 @@ global TWITCH_SHOUTOUT_GLOBAL_COOLDOWN
 global TWITCH_SHOUTOUT_USER_COOLDOWN
 global last_shoutout_time
 global bot_owner
+global hyperate_task
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()                         # Translator instance 
@@ -187,6 +188,7 @@ HEARTRATE = None                                        # Current heart rate val
 TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for shoutouts
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
+hyperate_task = None                                    # Hyperate task instance
 bot_owner = "gfaundead"                                 # Bot owner's username
 
 # Function to handle termination signals
