@@ -6081,6 +6081,7 @@ async def process_stream_online_websocket():
     stream_online = True
     looped_tasks["timed_message"] = get_event_loop().create_task(timed_message())
     looped_tasks["handle_upcoming_ads"] = get_event_loop().create_task(handle_upcoming_ads())
+    looped_tasks["hyperate_websocket"] = get_event_loop().create_task(hyperate_websocket())
     await generate_winning_lotto_numbers()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
@@ -6127,6 +6128,9 @@ async def process_stream_offline_websocket():
     connection = await mysql_connection()
     stream_online = False  # Update the stream status
     # Cancel any previous scheduled task to avoid duplication
+    for task in looped_tasks:
+        if task == "hyperate_websocket":
+            task.cancel()
     if 'scheduled_clear_task' in globals() and scheduled_clear_task:
         scheduled_clear_task.cancel()
     # Schedule the clearing task with a 5-minute delay
