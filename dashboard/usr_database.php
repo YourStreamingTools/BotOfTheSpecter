@@ -54,6 +54,15 @@ try {
                 cooldown INT DEFAULT '15',
                 PRIMARY KEY (command(255))
             ) ENGINE=InnoDB",
+        'custom_user_commands' => "
+            CREATE TABLE IF NOT EXISTS custom_user_commands (
+                command TEXT,
+                response TEXT,
+                status TEXT,
+                cooldown INT DEFAULT '15',
+                user_id INT,
+                PRIMARY KEY (command(255))
+            ) ENGINE=InnoDB",
         'builtin_commands' => "
             CREATE TABLE IF NOT EXISTS builtin_commands (
                 command VARCHAR(255),

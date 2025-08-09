@@ -1570,7 +1570,28 @@ class TwitchBot(commands.Bot):
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
-                        chat_logger.info(f"{command} not found in the database.")
+                        # Check if the command is a custom user command for the user
+                        await cursor.execute('SELECT response, status, cooldown FROM custom_user_commands WHERE user_id = ? AND command = ?', (messageAuthorID, command))
+                        custom_user_command = await cursor.fetchone()
+                        if custom_user_command:
+                            status = custom_user_command['status']
+                            response = custom_user_command['response']
+                            cooldown = custom_user_command['cooldown']
+                            if status == 'Enabled':
+                                cooldown = int(cooldown)
+                                # Checking if the command is on cooldown
+                                last_used = command_last_used.get(command, None)
+                                if last_used:
+                                    time_since_last_used = (time_right_now() - last_used).total_seconds()
+                                    if time_since_last_used < cooldown:
+                                        remaining_time = cooldown - time_since_last_used
+                                        chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
+                                        await channel.send(f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
+                                        return
+                                command_last_used[command] = time_right_now()
+                                await channel.send(response)
+                        else:
+                            await channel.send(f"Custom command '{command}' not found.")
                 # Handle AI responses
                 if f'@{self.nick.lower()}' in message.content.lower():
                     user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
