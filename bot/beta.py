@@ -1570,6 +1570,7 @@ class TwitchBot(commands.Bot):
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
+                        bot_logger.info(f"Custom user command running for {command}")
                         # Check if the command is a custom user command
                         await cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = ?', (command,))
                         custom_user_command = await cursor.fetchone()
@@ -1592,7 +1593,7 @@ class TwitchBot(commands.Bot):
                                 command_last_used[command] = time_right_now()
                                 await channel.send(response)
                         else:
-                            await channel.send(f"Custom command '{command}' not found.")
+                            chat_logger.info(f"Custom command '{command}' not found.")
                 # Handle AI responses
                 if f'@{self.nick.lower()}' in message.content.lower():
                     user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
