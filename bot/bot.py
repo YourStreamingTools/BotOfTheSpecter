@@ -5713,7 +5713,7 @@ async def timed_message():
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             if stream_online:
                 # Fetch enabled messages with their interval, chat trigger, and ID
-                await cursor.execute('SELECT id, interval_count, chat_line_trigger, message FROM timed_messages WHERE status = "true"')
+                await cursor.execute('SELECT id, interval_count, chat_line_trigger, message FROM timed_messages WHERE status = 1')
                 messages = await cursor.fetchall()
                 chat_logger.info(f"Timed Messages: {messages}")
                 # Cancel and clear any old tasks
