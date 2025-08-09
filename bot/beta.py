@@ -1338,6 +1338,13 @@ class TwitchBot(commands.Bot):
                     await cursor.close()
                     await connection.ensure_closed()
                     return
+                await cursor.execute('SELECT * FROM custom_user_commands WHERE command = %s', (command,))
+                result = await cursor.fetchone()
+                if result:
+                    bot_logger.debug(f"[CUSTOM USER COMMAND] Command '{command}' exists in the database. Ignoring error.")
+                    await cursor.close()
+                    await connection.ensure_closed()
+                    return
             bot_logger.error(f"Command '{command}' was not found in the bot or custom commands.")
         else:
             bot_logger.error(f"Command: '{command}', Error: {type(error).__name__}, Details: {error}")
