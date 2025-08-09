@@ -1402,9 +1402,9 @@ class TwitchBot(commands.Bot):
                     cc_result = await cursor.fetchone()
                     if cc_result:
                         response = cc_result.get("response")
-                        status = cc_result.get("status")
+                        cc_status = cc_result.get("status")
                         cooldown = cc_result.get("cooldown")
-                        if status == 'Enabled':
+                        if cc_status == 'Enabled':
                             cooldown = int(cooldown)
                             # Checking if the command is on cooldown
                             last_used = command_last_used.get(command, None)
@@ -1577,16 +1577,15 @@ class TwitchBot(commands.Bot):
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
-                        bot_logger.info(f"Custom user command running for {command}")
                         # Check if the command is a custom user command
-                        await cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = ?', (command,))
+                        await cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = %s', (command,))
                         custom_user_command = await cursor.fetchone()
                         if custom_user_command:
-                            status = custom_user_command['status']
                             response = custom_user_command['response']
+                            cuc_status = custom_user_command['status']
                             cooldown = custom_user_command['cooldown']
                             user_id = custom_user_command['user_id']
-                            if status == 'Enabled':
+                            if cuc_status == 'Enabled':
                                 cooldown = int(cooldown)
                                 # Checking if the command is on cooldown
                                 last_used = command_last_used.get(command, None)
