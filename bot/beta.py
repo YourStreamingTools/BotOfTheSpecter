@@ -1570,13 +1570,14 @@ class TwitchBot(commands.Bot):
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
-                        # Check if the command is a custom user command for the user
-                        await cursor.execute('SELECT response, status, cooldown FROM custom_user_commands WHERE user_id = ? AND command = ?', (messageAuthorID, command))
+                        # Check if the command is a custom user command
+                        await cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = ?', (command,))
                         custom_user_command = await cursor.fetchone()
                         if custom_user_command:
                             status = custom_user_command['status']
                             response = custom_user_command['response']
                             cooldown = custom_user_command['cooldown']
+                            user_id = custom_user_command['user_id']
                             if status == 'Enabled':
                                 cooldown = int(cooldown)
                                 # Checking if the command is on cooldown
