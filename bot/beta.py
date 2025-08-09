@@ -6276,7 +6276,7 @@ async def update_timed_messages():
     try:
         async with connection.cursor(DictCursor) as cursor:
             # Fetch all enabled messages
-            await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger FROM timed_messages WHERE status = 'Enabled'")
+            await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger FROM timed_messages WHERE status = 1")
             current_messages = await cursor.fetchall()
             chat_logger.info(f"Found {len(current_messages)} enabled timed messages in database")
             if not current_messages:
