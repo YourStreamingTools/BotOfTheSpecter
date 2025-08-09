@@ -1001,6 +1001,18 @@ async def WEATHER_DATA(data):
         websocket_logger.error(f"Failed to process weather data: {e}")
 
 # Connect and manage reconnection for HypeRate Heart Rate
+async def start_hyperate():
+    global hyperate_task
+    loop = asyncio.get_event_loop()
+    if hyperate_task is None or hyperate_task.done():
+        hyperate_task = loop.create_task(hyperate_websocket())
+
+async def stop_hyperate():
+    global hyperate_task
+    if hyperate_task is not None:
+        hyperate_task.cancel()
+        hyperate_task = None
+
 async def hyperate_websocket():
     while True:
         try:
@@ -1084,13 +1096,13 @@ class TwitchBot(commands.Bot):
         await update_version_control()
         await builtin_commands_creation()
         await check_stream_online()
+        await start_hyperate()
         asyncio.create_task(known_users())
         asyncio.create_task(channel_point_rewards())
         asyncio.get_event_loop().create_task(twitch_token_refresh())
         asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(specter_websocket())
-        asyncio.get_event_loop().create_task(hyperate_websocket())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
         asyncio.get_event_loop().create_task(midnight())
@@ -5615,6 +5627,7 @@ async def process_stream_online_websocket():
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await channel.send(message)
+    await start_hyperate()
     await send_to_discord_stream_online(message, image)
     # Log the status to the file
     os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
@@ -5628,6 +5641,7 @@ async def process_stream_offline_websocket():
     # Cancel any previous scheduled task to avoid duplication
     if 'scheduled_clear_task' in globals() and scheduled_clear_task:
         scheduled_clear_task.cancel()
+    await stop_hyperate()
     # Schedule the clearing task with a 5-minute delay
     scheduled_clear_task = asyncio.create_task(delayed_clear_tables())
     bot_logger.info("Scheduled task to clear tables if stream remains offline for 5 minutes.")
