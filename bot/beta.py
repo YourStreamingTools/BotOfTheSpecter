@@ -1148,6 +1148,10 @@ async def hyperate_websocket():
                         data = await hyperate_websocket.recv()
                         data = json.loads(data)
                         HEARTRATE = data['payload'].get('hr', None)
+                        if HEARTRATE is None:
+                            for task in looped_tasks:
+                                if task == "hyperate_websocket":
+                                    task.cancel()
                     except WebSocketConnectionClosed:
                         bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
                         break
@@ -5243,6 +5247,9 @@ class TwitchBot(commands.Bot):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
                     if HEARTRATE is None:
+                        for task in looped_tasks:
+                            if task == "hyperate_websocket":
+                                    task.cancel()
                         await ctx.send(f"The Heart Rate is not turned on right now.")
                     else:
                         await ctx.send(f"The current Heart Rate is: {HEARTRATE}")
