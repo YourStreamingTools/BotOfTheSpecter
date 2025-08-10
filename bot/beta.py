@@ -1149,9 +1149,8 @@ async def hyperate_websocket():
                         data = json.loads(data)
                         HEARTRATE = data['payload'].get('hr', None)
                         if HEARTRATE is None:
-                            for task in looped_tasks:
-                                if task == "hyperate_websocket":
-                                    task.cancel()
+                            if "hyperate_websocket" in looped_tasks:
+                                looped_tasks["hyperate_websocket"].cancel()
                     except WebSocketConnectionClosed:
                         bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
                         break
@@ -5248,9 +5247,8 @@ class TwitchBot(commands.Bot):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
                     if HEARTRATE is None:
-                        for task in looped_tasks:
-                            if task == "hyperate_websocket":
-                                    task.cancel()
+                        if "hyperate_websocket" in looped_tasks:
+                            looped_tasks["hyperate_websocket"].cancel()
                         await ctx.send(f"The Heart Rate is not turned on right now.")
                     else:
                         await ctx.send(f"The current Heart Rate is: {HEARTRATE}")
@@ -6144,9 +6142,8 @@ async def process_stream_offline_websocket():
     connection = await mysql_connection()
     stream_online = False  # Update the stream status
     # Cancel any previous scheduled task to avoid duplication
-    for task in looped_tasks:
-        if task == "hyperate_websocket":
-            task.cancel()
+    if "hyperate_websocket" in looped_tasks:
+        looped_tasks["hyperate_websocket"].cancel()
     if 'scheduled_clear_task' in globals() and scheduled_clear_task:
         scheduled_clear_task.cancel()
     # Schedule the clearing task with a 5-minute delay
