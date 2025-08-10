@@ -7100,62 +7100,65 @@ async def process_followers_event(user_id, user_name):
                     (user_id, user_name, new_points)
                 )
             await connection.commit()
-        # Send follow notification to Twitch Chat and Websocket
-        await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("follower_alert",))
-        result = await cursor.fetchone()
-        if result and result.get("alert_message"):
-            alert_message = result.get("alert_message")
-        else:
-            alert_message = "Thank you (user) for following! Welcome to the channel!"
-        alert_message = alert_message.replace("(user)", user_name)
-        await channel.send(alert_message)
-        create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
-        marker_description = f"New Twitch Follower: {user_name}"
-        if await make_stream_marker(marker_description):
-            twitch_logger.info(f"A stream marker was created: {marker_description}.")
-        else:
-            twitch_logger.info("Failed to create a stream marker.")
-        await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Follow",))
-        result = await cursor.fetchone()
-        if result and result.get("sound_mapping"):
-            sound_file = "twitch/" + result.get("sound_mapping")
-            create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+            # Send follow notification to Twitch Chat and Websocket
+            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("follower_alert",))
+            result = await cursor.fetchone()
+            if result and result.get("alert_message"):
+                alert_message = result.get("alert_message")
+            else:
+                alert_message = "Thank you (user) for following! Welcome to the channel!"
+            alert_message = alert_message.replace("(user)", user_name)
+            await channel.send(alert_message)
+            create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
+            marker_description = f"New Twitch Follower: {user_name}"
+            if await make_stream_marker(marker_description):
+                twitch_logger.info(f"A stream marker was created: {marker_description}.")
+            else:
+                twitch_logger.info("Failed to create a stream marker.")
+            await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Follow",))
+            result = await cursor.fetchone()
+            if result and result.get("sound_mapping"):
+                sound_file = "twitch/" + result.get("sound_mapping")
+                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         await connection.ensure_closed()
 
 # Function to ban a user
 async def ban_user(username, user_id, use_streamer=False):
     # Connect to the database
-    connection = await mysql_connection(db_name="website")
-    async with connection.cursor(DictCursor) as cursor:
-        # Determine which user ID to use for the API request
-        api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
-        # Fetch settings from the twitch_bot_access table
-        await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
-        result = await cursor.fetchone()
-        # Use the token from the database if found, otherwise default to CHANNEL_AUTH
-        api_user_auth = result.get('twitch_access_token') if result else CHANNEL_AUTH
-    # Construct the ban URL using the selected API user
-    ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={api_user_id}"
-    headers = {
-        "Client-ID": CLIENT_ID,
-        "Authorization": f"Bearer {api_user_auth}",
-        "Content-Type": "application/json",
-    }
-    data = {
-        "data": {
-            "user_id": user_id,
-            "reason": "Spam/Bot Account",
-        }
-    }
-    # Perform the ban request
-    async with httpClientSession() as session:
-        async with session.post(ban_url, headers=headers, json=data) as response:
-            if response.status == 200:
-                twitch_logger.info(f"{username} has been banned for sending a spam message in chat.")
-            else:
-                error_text = await response.text()
-                twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}, Response: {error_text}")
+    try:
+        connection = await mysql_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            # Determine which user ID to use for the API request
+            api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+            # Fetch settings from the twitch_bot_access table
+            await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
+            result = await cursor.fetchone()
+            # Use the token from the database if found, otherwise default to CHANNEL_AUTH
+            api_user_auth = result.get('twitch_access_token') if result else CHANNEL_AUTH
+            # Construct the ban URL using the selected API user
+            ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={api_user_id}"
+            headers = {
+                "Client-ID": CLIENT_ID,
+                "Authorization": f"Bearer {api_user_auth}",
+                "Content-Type": "application/json",
+            }
+            data = {
+                "data": {
+                    "user_id": user_id,
+                    "reason": "Spam/Bot Account",
+                }
+            }
+            # Perform the ban request
+            async with httpClientSession() as session:
+                async with session.post(ban_url, headers=headers, json=data) as response:
+                    if response.status == 200:
+                        twitch_logger.info(f"{username} has been banned for sending a spam message in chat.")
+                    else:
+                        error_text = await response.text()
+                        twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}, Response: {error_text}")
+    finally:
+        await connection.ensure_closed()
 
 # Unified function to connect to the websocket server and push notices
 async def websocket_notice(
