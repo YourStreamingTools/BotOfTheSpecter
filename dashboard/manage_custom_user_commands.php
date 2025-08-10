@@ -195,6 +195,7 @@ ob_start();
                 <li><?php echo t('user_commands_delete_commands'); ?></li>
             </ul>
             <p class="mb-2"><strong><?php echo t('custom_commands_note'); ?></strong> <?php echo t('user_commands_note_detail'); ?></p>
+            <p class="mb-2"><strong>Access:</strong> User commands can be used by the specified user and all channel moderators.</p>
         </div>
     </div>
 </div>
@@ -237,6 +238,7 @@ ob_start();
                         <span class="icon is-small is-left"><i class="fas fa-user"></i></span>
                     </div>
                     <p class="help"><?php echo t('user_commands_user_id_help'); ?></p>
+                    <p class="help has-text-info mt-1"><i class="fas fa-info-circle"></i> This command will also be available to all channel moderators.</p>
                 </div>
                 <div class="field mb-4">
                     <label class="label" for="cooldown"><?php echo t('custom_commands_cooldown_label'); ?></label>
