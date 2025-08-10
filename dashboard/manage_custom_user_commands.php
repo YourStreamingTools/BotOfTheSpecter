@@ -34,6 +34,50 @@ $notification_status = "";
 
 // Check if form data has been submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Adding a new User Custom Command
+    if (isset($_POST['command']) && isset($_POST['response']) && isset($_POST['cooldown']) && isset($_POST['user_id'])) {
+        $newCommand = strtolower(str_replace(' ', '', $_POST['command']));
+        $newCommand = preg_replace('/[^a-z0-9]/', '', $newCommand);
+        $newResponse = $_POST['response'];
+        $cooldown = $_POST['cooldown'];
+        $user_id = $_POST['user_id'];
+        
+        // Check if command already exists
+        $checkSTMT = $db->prepare("SELECT command FROM custom_user_commands WHERE command = ?");
+        $checkSTMT->bind_param("s", $newCommand);
+        $checkSTMT->execute();
+        $result = $checkSTMT->get_result();
+        
+        if ($result->num_rows > 0) {
+            $status = "Command '" . $newCommand . "' already exists. Please choose a different name.";
+            $notification_status = "is-danger";
+        } else {
+            // Insert new command into MySQL database
+            try {
+                $insertSTMT = $db->prepare("INSERT INTO custom_user_commands (command, response, status, cooldown, user_id) VALUES (?, ?, 'Enabled', ?, ?)");
+                $insertSTMT->bind_param("ssis", $newCommand, $newResponse, $cooldown, $user_id);
+                $insertSTMT->execute();
+                if ($insertSTMT->affected_rows > 0) {
+                    $status = "User command '" . $newCommand . "' for user '" . $user_id . "' added successfully!";
+                    $notification_status = "is-success";
+                } else {
+                    $status = "Error: Command was not added to the database.";
+                    $notification_status = "is-danger";
+                }
+                $insertSTMT->close();
+                $commandsSTMT = $db->prepare("SELECT * FROM custom_user_commands ORDER BY command ASC");
+                $commandsSTMT->execute();
+                $result = $commandsSTMT->get_result();
+                $userCommands = $result->fetch_all(MYSQLI_ASSOC);
+                $commandsSTMT->close();
+            } catch (Exception $e) {
+                $status = "Error adding command: " . $e->getMessage();
+                $notification_status = "is-danger";
+            }
+        }
+        $checkSTMT->close();
+    }
+    
     // Editing a User Custom Command
     if (
         isset($_POST['command_to_edit']) && 
@@ -160,9 +204,60 @@ ob_start();
     </div>
 <?php endif; ?>
 <h4 class="title is-4 has-text-centered mb-5"><?php echo t('navbar_manage_user_commands'); ?></h4>
-<div class="columns is-desktop is-multiline is-centered command-columns-equal" style="align-items: stretch;">
-    <div class="column is-6-desktop is-12-mobile">
-        <div class="box">
+<div class="columns is-desktop is-centered" style="align-items: stretch; min-height: 100%;">
+    <div class="column is-one-third">
+        <div class="box" style="height: 100%; display: flex; flex-direction: column;">
+            <div class="mb-3" style="display: flex; align-items: center;">
+                <span class="icon is-large has-text-primary" style="margin-right: 0.5rem;">
+                    <i class="fas fa-plus-circle fa-2x"></i>
+                </span>
+                <h4 class="subtitle is-4 mb-0"><?php echo t('user_commands_add_title'); ?></h4>
+            </div>
+            <form method="post" action="" style="flex-grow: 1;">
+                <div class="field mb-4">
+                    <label class="label" for="command"><?php echo t('custom_commands_command_label'); ?></label>
+                    <div class="control has-icons-left">
+                        <input class="input" type="text" name="command" id="command" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
+                        <span class="icon is-small is-left"><i class="fas fa-terminal"></i></span>
+                    </div>
+                    <p class="help"><?php echo t('custom_commands_skip_exclamation'); ?></p>
+                </div>
+                <div class="field mb-4">
+                    <label class="label" for="response"><?php echo t('custom_commands_response_label'); ?></label>
+                    <div class="control has-icons-left">
+                        <input class="input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                        <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
+                    </div>
+                    <p id="responseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
+                </div>
+                <div class="field mb-4">
+                    <label class="label" for="user_id"><?php echo t('user_commands_user_id_label'); ?></label>
+                    <div class="control has-icons-left">
+                        <input class="input" type="text" name="user_id" id="user_id" required placeholder="<?php echo t('user_commands_user_id_placeholder'); ?>">
+                        <span class="icon is-small is-left"><i class="fas fa-user"></i></span>
+                    </div>
+                    <p class="help"><?php echo t('user_commands_user_id_help'); ?></p>
+                </div>
+                <div class="field mb-4">
+                    <label class="label" for="cooldown"><?php echo t('custom_commands_cooldown_label'); ?></label>
+                    <div class="control has-icons-left">
+                        <input class="input" type="number" min="1" name="cooldown" id="cooldown" value="15" required>
+                        <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
+                    </div>
+                </div>
+                <div class="field is-grouped is-grouped-right">
+                    <div class="control">
+                        <button class="button is-primary" type="submit">
+                            <span class="icon"><i class="fas fa-plus"></i></span>
+                            <span><?php echo t('custom_commands_add_btn'); ?></span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="column is-one-third">
+        <div class="box" style="height: 100%; display: flex; flex-direction: column;">
             <div class="mb-3" style="display: flex; align-items: center;">
                 <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
                     <i class="fas fa-edit fa-2x"></i>
@@ -170,7 +265,7 @@ ob_start();
                 <h4 class="subtitle is-4 mb-0"><?php echo t('user_commands_edit_title'); ?></h4>
             </div>
             <?php if (!empty($userCommands)): ?>
-                <form method="post" action="">
+                <form method="post" action="" style="flex-grow: 1;">
                     <div class="field mb-4">
                         <label class="label" for="command_to_edit"><?php echo t('user_commands_edit_select_label'); ?></label>
                         <div class="control">
@@ -221,8 +316,8 @@ ob_start();
             <?php endif; ?>
         </div>
     </div>
-    <div class="column is-6-desktop is-12-mobile">
-        <div class="box">
+    <div class="column is-one-third">
+        <div class="box" style="height: 100%; display: flex; flex-direction: column;">
             <div class="mb-3" style="display: flex; align-items: center;">
                 <span class="icon is-large has-text-danger" style="margin-right: 0.5rem;">
                     <i class="fas fa-trash-alt fa-2x"></i>
@@ -230,7 +325,7 @@ ob_start();
                 <h4 class="subtitle is-4 mb-0"><?php echo t('user_commands_delete_title'); ?></h4>
             </div>
             <?php if (!empty($userCommands)): ?>
-                <form method="post" action="" onsubmit="return confirmDelete()">
+                <form method="post" action="" onsubmit="return confirmDelete()" style="flex-grow: 1;">
                     <div class="field mb-4">
                         <label class="label" for="delete_command"><?php echo t('user_commands_delete_select_label'); ?></label>
                         <div class="control">
@@ -394,12 +489,18 @@ function validateForm(form) {
 
 // Initialize character counters when page loads
 window.onload = function() {
-    // Always initialize the edit response character counter, even when empty
+    // Initialize character counters for both add and edit forms
+    updateCharCount('response', 'responseCharCount');
     updateCharCount('command_response', 'editResponseCharCount');
+    
     // Add event listener to command dropdown to update character count when a command is selected
-    document.getElementById('command_to_edit').addEventListener('change', function() {
-        updateCharCount('command_response', 'editResponseCharCount');
-    });
+    const editDropdown = document.getElementById('command_to_edit');
+    if (editDropdown) {
+        editDropdown.addEventListener('change', function() {
+            updateCharCount('command_response', 'editResponseCharCount');
+        });
+    }
+    
     // Add form validation to forms
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
