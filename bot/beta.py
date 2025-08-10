@@ -1599,7 +1599,7 @@ class TwitchBot(commands.Bot):
                                         chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
                                         await channel.send(f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
                                         return
-                                if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", messageAuthor):
+                                if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
                                     command_last_used[command] = time_right_now()
                                     await channel.send(response)
                         else:
