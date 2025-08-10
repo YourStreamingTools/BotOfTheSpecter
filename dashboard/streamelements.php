@@ -71,13 +71,16 @@ if ($twitchUserId) {
             $profile_data = json_decode($profile_response, true);
             $apiToken = $profile_data['apiToken'] ?? null;
             // Fetch StreamElements current user to get JWT token and channel ID
-            $current_user_url = "https://api.streamelements.com/kappa/v2/users/current";
-            $ch = curl_init($current_user_url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                "Accept: application/json; charset=utf-8",
-                "Authorization: Bearer {$access_token}"
-            ]);
+            // Use JWT token if available, otherwise skip this call
+            if ($stored_jwt_token) {
+                $current_user_url = "https://api.streamelements.com/kappa/v2/users/current";
+                $ch = curl_init($current_user_url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    "Accept: application/json; charset=utf-8",
+                    "Authorization: Bearer {$stored_jwt_token}"
+                ]);
+            }
             $current_user_response = curl_exec($ch);
             $current_user_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
@@ -103,9 +106,7 @@ if ($twitchUserId) {
                     }
                 }
                 // Store channel ID in session for other API calls
-                if ($channelId) {
-                    $_SESSION['streamelements_channel_id'] = $channelId;
-                }
+                if ($channelId) {$_SESSION['streamelements_channel_id'] = $channelId;}
                 // Update the database with the JWT token if found and not already stored
                 if ($jwtToken && !$stored_jwt_token) {
                     $update_jwt_stmt = $conn->prepare("UPDATE streamelements_tokens SET jwt_token = ? WHERE twitch_user_id = ?");
@@ -290,10 +291,10 @@ if (!$isLinked) {
         . "&redirect_uri=" . $redirect_uri;
 }
 
-// Fetch recent tips if user is linked and we have access token
+// Fetch recent tips if user is linked and we have JWT token
 $recentTips = [];
 $tips_code = null; // Initialize to track the API response code
-if ($isLinked && isset($access_token)) {
+if ($isLinked && isset($stored_jwt_token) && !empty($stored_jwt_token)) {
     $channelId = $_SESSION['streamelements_channel_id'] ?? null;
     // If we don't have channel ID in session, fetch it
     if (!$channelId) {
@@ -302,7 +303,7 @@ if ($isLinked && isset($access_token)) {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             "Accept: application/json; charset=utf-8",
-            "Authorization: Bearer {$access_token}"
+            "Authorization: Bearer {$stored_jwt_token}"
         ]);
         $current_user_response = curl_exec($ch);
         $current_user_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -326,8 +327,8 @@ if ($isLinked && isset($access_token)) {
         $ch = curl_init($tips_url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            "Accept: application/json; charset=utf-8, application/json",
-            "Authorization: Bearer {$access_token}"
+            "Accept: application/json; charset=utf-8",
+            "Authorization: Bearer {$stored_jwt_token}"
         ]);
         $tips_response = curl_exec($ch);
         $tips_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
