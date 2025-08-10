@@ -437,7 +437,7 @@ ob_start();
                                                 <label class="label has-text-white mb-3" style="font-weight: 500;">StreamElements API Token</label>
                                                 <div class="field has-addons">
                                                     <div class="control is-expanded">
-                                                        <input class="input" type="text" id="apiTokenDisplay" value="<?php echo str_repeat('•', strlen($apiToken)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 1rem; letter-spacing: 1.5px; min-width: 300px;">
+                                                        <input class="input" type="text" id="apiTokenDisplay" value="<?php echo str_repeat('•', strlen($apiToken)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 1rem; letter-spacing: 1.5px; min-width: 500px;">
                                                     </div>
                                                     <div class="control">
                                                         <button id="showApiTokenBtn" class="button is-warning" style="border-radius: 0 6px 6px 0; font-weight: 600;" title="Show API Token">
@@ -472,7 +472,7 @@ ob_start();
                                                 <label class="label has-text-white mb-3" style="font-weight: 500;">StreamElements JWT Token</label>
                                                 <div class="field has-addons">
                                                     <div class="control is-expanded">
-                                                        <input class="input" type="text" id="jwtTokenDisplay" value="<?php echo str_repeat('•', strlen($stored_jwt_token)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 1rem; letter-spacing: 1.5px; min-width: 300px;">
+                                                        <input class="input" type="text" id="jwtTokenDisplay" value="<?php echo str_repeat('•', strlen($stored_jwt_token)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 1rem; letter-spacing: 1.5px; min-width: 500px;">
                                                     </div>
                                                     <div class="control">
                                                         <button id="showJwtTokenBtn" class="button is-info" style="border-radius: 0 6px 6px 0; font-weight: 600;" title="Show JWT Token">
@@ -495,7 +495,7 @@ ob_start();
                     <?php endif; ?>
                     <!-- Recent Tips section -->
                     <?php if (!empty($recentTips)): ?>
-                        <div style="margin: 2rem auto 0; max-width: 2000px;">
+                        <div style="margin: 2rem auto 0; width: 100%;">
                             <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
                                 <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                                     <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -526,7 +526,18 @@ ob_start();
                                                             <?php 
                                                             $amount = $tip['donation']['amount'] ?? 0;
                                                             $currency = $tip['donation']['currency'] ?? 'USD';
-                                                            echo htmlspecialchars($currency . ' ' . number_format($amount / 100, 2)); 
+                                                            // Convert from cents to dollars and format properly
+                                                            $formatted_amount = number_format($amount / 100, 2);
+                                                            // Display currency symbol instead of code when possible
+                                                            $currency_symbol = match($currency) {
+                                                                'USD' => '$',
+                                                                'EUR' => '€',
+                                                                'GBP' => '£',
+                                                                'CAD' => 'C$',
+                                                                'AUD' => 'A$',
+                                                                default => $currency . ' '
+                                                            };
+                                                            echo htmlspecialchars($currency_symbol . $formatted_amount); 
                                                             ?>
                                                         </span>
                                                     </td>
