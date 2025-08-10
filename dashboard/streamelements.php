@@ -526,8 +526,8 @@ ob_start();
                                                             <?php 
                                                             $amount = $tip['donation']['amount'] ?? 0;
                                                             $currency = $tip['donation']['currency'] ?? 'USD';
-                                                            // Convert from cents to dollars and format properly
-                                                            $formatted_amount = number_format($amount / 100, 2);
+                                                            // Format amount (appears to already be in dollar format, not cents)
+                                                            $formatted_amount = number_format((float)$amount, 2);
                                                             // Display currency symbol instead of code when possible
                                                             $currency_symbol = match($currency) {
                                                                 'USD' => '$',
