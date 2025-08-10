@@ -340,9 +340,11 @@ ob_start();
               <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
                 <?php echo t('bot_stable_bot'); ?>
               </option>
+              <?php if ($betaAccess): ?>
               <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
                 <?php echo t('bot_beta_bot'); ?>
               </option>
+              <?php endif; ?>
             </select>
           </div>
         </div>
@@ -389,6 +391,9 @@ ob_start();
           <span class="is-size-5" style="font-weight:600;">
             <?php echo t('bot_status_label'); ?> <span id="bot-status-text" class="has-text-info">Fetching status...</span>
             <?php if ($isTechnical): ?>
+            <div id="bot-pid-display" class="has-text-grey-light is-size-7 mt-1" style="display: none;">
+              PID: <span id="bot-pid-value">--</span>
+            </div>
             <?php endif; ?>
           </span>
         </div>
@@ -1135,6 +1140,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         // Re-attach event listeners
                         attachBotButtonListeners();
+                    }
+                    
+                    // Update PID display if technical mode is enabled
+                    if (isTechnical) {
+                        const pidDisplay = document.getElementById('bot-pid-display');
+                        const pidValue = document.getElementById('bot-pid-value');
+                        if (pidDisplay && pidValue) {
+                            if (data.running && data.pid) {
+                                pidDisplay.style.display = '';
+                                pidValue.textContent = data.pid;
+                            } else {
+                                pidDisplay.style.display = 'none';
+                            }
+                        }
                     }
                     // Update version info card
                     const lastUpdatedElement = document.getElementById('last-updated');
