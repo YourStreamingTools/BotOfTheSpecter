@@ -300,6 +300,9 @@ try {
                 amount DECIMAL(10, 2),
                 message TEXT,
                 source VARCHAR(255),
+                tip_id VARCHAR(255) DEFAULT NULL,
+                currency VARCHAR(10) DEFAULT NULL,
+                created_at DATETIME DEFAULT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB",
         'categories' => "
@@ -498,7 +501,7 @@ try {
         'active_timers' => ['user_id' => "BIGINT NOT NULL",'end_time' => "DATETIME NOT NULL"],
         'poll_results' => ['poll_id' => "VARCHAR(255)",'poll_name' => "VARCHAR(255)",'poll_option_one' => "VARCHAR(255)",'poll_option_two' => "VARCHAR(255)",'poll_option_three' => "VARCHAR(255)",'poll_option_four' => "VARCHAR(255)",'poll_option_five' => "VARCHAR(255)",'poll_option_one_results' => "INT",'poll_option_two_results' => "INT",'poll_option_three_results' => "INT",'poll_option_four_results' => "INT",'poll_option_five_results' => "INT",'bits_used' => "INT",'channel_points_used' => "INT",'started_at' => "DATETIME",'ended_at' => "DATETIME"],
         'tipping_settings' => ['StreamElements' => "TEXT DEFAULT NULL",'StreamLabs' => "TEXT DEFAULT NULL"],
-        'tipping' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'username' => "VARCHAR(255)",'amount' => "DECIMAL(10, 2)",'message' => "TEXT",'source' => "VARCHAR(255)",'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
+        'tipping' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'username' => "VARCHAR(255)",'amount' => "DECIMAL(10, 2)",'message' => "TEXT",'source' => "VARCHAR(255)",'tip_id' => "VARCHAR(255) DEFAULT NULL",'currency' => "VARCHAR(10) DEFAULT NULL",'created_at' => "DATETIME DEFAULT NULL",'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
         'categories' => ['id' => "INT(11) NOT NULL AUTO_INCREMENT",'category' => "VARCHAR(255) NOT NULL"],
         'showobs' => ['id' => "INT(11) NOT NULL AUTO_INCREMENT",'font' => "VARCHAR(50) NOT NULL DEFAULT 'Arial'",'color' => "VARCHAR(50) NOT NULL DEFAULT 'Black'",'list' => "VARCHAR(10) NOT NULL DEFAULT 'Bullet'",'shadow' => "TINYINT(1) NOT NULL DEFAULT 0",'bold' => "TINYINT(1) NOT NULL DEFAULT 0",'font_size' => "INT(11) NOT NULL DEFAULT 22"],
         'todos' => ['id' => "INT(255) NOT NULL AUTO_INCREMENT",'objective' => "VARCHAR(255) NOT NULL",'category' => "VARCHAR(255) DEFAULT NULL",'completed' => "VARCHAR(3) NOT NULL DEFAULT 'No'",'created_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",'updated_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"],
