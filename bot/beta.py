@@ -428,7 +428,7 @@ async def twitch_eventsub():
                     session_id = eventsub_welcome_data['payload']['session']['id']
                     keepalive_timeout = eventsub_welcome_data['payload']['session']['keepalive_timeout_seconds']
                     event_logger.info(f"Twitch WS Connected with session ID: {session_id}")
-                    event_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
+                    event_logger.info(f"Twitch WS Keepalive timeout: {keepalive_timeout} seconds")
                     # Subscribe to the events using the session ID and auth token
                     await subscribe_to_events(session_id)
                     # Manage keepalive and listen for messages concurrently
