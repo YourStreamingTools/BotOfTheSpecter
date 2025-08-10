@@ -740,37 +740,47 @@ async def connect_to_streamelements():
             await streamelements_socket.disconnect()
         @streamelements_socket.event
         async def event(data):
-            # Main event handler for live events (tips, follows, etc.)
+            # Main event handler for live events - only process tip events
             try:
-                sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
-                event_logger.info(f"StreamElements Event: {sanitized_data}")
-                await process_tipping_message(data, "StreamElements")
+                # Only process tip events from StreamElements
+                if data.get('type') == 'tip':
+                    sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
+                    event_logger.info(f"StreamElements Tip Event: {sanitized_data}")
+                    await process_tipping_message(data, "StreamElements")
+                else:
+                    # Log other events for debugging but don't process them
+                    event_type = data.get('type', 'unknown')
+                    event_logger.debug(f"StreamElements event ignored (type: {event_type})")
             except Exception as e:
                 event_logger.error(f"Error processing StreamElements event: {e}")
         @streamelements_socket.event
         async def event_test(data):
-            # Test event handler for testing purposes
+            # Test event handler - only process tip tests
             try:
-                sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
-                event_logger.info(f"StreamElements Test Event: {sanitized_data}")
+                if data.get('type') == 'tip':
+                    sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
+                    event_logger.info(f"StreamElements Test Tip Event: {sanitized_data}")
+                    # Note: Usually test events shouldn't trigger actual processing
+                else:
+                    event_type = data.get('type', 'unknown')
+                    event_logger.debug(f"StreamElements test event ignored (type: {event_type})")
             except Exception as e:
                 event_logger.error(f"Error processing StreamElements test event: {e}")
         @streamelements_socket.event
         async def event_update(data):
-            # Session update events
+            # Session update events - not processing these since we only care about tips
             try:
-                sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
-                event_logger.info(f"StreamElements Update Event: {sanitized_data}")
+                event_logger.debug("StreamElements session update event received (ignored)")
             except Exception as e:
-                event_logger.error(f"Error processing StreamElements update event: {e}")
+                event_logger.error(f"Error handling StreamElements update event: {e}")
+                
         @streamelements_socket.event
         async def event_reset(data):
-            # Session reset events
+            # Session reset events - not processing these since we only care about tips
             try:
-                sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
-                event_logger.info(f"StreamElements Reset Event: {sanitized_data}")
+                event_logger.debug("StreamElements session reset event received (ignored)")
             except Exception as e:
-                event_logger.error(f"Error processing StreamElements reset event: {e}")
+                event_logger.error(f"Error handling StreamElements reset event: {e}")
         # Connect to StreamElements with websocket transport only (as per example)
         await streamelements_socket.connect(uri, transports=['websocket'])
         await streamelements_socket.wait()
@@ -839,12 +849,26 @@ async def process_tipping_message(data, source):
     try:
         channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         send_message = None
+        user = None
+        amount = None
+        tip_message = None
+        tip_id = None
+        currency = None
+        created_at = None
         if source == "StreamElements" and data.get('type') == 'tip':
-            user = data['data']['username']
-            amount = data['data']['amount']
-            tip_message = data['data']['message']
-            send_message = f"{user} just tipped {amount}! Message: {tip_message}"
-            event_logger.info(f"StreamElemenets Tip: {send_message}")
+            # Use correct StreamElements API field names
+            tip_data = data.get('data', {})
+            tip_id = tip_data.get('tipId')
+            user = tip_data.get('displayName')
+            currency = tip_data.get('currency', '')
+            amount = tip_data.get('amount')
+            tip_message = tip_data.get('message', '')
+            created_at = tip_data.get('createdAt')
+            # Format the tip message with currency symbol
+            amount_text = f"{currency}{amount}" if currency else str(amount)
+            message_part = f" Message: {tip_message}" if tip_message else ""
+            send_message = f"{user} just tipped {amount_text}!{message_part}"
+            event_logger.info(f"StreamElements Tip: {send_message} (ID: {tip_id})")
         elif source == "StreamLabs" and 'event' in data and data['event'] == 'donation':
             for donation in data['data']['donations']:
                 user = donation['name']
@@ -852,19 +876,27 @@ async def process_tipping_message(data, source):
                 tip_message = donation['message']
                 send_message = f"{user} just tipped {amount}! Message: {tip_message}"
                 event_logger.info(f"StreamLabs Tip: {send_message}")
-        if send_message:
+        if send_message and user and amount is not None:
             await channel.send(send_message)
-            # Save tipping data directly in this function
+            # Save tipping data to database
             connection = await mysql_connection()
             try:
                 async with connection.cursor(DictCursor) as cursor:
-                    await cursor.execute(
-                        "INSERT INTO tipping (username, amount, message, source) VALUES (%s, %s, %s, %s)",
-                        (user, amount, tip_message, source)
-                    )
+                    # For StreamElements, store additional data
+                    if source == "StreamElements":
+                        await cursor.execute(
+                            "INSERT INTO tipping (username, amount, message, source, tip_id, currency, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                            (user, amount, tip_message or '', source, tip_id, currency, created_at)
+                        )
+                    else:
+                        # For other sources, use the basic format
+                        await cursor.execute(
+                            "INSERT INTO tipping (username, amount, message, source) VALUES (%s, %s, %s, %s)",
+                            (user, amount, tip_message or '', source)
+                        )
                     await connection.commit()
             except MySQLError as err:
-                event_logger.error(f"Database error: {err}")
+                event_logger.error(f"Database error saving tip: {err}")
             finally:
                 await connection.ensure_closed()
     except Exception as e:
