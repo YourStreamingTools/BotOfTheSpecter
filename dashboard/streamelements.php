@@ -571,10 +571,6 @@ ob_start();
                                         </tbody>
                                     </table>
                                 </div>
-                                <p class="help has-text-grey-light mt-3">
-                                    <i class="fas fa-info-circle has-text-info mr-1"></i>
-                                    Showing the last 10 tips received through StreamElements.
-                                </p>
                             </div>
                             </div>
                         </div>
