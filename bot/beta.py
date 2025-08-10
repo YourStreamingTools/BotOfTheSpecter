@@ -201,6 +201,7 @@ message_tasks = {}                                      # Dictionary to track in
 
 # Initialize global variables
 specterSocket = AsyncClient()                           # Specter Socket Client instance
+streamelements_socket = AsyncClient()                   # StreamElements Socket Client instance
 bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
 SPOTIFY_REFRESH_TOKEN = None                            # Spotify API refresh token 
@@ -212,6 +213,8 @@ TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
 websocket_connected = False                             # Whether the websocket is currently connected
 bot_owner = "gfaundead"                                 # Bot owner's username
+streamelements_token = None                             # StreamElements OAuth2 access token
+streamlabs_token = None                                 # StreamLabs access token
 
 SPOTIFY_ERROR_MESSAGES = {
     400: "It looks like something went wrong with the request. Please try again.",
@@ -620,58 +623,164 @@ async def connect_to_tipping_services():
     connection = await mysql_connection(db_name="website")
     try:
         async with connection.cursor(DictCursor) as cursor:
+            # Fetch StreamElements token
             await cursor.execute("SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
             se_result = await cursor.fetchone()
             if se_result:
                 streamelements_token = se_result.get('access_token')
+                event_logger.info("StreamElements token retrieved from database")
+            else:
+                event_logger.info("No StreamElements token found for this channel")
+            # Fetch StreamLabs token  
             await cursor.execute("SELECT access_token FROM streamlabs_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
             sl_result = await cursor.fetchone()
             if sl_result:
                 streamlabs_token = sl_result.get('access_token')
+                event_logger.info("StreamLabs token retrieved from database")
+            else:
+                event_logger.info("No StreamLabs token found for this channel")
+            # Start connection tasks
             tasks = []
             if streamelements_token:
-                tasks.append(connect_to_streamelements())
+                tasks.append(streamelements_connection_manager())
             if streamlabs_token:
                 tasks.append(connect_to_streamlabs())
             if tasks:
                 await gather(*tasks)
             else:
-                event_logger.error("No valid token found for either StreamElements or StreamLabs.")
+                event_logger.warning("No valid tokens found for either StreamElements or StreamLabs.")
     except MySQLError as err:
-        event_logger.error(f"Database error: {err}")
+        event_logger.error(f"Database error while fetching tipping service tokens: {err}")
     finally:
         await connection.ensure_closed()
 
+async def refresh_streamelements_token():
+    global CHANNEL_ID, streamelements_token
+    try:
+        connection = await mysql_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
+            se_result = await cursor.fetchone()
+            if se_result:
+                new_token = se_result.get('access_token')
+                if new_token != streamelements_token:
+                    event_logger.info("StreamElements token updated from database")
+                    streamelements_token = new_token
+                else:
+                    event_logger.info("StreamElements token refreshed (same as previous)")
+                return True
+            else:
+                event_logger.warning("No StreamElements token found in database during refresh")
+                streamelements_token = None
+                return False
+        await connection.ensure_closed()
+    except Exception as e:
+        event_logger.error(f"Failed to refresh StreamElements token: {e}")
+        return False
+
+async def streamelements_connection_manager():
+    global streamelements_token
+    max_retries = 5
+    base_delay = 1  # Start with 1 second delay
+    max_delay = 60  # Maximum delay of 60 seconds
+    long_delay = 300  # 5 minutes for extended failures
+    while True:  # Keep trying indefinitely
+        for attempt in range(max_retries):
+            try:
+                # On reconnection attempts (not first attempt), refresh the token
+                if attempt > 0:
+                    event_logger.info("Refreshing StreamElements token before reconnection attempt")
+                    token_refreshed = await refresh_streamelements_token()
+                    if not token_refreshed:
+                        event_logger.error("Could not refresh StreamElements token, skipping connection attempt")
+                        break
+                event_logger.info(f"Attempting to connect to StreamElements (attempt {attempt + 1}/{max_retries})")
+                await connect_to_streamelements()
+                # If we get here, connection was successful and maintained
+                event_logger.info("StreamElements connection maintained successfully")
+                return  # Exit the function if connection is successful and stays connected
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    # Calculate delay with exponential backoff
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    event_logger.warning(f"StreamElements connection failed: {e}. Retrying in {delay} seconds...")
+                    await sleep(delay)
+                else:
+                    event_logger.error(f"Failed to connect to StreamElements after {max_retries} attempts: {e}")
+        # If we've exhausted all retries, wait longer before trying the whole cycle again
+        event_logger.info(f"StreamElements connection cycle completed. Waiting {long_delay} seconds before retrying...")
+        await sleep(long_delay)
+
 async def connect_to_streamelements():
     global streamelements_token
-    uri = "wss://astro.streamelements.com"
+    uri = "https://realtime.streamelements.com"
+    # Check if we have a valid token
+    if not streamelements_token:
+        event_logger.warning("No StreamElements token available, skipping connection")
+        return
     try:
-        async with WebSocketConnect(uri) as streamelements_websocket:
-            # Send the authentication message
-            nonce = str(uuid.uuid4())
-            auth_message = {
-                'type': 'subscribe',
-                'nonce': nonce,
-                'data': {
-                    'topic': 'channel.activities',
-                    'token': streamelements_token,
-                    'token_type': 'jwt'
-                }
-            }
-            await streamelements_websocket.send(json.dumps(auth_message))
-            sanitized_auth_message = auth_message.copy()
-            sanitized_auth_message['data']['token'] = "[REDACTED]"
-            event_logger.info(f"Sent auth message: {sanitized_auth_message}")
-            # Listen for messages
-            while True:
-                message = await streamelements_websocket.recv()
-                sanitized_message = message.replace(streamelements_token, "[REDACTED]")
-                event_logger.info(f"StreamElements Message: {sanitized_message}")
-                await process_message(message, "StreamElements")
-    except WebSocketConnectionClosed as e:
-        event_logger.error(f"StreamElements WebSocket connection closed: {e}")
+        @streamelements_socket.event
+        async def connect():
+            event_logger.info("Successfully connected to StreamElements websocket")
+            # Authenticate using OAuth2 token (following StreamElements example)
+            await streamelements_socket.emit('authenticate', {'method': 'oauth2', 'token': streamelements_token})
+        @streamelements_socket.event
+        async def disconnect():
+            event_logger.warning("Disconnected from StreamElements websocket - will attempt reconnection with fresh token")
+            # Disconnect detected - the connection manager will handle reconnection with token refresh
+        @streamelements_socket.event
+        async def authenticated(data):
+            channel_id = data.get('channelId')
+            event_logger.info(f"Successfully authenticated to StreamElements channel {channel_id}")
+        @streamelements_socket.event
+        async def unauthorized(data):
+            event_logger.error(f"StreamElements authentication failed: {data}")
+            # Token might be expired or invalid - trigger disconnection so reconnection manager can refresh token
+            event_logger.warning("Authentication failed, disconnecting to trigger token refresh and reconnection")
+            await streamelements_socket.disconnect()
+        @streamelements_socket.event
+        async def event(data):
+            # Main event handler for live events (tips, follows, etc.)
+            try:
+                sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
+                event_logger.info(f"StreamElements Event: {sanitized_data}")
+                await process_tipping_message(data, "StreamElements")
+            except Exception as e:
+                event_logger.error(f"Error processing StreamElements event: {e}")
+        @streamelements_socket.event
+        async def event_test(data):
+            # Test event handler for testing purposes
+            try:
+                sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
+                event_logger.info(f"StreamElements Test Event: {sanitized_data}")
+            except Exception as e:
+                event_logger.error(f"Error processing StreamElements test event: {e}")
+        @streamelements_socket.event
+        async def event_update(data):
+            # Session update events
+            try:
+                sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
+                event_logger.info(f"StreamElements Update Event: {sanitized_data}")
+            except Exception as e:
+                event_logger.error(f"Error processing StreamElements update event: {e}")
+        @streamelements_socket.event
+        async def event_reset(data):
+            # Session reset events
+            try:
+                sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
+                event_logger.info(f"StreamElements Reset Event: {sanitized_data}")
+            except Exception as e:
+                event_logger.error(f"Error processing StreamElements reset event: {e}")
+        # Connect to StreamElements with websocket transport only (as per example)
+        await streamelements_socket.connect(uri, transports=['websocket'])
+        await streamelements_socket.wait()
+    except ConnectionExecptionError as e:
+        event_logger.error(f"StreamElements WebSocket connection error: {e}")
+        # Should attempt reconnection with backoff
+        raise
     except Exception as e:
         event_logger.error(f"StreamElements WebSocket error: {e}")
+        raise
 
 async def connect_to_streamlabs():
     global streamlabs_token
