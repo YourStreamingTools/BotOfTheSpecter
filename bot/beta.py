@@ -424,7 +424,7 @@ async def twitch_eventsub():
                 if eventsub_welcome_data.get('metadata', {}).get('message_type') == 'session_welcome':
                     session_id = eventsub_welcome_data['payload']['session']['id']
                     keepalive_timeout = eventsub_welcome_data['payload']['session']['keepalive_timeout_seconds']
-                    event_logger.info(f"Connected with session ID: {session_id}")
+                    event_logger.info(f"Twitch WS Connected with session ID: {session_id}")
                     event_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
                     # Subscribe to the events using the session ID and auth token
                     await subscribe_to_events(session_id)
@@ -616,26 +616,27 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
             break  # Exit the loop on critical error
 
 async def connect_to_tipping_services():
-    global streamelements_token, streamlabs_token
-    connection = await mysql_connection()
+    global CHANNEL_ID, streamelements_token, streamlabs_token
+    connection = await mysql_connection(db_name="website")
     try:
         async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT StreamElements, StreamLabs FROM tipping_settings LIMIT 1")
-            result = await cursor.fetchone()
-            if result:
-                streamelements_token = result.get('StreamElements')
-                streamlabs_token = result.get('StreamLabs')
-                tasks = []
-                if streamelements_token:
-                    tasks.append(connect_to_streamelements())
-                if streamlabs_token:
-                    tasks.append(connect_to_streamlabs())
-                if tasks:
-                    await gather(*tasks)
-                else:
-                    event_logger.error("No valid token found for either StreamElements or StreamLabs.")
+            await cursor.execute("SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
+            se_result = await cursor.fetchone()
+            if se_result:
+                streamelements_token = se_result.get('access_token')
+            await cursor.execute("SELECT access_token FROM streamlabs_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
+            sl_result = await cursor.fetchone()
+            if sl_result:
+                streamlabs_token = sl_result.get('access_token')
+            tasks = []
+            if streamelements_token:
+                tasks.append(connect_to_streamelements())
+            if streamlabs_token:
+                tasks.append(connect_to_streamlabs())
+            if tasks:
+                await gather(*tasks)
             else:
-                event_logger.error("No tipping settings found in the database.")
+                event_logger.error("No valid token found for either StreamElements or StreamLabs.")
     except MySQLError as err:
         event_logger.error(f"Database error: {err}")
     finally:
