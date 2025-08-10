@@ -1388,6 +1388,7 @@ class TwitchBot(commands.Bot):
                 if messageContent.startswith('!'):
                     command_parts = messageContent.split()
                     command = command_parts[0][1:]  # Extract the command without '!'
+                    arg = command_parts[1] if len(command_parts) > 1 else None
                     if command in builtin_commands or command in mod_commands or command in builtin_aliases:
                         chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
                         return  # It's a built-in command or alias, do nothing more
@@ -1429,7 +1430,10 @@ class TwitchBot(commands.Bot):
                                 # Handle (count)
                                 if '(count)' in response:
                                     try:
-                                        await update_custom_count(command)
+                                        if arg is None:
+                                            await update_custom_count(command, "1")
+                                        else:
+                                            await update_custom_count(command, arg)
                                         get_count = await get_custom_count(command)
                                         response = response.replace('(count)', str(get_count))
                                     except Exception as e:
@@ -5649,7 +5653,8 @@ async def fetch_api_response(url, json_flag=False):
         return f"Exception Error: {str(e)}"
 
 # Function to update custom counts
-async def update_custom_count(command):
+async def update_custom_count(command, count):
+    count = int(count)
     connection = await mysql_connection()
     try:
         async with connection.cursor(DictCursor) as cursor:
@@ -5657,12 +5662,12 @@ async def update_custom_count(command):
             result = await cursor.fetchone()
             if result:
                 current_count = result.get("count")
-                new_count = current_count + 1
+                new_count = current_count + count
                 await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
                 chat_logger.info(f"Updated count for command '{command}' to {new_count}.")
             else:
-                await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (command, 1))
-                chat_logger.info(f"Inserted new command '{command}' with count 1.")
+                await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (command, count))
+                chat_logger.info(f"Inserted new command '{command}' with count {count}.")
         await connection.commit()
     except Exception as e:
         chat_logger.error(f"Error updating count for command '{command}': {e}")
