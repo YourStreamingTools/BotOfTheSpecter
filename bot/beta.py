@@ -1600,8 +1600,9 @@ class TwitchBot(commands.Bot):
                                         chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
                                         await channel.send(f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
                                         return
-                                command_last_used[command] = time_right_now()
-                                await channel.send(response)
+                                if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", messageAuthor):
+                                    command_last_used[command] = time_right_now()
+                                    await channel.send(response)
                         else:
                             chat_logger.info(f"Custom command '{command}' not found.")
                 # Handle AI responses
