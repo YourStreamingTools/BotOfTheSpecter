@@ -27,12 +27,13 @@ date_default_timezone_set($timezone);
 
 if ($twitchUserId) {
     // Check if StreamElements is already linked for this user and fetch token
-    $stmt = $conn->prepare("SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = ?");
+    $stmt = $conn->prepare("SELECT access_token, jwt_token FROM streamelements_tokens WHERE twitch_user_id = ?");
     $stmt->bind_param("s", $twitchUserId);
     $stmt->execute();
     $result = $stmt->get_result();
     if ($result && $row = $result->fetch_assoc()) {
         $access_token = $row['access_token'];
+        $stored_jwt_token = $row['jwt_token'] ?? null;
         // Validate the token
         $validate_url = "https://api.streamelements.com/oauth2/validate";
         $ch = curl_init($validate_url);
@@ -69,6 +70,51 @@ if ($twitchUserId) {
             curl_close($ch);
             $profile_data = json_decode($profile_response, true);
             $apiToken = $profile_data['apiToken'] ?? null;
+            // Fetch StreamElements current user to get JWT token and channel ID
+            $current_user_url = "https://api.streamelements.com/kappa/v2/users/current";
+            $ch = curl_init($current_user_url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                "Accept: application/json; charset=utf-8",
+                "Authorization: Bearer {$access_token}"
+            ]);
+            $current_user_response = curl_exec($ch);
+            $current_user_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            $jwtToken = null;
+            $channelId = null;
+            if ($current_user_code === 200) {
+                $current_user_data = json_decode($current_user_response, true);
+                if (isset($current_user_data['channels']) && is_array($current_user_data['channels'])) {
+                    // Find the primary channel or first channel
+                    foreach ($current_user_data['channels'] as $channel) {
+                        // Get channel ID
+                        if (isset($channel['_id'])) {
+                            $channelId = $channel['_id'];
+                        }
+                        // Get JWT token if available
+                        if (!$stored_jwt_token && isset($channel['lastJWTToken']) && !empty($channel['lastJWTToken'])) {
+                            $jwtToken = $channel['lastJWTToken'];
+                        }
+                        // Break after first channel (usually the primary one)
+                        if ($channelId) {
+                            break;
+                        }
+                    }
+                }
+                // Store channel ID in session for other API calls
+                if ($channelId) {
+                    $_SESSION['streamelements_channel_id'] = $channelId;
+                }
+                // Update the database with the JWT token if found and not already stored
+                if ($jwtToken && !$stored_jwt_token) {
+                    $update_jwt_stmt = $conn->prepare("UPDATE streamelements_tokens SET jwt_token = ? WHERE twitch_user_id = ?");
+                    $update_jwt_stmt->bind_param("ss", $jwtToken, $twitchUserId);
+                    $update_jwt_stmt->execute();
+                    $update_jwt_stmt->close();
+                    $stored_jwt_token = $jwtToken;
+                }
+            }
             // Get createdAt and format as readable date
             $createdAt = $profile_data['createdAt'] ?? null;
             $createdAtFormatted = '';
@@ -139,11 +185,58 @@ if (isset($_GET['code'])) {
             $validate_data = json_decode($validate_response, true);
             if ($validate_code === 200 && isset($validate_data['channel_id'])) {
                 $_SESSION['streamelements_token'] = $access_token;
+                // Fetch StreamElements current user to get JWT token
+                $current_user_url = "https://api.streamelements.com/kappa/v2/users/current";
+                $ch = curl_init($current_user_url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    "Accept: application/json; charset=utf-8",
+                    "Authorization: Bearer {$access_token}"
+                ]);
+                $current_user_response = curl_exec($ch);
+                $current_user_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                $jwtToken = null;
+                $channelId = null;
+                if ($current_user_code === 200) {
+                    $current_user_data = json_decode($current_user_response, true);
+                    if (isset($current_user_data['channels']) && is_array($current_user_data['channels'])) {
+                        // Find the primary channel or first channel
+                        foreach ($current_user_data['channels'] as $channel) {
+                            // Get channel ID
+                            if (isset($channel['_id'])) {
+                                $channelId = $channel['_id'];
+                            }
+                            // Get JWT token if available
+                            if (isset($channel['lastJWTToken']) && !empty($channel['lastJWTToken'])) {
+                                $jwtToken = $channel['lastJWTToken'];
+                            }
+                            // Break after first channel (usually the primary one)
+                            if ($channelId) {
+                                break;
+                            }
+                        }
+                    }
+                    // Store channel ID in session for other API calls
+                    if ($channelId) {
+                        $_SESSION['streamelements_channel_id'] = $channelId;
+                    }
+                }
                 if (isset($_SESSION['twitchUserId']) && $refresh_token) {
                     $twitchUserId = $_SESSION['twitchUserId'];
-                    $query = "INSERT INTO streamelements_tokens (twitch_user_id, access_token, refresh_token) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE access_token = VALUES(access_token), refresh_token = VALUES(refresh_token)";
-                    if ($stmt = $conn->prepare($query)) {
-                        $stmt->bind_param('sss', $twitchUserId, $access_token, $refresh_token);
+                    // Prepare the query with JWT token support
+                    if ($jwtToken) {
+                        $query = "INSERT INTO streamelements_tokens (twitch_user_id, access_token, refresh_token, jwt_token) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE access_token = VALUES(access_token), refresh_token = VALUES(refresh_token), jwt_token = VALUES(jwt_token)";
+                        if ($stmt = $conn->prepare($query)) {
+                            $stmt->bind_param('ssss', $twitchUserId, $access_token, $refresh_token, $jwtToken);
+                        }
+                    } else {
+                        $query = "INSERT INTO streamelements_tokens (twitch_user_id, access_token, refresh_token) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE access_token = VALUES(access_token), refresh_token = VALUES(refresh_token)";
+                        if ($stmt = $conn->prepare($query)) {
+                            $stmt->bind_param('sss', $twitchUserId, $access_token, $refresh_token);
+                        }
+                    }
+                    if ($stmt) {
                         if ($stmt->execute()) {
                             $linkingMessage = "StreamElements account successfully linked!";
                             $linkingMessageType = "is-success";
@@ -195,6 +288,56 @@ if (!$isLinked) {
         . "&scope=" . urlencode($scope)
         . "&state={$state}"
         . "&redirect_uri=" . $redirect_uri;
+}
+
+// Fetch recent tips if user is linked and we have access token
+$recentTips = [];
+if ($isLinked && isset($access_token)) {
+    $channelId = $_SESSION['streamelements_channel_id'] ?? null;
+    // If we don't have channel ID in session, fetch it
+    if (!$channelId) {
+        $current_user_url = "https://api.streamelements.com/kappa/v2/users/current";
+        $ch = curl_init($current_user_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Accept: application/json; charset=utf-8",
+            "Authorization: Bearer {$access_token}"
+        ]);
+        $current_user_response = curl_exec($ch);
+        $current_user_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($current_user_code === 200) {
+            $current_user_data = json_decode($current_user_response, true);
+            if (isset($current_user_data['channels']) && is_array($current_user_data['channels'])) {
+                foreach ($current_user_data['channels'] as $channel) {
+                    if (isset($channel['_id'])) {
+                        $channelId = $channel['_id'];
+                        $_SESSION['streamelements_channel_id'] = $channelId;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    // Fetch tips if we have channel ID
+    if ($channelId) {
+        $tips_url = "https://api.streamelements.com/kappa/v2/tips/{$channelId}";
+        $ch = curl_init($tips_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Accept: application/json; charset=utf-8, application/json",
+            "Authorization: Bearer {$access_token}"
+        ]);
+        $tips_response = curl_exec($ch);
+        $tips_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($tips_code === 200) {
+            $tips_data = json_decode($tips_response, true);
+            if (isset($tips_data['docs']) && is_array($tips_data['docs'])) {
+                $recentTips = array_slice($tips_data['docs'], 0, 10); // Get last 10 tips
+            }
+        }
+    }
 }
 
 ob_start();
@@ -274,35 +417,151 @@ ob_start();
                             </div>
                         <?php endif; ?>
                     </div>
-                    <!-- API Token section -->
-                    <?php if ($apiToken): ?>
-                        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; min-width: 650px; margin: 0 auto;">
-                            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                                    <span class="icon mr-2 has-text-warning"><i class="fas fa-key"></i></span>
-                                    API Token
-                                </p>
-                            </header>
-                            <div class="card-content" style="padding: 2rem 4rem;">
-                                <div class="field">
-                                    <label class="label has-text-white mb-3" style="font-weight: 500;">StreamElements API Token</label>
-                                    <div class="field has-addons">
-                                        <div class="control is-expanded">
-                                            <input class="input" type="text" id="apiTokenDisplay" value="<?php echo str_repeat('•', strlen($apiToken)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 0.9rem; letter-spacing: 1px;">
-                                        </div>
-                                        <div class="control">
-                                            <button id="showApiTokenBtn" class="button is-warning" style="border-radius: 0 6px 6px 0; font-weight: 600;" title="Show API Token">
-                                                <span class="icon">
-                                                    <i id="apiTokenEye" class="fa-solid fa-eye"></i>
-                                                </span>
-                                            </button>
+                    <!-- Tokens section - Side by side layout -->
+                    <?php if ($apiToken || $stored_jwt_token): ?>
+                        <div class="columns is-variable is-4" style="margin: 0 auto; max-width: 1200px;">
+                            <!-- API Token column -->
+                            <?php if ($apiToken): ?>
+                                <div class="column is-6">
+                                    <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; height: 100%;">
+                                        <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                                            <p class="card-header-title has-text-white" style="font-weight: 600;">
+                                                <span class="icon mr-2 has-text-warning"><i class="fas fa-key"></i></span>
+                                                API Token
+                                            </p>
+                                        </header>
+                                        <div class="card-content" style="padding: 1.5rem;">
+                                            <div class="field">
+                                                <label class="label has-text-white mb-3" style="font-weight: 500;">StreamElements API Token</label>
+                                                <div class="field has-addons">
+                                                    <div class="control is-expanded">
+                                                        <input class="input" type="text" id="apiTokenDisplay" value="<?php echo str_repeat('•', strlen($apiToken)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 0.9rem; letter-spacing: 1px;">
+                                                    </div>
+                                                    <div class="control">
+                                                        <button id="showApiTokenBtn" class="button is-warning" style="border-radius: 0 6px 6px 0; font-weight: 600;" title="Show API Token">
+                                                            <span class="icon">
+                                                                <i id="apiTokenEye" class="fa-solid fa-eye"></i>
+                                                            </span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <p class="help has-text-grey-light mt-3">
+                                                    <i class="fas fa-exclamation-triangle has-text-warning mr-1"></i>
+                                                    Keep this token secure and never share it publicly.
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
-                                    <p class="help has-text-grey-light mt-3">
-                                        <i class="fas fa-exclamation-triangle has-text-warning mr-1"></i>
-                                        Keep this token secure and never share it publicly.
-                                    </p>
                                 </div>
+                            <?php endif; ?>
+                            
+                            <!-- JWT Token column -->
+                            <?php if ($stored_jwt_token): ?>
+                                <div class="column <?php echo $apiToken ? 'is-6' : 'is-6 is-offset-3'; ?>">
+                                    <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; height: 100%;">
+                                        <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                                            <p class="card-header-title has-text-white" style="font-weight: 600;">
+                                                <span class="icon mr-2 has-text-info"><i class="fas fa-shield-alt"></i></span>
+                                                JWT Token
+                                            </p>
+                                        </header>
+                                        <div class="card-content" style="padding: 1.5rem;">
+                                            <div class="field">
+                                                <label class="label has-text-white mb-3" style="font-weight: 500;">StreamElements JWT Token</label>
+                                                <div class="field has-addons">
+                                                    <div class="control is-expanded">
+                                                        <input class="input" type="text" id="jwtTokenDisplay" value="<?php echo str_repeat('•', strlen($stored_jwt_token)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 0.9rem; letter-spacing: 1px;">
+                                                    </div>
+                                                    <div class="control">
+                                                        <button id="showJwtTokenBtn" class="button is-info" style="border-radius: 0 6px 6px 0; font-weight: 600;" title="Show JWT Token">
+                                                            <span class="icon">
+                                                                <i id="jwtTokenEye" class="fa-solid fa-eye"></i>
+                                                            </span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <p class="help has-text-grey-light mt-3">
+                                                    <i class="fas fa-exclamation-triangle has-text-warning mr-1"></i>
+                                                    This JWT token is used for WebSocket connections and real-time features.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                    <!-- Recent Tips section -->
+                    <?php if (!empty($recentTips)): ?>
+                        <div style="margin: 2rem auto 0; max-width: 1200px;">
+                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                                    <p class="card-header-title has-text-white" style="font-weight: 600;">
+                                        <span class="icon mr-2 has-text-success"><i class="fas fa-dollar-sign"></i></span>
+                                        Recent Tips
+                                    </p>
+                                </header>
+                            <div class="card-content" style="padding: 1.5rem;">
+                                <div class="table-container">
+                                    <table class="table is-fullwidth is-hoverable has-background-grey-darker" style="background-color: #363636;">
+                                        <thead>
+                                            <tr style="background-color: #2c2c2c;">
+                                                <th class="has-text-white" style="border-color: #5a5a5a;">Tipper</th>
+                                                <th class="has-text-white" style="border-color: #5a5a5a;">Amount</th>
+                                                <th class="has-text-white" style="border-color: #5a5a5a;">Message</th>
+                                                <th class="has-text-white" style="border-color: #5a5a5a;">Provider</th>
+                                                <th class="has-text-white" style="border-color: #5a5a5a;">Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($recentTips as $tip): ?>
+                                                <tr style="background-color: #363636;">
+                                                    <td class="has-text-white" style="border-color: #5a5a5a;">
+                                                        <?php echo htmlspecialchars($tip['donation']['user']['username'] ?? 'Anonymous'); ?>
+                                                    </td>
+                                                    <td class="has-text-white" style="border-color: #5a5a5a;">
+                                                        <span class="tag is-success is-light">
+                                                            <?php 
+                                                            $amount = $tip['donation']['amount'] ?? 0;
+                                                            $currency = $tip['donation']['currency'] ?? 'USD';
+                                                            echo htmlspecialchars($currency . ' ' . number_format($amount / 100, 2)); 
+                                                            ?>
+                                                        </span>
+                                                    </td>
+                                                    <td class="has-text-white" style="border-color: #5a5a5a; max-width: 200px; word-wrap: break-word;">
+                                                        <?php 
+                                                        $message = $tip['donation']['message'] ?? '';
+                                                        echo htmlspecialchars(strlen($message) > 50 ? substr($message, 0, 50) . '...' : $message); 
+                                                        ?>
+                                                    </td>
+                                                    <td class="has-text-white" style="border-color: #5a5a5a;">
+                                                        <span class="tag is-info is-light">
+                                                            <?php echo htmlspecialchars(ucfirst($tip['provider'] ?? 'Unknown')); ?>
+                                                        </span>
+                                                    </td>
+                                                    <td class="has-text-white" style="border-color: #5a5a5a;">
+                                                        <?php 
+                                                        if (isset($tip['createdAt'])) {
+                                                            try {
+                                                                $dt = new DateTime($tip['createdAt']);
+                                                                echo $dt->format('M j, Y g:i A');
+                                                            } catch (Exception $e) {
+                                                                echo htmlspecialchars($tip['createdAt']);
+                                                            }
+                                                        } else {
+                                                            echo 'Unknown';
+                                                        }
+                                                        ?>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p class="help has-text-grey-light mt-3">
+                                    <i class="fas fa-info-circle has-text-info mr-1"></i>
+                                    Showing the last 10 tips received through StreamElements.
+                                </p>
                             </div>
                         </div>
                     <?php endif; ?>
@@ -338,14 +597,24 @@ ob_start();
 <?php
 $content = ob_get_clean();
 
-if ($isLinked && isset($apiToken)):
+if ($isLinked && (isset($apiToken) || isset($stored_jwt_token))):
 ob_start();
 ?>
 <script>
+<?php if (isset($apiToken)): ?>
 const apiToken = "<?php echo addslashes($apiToken) ?>";
 const apiTokenDotCount = <?php echo (int)strlen($apiToken); ?>;
 let apiTokenVisible = false;
+<?php endif; ?>
+
+<?php if (isset($stored_jwt_token)): ?>
+const jwtToken = "<?php echo addslashes($stored_jwt_token) ?>";
+const jwtTokenDotCount = <?php echo (int)strlen($stored_jwt_token); ?>;
+let jwtTokenVisible = false;
+<?php endif; ?>
+
 document.addEventListener('DOMContentLoaded', function() {
+    <?php if (isset($apiToken)): ?>
     const apiBtn = document.getElementById('showApiTokenBtn');
     const apiEye = document.getElementById('apiTokenEye');
     const apiDisplay = document.getElementById('apiTokenDisplay');
@@ -383,6 +652,47 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    <?php endif; ?>
+    
+    <?php if (isset($stored_jwt_token)): ?>
+    const jwtBtn = document.getElementById('showJwtTokenBtn');
+    const jwtEye = document.getElementById('jwtTokenEye');
+    const jwtDisplay = document.getElementById('jwtTokenDisplay');
+    if (jwtBtn && jwtEye && jwtDisplay) {
+        jwtBtn.addEventListener('click', function() {
+            if (!jwtTokenVisible) {
+                Swal.fire({
+                    title: 'Reveal JWT Token?',
+                    text: 'Are you sure you want to show your JWT Token? Keep it secret!',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Show',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#3273dc',
+                    cancelButtonColor: '#6c757d'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        jwtDisplay.value = jwtToken;
+                        jwtEye.classList.remove('fa-eye');
+                        jwtEye.classList.add('fa-eye-slash');
+                        jwtBtn.title = "Hide JWT Token";
+                        jwtBtn.classList.remove('is-info');
+                        jwtBtn.classList.add('is-danger');
+                        jwtTokenVisible = true;
+                    }
+                });
+            } else {
+                jwtDisplay.value = '•'.repeat(jwtTokenDotCount);
+                jwtEye.classList.remove('fa-eye-slash');
+                jwtEye.classList.add('fa-eye');
+                jwtBtn.title = "Show JWT Token";
+                jwtBtn.classList.remove('is-danger');
+                jwtBtn.classList.add('is-info');
+                jwtTokenVisible = false;
+            }
+        });
+    }
+    <?php endif; ?>
 });
 </script>
 <?php
