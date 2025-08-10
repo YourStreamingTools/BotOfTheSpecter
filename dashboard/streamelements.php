@@ -323,7 +323,7 @@ if ($isLinked && isset($stored_jwt_token) && !empty($stored_jwt_token)) {
     }
     // Fetch tips if we have channel ID
     if ($channelId) {
-        $tips_url = "https://api.streamelements.com/kappa/v2/tips/{$channelId}";
+        $tips_url = "https://api.streamelements.com/kappa/v2/tips/{$channelId}?limit=100";
         $ch = curl_init($tips_url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -336,7 +336,7 @@ if ($isLinked && isset($stored_jwt_token) && !empty($stored_jwt_token)) {
         if ($tips_code === 200) {
             $tips_data = json_decode($tips_response, true);
             if (isset($tips_data['docs']) && is_array($tips_data['docs'])) {
-                $recentTips = array_slice($tips_data['docs'], 0, 10); // Get last 10 tips
+                $recentTips = $tips_data['docs']; // Get all tips from API response
             }
         }
     }
