@@ -292,6 +292,7 @@ if (!$isLinked) {
 
 // Fetch recent tips if user is linked and we have access token
 $recentTips = [];
+$tips_code = null; // Initialize to track the API response code
 if ($isLinked && isset($access_token)) {
     $channelId = $_SESSION['streamelements_channel_id'] ?? null;
     // If we don't have channel ID in session, fetch it
@@ -419,7 +420,7 @@ ob_start();
                     </div>
                     <!-- Tokens section - Side by side layout -->
                     <?php if ($apiToken || $stored_jwt_token): ?>
-                        <div class="columns is-variable is-4" style="margin: 0 auto; max-width: 1200px;">
+                        <div class="columns is-variable is-4" style="margin: 0 auto; max-width: 2000px;">
                             <!-- API Token column -->
                             <?php if ($apiToken): ?>
                                 <div class="column is-6">
@@ -435,7 +436,7 @@ ob_start();
                                                 <label class="label has-text-white mb-3" style="font-weight: 500;">StreamElements API Token</label>
                                                 <div class="field has-addons">
                                                     <div class="control is-expanded">
-                                                        <input class="input" type="text" id="apiTokenDisplay" value="<?php echo str_repeat('•', strlen($apiToken)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 0.9rem; letter-spacing: 1px;">
+                                                        <input class="input" type="text" id="apiTokenDisplay" value="<?php echo str_repeat('•', strlen($apiToken)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 1rem; letter-spacing: 1.5px; min-width: 300px;">
                                                     </div>
                                                     <div class="control">
                                                         <button id="showApiTokenBtn" class="button is-warning" style="border-radius: 0 6px 6px 0; font-weight: 600;" title="Show API Token">
@@ -470,7 +471,7 @@ ob_start();
                                                 <label class="label has-text-white mb-3" style="font-weight: 500;">StreamElements JWT Token</label>
                                                 <div class="field has-addons">
                                                     <div class="control is-expanded">
-                                                        <input class="input" type="text" id="jwtTokenDisplay" value="<?php echo str_repeat('•', strlen($stored_jwt_token)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 0.9rem; letter-spacing: 1px;">
+                                                        <input class="input" type="text" id="jwtTokenDisplay" value="<?php echo str_repeat('•', strlen($stored_jwt_token)); ?>" readonly style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px 0 0 6px; font-family: monospace; font-size: 1rem; letter-spacing: 1.5px; min-width: 300px;">
                                                     </div>
                                                     <div class="control">
                                                         <button id="showJwtTokenBtn" class="button is-info" style="border-radius: 0 6px 6px 0; font-weight: 600;" title="Show JWT Token">
@@ -493,12 +494,12 @@ ob_start();
                     <?php endif; ?>
                     <!-- Recent Tips section -->
                     <?php if (!empty($recentTips)): ?>
-                        <div style="margin: 2rem auto 0; max-width: 1200px;">
+                        <div style="margin: 2rem auto 0; max-width: 2000px;">
                             <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
                                 <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                                     <p class="card-header-title has-text-white" style="font-weight: 600;">
                                         <span class="icon mr-2 has-text-success"><i class="fas fa-dollar-sign"></i></span>
-                                        Recent Tips
+                                        Recent Tips (<?php echo count($recentTips); ?>)
                                     </p>
                                 </header>
                             <div class="card-content" style="padding: 1.5rem;">
@@ -563,7 +564,43 @@ ob_start();
                                     Showing the last 10 tips received through StreamElements.
                                 </p>
                             </div>
+                            </div>
                         </div>
+                    <?php endif; ?>
+                    <!-- Debug section for tips -->
+                    <?php if ($isLinked && isset($access_token)): ?>
+                        <?php if (empty($recentTips)): ?>
+                            <div style="margin: 2rem auto 0; max-width: 1600px;">
+                                <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                                    <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                                        <p class="card-header-title has-text-white" style="font-weight: 600;">
+                                            <span class="icon mr-2 has-text-info"><i class="fas fa-info-circle"></i></span>
+                                            Tips Status
+                                        </p>
+                                    </header>
+                                    <div class="card-content" style="padding: 1.5rem;">
+                                        <div class="notification is-info is-light">
+                                            <p><strong>No recent tips found.</strong></p>
+                                            <?php if (isset($_SESSION['streamelements_channel_id'])): ?>
+                                                <p><strong>Channel ID:</strong> <?php echo htmlspecialchars($_SESSION['streamelements_channel_id']); ?></p>
+                                                <p>Channel ID is available and we're checking for tips.</p>
+                                                <?php if (isset($tips_code)): ?>
+                                                    <p><strong>Tips API Response Code:</strong> <?php echo $tips_code; ?></p>
+                                                    <?php if ($tips_code !== 200): ?>
+                                                        <p class="has-text-danger">Tips API call failed (HTTP <?php echo $tips_code; ?>)</p>
+                                                    <?php else: ?>
+                                                        <p>Tips API call successful, but no tips found.</p>
+                                                    <?php endif; ?>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <p class="has-text-warning">Channel ID not available - this might be why tips aren't loading.</p>
+                                                <p>The current user API call may have failed or returned no channels.</p>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 <?php else: ?>
                     <!-- Not linked display -->
