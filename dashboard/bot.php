@@ -93,6 +93,47 @@ function checkSSHFileStatus($username) {
     }
 }
 
+function checkTwitchStreamStatus($twitchUserId, $authToken, $clientID) {
+  // Check if we have the required parameters
+  if (empty($twitchUserId) || empty($authToken) || empty($clientID)) {
+    error_log("Twitch API check failed: Missing required parameters");
+    return null;
+  }
+  try {
+    $url = "https://api.twitch.tv/helix/streams?user_id=" . urlencode($twitchUserId);
+    $headers = [
+      'Authorization: Bearer ' . $authToken,
+      'Client-ID: ' . $clientID
+    ];
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3); // 3 second connection timeout
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($response === false || $httpCode !== 200) {
+      error_log("Twitch API request failed. HTTP Code: $httpCode");
+      return null;
+    }
+    $data = json_decode($response, true);
+    if (!isset($data['data'])) {
+      error_log("Twitch API response missing data field");
+      return null;
+    }
+    // If the data array has content, the stream is live
+    // If the data array is empty, the stream is offline (but we won't use this for offline determination)
+    if (!empty($data['data'])) {
+      return 'True'; // Stream is definitively online according to Twitch
+    }
+    return null; // Don't return 'False' even if empty, as per requirement
+  } catch (Exception $e) {
+    error_log("Twitch API check exception: " . $e->getMessage());
+    return null;
+  }
+}
+
 // Check Beta Access
 $betaAccess = false;
 if ($user['beta_access'] == 1) {
@@ -145,10 +186,11 @@ $tagClass = 'tag is-large is-fullwidth is-medium mb-2 has-text-weight-bold has-t
 $userOnlineStatus = null;
 $dbStatus = null;
 $sshStatus = null;
+$twitchStatus = null;
 $finalStatus = null;
 
 if (isset($username) && $username !== '') {
-  // Check database status
+  // Check 1: Database status
   $stmt = $db->prepare("SELECT status FROM stream_status");
   $stmt->execute();
   $stmt->bind_result($dbStatus);
@@ -158,10 +200,16 @@ if (isset($username) && $username !== '') {
     $dbStatus = null;
   }
   $stmt->close();
-  // Check SSH file status
+  // Check 2: SSH file status
   $sshStatus = checkSSHFileStatus($username);
-  // Determine final status - prioritize "True" from either source
-  if ($dbStatus === 'True' || $sshStatus === 'True') {
+  // Check 3: Twitch API status (authoritative for online, never for offline)
+  $twitchStatus = checkTwitchStreamStatus($twitchUserId, $authToken, $clientID);
+  // Determine final status - Twitch API has highest priority for "online"
+  if ($twitchStatus === 'True') {
+    // If Twitch says online, then definitely online
+    $finalStatus = 'True';
+  } elseif ($dbStatus === 'True' || $sshStatus === 'True') {
+    // If either other check says online (and Twitch doesn't contradict), then online
     $finalStatus = 'True';
   } elseif ($dbStatus === 'False' && $sshStatus === 'False') {
     $finalStatus = 'False';
@@ -190,7 +238,7 @@ if (isset($username) && $username !== '') {
       return $status ?? 'null';
     };
     $debugInfo = '<div class="has-text-grey is-size-7 mt-1">';
-    $debugInfo .= 'Check 1: ' . $formatStatus($dbStatus) . ' | Check 2: ' . $formatStatus($sshStatus) . ' | Final: ' . $formatStatus($finalStatus);
+    $debugInfo .= 'DB: ' . $formatStatus($dbStatus) . ' | SSH: ' . $formatStatus($sshStatus) . ' | Twitch: ' . $formatStatus($twitchStatus) . ' | Final: ' . $formatStatus($finalStatus);
     $debugInfo .= '</div>';
     $userOnlineStatus .= $debugInfo;
   }
