@@ -111,6 +111,7 @@ return [
     'navbar_bot_control' => 'Bot Control',
     'navbar_configuration' => 'Configuration',
     'navbar_edit_custom_commands' => 'Edit Custom Commands',
+    'navbar_manage_user_commands' => 'Manage User Commands',
     'navbar_timed_messages' => 'Timed Messages',
     'navbar_edit_counters' => 'Edit Counters',
     'navbar_points_system' => 'Points System',

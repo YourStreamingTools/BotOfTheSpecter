@@ -116,6 +116,10 @@ $maintenanceMode = false;
                             <span class="icon"><i class="fas fa-terminal"></i></span>
                             <span><?php echo t('navbar_edit_custom_commands'); ?></span>
                         </a>
+                        <a class="navbar-item" href="manage_custom_user_commands.php">
+                            <span class="icon"><i class="fas fa-user-cog"></i></span>
+                            <span><?php echo t('navbar_manage_user_commands'); ?></span>
+                        </a>
                         <a class="navbar-item" href="timed_messages.php">
                             <span class="icon"><i class="fas fa-clock"></i></span>
                             <span><?php echo t('navbar_timed_messages'); ?></span>
