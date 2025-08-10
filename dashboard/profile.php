@@ -274,7 +274,7 @@ $spotifyLinked = ($spotifyResult->num_rows > 0);
 // Check if StreamElements is linked and token is valid
 $streamelementsLinked = false;
 if (isset($_SESSION['twitchUserId'])) {
-    $streamelementsSTMT = $conn->prepare("SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = ?");
+    $streamelementsSTMT = $conn->prepare("SELECT access_token, jwt_token FROM streamelements_tokens WHERE twitch_user_id = ?");
     $streamelementsSTMT->bind_param("s", $_SESSION['twitchUserId']);
     $streamelementsSTMT->execute();
     $streamelementsResult = $streamelementsSTMT->get_result();
