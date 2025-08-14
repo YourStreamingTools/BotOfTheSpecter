@@ -461,6 +461,12 @@ try {
                 username VARCHAR(255) NOT NULL,
                 stream_url VARCHAR(255) NOT NULL,
                 UNIQUE (username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "command_options" => "
+            CREATE TABLE IF NOT EXISTS command_options (
+                command TEXT,
+                options JSON,
+                PRIMARY KEY (command(255))
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)

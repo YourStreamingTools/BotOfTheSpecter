@@ -3669,29 +3669,48 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
                         return
                     # Check if the user is already in the lurk table
-                    await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
-                    result = await cursor.fetchone()
-                    if result:
-                        previous_start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
-                        lurk_duration = now - previous_start_time
-                        days, seconds = divmod(lurk_duration.total_seconds(), 86400)
-                        months, days = divmod(days, 30)
-                        hours, remainder = divmod(seconds, 3600)
-                        minutes, seconds = divmod(remainder, 60)
-                        periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
-                        time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
-                        await ctx.send(f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
-                        chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {time_string}.")
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("lurk",))
+                    command_options = await cursor.fetchone()
+                    # Decode JSON options and check if timer is enabled
+                    timer_enabled = False
+                    if command_options and command_options.get("options"):
+                        try:
+                            options_json = json.loads(command_options.get("options"))
+                            timer_enabled = options_json.get("timer", False)
+                        except (json.JSONDecodeError, TypeError) as e:
+                            chat_logger.error(f"Error parsing command options JSON: {e}")
+                            timer_enabled = False
+                    if timer_enabled:
+                        await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
+                        lurk_result = await cursor.fetchone()
+                        if lurk_result:
+                            previous_start_time = datetime.strptime(lurk_result["start_time"], "%Y-%m-%d %H:%M:%S")
+                            lurk_duration = now - previous_start_time
+                            days, seconds = divmod(lurk_duration.total_seconds(), 86400)
+                            months, days = divmod(days, 30)
+                            hours, remainder = divmod(seconds, 3600)
+                            minutes, seconds = divmod(remainder, 60)
+                            periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                            time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+                            lurk_message = (f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
+                            chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {time_string}.")
+                        else:
+                            lurk_message = (f"Thanks for lurking, {ctx.author.name}! See you soon.")
+                            chat_logger.info(f"{ctx.author.name} is now lurking.")
                     else:
-                        await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
-                        chat_logger.info(f"{ctx.author.name} is now lurking.")
+                        lurk_message = (f"Thanks for lurking, {ctx.author.name}! See you soon.")
+                    # Send message to chat
+                    await ctx.send(lurk_message)
                     # Update the start time in the database
                     formatted_datetime = now.strftime("%Y-%m-%d %H:%M:%S")
-                    await cursor.execute('INSERT INTO lurk_times (user_id, start_time) VALUES (%s, %s) ON DUPLICATE KEY UPDATE start_time = %s', (user_id, formatted_datetime, formatted_datetime))
+                    await cursor.execute(
+                        'INSERT INTO lurk_times (user_id, start_time) VALUES (%s, %s) ON DUPLICATE KEY UPDATE start_time = %s', 
+                        (user_id, formatted_datetime, formatted_datetime)
+                    )
                     await connection.commit()
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
-            await ctx.send(f"Oops, something went wrong while trying to lurk.")
+            await ctx.send(f"Thanks for lurking! See you soon.")
         finally:
             await connection.ensure_closed()
 
