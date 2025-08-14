@@ -65,6 +65,45 @@ $cmdDescriptions = json_decode($jsonText, true)['commands'];
 
 // Update command status or permission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Handle AJAX requests for command options
+    if (isset($_POST['action'])) {
+        header('Content-Type: application/json');
+        if ($_POST['action'] === 'get_command_options') {
+            $command_name = $_POST['command_name'];
+            $stmt = $db->prepare("SELECT options FROM command_options WHERE command = ?");
+            $stmt->bind_param('s', $command_name);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result->fetch_assoc();
+            $stmt->close();
+            $options = null;
+            if ($row && $row['options']) {
+                $options = json_decode($row['options'], true);
+            }
+            echo json_encode(['success' => true, 'options' => $options]);
+            exit();
+        }
+        if ($_POST['action'] === 'save_command_options') {
+            $command_name = $_POST['command_name'];
+            $options = $_POST['options'];
+            // Validate JSON
+            $decoded_options = json_decode($options, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                echo json_encode(['success' => false, 'message' => 'Invalid JSON options']);
+                exit();
+            }
+            // Insert or update command options
+            $stmt = $db->prepare("INSERT INTO command_options (command, options) VALUES (?, ?) ON DUPLICATE KEY UPDATE options = ?");
+            $stmt->bind_param('sss', $command_name, $options, $options);
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Database error']);
+            }
+            $stmt->close();
+            exit();
+        }
+    }
     // Process permission update
     if (isset($_POST['command_name']) && isset($_POST['usage_level'])) {
         $command_name = $_POST['command_name'];
@@ -132,12 +171,13 @@ ob_start();
                         <th class="has-text-centered"><?php echo t('builtin_commands_table_usage_level'); ?></th>
                         <th class="has-text-centered is-narrow has-text-middle"><?php echo t('builtin_commands_table_status'); ?></th>
                         <th class="has-text-centered is-narrow has-text-middle"><?php echo t('builtin_commands_table_action'); ?></th>
+                        <th class="has-text-centered is-narrow has-text-middle">Options</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($builtinCommands)): ?>
                         <tr>
-                            <td colspan="5" class="has-text-centered has-text-danger"><?php echo t('builtin_commands_no_commands'); ?></td>
+                            <td colspan="6" class="has-text-centered has-text-danger"><?php echo t('builtin_commands_no_commands'); ?></td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($builtinCommands as $command): 
@@ -176,6 +216,13 @@ ob_start();
                                     <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?> ml-2" style="font-size:1.5em;"></i>
                                 </label>
                             </td>
+                            <td class="has-text-centered" style="vertical-align: middle;">
+                                <button class="button is-small is-info is-outlined" onclick="openCommandModal('<?php echo htmlspecialchars($command['command']); ?>')">
+                                    <span class="icon is-small">
+                                        <i class="fas fa-edit"></i>
+                                    </span>
+                                </button>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -184,6 +231,27 @@ ob_start();
         </div>
     </div>
 </div>
+
+<!-- Command Options Modal -->
+<div class="modal" id="commandModal">
+    <div class="modal-background" onclick="closeCommandModal()"></div>
+    <div class="modal-card" style="max-width: 600px;">
+        <header class="modal-card-head">
+            <p class="modal-card-title">Command Options: <span id="modalCommandName"></span></p>
+            <button class="delete" aria-label="close" onclick="closeCommandModal()"></button>
+        </header>
+        <section class="modal-card-body" style="max-height: 70vh; overflow-y: auto;">
+            <div id="modalContent">
+                <!-- Content will be dynamically loaded here -->
+            </div>
+        </section>
+        <footer class="modal-card-foot">
+            <button class="button is-success" onclick="saveCommandOptions()">Save Changes</button>
+            <button class="button" onclick="closeCommandModal()">Cancel</button>
+        </footer>
+    </div>
+</div>
+
 <?php
 $content = ob_get_clean();
 
@@ -204,7 +272,6 @@ document.addEventListener('DOMContentLoaded', function() {
             localStorage.setItem('searchQuery', this.value);
         });
     }
-
     // Attach event listeners for filter checkboxes
     var showEnabled = document.getElementById('showEnabled');
     var showDisabled = document.getElementById('showDisabled');
@@ -222,6 +289,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Initial filter
     toggleFilter();
+    // Add keyboard support for modal
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            closeCommandModal();
+        }
+    });
 });
 
 function setCookie(name, value, days) {
@@ -230,6 +303,32 @@ function setCookie(name, value, days) {
     d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
     const expires = "expires=" + d.toUTCString();
     document.cookie = name + "=" + value + ";" + expires + ";path=/";
+}
+
+function searchFunction() {
+    const input = document.getElementById('searchInput');
+    const filter = input.value.toLowerCase();
+    const table = document.getElementById('commandsTable');
+    const rows = table.getElementsByTagName('tr');
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.classList.contains('commandRow')) {
+            const cells = row.getElementsByTagName('td');
+            let found = false;
+            for (let j = 0; j < cells.length; j++) {
+                const cellText = cells[j].textContent || cells[j].innerText;
+                if (cellText.toLowerCase().indexOf(filter) > -1) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        }
+    }
 }
 
 function toggleFilter() {
@@ -265,6 +364,136 @@ function toggleStatus(commandName, isChecked, toggleElem) {
         }
     };
     xhr.send('command_name=' + encodeURIComponent(commandName) + '&status=' + encodeURIComponent(status));
+}
+
+function openCommandModal(commandName) {
+    document.getElementById('modalCommandName').textContent = commandName;
+    loadCommandOptions(commandName);
+    document.getElementById('commandModal').classList.add('is-active');
+}
+
+function closeCommandModal() {
+    document.getElementById('commandModal').classList.remove('is-active');
+    // Clear modal content to prevent stale data
+    document.getElementById('modalContent').innerHTML = '';
+}
+
+function loadCommandOptions(commandName) {
+    const modalContent = document.getElementById('modalContent');
+    // Show loading state
+    modalContent.innerHTML = '<div class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    // Fetch command options
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            if (xhr.status === 200) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        renderCommandOptions(commandName, response.options);
+                    } else {
+                        modalContent.innerHTML = '<div class="notification is-danger">' + response.message + '</div>';
+                    }
+                } catch (e) {
+                    modalContent.innerHTML = '<div class="notification is-danger">Error parsing response</div>';
+                }
+            } else {
+                modalContent.innerHTML = '<div class="notification is-danger">Error loading command options</div>';
+            }
+        }
+    };
+    xhr.send('action=get_command_options&command_name=' + encodeURIComponent(commandName));
+}
+
+function renderCommandOptions(commandName, options) {
+    const modalContent = document.getElementById('modalContent');
+    if (commandName === 'lurk') {
+        // Special handling for lurk command
+        const timerEnabled = options && options.timer ? options.timer : false;
+        modalContent.innerHTML = `
+            <div class="field">
+                <label class="label">Lurk Timer</label>
+                <div class="control">
+                    <label class="checkbox">
+                        <input type="checkbox" id="lurkTimer" ${timerEnabled ? 'checked' : ''}>
+                        Enable lurk timer (shows how long user has been lurking when they use !lurk again)
+                    </label>
+                </div>
+                <p class="help">When enabled, the bot will track how long users have been lurking and display the duration when they use the !lurk command again.</p>
+            </div>
+        `;
+    } else {
+        // Default message for commands without custom options
+        modalContent.innerHTML = '<div class="notification is-info">No custom options are configured for this command.</div>';
+    }
+}
+
+function saveCommandOptions() {
+    const commandName = document.getElementById('modalCommandName').textContent;
+    let options = {};
+    if (commandName === 'lurk') {
+        const timerCheckbox = document.getElementById('lurkTimer');
+        if (timerCheckbox) {
+            options.timer = timerCheckbox.checked;
+        }
+    }
+    // Show saving state
+    const saveButton = document.querySelector('.modal-card-foot .is-success');
+    const originalText = saveButton.textContent;
+    saveButton.textContent = 'Saving...';
+    saveButton.disabled = true;
+    // Save options via AJAX
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            // Reset button state
+            saveButton.textContent = originalText;
+            saveButton.disabled = false;
+            if (xhr.status === 200) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        closeCommandModal();
+                        // Show success message
+                        showNotification('Command options saved successfully!', 'is-success');
+                    } else {
+                        showNotification('Error saving options: ' + response.message, 'is-danger');
+                    }
+                } catch (e) {
+                    showNotification('Error parsing response', 'is-danger');
+                }
+            } else {
+                showNotification('Error saving command options', 'is-danger');
+            }
+        }
+    };
+    xhr.send('action=save_command_options&command_name=' + encodeURIComponent(commandName) + '&options=' + encodeURIComponent(JSON.stringify(options)));
+}
+
+function showNotification(message, type) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${type} is-light`;
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.right = '20px';
+    notification.style.zIndex = '9999';
+    notification.style.maxWidth = '400px';
+    notification.innerHTML = `
+        <button class="delete" onclick="this.parentElement.remove()"></button>
+        ${message}
+    `;
+    document.body.appendChild(notification);
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 5000);
 }
 </script>
 <?php
