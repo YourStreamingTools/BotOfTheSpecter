@@ -1271,6 +1271,10 @@ async def PATREON(data):
     except Exception as e:
         websocket_logger.error(f"Failed to process Patreon event: {e}")
 
+# Helper to safely redact sensitive values
+def redact(s: str) -> str:
+    return str(s).replace(HYPERATE_API_KEY, "[REDACTED]")
+
 # Connect and manage reconnection for HypeRate Heart Rate
 async def hyperate_websocket():
     while True:
@@ -1291,13 +1295,12 @@ async def hyperate_websocket():
                         except WebSocketConnectionClosed:
                             bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
                             break
-                        raw_sanitized = str(raw).replace(HYPERATE_API_KEY, "[REDACTED]")
+                        raw_sanitized = redact(raw)
                         try:
                             data = json.loads(raw)
                         except Exception as e:
-                            e_str = str(e).replace(HYPERATE_API_KEY, "[REDACTED]")
                             bot_logger.warning(
-                                f"HypeRate warning: failed to parse incoming message: {e_str} - raw: {raw_sanitized[:200]}"
+                                f"HypeRate warning: failed to parse incoming message: {redact(e)} - raw: {raw_sanitized[:200]}"
                             )
                             # Skip malformed messages without tearing down the connection
                             continue
@@ -1325,8 +1328,7 @@ async def hyperate_websocket():
                         # Be defensive: nothing critical if cancelling fails
                         pass
         except Exception as e:
-            e_str = str(e).replace(HYPERATE_API_KEY, "[REDACTED]")
-            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e_str}")
+            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {redact(e)}")
             await sleep(10)  # Retry connection after a brief wait
 
 async def send_heartbeat(hyperate_websocket):
@@ -1341,7 +1343,7 @@ async def send_heartbeat(hyperate_websocket):
         try:
             await hyperate_websocket.send(json.dumps(heartbeat_payload))
         except Exception as e:
-            bot_logger.error(f"Error sending heartbeat: {e}")
+            bot_logger.error(f"Error sending heartbeat: {redact(e)}")
             break
 
 async def join_channel(hyperate_websocket):
@@ -1364,7 +1366,7 @@ async def join_channel(hyperate_websocket):
             # Send the 'phx_join' event to join the channel
             await hyperate_websocket.send(json.dumps(phx_join))
     except Exception as e:
-        bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {e}")
+        bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {redact(e)}")
     finally:
         await connection.ensure_closed()
 
