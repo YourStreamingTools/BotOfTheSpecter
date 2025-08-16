@@ -15,31 +15,40 @@ $code = $_GET['code'];
 // Exchange code for token
 $token_url = 'https://id.twitch.tv/oauth2/token';
 $post_fields = http_build_query([
-    'clientID' => $clientID,
+    'client_id' => $clientID,
     'client_secret' => $clientSecret,
     'code' => $code,
     'grant_type' => 'authorization_code',
     'redirect_uri' => 'https://botofthespecter.com/oauth_callback.php',
 ]);
+// Use cURL for the POST to Twitch token endpoint for better error handling
+$ch = curl_init($token_url);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+// verify TLS; set to true in production
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 
-$opts = [
-    'http' => [
-        'method' => 'POST',
-        'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
-        'content' => $post_fields,
-        'timeout' => 10,
-    ]
-];
-$context = stream_context_create($opts);
-$resp = @file_get_contents($token_url, false, $context);
+$resp = curl_exec($ch);
 if ($resp === false) {
-    echo 'Failed to contact Twitch token endpoint.';
+    $err = curl_error($ch);
+    error_log("OAuth token request failed: $err");
+    curl_close($ch);
+    echo 'Failed to contact Twitch token endpoint: ' . h($err);
     exit;
 }
 
+$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
 $data = json_decode($resp, true);
 if (empty($data['access_token'])) {
-    echo 'Failed to obtain access token.';
+    // include any returned error for debugging
+    $err_msg = isset($data['message']) ? $data['message'] : (is_string($resp) ? $resp : 'no response');
+    error_log("Failed to obtain access token. HTTP={$http_code} response=" . substr($resp, 0, 1000));
+    echo 'Failed to obtain access token: ' . h($err_msg);
     exit;
 }
 
@@ -48,21 +57,28 @@ $refresh_token = $data['refresh_token'] ?? null;
 
 // Fetch user info
 $user_api = 'https://api.twitch.tv/helix/users';
-$opts = [
-    'http' => [
-        'method' => 'GET',
-        'header' => "Client-ID: " . $clientID . "\r\nAuthorization: Bearer " . $access_token . "\r\n",
-        'timeout' => 10,
-    ]
-];
-$ctx = stream_context_create($opts);
-$u = @file_get_contents($user_api, false, $ctx);
+// Use cURL for user info request as well
+$ch = curl_init($user_api);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Client-ID: ' . $clientID,
+    'Authorization: Bearer ' . $access_token,
+]);
+
+$u = curl_exec($ch);
 if ($u === false) {
-    echo 'Failed to fetch Twitch user.';
+    $err = curl_error($ch);
+    error_log("Failed to fetch Twitch user: $err");
+    curl_close($ch);
+    echo 'Failed to fetch Twitch user: ' . h($err);
     exit;
 }
+$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
 $ud = json_decode($u, true);
 if (empty($ud['data'][0]['id'])) {
+    error_log("Failed to read Twitch user data. HTTP={$http_code} response=" . substr($u, 0, 1000));
     echo 'Failed to read Twitch user data.';
     exit;
 }
