@@ -7,7 +7,18 @@ function h($s){ return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 
 $logout = isset($_GET['logout']);
 if ($logout) {
-	// clear session
+	// clear all session data and destroy the session so the user is fully logged out
+	$_SESSION = [];
+	// expire the session cookie if used
+	if (ini_get('session.use_cookies')) {
+		$params = session_get_cookie_params();
+		setcookie(session_name(), '', time() - 42000,
+			$params['path'], $params['domain'],
+			$params['secure'], $params['httponly']
+		);
+	}
+	session_destroy();
+	// Redirect back to the feedback page (new session will be started on reload)
 	header('Location: feedback.php');
 	exit;
 }
