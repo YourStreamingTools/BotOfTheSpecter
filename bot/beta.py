@@ -8539,14 +8539,13 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                         async with connection.cursor(DictCursor) as cursor:
                             await cursor.execute("SELECT ad_snoozed_message FROM ad_notice_settings WHERE id = 1")
                             result = await cursor.fetchone()
-                            if result and result['ad_snoozed_message']:
-                                snooze_message = result['ad_snoozed_message']
-                            else:
-                                snooze_message = "Ads have been snoozed."
+                            snooze_message = result['ad_snoozed_message'] if result and result['ad_snoozed_message'] else "Ads have been snoozed."
                     finally:
                         await connection.ensure_closed()
                     await channel.send(snooze_message)
                     api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
+                    last_snooze_count = snooze_count
+                    return last_notification_time, last_ad_time, last_snooze_count
                 # Update the last snooze count
                 last_snooze_count = snooze_count
                 # Check if we have a scheduled ad
@@ -8557,11 +8556,9 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                         current_time = time_right_now(set_timezone.UTC)
                         # Notify if ad is coming up in exactly 5 minutes and we haven't notified recently
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
-                        if 270 <= time_until_ad <= 330:  # 4.5 to 5.5 minutes (30 second tolerance)
-                            # Check if we've already notified for this ad
+                        if 270 <= time_until_ad <= 330:
                             if last_notification_time != next_ad_at:
-                                minutes_until = 5  # Always 5 minutes as per requirement
-                                # Get the ad notification message from database & Convert duration to a more user-friendly format
+                                minutes_until = 5
                                 if duration >= 60:
                                     duration_minutes = duration // 60
                                     remaining_seconds = duration % 60
