@@ -1281,23 +1281,52 @@ async def hyperate_websocket():
                 bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
                 # Send 'phx_join' message to join the appropriate channel
                 await join_channel(hyperate_websocket)
-                # Send the heartbeat every 10 seconds
-                create_task(send_heartbeat(hyperate_websocket))
-                while True:
-                    try:
-                        # Continuously wait for incoming messages
+                # Send the heartbeat every 10 seconds and keep a handle to cancel it later
+                heartbeat_task = create_task(send_heartbeat(hyperate_websocket))
+                try:
+                    while True:
                         global HEARTRATE
-                        data = await hyperate_websocket.recv()
-                        data = json.loads(data)
-                        HEARTRATE = data['payload'].get('hr', None)
-                        if HEARTRATE is None:
-                            if "hyperate_websocket" in looped_tasks:
-                                looped_tasks["hyperate_websocket"].cancel()
-                    except WebSocketConnectionClosed:
-                        bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
-                        break
+                        try:
+                            raw = await hyperate_websocket.recv()
+                        except WebSocketConnectionClosed:
+                            bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
+                            break
+                        raw_sanitized = str(raw).replace(HYPERATE_API_KEY, "[REDACTED]")
+                        try:
+                            data = json.loads(raw)
+                        except Exception as e:
+                            e_str = str(e).replace(HYPERATE_API_KEY, "[REDACTED]")
+                            bot_logger.warning(
+                                f"HypeRate warning: failed to parse incoming message: {e_str} - raw: {raw_sanitized[:200]}"
+                            )
+                            # Skip malformed messages without tearing down the connection
+                            continue
+                        payload = data.get("payload") if isinstance(data, dict) else None
+                        hr = None
+                        if isinstance(payload, dict):
+                            hr = payload.get("hr")
+                        if hr is None:
+                            bot_logger.warning(
+                                "HypeRate info: received message without heart rate; closing connection and will reconnect"
+                            )
+                            break
+                        # Update global once validated
+                        HEARTRATE = hr
+                finally:
+                    # Ensure heartbeat task is cancelled when we exit the connection loop
+                    try:
+                        if heartbeat_task and not heartbeat_task.done():
+                            heartbeat_task.cancel()
+                            try:
+                                await heartbeat_task
+                            except asyncioCancelledError:
+                                pass
+                    except Exception:
+                        # Be defensive: nothing critical if cancelling fails
+                        pass
         except Exception as e:
-            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
+            e_str = str(e).replace(HYPERATE_API_KEY, "[REDACTED]")
+            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e_str}")
             await sleep(10)  # Retry connection after a brief wait
 
 async def send_heartbeat(hyperate_websocket):
