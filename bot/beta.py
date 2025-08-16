@@ -661,30 +661,6 @@ async def connect_to_tipping_services():
     finally:
         await connection.ensure_closed()
 
-async def refresh_streamelements_token():
-    global CHANNEL_ID, streamelements_token
-    try:
-        connection = await mysql_connection(db_name="website")
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
-            se_result = await cursor.fetchone()
-            if se_result:
-                new_token = se_result.get('access_token')
-                if new_token != streamelements_token:
-                    event_logger.info("StreamElements token updated from database")
-                    streamelements_token = new_token
-                else:
-                    event_logger.info("StreamElements token refreshed (same as previous)")
-                return True
-            else:
-                event_logger.warning("No StreamElements token found in database during refresh")
-                streamelements_token = None
-                return False
-        await connection.ensure_closed()
-    except Exception as e:
-        event_logger.error(f"Failed to refresh StreamElements token: {e}")
-        return False
-
 async def streamelements_connection_manager():
     global streamelements_token
     max_retries = 5
@@ -694,13 +670,6 @@ async def streamelements_connection_manager():
     while True:  # Keep trying indefinitely
         for attempt in range(max_retries):
             try:
-                # On reconnection attempts (not first attempt), refresh the token
-                if attempt > 0:
-                    event_logger.info("Refreshing StreamElements token before reconnection attempt")
-                    token_refreshed = await refresh_streamelements_token()
-                    if not token_refreshed:
-                        event_logger.error("Could not refresh StreamElements token, skipping connection attempt")
-                        break
                 event_logger.info(f"Attempting to connect to StreamElements (attempt {attempt + 1}/{max_retries})")
                 await connect_to_streamelements()
                 # If we get here, connection was successful and maintained
