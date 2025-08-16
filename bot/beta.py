@@ -1,6 +1,6 @@
 # Standard library imports
 import os, re, sys, ast, signal, argparse, traceback
-import json, time, random, base64, uuid, threading
+import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
 from asyncio import CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
@@ -225,6 +225,13 @@ SPOTIFY_ERROR_MESSAGES = {
     500: "Spotify is having server issues. Please try again in a bit.",
     502: "Spotify is having a temporary issue. Please try again in a bit.",
     503: "Spotify's service is currently down. We'll need to wait until it's back online.",
+}
+
+allowed_ops = {
+    '+': operator.add,
+    '-': operator.sub,
+    '*': operator.mul,
+    '/': operator.floordiv
 }
 
 # Function to handle termination signals
@@ -1730,26 +1737,28 @@ class TwitchBot(commands.Bot):
                                         response = response.replace(match.group(0), replacement)
                                 # Handle (math.x+y)
                                 if '(math.' in response:
-                                    math_match = re.search(r'\(math\.(.+)\)', response)
+                                    math_match = re.search(r'\(math\.(.+?)\)', response)
                                     if math_match:
                                         math_expression = math_match.group(1)
                                         try:
-                                            math_result = eval(math_expression)
+                                            math_result = safe_math(math_expression)
                                             response = response.replace(f'(math.{math_expression})', str(math_result))
                                         except Exception as e:
                                             chat_logger.error(f"Math expression error: {e}")
                                             response = response.replace(f'(math.{math_expression})', "Error")
                                 # Handle (customapi.)
                                 if '(customapi.' in response:
-                                    url_match = re.search(r'\(customapi\.(\S+)\)', response)
-                                    if url_match:
-                                        url = url_match.group(1)
+                                    pattern = r'\(customapi\.(\S+?)\)'
+                                    matches = re.finditer(pattern, response)
+                                    for match in matches:
+                                        full_placeholder = match.group(0)
+                                        url = match.group(1)
                                         json_flag = False
                                         if url.startswith('json.'):
                                             json_flag = True
-                                            url = url[5:]  # Remove 'json.' prefix
+                                            url = url[5:]  # Remove 'json.' prefix for fetching
                                         api_response = await fetch_api_response(url, json_flag=json_flag)
-                                        response = response.replace(f"(customapi.{url})", api_response)
+                                        response = response.replace(full_placeholder, api_response)
                             await channel.send(response)
                             for resp in responses_to_send:
                                 chat_logger.info(f"{command} command ran with response: {resp}")
@@ -5833,16 +5842,30 @@ async def user_is_seen(username):
 async def fetch_api_response(url, json_flag=False):
     try:
         async with httpClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    if json_flag:
-                        return await response.json()
-                    else:
-                        return await response.text()
+            async with session.get(url) as resp:
+                if json_flag:
+                    data = await resp.json()
+                    return str(data)
                 else:
-                    return f"Status Error: {response.status}"
-    except Exception as e:
-        return f"Exception Error: {str(e)}"
+                    return await resp.text()
+    except Exception:
+        return "Error"
+
+def safe_math(expr: str):
+    # Only allow digits, spaces, and + - * / operators
+    if not re.match(r'^[0-9+\-*/\s]+$', expr):
+        return "Error"
+    tokens = re.findall(r'\d+|[+\-*/]', expr)
+    result = int(tokens[0])
+    i = 1
+    while i < len(tokens) - 1:
+        op = tokens[i]
+        num = int(tokens[i+1])
+        if op not in allowed_ops:
+            return "Error"
+        result = allowed_ops[op](result, num)
+        i += 2
+    return result
 
 # Function to update custom counts
 async def update_custom_count(command, count):
