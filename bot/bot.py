@@ -1005,6 +1005,28 @@ async def WEATHER_DATA(data):
 # Connect and manage reconnection for HypeRate Heart Rate
 async def start_hyperate():
     global hyperate_task
+    # Ensure API key exists
+    if not HYPERATE_API_KEY:
+        bot_logger.info("HypeRate not started: HYPERATE_API_KEY is not configured.")
+        return
+    # Check DB for heartrate_code before attempting to connect
+    try:
+        sqldb = await get_mysql_connection()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute('SELECT heartrate_code FROM profile LIMIT 1')
+            heartrate_code_data = await cursor.fetchone()
+            if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
+                bot_logger.info("HypeRate not started: no heartrate_code found in database.")
+                return
+    except Exception as e:
+        bot_logger.error(f"HypeRate error checking heartrate code: {e}")
+        return
+    finally:
+        # Ensure DB connection is closed if it was opened
+        try:
+            await sqldb.ensure_closed()
+        except Exception:
+            pass
     loop = asyncio.get_event_loop()
     if hyperate_task is None or hyperate_task.done():
         hyperate_task = loop.create_task(hyperate_websocket())
@@ -1059,9 +1081,9 @@ async def join_channel(hyperate_websocket):
     try:
         sqldb = await get_mysql_connection()
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute('SELECT heartrate_code FROM profile')
+            await cursor.execute('SELECT heartrate_code FROM profile LIMIT 1')
             heartrate_code_data = await cursor.fetchone()
-            if not heartrate_code_data:
+            if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
                 bot_logger.error("HypeRate error: No Heart Rate Code found in database, aborting connection.")
                 return
             heartrate_code = heartrate_code_data['heartrate_code']
@@ -1077,7 +1099,10 @@ async def join_channel(hyperate_websocket):
     except Exception as e:
         bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {e}")
     finally:
-        await sqldb.ensure_closed()
+        try:
+            await sqldb.ensure_closed()
+        except Exception:
+            pass
 
 # Bot classes
 class GameNotFoundException(Exception):
