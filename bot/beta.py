@@ -1255,12 +1255,26 @@ def redact(s: str) -> str:
 async def hyperate_websocket():
     while True:
         try:
+            # Check DB for heartrate code before attempting any websocket connection
+            connection = await mysql_connection()
+            try:
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute('SELECT heartrate_code FROM profile')
+                    heartrate_code_data = await cursor.fetchone()
+            finally:
+                await connection.ensure_closed()
+            if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
+                bot_logger.info("HypeRate info: No Heart Rate Code found in database. Will not attempt websocket connection. Retrying later.")
+                # Wait before re-checking the database
+                await sleep(300)
+                continue
+            heartrate_code = heartrate_code_data['heartrate_code']
             bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
             hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
             async with WebSocketConnect(hyperate_websocket_uri) as hyperate_websocket:
                 bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
-                # Send 'phx_join' message to join the appropriate channel
-                await join_channel(hyperate_websocket)
+                # Send 'phx_join' message to join the appropriate channel using the DB-provided code
+                await join_channel(hyperate_websocket, heartrate_code)
                 # Send the heartbeat every 10 seconds and keep a handle to cancel it later
                 heartbeat_task = create_task(send_heartbeat(hyperate_websocket))
                 try:
@@ -1294,7 +1308,7 @@ async def hyperate_websocket():
                 finally:
                     # Ensure heartbeat task is cancelled when we exit the connection loop
                     try:
-                        if heartbeat_task and not heartbeat_task.done():
+                        if 'heartbeat_task' in locals() and heartbeat_task and not heartbeat_task.done():
                             heartbeat_task.cancel()
                             try:
                                 await heartbeat_task
@@ -1322,29 +1336,22 @@ async def send_heartbeat(hyperate_websocket):
             bot_logger.error(f"Error sending heartbeat: {redact(e)}")
             break
 
-async def join_channel(hyperate_websocket):
+async def join_channel(hyperate_websocket, heartrate_code):
     try:
-        connection = await mysql_connection()
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute('SELECT heartrate_code FROM profile')
-            heartrate_code_data = await cursor.fetchone()
-            if not heartrate_code_data:
-                bot_logger.error("HypeRate error: No Heart Rate Code found in database, aborting connection.")
-                return
-            heartrate_code = heartrate_code_data['heartrate_code']
-            # Construct the 'phx_join' event payload
-            phx_join = {
-                "topic": f"hr:{heartrate_code}",
-                "event": "phx_join",
-                "payload": {},
-                "ref": 0
-            }
-            # Send the 'phx_join' event to join the channel
-            await hyperate_websocket.send(json.dumps(phx_join))
+        if not heartrate_code:
+            bot_logger.error("HypeRate error: No Heart Rate Code provided to join_channel, aborting join.")
+            return
+        # Construct the 'phx_join' event payload
+        phx_join = {
+            "topic": f"hr:{heartrate_code}",
+            "event": "phx_join",
+            "payload": {},
+            "ref": 0
+        }
+        # Send the 'phx_join' event to join the channel
+        await hyperate_websocket.send(json.dumps(phx_join))
     except Exception as e:
         bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {redact(e)}")
-    finally:
-        await connection.ensure_closed()
 
 # Bot classes
 class GameNotFoundException(Exception):
