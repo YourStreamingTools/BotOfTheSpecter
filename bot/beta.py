@@ -1251,76 +1251,47 @@ async def PATREON(data):
 def redact(s: str) -> str:
     return str(s).replace(HYPERATE_API_KEY, "[REDACTED]")
 
-# Connect and manage reconnection for HypeRate Heart Rate
-async def hyperate_websocket():
-    while True:
-        try:
-            # Check DB for heartrate code before attempting any websocket connection
-            connection = await mysql_connection()
-            try:
-                async with connection.cursor(DictCursor) as cursor:
-                    await cursor.execute('SELECT heartrate_code FROM profile')
-                    heartrate_code_data = await cursor.fetchone()
-            finally:
-                await connection.ensure_closed()
-            if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
-                bot_logger.info("HypeRate info: No Heart Rate Code found in database. Will not attempt websocket connection. Retrying later.")
-                # Wait before re-checking the database
-                await sleep(300)
-                continue
-            heartrate_code = heartrate_code_data['heartrate_code']
-            bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
-            hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
-            async with WebSocketConnect(hyperate_websocket_uri) as hyperate_websocket:
-                bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
-                # Send 'phx_join' message to join the appropriate channel using the DB-provided code
-                await join_channel(hyperate_websocket, heartrate_code)
-                # Send the heartbeat every 10 seconds and keep a handle to cancel it later
-                heartbeat_task = create_task(send_heartbeat(hyperate_websocket))
+async def get_current_heartrate(heartrate_code):
+    try:
+        bot_logger.info("HypeRate info: Connecting to get current heart rate")
+        hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
+        async with WebSocketConnect(hyperate_websocket_uri) as websocket:
+            # Join the channel
+            await join_channel(websocket, heartrate_code)
+            # Wait for a heart rate message with timeout
+            timeout_duration = 10  # seconds
+            start_time = get_event_loop().time()
+            while True:
                 try:
-                    while True:
-                        global HEARTRATE
-                        try:
-                            raw = await hyperate_websocket.recv()
-                        except WebSocketConnectionClosed:
-                            bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
-                            break
-                        raw_sanitized = redact(raw)
-                        try:
-                            data = json.loads(raw)
-                        except Exception as e:
-                            bot_logger.warning(
-                                f"HypeRate warning: failed to parse incoming message: {redact(e)} - raw: {raw_sanitized[:200]}"
-                            )
-                            # Skip malformed messages without tearing down the connection
-                            continue
-                        payload = data.get("payload") if isinstance(data, dict) else None
-                        hr = None
-                        if isinstance(payload, dict):
-                            hr = payload.get("hr")
-                        if hr is None:
-                            bot_logger.warning(
-                                "HypeRate info: received message without heart rate; closing connection and will reconnect"
-                            )
-                            break
-                        # Update global once validated
-                        HEARTRATE = hr
-                finally:
-                    # Ensure heartbeat task is cancelled when we exit the connection loop
+                    # Check if we've exceeded timeout
+                    if get_event_loop().time() - start_time > timeout_duration:
+                        bot_logger.warning("HypeRate warning: Timeout waiting for heart rate data")
+                        return None
+                    # Wait for message with short timeout to check for overall timeout
+                    raw = await asyncio_wait_for(websocket.recv(), timeout=2.0)
+                    raw_sanitized = redact(raw)
                     try:
-                        if 'heartbeat_task' in locals() and heartbeat_task and not heartbeat_task.done():
-                            heartbeat_task.cancel()
-                            try:
-                                await heartbeat_task
-                            except asyncioCancelledError:
-                                pass
-                    except Exception:
-                        # Be defensive: nothing critical if cancelling fails
-                        pass
-        except Exception as e:
-            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {redact(e)}")
-            await sleep(10)  # Retry connection after a brief wait
+                        data = json.loads(raw)
+                    except Exception as e:
+                        bot_logger.warning(f"HypeRate warning: failed to parse message: {redact(e)}")
+                        continue
+                    payload = data.get("payload") if isinstance(data, dict) else None
+                    if isinstance(payload, dict):
+                        hr = payload.get("hr")
+                        if hr is not None:
+                            bot_logger.info(f"HypeRate info: Retrieved heart rate: {hr}")
+                            return hr
+                except asyncioTimeoutError:
+                    # Continue loop to check overall timeout
+                    continue
+                except WebSocketConnectionClosed:
+                    bot_logger.warning("HypeRate WebSocket connection closed while waiting for data")
+                    return None
+    except Exception as e:
+        bot_logger.error(f"HypeRate error: Failed to get current heart rate: {redact(e)}")
+        return None
 
+# Heartbeat sender for HypeRate Websocket
 async def send_heartbeat(hyperate_websocket):
     while True:
         await sleep(10)  # Send heartbeat every 10 seconds
@@ -1336,6 +1307,7 @@ async def send_heartbeat(hyperate_websocket):
             bot_logger.error(f"Error sending heartbeat: {redact(e)}")
             break
 
+# Join HypeRate WebSocket channel
 async def join_channel(hyperate_websocket, heartrate_code):
     try:
         if not heartrate_code:
@@ -1462,7 +1434,6 @@ class TwitchBot(commands.Bot):
         looped_tasks["spotify_token_refresh"] = create_task(spotify_token_refresh())
         looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
-        looped_tasks["hyperate_websocket"] = create_task(hyperate_websocket())
         looped_tasks["connect_to_tipping_services"] = create_task(connect_to_tipping_services())
         looped_tasks["midnight"] = create_task(midnight())
         looped_tasks["shoutout_worker"] = create_task(shoutout_worker())
@@ -5412,11 +5383,11 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='heartrate')
     async def heartrate_command(self, ctx):
-        global HEARTRATE, bot_owner
+        global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                # Check if the 'convert' command is enabled
+                # Check if the 'heartrate' command is enabled
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("heartrate",))
                 result = await cursor.fetchone()
                 if result:
@@ -5427,12 +5398,19 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
-                    if HEARTRATE is None:
-                        if "hyperate_websocket" in looped_tasks:
-                            looped_tasks["hyperate_websocket"].cancel()
-                        await ctx.send(f"The Heart Rate is not turned on right now.")
+                    # Check if heartrate code exists in database
+                    await cursor.execute('SELECT heartrate_code FROM profile')
+                    heartrate_code_data = await cursor.fetchone()
+                    if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
+                        await ctx.send("Heart rate monitoring is not setup.")
+                        return
+                    heartrate_code = heartrate_code_data['heartrate_code']
+                    # Get heart rate from websocket
+                    heartrate = await get_current_heartrate(heartrate_code)
+                    if heartrate is None:
+                        await ctx.send("The Heart Rate is not turned on right now.")
                     else:
-                        await ctx.send(f"The current Heart Rate is: {HEARTRATE}")
+                        await ctx.send(f"The current Heart Rate is: {heartrate}")
         except Exception as e:
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
@@ -6291,7 +6269,6 @@ async def process_stream_online_websocket():
     stream_online = True
     looped_tasks["timed_message"] = get_event_loop().create_task(timed_message())
     looped_tasks["handle_upcoming_ads"] = get_event_loop().create_task(handle_upcoming_ads())
-    looped_tasks["hyperate_websocket"] = get_event_loop().create_task(hyperate_websocket())
     await generate_winning_lotto_numbers()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
