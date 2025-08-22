@@ -1295,16 +1295,19 @@ async def hyperate_websocket_persistent():
                             # Skip malformed messages without tearing down the connection
                             continue
                         payload = data.get("payload") if isinstance(data, dict) else None
-                        hr = None
-                        if isinstance(payload, dict):
+                        event = data.get("event") if isinstance(data, dict) else None
+                        # Only process hr_update events for heart rate data
+                        if event == "hr_update" and isinstance(payload, dict):
                             hr = payload.get("hr")
-                        if hr is None:
-                            bot_logger.info("HypeRate info: Received None heart rate data, closing persistent connection")
-                            HEARTRATE = None
-                            return  # Exit the function entirely, stopping the persistent connection
-                        # Update global with valid heart rate data
-                        HEARTRATE = hr
-                        bot_logger.debug(f"HypeRate info: Updated heart rate to {hr}")
+                            if hr is None:
+                                bot_logger.info("HypeRate info: Received None heart rate in hr_update event, closing persistent connection")
+                                HEARTRATE = None
+                                return  # Exit the function entirely, stopping the persistent connection
+                            else:
+                                # Update global with valid heart rate data
+                                HEARTRATE = hr
+                                bot_logger.debug(f"HypeRate info: Updated heart rate to {hr}")
+                        # Ignore other message types (phx_reply, etc.) - they don't contain heart rate data
                 finally:
                     # Ensure heartbeat task is cancelled when we exit the connection loop
                     try:
@@ -5434,7 +5437,6 @@ class TwitchBot(commands.Bot):
                     if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
                         await ctx.send("Heart rate monitoring is not setup.")
                         return
-                    heartrate_code = heartrate_code_data['heartrate_code']
                     # Start the persistent websocket connection if not already running
                     if hyperate_task is None or hyperate_task.done():
                         hyperate_task = create_task(hyperate_websocket_persistent())
