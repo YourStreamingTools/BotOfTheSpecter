@@ -5442,7 +5442,8 @@ class TwitchBot(commands.Bot):
                         hyperate_task = create_task(hyperate_websocket_persistent())
                         bot_logger.info("HypeRate info: Started persistent websocket connection")
                         # Wait a moment for connection to establish and get initial data
-                        await sleep(3)
+                        await ctx.send(f"Just a moment, scanning the heart right now.")
+                        await sleep(10)
                     if HEARTRATE is None:
                         await ctx.send("The Heart Rate is not turned on right now.")
                     else:
