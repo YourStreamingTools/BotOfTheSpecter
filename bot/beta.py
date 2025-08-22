@@ -208,6 +208,7 @@ SPOTIFY_REFRESH_TOKEN = None                            # Spotify API refresh to
 SPOTIFY_ACCESS_TOKEN = None                             # Spotify API access token 
 next_spotify_refresh_time = None                        # Time for the next Spotify token refresh 
 HEARTRATE = None                                        # Current heart rate value 
+hyperate_task = None                                    # HypeRate WebSocket task
 TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for shoutouts
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
@@ -1251,45 +1252,74 @@ async def PATREON(data):
 def redact(s: str) -> str:
     return str(s).replace(HYPERATE_API_KEY, "[REDACTED]")
 
-async def get_current_heartrate(heartrate_code):
-    try:
-        bot_logger.info("HypeRate info: Connecting to get current heart rate")
-        hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
-        async with WebSocketConnect(hyperate_websocket_uri) as websocket:
-            # Join the channel
-            await join_channel(websocket, heartrate_code)
-            # Wait for a heart rate message with timeout
-            timeout_duration = 10  # seconds
-            start_time = get_event_loop().time()
-            while True:
+# Persistent WebSocket connection that stays open as long as heart rate data is received
+async def hyperate_websocket_persistent():
+    global HEARTRATE
+    while True:
+        try:
+            # Check DB for heartrate code before attempting any websocket connection
+            connection = await mysql_connection()
+            try:
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute('SELECT heartrate_code FROM profile')
+                    heartrate_code_data = await cursor.fetchone()
+            finally:
+                await connection.ensure_closed()
+            if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
+                bot_logger.info("HypeRate info: No Heart Rate Code found in database. Stopping websocket connection.")
+                HEARTRATE = None
+                return
+            heartrate_code = heartrate_code_data['heartrate_code']
+            bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
+            hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
+            async with WebSocketConnect(hyperate_websocket_uri) as hyperate_websocket:
+                bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
+                # Send 'phx_join' message to join the appropriate channel using the DB-provided code
+                await join_channel(hyperate_websocket, heartrate_code)
+                # Send the heartbeat every 10 seconds and keep a handle to cancel it later
+                heartbeat_task = create_task(send_heartbeat(hyperate_websocket))
                 try:
-                    # Check if we've exceeded timeout
-                    if get_event_loop().time() - start_time > timeout_duration:
-                        bot_logger.warning("HypeRate warning: Timeout waiting for heart rate data")
-                        return None
-                    # Wait for message with short timeout to check for overall timeout
-                    raw = await asyncio_wait_for(websocket.recv(), timeout=2.0)
-                    raw_sanitized = redact(raw)
+                    while True:
+                        try:
+                            raw = await hyperate_websocket.recv()
+                        except WebSocketConnectionClosed:
+                            bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
+                            break
+                        raw_sanitized = redact(raw)
+                        try:
+                            data = json.loads(raw)
+                        except Exception as e:
+                            bot_logger.warning(
+                                f"HypeRate warning: failed to parse incoming message: {redact(e)} - raw: {raw_sanitized[:200]}"
+                            )
+                            # Skip malformed messages without tearing down the connection
+                            continue
+                        payload = data.get("payload") if isinstance(data, dict) else None
+                        hr = None
+                        if isinstance(payload, dict):
+                            hr = payload.get("hr")
+                        if hr is None:
+                            bot_logger.info("HypeRate info: Received None heart rate data, closing persistent connection")
+                            HEARTRATE = None
+                            return  # Exit the function entirely, stopping the persistent connection
+                        # Update global with valid heart rate data
+                        HEARTRATE = hr
+                        bot_logger.debug(f"HypeRate info: Updated heart rate to {hr}")
+                finally:
+                    # Ensure heartbeat task is cancelled when we exit the connection loop
                     try:
-                        data = json.loads(raw)
-                    except Exception as e:
-                        bot_logger.warning(f"HypeRate warning: failed to parse message: {redact(e)}")
-                        continue
-                    payload = data.get("payload") if isinstance(data, dict) else None
-                    if isinstance(payload, dict):
-                        hr = payload.get("hr")
-                        if hr is not None:
-                            bot_logger.info(f"HypeRate info: Retrieved heart rate: {hr}")
-                            return hr
-                except asyncioTimeoutError:
-                    # Continue loop to check overall timeout
-                    continue
-                except WebSocketConnectionClosed:
-                    bot_logger.warning("HypeRate WebSocket connection closed while waiting for data")
-                    return None
-    except Exception as e:
-        bot_logger.error(f"HypeRate error: Failed to get current heart rate: {redact(e)}")
-        return None
+                        if 'heartbeat_task' in locals() and heartbeat_task and not heartbeat_task.done():
+                            heartbeat_task.cancel()
+                            try:
+                                await heartbeat_task
+                            except asyncioCancelledError:
+                                pass
+                    except Exception:
+                        # Be defensive: nothing critical if cancelling fails
+                        pass
+        except Exception as e:
+            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {redact(e)}")
+            await sleep(10)  # Retry connection after a brief wait
 
 # Heartbeat sender for HypeRate Websocket
 async def send_heartbeat(hyperate_websocket):
@@ -5383,7 +5413,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='heartrate')
     async def heartrate_command(self, ctx):
-        global bot_owner
+        global bot_owner, HEARTRATE, hyperate_task
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5405,12 +5435,16 @@ class TwitchBot(commands.Bot):
                         await ctx.send("Heart rate monitoring is not setup.")
                         return
                     heartrate_code = heartrate_code_data['heartrate_code']
-                    # Get heart rate from websocket
-                    heartrate = await get_current_heartrate(heartrate_code)
-                    if heartrate is None:
+                    # Start the persistent websocket connection if not already running
+                    if hyperate_task is None or hyperate_task.done():
+                        hyperate_task = create_task(hyperate_websocket_persistent())
+                        bot_logger.info("HypeRate info: Started persistent websocket connection")
+                        # Wait a moment for connection to establish and get initial data
+                        await sleep(3)
+                    if HEARTRATE is None:
                         await ctx.send("The Heart Rate is not turned on right now.")
                     else:
-                        await ctx.send(f"The current Heart Rate is: {heartrate}")
+                        await ctx.send(f"The current Heart Rate is: {HEARTRATE}")
         except Exception as e:
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
