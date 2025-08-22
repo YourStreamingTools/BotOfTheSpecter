@@ -11,50 +11,55 @@ class EventHandler:
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the follow event to clients and global listeners
+        payload = {**(data or {}), "channel_code": code or "unknown"}
         if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_FOLLOW", data, code)
+            await self.broadcast_with_globals("TWITCH_FOLLOW", payload, code)
         else:
-            await self.sio.emit("TWITCH_FOLLOW", data)
+            await self.sio.emit("TWITCH_FOLLOW", payload)
 
     async def handle_twitch_cheer(self, sid, data):
         self.logger.info(f"Twitch cheer event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the cheer event to clients and global listeners
+        payload = {**(data or {}), "channel_code": code or "unknown"}
         if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_CHEER", data, code)
+            await self.broadcast_with_globals("TWITCH_CHEER", payload, code)
         else:
-            await self.sio.emit("TWITCH_CHEER", data)
+            await self.sio.emit("TWITCH_CHEER", payload)
 
     async def handle_twitch_raid(self, sid, data):
         self.logger.info(f"Twitch raid event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the raid event to clients and global listeners
+        payload = {**(data or {}), "channel_code": code or "unknown"}
         if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_RAID", data, code)
+            await self.broadcast_with_globals("TWITCH_RAID", payload, code)
         else:
-            await self.sio.emit("TWITCH_RAID", data)
+            await self.sio.emit("TWITCH_RAID", payload)
 
     async def handle_twitch_sub(self, sid, data):
         self.logger.info(f"Twitch sub event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the sub event to clients and global listeners
+        payload = {**(data or {}), "channel_code": code or "unknown"}
         if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_SUB", data, code)
+            await self.broadcast_with_globals("TWITCH_SUB", payload, code)
         else:
-            await self.sio.emit("TWITCH_SUB", data)
+            await self.sio.emit("TWITCH_SUB", payload)
 
     async def handle_twitch_channelpoints(self, sid, data):
         self.logger.info(f"Twitch Channel Points event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the Channel Points event to clients and global listeners
+        payload = {**(data or {}), "channel_code": code or "unknown"}
         if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_CHANNELPOINTS", data, code)
+            await self.broadcast_with_globals("TWITCH_CHANNELPOINTS", payload, code)
         else:
-            await self.sio.emit("TWITCH_CHANNELPOINTS", data)
+            await self.sio.emit("TWITCH_CHANNELPOINTS", payload)
 
     async def handle_stream_online(self, sid, data):
         self.logger.info(f"Stream online event from SID [{sid}]: {data}")
