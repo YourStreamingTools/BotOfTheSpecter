@@ -23,6 +23,7 @@ bot/test.py
 bot/test_websocket.py
 bot/phpmyadmin.txt
 bot/all_events.py
+bot/heartrate_test.py
 
 # Log files
 api/log.txt
