@@ -6,6 +6,32 @@ BotOfTheSpecter is a helpful Twitch chat bot designed to make your streaming exp
 ### Version 5.3
 [See everything that's new in Version 5.3](https://changelog.botofthespecter.com/5.3.html)
 
+## BotOfTheSpecter Versioning Rules (since v2.5.0)
+
+The version number is written as major.minor.micro (e.g., 3.2.1).
+
+### Major
+
+Increases by 1 for each new release.
+
+When it increases, the minor part resets to 0.
+
+### Minor
+
+Increases by 1 for each new release, as long as the major number stays the same.
+
+Resets to 0 whenever the major number changes.
+
+### Micro
+
+Normally 0 for releases.
+
+Increases by 1 only if a fix (patch) is pushed for that same version.
+
+### Important note
+
+A higher major number doesn’t necessarily mean the release has big or breaking changes. Backward-incompatible changes can happen in any release, whether major or minor.
+
 ## Features
 
 ### Twitch Integration
