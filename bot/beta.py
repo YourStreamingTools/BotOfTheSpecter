@@ -3862,24 +3862,38 @@ class TwitchBot(commands.Bot):
                         await ctx.send(f"Streamer, you've been here all along!")
                         chat_logger.info(f"{ctx.author.name} tried to unlurk in their own channel.")
                         return
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("unlurk",))
+                    command_options = await cursor.fetchone()
+                    timer_enabled = False
+                    if command_options and command_options.get("options"):
+                        try:
+                            options_json = json.loads(command_options.get("options"))
+                            timer_enabled = options_json.get("timer", False)
+                        except (json.JSONDecodeError, TypeError) as e:
+                            chat_logger.error(f"Error parsing command options JSON for unlurk: {e}")
+                            timer_enabled = False
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        time_now = time_right_now()
-                        # Convert start_time from string to datetime
-                        start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
-                        elapsed_time = time_now - start_time
-                        # Calculate the duration
-                        days, seconds = divmod(elapsed_time.total_seconds(), 86400)
-                        months, days = divmod(days, 30)
-                        hours, remainder = divmod(seconds, 3600)
-                        minutes, seconds = divmod(remainder, 60)
-                        # Build the time string
-                        periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
-                        time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
-                        # Log the unlurk command execution and send a response
-                        chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
-                        await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
+                        if timer_enabled:
+                            time_now = time_right_now()
+                            # Convert start_time from string to datetime
+                            start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
+                            elapsed_time = time_now - start_time
+                            # Calculate the duration
+                            days, seconds = divmod(elapsed_time.total_seconds(), 86400)
+                            months, days = divmod(days, 30)
+                            hours, remainder = divmod(seconds, 3600)
+                            minutes, seconds = divmod(remainder, 60)
+                            # Build the time string
+                            periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                            time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+                            # Log the unlurk command execution and send a response
+                            chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
+                            await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
+                        else:
+                            chat_logger.info(f"{ctx.author.name} is no longer lurking.")
+                            await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
                         # Remove the user's start time from the database
                         await cursor.execute('DELETE FROM lurk_times WHERE user_id = %s', (user_id,))
                         await connection.commit()
