@@ -115,43 +115,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     
-    // Deleting a User Custom Command
-    if (isset($_POST['delete_command'])) {
-        $command_to_delete = $_POST['delete_command'];
-        try {
-            $deleteSTMT = $db->prepare("DELETE FROM custom_user_commands WHERE command = ?");
-            $deleteSTMT->bind_param("s", $command_to_delete);
-            $deleteSTMT->execute();
-            if ($deleteSTMT->affected_rows > 0) {
-                $status = "User command ". $command_to_delete . " deleted successfully!";
-                $notification_status = "is-success";
-            } else {
-                $status = $command_to_delete . " not found.";
-                $notification_status = "is-danger";
-            }
-            $deleteSTMT->close();
-            $commandsSTMT = $db->prepare("SELECT * FROM custom_user_commands ORDER BY command ASC");
-            $commandsSTMT->execute();
-            $result = $commandsSTMT->get_result();
-            $userCommands = $result->fetch_all(MYSQLI_ASSOC);
-            $commandsSTMT->close();
-        } catch (Exception $e) {
-            $status = "Error deleting " .$command_to_delete . ": " . $e->getMessage();
-            $notification_status = "is-danger";
-        }
-    }
-    
-    // Approving/Rejecting User Commands
-    if (isset($_POST['approve_command']) || isset($_POST['reject_command'])) {
-        $command = isset($_POST['approve_command']) ? $_POST['approve_command'] : $_POST['reject_command'];
-        $status_value = isset($_POST['approve_command']) ? 'Enabled' : 'Disabled';
+    // Approving User Commands
+    if (isset($_POST['approve_command'])) {
+        $command = $_POST['approve_command'];
+        $status_value = 'Enabled';
         try {
             $statusSTMT = $db->prepare("UPDATE custom_user_commands SET status = ? WHERE command = ?");
             $statusSTMT->bind_param("ss", $status_value, $command);
             $statusSTMT->execute();
             if ($statusSTMT->affected_rows > 0) {
-                $action = isset($_POST['approve_command']) ? 'approved' : 'rejected';
-                $status = "User command ". $command . " " . $action . " successfully!";
+                $status = "User command ". $command . " approved successfully!";
                 $notification_status = "is-success";
             } else {
                 $status = $command . " not found or no changes made.";
@@ -164,7 +137,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $userCommands = $result->fetch_all(MYSQLI_ASSOC);
             $commandsSTMT->close();
         } catch (Exception $e) {
-            $status = "Error updating command status: " . $e->getMessage();
+            $status = "Error approving command: " . $e->getMessage();
+            $notification_status = "is-danger";
+        }
+    }
+    
+    // Deleting User Commands
+    if (isset($_POST['delete_command'])) {
+        $command = $_POST['delete_command'];
+        try {
+            $deleteSTMT = $db->prepare("DELETE FROM custom_user_commands WHERE command = ?");
+            $deleteSTMT->bind_param("s", $command);
+            $deleteSTMT->execute();
+            if ($deleteSTMT->affected_rows > 0) {
+                $status = "User command ". $command . " deleted successfully!";
+                $notification_status = "is-success";
+            } else {
+                $status = $command . " not found.";
+                $notification_status = "is-danger";
+            }
+            $deleteSTMT->close();
+            $commandsSTMT = $db->prepare("SELECT * FROM custom_user_commands ORDER BY command ASC");
+            $commandsSTMT->execute();
+            $result = $commandsSTMT->get_result();
+            $userCommands = $result->fetch_all(MYSQLI_ASSOC);
+            $commandsSTMT->close();
+        } catch (Exception $e) {
+            $status = "Error deleting command: " . $e->getMessage();
             $notification_status = "is-danger";
         }
     }
@@ -224,7 +223,7 @@ ob_start();
 <?php endif; ?>
 <h4 class="title is-4 has-text-centered mb-5"><?php echo t('navbar_manage_user_commands'); ?></h4>
 <div class="columns is-desktop is-centered" style="align-items: stretch; min-height: 100%;">
-    <div class="column is-one-third">
+    <div class="column is-half">
         <div class="box" style="height: 100%; display: flex; flex-direction: column;">
             <div class="mb-3" style="display: flex; align-items: center;">
                 <span class="icon is-large has-text-primary" style="margin-right: 0.5rem;">
@@ -276,7 +275,7 @@ ob_start();
             </form>
         </div>
     </div>
-    <div class="column is-one-third">
+    <div class="column is-half">
         <div class="box" style="height: 100%; display: flex; flex-direction: column;">
             <div class="mb-3" style="display: flex; align-items: center;">
                 <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
@@ -327,43 +326,6 @@ ob_start();
                             <button type="submit" class="button is-link">
                                 <span class="icon"><i class="fas fa-save"></i></span>
                                 <span><?php echo t('custom_commands_update_btn'); ?></span>
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            <?php else: ?>
-                <h4 class="subtitle is-4 has-text-grey-light"><?php echo t('user_commands_no_commands'); ?></h4>
-            <?php endif; ?>
-        </div>
-    </div>
-    <div class="column is-one-third">
-        <div class="box" style="height: 100%; display: flex; flex-direction: column;">
-            <div class="mb-3" style="display: flex; align-items: center;">
-                <span class="icon is-large has-text-danger" style="margin-right: 0.5rem;">
-                    <i class="fas fa-trash-alt fa-2x"></i>
-                </span>
-                <h4 class="subtitle is-4 mb-0"><?php echo t('user_commands_delete_title'); ?></h4>
-            </div>
-            <?php if (!empty($userCommands)): ?>
-                <form method="post" action="" onsubmit="return confirmDelete()" style="flex-grow: 1;">
-                    <div class="field mb-4">
-                        <label class="label" for="delete_command"><?php echo t('user_commands_delete_select_label'); ?></label>
-                        <div class="control">
-                            <div class="select is-fullwidth">
-                                <select name="delete_command" id="delete_command" required>
-                                    <option value=""><?php echo t('user_commands_delete_select_placeholder'); ?></option>
-                                    <?php foreach ($userCommands as $command): ?>
-                                        <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?> (for <?php echo $command['user_id']; ?>)</option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="field is-grouped is-grouped-right">
-                        <div class="control">
-                            <button type="submit" class="button is-danger">
-                                <span class="icon"><i class="fas fa-trash"></i></span>
-                                <span><?php echo t('user_commands_delete_btn'); ?></span>
                             </button>
                         </div>
                     </div>
@@ -431,14 +393,12 @@ ob_start();
                                 </button>
                             </form>
                             <?php endif; ?>
-                            <?php if ($command['status'] !== 'Disabled'): ?>
                             <form method="post" style="display: inline;">
-                                <input type="hidden" name="reject_command" value="<?php echo $command['command']; ?>">
-                                <button type="submit" class="button is-small is-warning" title="<?php echo t('user_commands_reject_tooltip'); ?>">
-                                    <span class="icon is-small"><i class="fas fa-times"></i></span>
+                                <input type="hidden" name="delete_command" value="<?php echo $command['command']; ?>">
+                                <button type="submit" class="button is-small is-danger" title="Delete Command" onclick="return confirm('Are you sure you want to delete this command?')">
+                                    <span class="icon is-small"><i class="fas fa-trash-alt"></i></span>
                                 </button>
                             </form>
-                            <?php endif; ?>
                         </div>
                     </td>
                 </tr>
@@ -491,13 +451,6 @@ function updateCharCount(inputId, counterId) {
         counter.className = 'help is-info';
         input.classList.remove('is-danger');
     }
-}
-
-// Confirm delete function
-function confirmDelete() {
-    var select = document.getElementById('delete_command');
-    var commandName = select.options[select.selectedIndex].text;
-    return confirm('Are you sure you want to delete the command: ' + commandName + '? This action cannot be undone.');
 }
 
 // Validate form before submission
