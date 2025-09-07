@@ -424,6 +424,21 @@ function renderCommandOptions(commandName, options) {
                 <p class="help">When enabled, the bot will track how long users have been lurking and display the duration when they use the !lurk command again.</p>
             </div>
         `;
+    } else if (commandName === 'unlurk') {
+        // Special handling for unlurk command
+        const timerEnabled = options && options.timer ? options.timer : false;
+        modalContent.innerHTML = `
+            <div class="field">
+                <label class="label">Unlurk Timer</label>
+                <div class="control">
+                    <label class="checkbox">
+                        <input type="checkbox" id="unlurkTimer" ${timerEnabled ? 'checked' : ''}>
+                        Enable unlurk timer (shows how long user was lurking when they return)
+                    </label>
+                </div>
+                <p class="help">When enabled, the bot will display how long the user was lurking when they use the !unlurk command.</p>
+            </div>
+        `;
     } else {
         // Default message for commands without custom options
         modalContent.innerHTML = '<div class="notification is-info">No custom options are configured for this command.</div>';
@@ -435,6 +450,11 @@ function saveCommandOptions() {
     let options = {};
     if (commandName === 'lurk') {
         const timerCheckbox = document.getElementById('lurkTimer');
+        if (timerCheckbox) {
+            options.timer = timerCheckbox.checked;
+        }
+    } else if (commandName === 'unlurk') {
+        const timerCheckbox = document.getElementById('unlurkTimer');
         if (timerCheckbox) {
             options.timer = timerCheckbox.checked;
         }
