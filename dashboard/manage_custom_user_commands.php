@@ -180,6 +180,17 @@ if (!isset($userCommands)) {
 
 ob_start();
 ?>
+<div class="notification is-warning mb-5">
+    <div class="columns is-vcentered">
+        <div class="column is-narrow">
+            <span class="icon is-large"><i class="fas fa-exclamation-triangle fa-2x"></i></span>
+        </div>
+        <div class="column">
+            <p class="title is-6 mb-2">Warning</p>
+            <p>This feature is currently in testing and available to users running version 5.4.</p>
+        </div>
+    </div>
+</div>
 <div class="notification is-info mb-5">
     <div class="columns is-vcentered">
         <div class="column is-narrow">
