@@ -135,10 +135,10 @@ ob_start();
                 <tr>
                   <th class="has-text-white" style="width: 50%;"><?php echo t('counters_username_column'); ?></th>
                   <th class="has-text-white" style="width: 50%;"><?php echo t('known_users_welcome_message_column'); ?></th>
-                  <th class="has-text-white" style="width: 100px;"><?php echo t('known_users_status_column'); ?></th>
-                  <th class="has-text-white" style="width: 100px;"><?php echo t('known_users_action_column'); ?></th>
-                  <th class="has-text-white" style="width: 100px;"><?php echo t('known_users_editing_column'); ?></th>
-                  <th class="has-text-white" style="width: 100px;"><?php echo t('known_users_removing_column'); ?></th>
+                  <th class="has-text-white has-text-centered" style="width: 100px;"><?php echo t('known_users_status_column'); ?></th>
+                  <th class="has-text-white has-text-centered" style="width: 100px;"><?php echo t('known_users_action_column'); ?></th>
+                  <th class="has-text-white has-text-centered" style="width: 100px;"><?php echo t('known_users_editing_column'); ?></th>
+                  <th class="has-text-white has-text-centered" style="width: 100px;"><?php echo t('known_users_removing_column'); ?></th>
                 </tr>
               </thead>
               <tbody id="user-table">
