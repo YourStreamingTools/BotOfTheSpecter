@@ -729,6 +729,16 @@ input[type="range"].modern-volume::-ms-tooltip {
     background-color: rgba(255, 255, 255, 0.05);
 }
 
+/* Table row transitions for smooth search filtering */
+#commandsTable tbody tr {
+    transition: all 0.3s ease;
+}
+
+#commandsTable tbody tr.fade-out {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
 .conversion-tag {
     animation: pulse 2s infinite;
 }
