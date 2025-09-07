@@ -166,8 +166,12 @@ document.addEventListener("DOMContentLoaded", function() {
             localStorage.setItem("searchTerm", this.value);
             searchFunction();
         });
-        // Call searchFunction on page load to filter if there's a saved term
-        searchFunction();
+        // Use setTimeout to ensure table is fully rendered before searching
+        setTimeout(function() {
+            if (typeof searchFunction === "function") {
+                searchFunction();
+            }
+        }, 100);
     }
     // SweetAlert2 for remove command
     setupRemoveButtons();
