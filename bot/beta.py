@@ -5600,14 +5600,20 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
                 winning_lotto_numbers = await cursor.fetchone()
                 if not winning_lotto_numbers:
-                    await ctx.send("No winning numbers selected. The draw cannot proceed.")
-                    return  # If there are no winning numbers, end the draw
+                    done = await generate_winning_lotto_numbers()
+                    if done == True:
+                        await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
+                        winning_lotto_numbers = await cursor.fetchone()
+                    if not winning_lotto_numbers:
+                        await ctx.send("No winning numbers selected. The draw cannot proceed.")
+                        return  # If there are no winning numbers, end the draw
                 # Extract winning numbers and supplementary numbers
                 winning_set = set(map(int, winning_lotto_numbers["winning_numbers"].split(', ')))
                 supplementary_set = set(map(int, winning_lotto_numbers["supplementary_numbers"].split(', ')))
                 if not user_lotto_numbers:
                     await ctx.send(f"No users have played the lotto yet!")
                     return  # If no users have played, send a message and exit
+                winners = 0
                 for user in user_lotto_numbers:
                     user_name = user["username"]
                     user_winning_set = set(map(int, user["winning_numbers"].split(', ')))
@@ -5649,14 +5655,17 @@ class TwitchBot(commands.Bot):
                         # Send message about the win
                         message = f"@{user_name} you've won {division} and received {prize} points! Total points: {total_points}"
                         await ctx.send(message)
+                        winners += 1
                     # Remove user lotto entry after the draw
                     await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
                     await connection.commit()
+                if winners == 0 and user_lotto_numbers:
+                    await ctx.send(f"No winners this time! The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
+                else:
+                    await ctx.send(f"The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
                 # Clear winning numbers after the draw
                 await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
                 await connection.commit()
-                if not user_lotto_numbers:
-                    await ctx.send(f"No winners this time! The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await ctx.send("Sorry, there is an error in drawing the lotto winners.")
