@@ -8,8 +8,8 @@ parser.add_argument(
     "-system",
     dest="system",
     required=True,
-    choices=["stable", "alpha", "beta", "discord"],
-    help="System to check (stable, alpha, beta, discord)"
+    choices=["stable", "alpha", "beta"],
+    help="System to check (stable, alpha, beta)"
 )
 parser.add_argument("-channel", dest="channel_username", required=True, help="Channel username to check")
 args = parser.parse_args()
@@ -20,32 +20,31 @@ channel_username = args.channel_username.lower()
 script_map = {
     "stable": "bot.py",
     "alpha": "alpha.py",
-    "beta": "beta.py",
-    "discord": "discordbot.py"
+    "beta": "beta.py"
 }
 
 script_name = script_map[args.system]
 
+# Iterate through processes to find a match
 for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
-    cmdline = [arg.lower() for arg in (process.info['cmdline'] or [])]
-    if not cmdline:
-        continue
-    script_match = False
-    for arg in cmdline:
-        if arg.endswith(script_name):
-            base_name = os.path.basename(arg)
-            if base_name == script_name:
-                script_match = True
-                break
-    channel_index = -1
-    if "-channel" in cmdline:
-        channel_index = cmdline.index("-channel")
-    channel_value_match = False
-    if channel_index >= 0 and channel_index + 1 < len(cmdline):
-        if cmdline[channel_index + 1] == channel_username:
-            channel_value_match = True
-    if script_match and channel_value_match:
-        print(f"Bot is running with process ID: {process.info['pid']}")
-        break
+    try:
+        cmdline = [arg.lower() for arg in (process.info['cmdline'] or [])]
+        if not cmdline:
+            continue
+        # Check if script matches
+        script_match = any(os.path.basename(arg) == script_name for arg in cmdline if arg.endswith(script_name))
+        # Check if channel matches
+        channel_match = False
+        try:
+            channel_index = cmdline.index("-channel")
+            if channel_index + 1 < len(cmdline) and cmdline[channel_index + 1] == channel_username:
+                channel_match = True
+        except ValueError:
+            pass  # -channel not found
+        if script_match and channel_match:
+            print(f"Bot is running with process ID: {process.info['pid']}")
+            break
+    except (psutil.AccessDenied, psutil.NoSuchProcess):
+        continue  # Skip processes we can't access
 else:
-    print(f"Bot not running")
+    print("Bot not running")
