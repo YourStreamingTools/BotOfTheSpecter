@@ -7858,9 +7858,14 @@ async def generate_user_lotto_numbers(user_name):
         user_exists = await cursor.fetchone()
         if user_exists:
             return {"error": "you've already played the lotto, please wait until the next round."}
-        # If there are no winning numbers, return error
+        # If there are no winning numbers, generate them
         if not game_running:
-            return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
+            done = await generate_winning_lotto_numbers()
+            if done == True:
+                await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
+                game_running = await cursor.fetchone()
+            if not game_running:
+                return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
         # Draw the numbers if the game is running
         all_numbers = random.sample(range(1, 48), 9)
         # Combine both sets of numbers into one string
