@@ -1004,6 +1004,7 @@ async def WEATHER_DATA(data):
 
 # Connect and manage reconnection for HypeRate Heart Rate
 async def start_hyperate():
+    return # DISABLED -- FIXED IN BETA
     global hyperate_task
     # Ensure API key exists
     if not HYPERATE_API_KEY:
