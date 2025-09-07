@@ -177,13 +177,6 @@ if (!isset($userCommands)) {
     $commandsSTMT->close();
 }
 
-$search = isset($_GET['search']) ? strtolower(trim($_GET['search'])) : '';
-if (!empty($search)) {
-    $userCommands = array_filter($userCommands, function($cmd) use ($search) {
-        return strpos(strtolower($cmd['command']), $search) !== false || strpos(strtolower($cmd['user_id']), $search) !== false;
-    });
-}
-
 ob_start();
 ?>
 <div class="notification is-warning mb-5">
@@ -339,24 +332,19 @@ ob_start();
 
 <?php if (!empty($userCommands)): ?>
 <div class="box mt-5">
-    <h4 class="title is-4 mb-4"><?php echo t('user_commands_list_title'); ?></h4>
-    <form method="get" action="" class="mb-4">
-        <div class="field">
-            <label class="label">Search Commands or Users</label>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h4 class="title is-4 mb-0"><?php echo t('user_commands_list_title'); ?></h4>
+        <div class="field mb-0" style="max-width: 340px;">
             <div class="control has-icons-left">
-                <input class="input" type="text" name="search" placeholder="Enter command or user..." value="<?php echo htmlspecialchars($search); ?>">
-                <span class="icon is-small is-left"><i class="fas fa-search"></i></span>
+                <input class="input is-rounded" type="text" id="searchInput" placeholder="Search commands or users..." style="box-shadow: 0 1px 6px #0001;">
+                <span class="icon is-left has-text-grey-light">
+                    <i class="fas fa-search"></i>
+                </span>
             </div>
         </div>
-        <div class="field">
-            <div class="control">
-                <button class="button is-primary" type="submit">Search</button>
-                <a href="<?php echo $_SERVER['PHP_SELF']; ?>" class="button is-light">Clear</a>
-            </div>
-        </div>
-    </form>
+    </div>
     <div class="table-container">
-        <table class="table is-fullwidth is-striped is-hoverable">
+        <table class="table is-fullwidth is-striped is-hoverable" id="commandsTable">
             <thead>
                 <tr>
                     <th><?php echo t('user_commands_table_command'); ?></th>
@@ -415,6 +403,23 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+document.addEventListener("DOMContentLoaded", function() {
+    var searchInput = document.getElementById("searchInput");
+    if (searchInput) {
+        searchInput.value = localStorage.getItem("searchTerm") || "";
+        searchInput.addEventListener("input", function() {
+            localStorage.setItem("searchTerm", this.value);
+            searchFunction();
+        });
+        // Use setTimeout to ensure table is fully rendered before searching
+        setTimeout(function() {
+            if (typeof searchFunction === "function") {
+                searchFunction();
+            }
+        }, 100);
+    }
+});
+
 function showResponse() {
     var command = document.getElementById('command_to_edit').value;
     var commands = <?php echo json_encode($userCommands); ?>;
@@ -499,6 +504,24 @@ window.onload = function() {
             }
         });
     });
+}
+
+function searchFunction() {
+    var input = document.getElementById("searchInput");
+    var filter = input.value.toLowerCase();
+    var table = document.getElementById("commandsTable");
+    var trs = table.getElementsByTagName("tr");
+    for (var i = 1; i < trs.length; i++) {
+        var tds = trs[i].getElementsByTagName("td");
+        var found = false;
+        for (var j = 0; j < tds.length; j++) {
+            if (tds[j].textContent.toLowerCase().indexOf(filter) > -1) {
+                found = true;
+                break;
+            }
+        }
+        trs[i].style.display = found ? "" : "none";
+    }
 }
 </script>
 <?php
