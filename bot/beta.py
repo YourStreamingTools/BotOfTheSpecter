@@ -716,48 +716,56 @@ async def connect_to_streamelements():
             event_logger.warning("Authentication failed, disconnecting to trigger token refresh and reconnection")
             await streamelements_socket.disconnect()
         @streamelements_socket.event
-        async def event(data):
-            # Main event handler for live events - only process tip events
-            try:
-                # Only process tip events from StreamElements
-                if data.get('type') == 'tip':
-                    sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
-                    event_logger.info(f"StreamElements Tip Event: {sanitized_data}")
-                    await process_tipping_message(data, "StreamElements")
-                else:
-                    # Log other events for debugging but don't process them
-                    event_type = data.get('type', 'unknown')
-                    event_logger.debug(f"StreamElements event ignored (type: {event_type})")
-            except Exception as e:
-                event_logger.error(f"Error processing StreamElements event: {e}")
+        async def event(*args):
+            if args:
+                data = args[0]
+                # Main event handler for live events - only process tip events
+                try:
+                    # Only process tip events from StreamElements
+                    if data.get('type') == 'tip':
+                        sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
+                        event_logger.info(f"StreamElements Tip Event: {sanitized_data}")
+                        await process_tipping_message(data, "StreamElements")
+                    else:
+                        # Log other events for debugging but don't process them
+                        event_type = data.get('type', 'unknown')
+                        event_logger.debug(f"StreamElements event ignored (type: {event_type})")
+                except Exception as e:
+                    event_logger.error(f"Error processing StreamElements event: {e}")
         @streamelements_socket.event
-        async def event_test(data):
-            # Test event handler - only process tip tests
-            try:
-                if data.get('type') == 'tip':
-                    sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
-                    event_logger.info(f"StreamElements Test Tip Event: {sanitized_data}")
-                    # Note: Usually test events shouldn't trigger actual processing
-                else:
-                    event_type = data.get('type', 'unknown')
-                    event_logger.debug(f"StreamElements test event ignored (type: {event_type})")
-            except Exception as e:
-                event_logger.error(f"Error processing StreamElements test event: {e}")
+        async def event_test(*args):
+            if args:
+                data = args[0]
+                # Test event handler - only process tip tests
+                try:
+                    if data.get('type') == 'tip':
+                        sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
+                        event_logger.info(f"StreamElements Test Tip Event: {sanitized_data}")
+                        # Note: Usually test events shouldn't trigger actual processing
+                    else:
+                        event_type = data.get('type', 'unknown')
+                        event_logger.debug(f"StreamElements test event ignored (type: {event_type})")
+                except Exception as e:
+                    event_logger.error(f"Error processing StreamElements test event: {e}")
         @streamelements_socket.event
-        async def event_update(data):
-            # Session update events - not processing these since we only care about tips
-            try:
-                event_logger.debug("StreamElements session update event received (ignored)")
-            except Exception as e:
-                event_logger.error(f"Error handling StreamElements update event: {e}")
+        async def event_update(*args):
+            if args:
+                data = args[0]
+                # Session update events - not processing these since we only care about tips
+                try:
+                    event_logger.debug("StreamElements session update event received (ignored)")
+                except Exception as e:
+                    event_logger.error(f"Error handling StreamElements update event: {e}")
                 
         @streamelements_socket.event
-        async def event_reset(data):
-            # Session reset events - not processing these since we only care about tips
-            try:
-                event_logger.debug("StreamElements session reset event received (ignored)")
-            except Exception as e:
-                event_logger.error(f"Error handling StreamElements reset event: {e}")
+        async def event_reset(*args):
+            if args:
+                data = args[0]
+                # Session reset events - not processing these since we only care about tips
+                try:
+                    event_logger.debug("StreamElements session reset event received (ignored)")
+                except Exception as e:
+                    event_logger.error(f"Error handling StreamElements reset event: {e}")
         # Connect to StreamElements with websocket transport only (as per example)
         await streamelements_socket.connect(uri, transports=['websocket'])
         await streamelements_socket.wait()
