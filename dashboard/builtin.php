@@ -265,9 +265,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (searchInput) {
         var query = localStorage.getItem('searchQuery') || '';
         searchInput.value = query;
-        if (typeof searchFunction === "function") {
-            searchFunction();
-        }
+        // Use setTimeout to ensure table is fully rendered before searching
+        setTimeout(function() {
+            if (typeof searchFunction === "function") {
+                searchFunction();
+            }
+        }, 100);
         searchInput.addEventListener('input', function() {
             localStorage.setItem('searchQuery', this.value);
         });
