@@ -98,7 +98,7 @@ builtin_commands = {
     "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping",
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage", "deaths",
-    "heartrate"
+    "heartrate", "gamble"
 }
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
@@ -5237,6 +5237,113 @@ class TwitchBot(commands.Bot):
                 await ctx.send(result)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the RPS command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
+        finally:
+            await connection.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
+    @commands.command(name="gamble")
+    async def gamble_command(self, ctx):
+        global bot_owner
+        user_id = str(ctx.author.id)
+        user_name = ctx.author.name
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("gamble",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                # Parse command arguments
+                parts = ctx.message.content.split(' ')
+                if len(parts) < 2:
+                    await ctx.send(f"{ctx.author.name}, please specify a game type. Try !gamble coinflip 100, !gamble blackjack 100, or !gamble roulette red 100")
+                    return
+                game_type = parts[1].lower()
+                try:
+                    bet_amount = int(parts[2]) if len(parts) > 2 else 100
+                except ValueError:
+                    bet_amount = 100
+                if game_type == "roulette":
+                    if len(parts) > 2:
+                        if parts[2].lower() in ["red", "black"]:
+                            choice = parts[2].lower()
+                            try:
+                                bet_amount = int(parts[3]) if len(parts) > 3 else 100
+                            except ValueError:
+                                bet_amount = 100
+                        else:
+                            try:
+                                bet_amount = int(parts[2])
+                                choice = parts[3].lower() if len(parts) > 3 else None
+                            except ValueError:
+                                choice = parts[2].lower() if parts[2].lower() in ["red", "black"] else None
+                                bet_amount = 100
+                    else:
+                        choice = None
+                    if not choice or choice not in ["red", "black"]:
+                        await ctx.send(f"{ctx.author.name}, please specify red or black for roulette. Usage: !gamble roulette red 100 or !gamble roulette 100 red")
+                        return
+                # Fetch user's points from the database
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                user_data = await cursor.fetchone()
+                if not user_data:
+                    await cursor.execute(
+                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                        (user_id, user_name, 0)
+                    )
+                    await connection.commit()
+                    user_points = 0
+                else:
+                    user_points = user_data.get("points")
+                # Check if user has enough points
+                if user_points < bet_amount:
+                    await ctx.send(f"{ctx.author.name}, you don't have enough points to gamble {bet_amount}. You have {user_points} points.")
+                    return
+                # Handle game types
+                if game_type == "coinflip":
+                    # Coin flip: 50% chance to win double, 50% to lose all
+                    if random.random() < 0.5:  # Win
+                        winnings = bet_amount
+                        user_points += winnings
+                        message = f"{ctx.author.name}, you flipped heads and won {winnings} points! Total points: {user_points}"
+                    else:  # Lose
+                        user_points -= bet_amount
+                        message = f"{ctx.author.name}, you flipped tails and lost {bet_amount} points. Total points: {user_points}"
+                elif game_type == "blackjack":
+                    # Blackjack
+                    roll = random.randint(1, 21)
+                    if roll == 21:
+                        winnings = bet_amount
+                        user_points += winnings
+                        message = f"{ctx.author.name}, you got 21 in blackjack and won {winnings} points! Total points: {user_points}"
+                    else:
+                        user_points -= bet_amount
+                        message = f"{ctx.author.name}, you rolled {roll} in blackjack and lost {bet_amount} points. Total points: {user_points}"
+                elif game_type == "roulette":
+                    bot_choice = random.choice(["red", "black"])
+                    if choice == bot_choice:
+                        winnings = bet_amount
+                        user_points += winnings
+                        message = f"{ctx.author.name}, roulette landed on {bot_choice}, you won {winnings} points! Total points: {user_points}"
+                    else:
+                        user_points -= bet_amount
+                        message = f"{ctx.author.name}, roulette landed on {bot_choice}, you lost {bet_amount} points. Total points: {user_points}"
+                else:
+                    await ctx.send(f"{ctx.author.name}, invalid game type. Try !gamble coinflip {bet_amount}, !gamble blackjack {bet_amount}, or !gamble roulette red {bet_amount}")
+                    return
+                # Update user's points in the database
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                await connection.commit()
+                await ctx.send(message)
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the gamble command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
