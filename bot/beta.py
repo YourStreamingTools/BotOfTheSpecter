@@ -1,5 +1,5 @@
 # Standard library imports
-import os, re, sys, ast, signal, argparse, traceback
+import os, re, sys, ast, signal, argparse, traceback, math
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
 from asyncio import CancelledError as asyncioCancelledError
@@ -1490,8 +1490,8 @@ class TwitchBot(commands.Bot):
     async def event_command_error(self, ctx, error: Exception) -> None:
         command = ctx.message.content.split()[0][1:]
         if isinstance(error, commands.CommandOnCooldown):
-            bot_logger.info(f"[COOLDOWN] Command: '{command}' is on cooldown for {round(error.retry_after)} seconds.")
-            retry_after = round(error.retry_after)
+            retry_after = max(1, math.ceil(error.retry_after))
+            bot_logger.info(f"[COOLDOWN] Command: '{command}' is on cooldown for {retry_after} seconds.")
             message = f"Command '{command}' is on cooldown. Try again in {retry_after} seconds."
             channel = self.get_channel(self.channel_name)
             if channel:
@@ -1584,8 +1584,8 @@ class TwitchBot(commands.Bot):
                                 time_since_last_used = (time_right_now() - last_used).total_seconds()
                                 if time_since_last_used < cooldown:
                                     remaining_time = cooldown - time_since_last_used
-                                    chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
-                                    await channel.send(f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
+                                    chat_logger.info(f"{command} is on cooldown. {max(1, math.ceil(remaining_time))} seconds remaining.")
+                                    await channel.send(f"The command {command} is on cooldown. Please wait {max(1, math.ceil(remaining_time))} seconds.")
                                     return
                             command_last_used[command] = time_right_now()
                             switches = [
@@ -1770,8 +1770,8 @@ class TwitchBot(commands.Bot):
                                     time_since_last_used = (time_right_now() - last_used).total_seconds()
                                     if time_since_last_used < cooldown:
                                         remaining_time = cooldown - time_since_last_used
-                                        chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
-                                        await channel.send(f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
+                                        chat_logger.info(f"{command} is on cooldown. {max(1, math.ceil(remaining_time))} seconds remaining.")
+                                        await channel.send(f"The command {command} is on cooldown. Please wait {max(1, math.ceil(remaining_time))} seconds.")
                                         return
                                 if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
                                     command_last_used[command] = time_right_now()
