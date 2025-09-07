@@ -350,9 +350,9 @@ ob_start();
                     <th><?php echo t('user_commands_table_command'); ?></th>
                     <th><?php echo t('user_commands_table_response'); ?></th>
                     <th><?php echo t('user_commands_table_user'); ?></th>
-                    <th><?php echo t('user_commands_table_cooldown'); ?></th>
-                    <th><?php echo t('user_commands_table_status'); ?></th>
-                    <th><?php echo t('user_commands_table_actions'); ?></th>
+                    <th class="has-text-centered"><?php echo t('user_commands_table_cooldown'); ?></th>
+                    <th class="has-text-centered"><?php echo t('user_commands_table_status'); ?></th>
+                    <th class="has-text-centered"><?php echo t('user_commands_table_actions'); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -363,16 +363,16 @@ ob_start();
                         <?php echo htmlspecialchars($command['response']); ?>
                     </td>
                     <td><?php echo htmlspecialchars($command['user_id']); ?></td>
-                    <td><?php echo $command['cooldown']; ?>s</td>
-                    <td>
+                    <td class="has-text-centered"><?php echo $command['cooldown']; ?>s</td>
+                    <td class="has-text-centered">
                         <?php if ($command['status'] === 'Enabled'): ?>
                             <span class="tag is-success"><?php echo t('user_commands_status_enabled'); ?></span>
                         <?php else: ?>
                             <span class="tag is-danger"><?php echo t('user_commands_status_disabled'); ?></span>
                         <?php endif; ?>
                     </td>
-                    <td>
-                        <div class="field is-grouped">
+                    <td class="has-text-centered">
+                        <div class="field is-grouped is-grouped-centered">
                             <?php if ($command['status'] !== 'Enabled'): ?>
                             <form method="post" style="display: inline;">
                                 <input type="hidden" name="approve_command" value="<?php echo $command['command']; ?>">
