@@ -5310,7 +5310,7 @@ class TwitchBot(commands.Bot):
                 if game_type == "coinflip":
                     # Coin flip: 50% chance to win double, 50% to lose all
                     if random.random() < 0.5:  # Win
-                        winnings = bet_amount
+                        winnings = bet_amount * 2
                         user_points += winnings
                         message = f"{ctx.author.name}, you flipped heads and won {winnings} points! Total points: {user_points}"
                     else:  # Lose
@@ -5320,16 +5320,16 @@ class TwitchBot(commands.Bot):
                     # Blackjack
                     roll = random.randint(1, 21)
                     if roll == 21:
-                        winnings = bet_amount
+                        winnings = bet_amount * 2
                         user_points += winnings
-                        message = f"{ctx.author.name}, you got 21 in blackjack and won {winnings} points! Total points: {user_points}"
+                        message = f"{ctx.author.name}, you rolled 21 in blackjack and won {winnings} points! Total points: {user_points}"
                     else:
                         user_points -= bet_amount
                         message = f"{ctx.author.name}, you rolled {roll} in blackjack and lost {bet_amount} points. Total points: {user_points}"
                 elif game_type == "roulette":
                     bot_choice = random.choice(["red", "black"])
                     if choice == bot_choice:
-                        winnings = bet_amount
+                        winnings = bet_amount * 2
                         user_points += winnings
                         message = f"{ctx.author.name}, roulette landed on {bot_choice}, you won {winnings} points! Total points: {user_points}"
                     else:
