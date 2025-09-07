@@ -178,6 +178,13 @@ if (!isset($userCommands)) {
     $commandsSTMT->close();
 }
 
+$search = isset($_GET['search']) ? strtolower(trim($_GET['search'])) : '';
+if (!empty($search)) {
+    $userCommands = array_filter($userCommands, function($cmd) use ($search) {
+        return strpos(strtolower($cmd['command']), $search) !== false || strpos(strtolower($cmd['user_id']), $search) !== false;
+    });
+}
+
 ob_start();
 ?>
 <div class="notification is-warning mb-5">
@@ -371,6 +378,21 @@ ob_start();
 <?php if (!empty($userCommands)): ?>
 <div class="box mt-5">
     <h4 class="title is-4 mb-4"><?php echo t('user_commands_list_title'); ?></h4>
+    <form method="get" action="" class="mb-4">
+        <div class="field">
+            <label class="label">Search Commands or Users</label>
+            <div class="control has-icons-left">
+                <input class="input" type="text" name="search" placeholder="Enter command or user..." value="<?php echo htmlspecialchars($search); ?>">
+                <span class="icon is-small is-left"><i class="fas fa-search"></i></span>
+            </div>
+        </div>
+        <div class="field">
+            <div class="control">
+                <button class="button is-primary" type="submit">Search</button>
+                <a href="<?php echo $_SERVER['PHP_SELF']; ?>" class="button is-light">Clear</a>
+            </div>
+        </div>
+    </form>
     <div class="table-container">
         <table class="table is-fullwidth is-striped is-hoverable">
             <thead>
