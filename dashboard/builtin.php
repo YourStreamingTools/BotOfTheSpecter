@@ -441,10 +441,10 @@ function renderCommandOptions(commandName, options) {
                 <div class="control">
                     <label class="checkbox">
                         <input type="checkbox" id="unlurkTimer" ${timerEnabled ? 'checked' : ''}>
-                        Enable unlurk timer (shows how long user was lurking when they return)
+                        Enable unlurk timer (resets lurk timer when user returns from lurking)
                     </label>
                 </div>
-                <p class="help">When enabled, the bot will display how long the user was lurking when they use the !unlurk command.</p>
+                <p class="help">When enabled, the bot will reset the user's lurk timer instead of removing them from lurk tracking when they use !unlurk. This allows continuous lurk time tracking.</p>
             </div>
         `;
     } else {
