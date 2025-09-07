@@ -380,31 +380,39 @@ function closeCommandModal() {
 
 function loadCommandOptions(commandName) {
     const modalContent = document.getElementById('modalContent');
-    // Show loading state
-    modalContent.innerHTML = '<div class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
-    // Fetch command options
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '', true);
-    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-            if (xhr.status === 200) {
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    if (response.success) {
-                        renderCommandOptions(commandName, response.options);
-                    } else {
-                        modalContent.innerHTML = '<div class="notification is-danger">' + response.message + '</div>';
+    // Commands that have custom options
+    const commandsWithOptions = ['lurk', 'unlurk'];
+    
+    if (commandsWithOptions.includes(commandName)) {
+        // Show loading state for commands that have options
+        modalContent.innerHTML = '<div class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+        // Fetch command options
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            renderCommandOptions(commandName, response.options);
+                        } else {
+                            modalContent.innerHTML = '<div class="notification is-danger">' + response.message + '</div>';
+                        }
+                    } catch (e) {
+                        modalContent.innerHTML = '<div class="notification is-danger">Error parsing response</div>';
                     }
-                } catch (e) {
-                    modalContent.innerHTML = '<div class="notification is-danger">Error parsing response</div>';
+                } else {
+                    modalContent.innerHTML = '<div class="notification is-danger">Error loading command options</div>';
                 }
-            } else {
-                modalContent.innerHTML = '<div class="notification is-danger">Error loading command options</div>';
             }
-        }
-    };
-    xhr.send('action=get_command_options&command_name=' + encodeURIComponent(commandName));
+        };
+        xhr.send('action=get_command_options&command_name=' + encodeURIComponent(commandName));
+    } else {
+        // Immediately show no options message for commands without custom options
+        renderCommandOptions(commandName, null);
+    }
 }
 
 function renderCommandOptions(commandName, options) {
@@ -441,7 +449,7 @@ function renderCommandOptions(commandName, options) {
         `;
     } else {
         // Default message for commands without custom options
-        modalContent.innerHTML = '<div class="notification is-info">No custom options are configured for this command.</div>';
+        modalContent.innerHTML = '<div class="notification is-info">There are no custom options to set for this command.</div>';
     }
 }
 
