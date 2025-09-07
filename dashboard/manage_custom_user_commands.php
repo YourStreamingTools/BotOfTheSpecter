@@ -512,7 +512,8 @@ function searchFunction() {
     var table = document.getElementById("commandsTable");
     var trs = table.getElementsByTagName("tr");
     for (var i = 1; i < trs.length; i++) {
-        var tds = trs[i].getElementsByTagName("td");
+        var tr = trs[i];
+        var tds = tr.getElementsByTagName("td");
         var found = false;
         for (var j = 0; j < tds.length; j++) {
             if (tds[j].textContent.toLowerCase().indexOf(filter) > -1) {
@@ -520,7 +521,17 @@ function searchFunction() {
                 break;
             }
         }
-        trs[i].style.display = found ? "" : "none";
+        if (found) {
+            tr.classList.remove("fade-out");
+            tr.style.display = "";
+        } else {
+            tr.classList.add("fade-out");
+            setTimeout(function(tr) {
+                if (tr.classList.contains("fade-out")) {
+                    tr.style.display = "none";
+                }
+            }, 300, tr);
+        }
     }
 }
 </script>
