@@ -462,7 +462,6 @@ class ChannelMapping:
                     database_name='specterdiscordbot', dict_cursor=True
                 )
                 self.mappings = {row['channel_code']: dict(row) for row in rows}
-                self.logger.info(f"Loaded {len(self.mappings)} channel mappings from database (basic schema fallback)")
             except Exception as e2:
                 self.logger.error(f"Error loading channel mappings with basic schema: {e2}")
                 self.mappings = {}
@@ -1274,7 +1273,6 @@ class BotOfTheSpecter(commands.Bot):
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
 
     async def handle_twitch_event(self, event_type, data):
-        self.logger.info(f"Handling Twitch event: {event_type} with data: {data}")
         channel_code = data.get("channel_code", "unknown")
         mapping = await self.channel_mapping.get_mapping(channel_code)
         if not mapping:
@@ -1301,6 +1299,7 @@ class BotOfTheSpecter(commands.Bot):
         moderation_channel_id = mapping.get("moderation_channel_id") 
         alert_channel_id = mapping.get("alert_channel_id")
         # If not in cache, get from database
+        discord_info = None
         if not stream_alert_channel_id:
             mysql_helper = MySQLHelper(self.logger)
             discord_info = await mysql_helper.fetchone(
@@ -1310,24 +1309,26 @@ class BotOfTheSpecter(commands.Bot):
                 stream_alert_channel_id = discord_info.get("stream_alert_channel_id")
                 moderation_channel_id = discord_info.get("moderation_channel_id")
                 alert_channel_id = discord_info.get("alert_channel_id")
-        if not discord_info:
+        if not discord_info and not stream_alert_channel_id:
             self.logger.warning(f"No Discord info found for guild {guild_id}")
             return
-        alert_channel_id = discord_info.get("alert_channel_id")
-        stream_alert_channel_id = discord_info.get("stream_alert_channel_id")
-        moderation_channel_id = discord_info.get("moderation_channel_id")
         # Determine which channel to send the message to based on event type
+        channel_id = None
+        mention_everyone = False
         if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID"]:
             if not alert_channel_id:
+                self.logger.warning(f"No alert_channel_id for {event_type} event in guild {guild_id}")
                 return
             channel_id = alert_channel_id
         elif event_type in ["ONLINE", "OFFLINE"]:
             if not stream_alert_channel_id:
+                self.logger.warning(f"No stream_alert_channel_id for {event_type} event in guild {guild_id}")
                 return
             channel_id = stream_alert_channel_id
             mention_everyone = True
         elif event_type == "MODERATION":
             if not moderation_channel_id:
+                self.logger.warning(f"No moderation_channel_id for {event_type} event in guild {guild_id}")
                 return
             channel_id = moderation_channel_id
         try:
@@ -1339,39 +1340,48 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.warning(f"Channel {channel_id} not found in guild {guild.name}")
             return
         channel_name = mapping.get("channel_name")
-        message = await self.format_twitch_message(event_type, data, channel_name)
+        message = await self.format_twitch_message(event_type, data, channel_code)
         if message:
             if mention_everyone:
                 await channel.send(content="@everyone", embed=message)
             else:
                 await channel.send(embed=message)
-            self.logger.info(f"Sent {event_type} message to {guild.name}#{channel.name}")
+        else:
+            self.logger.warning(f"No message formatted for {event_type} event")
 
-    async def format_twitch_message(self, event_type, data, channel_name):
+    async def format_twitch_message(self, event_type, data, channel_code):
+        mysql_helper = MySQLHelper(self.logger)
+        # Get the account username from the website database using the channel_code as api_key
+        user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
+        account_username = user_row['username'] if user_row else "Unknown User"
         thumbnail_url = "https://cdn.botofthespecter.com/webhook"
-        username = data.get("username", "Unknown User")
+        # Get the appropriate username based on event type
+        if event_type == "FOLLOW":
+            twitch_username = data.get("twitch-username", "Unknown User")
+        else:
+            twitch_username = data.get("username", "Unknown User")
         message_text = data.get("message", "")
         embed = None
         if event_type == "ONLINE":
             embed = discord.Embed(
                 title="🟢 Stream is LIVE!",
-                description=f"**{username}** is now live!",
+                description=f"**{twitch_username}** is now live!",
                 color=discord.Color.green()
             )
-            stream_thumbnail_url = await self.get_stream_thumbnail_url(channel_name)
+            stream_thumbnail_url = await self.get_stream_thumbnail_url(account_username)
             if stream_thumbnail_url is not None:
                 embed.set_thumbnail(url=data.get(f"{stream_thumbnail_url}"))
         elif event_type == "FOLLOW":
             embed = discord.Embed(
                 title="New Follower!",
-                description=f"**{username}** just followed the stream!",
+                description=f"**{twitch_username}** just followed the stream!",
                 color=discord.Color.blue()
             )
             embed.set_thumbnail(url=data.get(f"{thumbnail_url}/follow.png"))
         elif event_type == "SUBSCRIPTION":
             months = data.get("months", 1)
             tier = data.get("tier")
-            desc = f"**{username}** just subscribed"
+            desc = f"**{twitch_username}** just subscribed"
             if months > 1:
                 desc += f" for {months} months"
             desc += f" (Tier {tier})!"
@@ -1385,7 +1395,7 @@ class BotOfTheSpecter(commands.Bot):
             bits = data.get("bits", 0)
             embed = discord.Embed(
                 title="New Cheer!",
-                description=f"**{username}** cheered {bits} bits!",
+                description=f"**{twitch_username}** cheered {bits} bits!",
                 color=discord.Color.purple()
             )
             if bits < 100:
@@ -1399,21 +1409,31 @@ class BotOfTheSpecter(commands.Bot):
             viewers = data.get("viewers", 0)
             embed = discord.Embed(
                 title="New Raid!",
-                description=f"**{username}** raided with {viewers} viewers!",
+                description=f"**{twitch_username}** raided with {viewers} viewers!",
                 color=discord.Color.green()
             )
             embed.set_thumbnail(url=data.get(f"{thumbnail_url}/raid.png"))
         if message_text:
             embed.insert_field_at(index=1, name="Message", value=message_text, inline=False)
         embed.set_author(name="BotOfTheSpecter", icon_url="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg")
-        timestamp = await self.format_discord_embed_timestamp(self, channel_name)
+        timestamp = await self.format_discord_embed_timestamp(channel_code)
         embed.set_footer(text=f"Auto Posted by BotOfTheSpecter | {timestamp}")
         return embed
 
-    async def format_discord_embed_timestamp(self, channel_name):
+    async def format_discord_embed_timestamp(self, channel_code):
         mysql_helper = MySQLHelper(self.logger)
-        timezone_info = await mysql_helper.fetchone("SELECT timezone FROM profile",(), database_name=channel_name, dict_cursor=True)
-        timezone = timezone_info.get("timezone") if timezone_info.get("timezone") else 'UTC'
+        # Get the username from the website database using the channel_code as api_key
+        user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
+        if not user_row:
+            timezone = 'UTC'
+        else:
+            username = user_row['username']
+            # Query the user's database for the timezone
+            timezone_info = await mysql_helper.fetchone("SELECT timezone FROM profile", (), database_name=username.lower(), dict_cursor=True)
+            if timezone_info and timezone_info.get("timezone"):
+                timezone = timezone_info.get("timezone")
+            else:
+                timezone = 'UTC'
         tz = pytz.timezone(timezone)
         current_time = datetime.now(tz)
         time_format_date = current_time.strftime("%B %d, %Y")
