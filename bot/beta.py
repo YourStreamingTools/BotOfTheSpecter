@@ -8527,7 +8527,7 @@ async def periodic_watch_time_update():
         # Fetch active users from Twitch API
         active_users = await fetch_active_users()
         if not active_users:
-            bot_logger.warning("No active users found. Skipping this interval.")
+            pass
         else:
             # Pass the active users (raw data) to the watch time tracker
             await track_watch_time(active_users)
