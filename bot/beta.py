@@ -8562,32 +8562,39 @@ async def track_watch_time(active_users):
     try:
         async with connection.cursor(DictCursor) as cursor:
             current_time = int(time.time())
-            for user in active_users:
-                user_login = user['user_login']
+            # Fetch the excluded_users list once
+            await cursor.execute("SELECT excluded_users FROM watch_time_excluded_users LIMIT 1")
+            excluded_users_data = await cursor.fetchone()
+            excluded_users = excluded_users_data['excluded_users'] if excluded_users_data else ''
+            excluded_users_list = excluded_users.split(',') if excluded_users else []
+            # Filter active users to exclude those in the list
+            non_excluded_users = [user for user in active_users if user['user_login'] not in excluded_users_list]
+            if not non_excluded_users:
+                return
+            # Get all user_ids for batch query
+            user_ids = [user['user_id'] for user in non_excluded_users]
+            placeholders = ','.join(['%s'] * len(user_ids))
+            await cursor.execute(f"SELECT user_id, total_watch_time_live, total_watch_time_offline, last_active FROM watch_time WHERE user_id IN ({placeholders})", user_ids)
+            existing_data = {row['user_id']: row for row in await cursor.fetchall()}
+            # Prepare updates and inserts
+            updates = []
+            inserts = []
+            for user in non_excluded_users:
                 user_id = user['user_id']
-                # Fetch the excluded_users list from the watch_time_excluded_users table
-                await cursor.execute("SELECT excluded_users FROM watch_time_excluded_users LIMIT 1")
-                excluded_users_data = await cursor.fetchone()
-                excluded_users = excluded_users_data['excluded_users'] if excluded_users_data else ''
-                excluded_users_list = excluded_users.split(',') if excluded_users else []
-                # Skip the user if they are marked as excluded
-                if user_login in excluded_users_list:
-                    continue  # Skip to the next user if excluded
-                # Fetch existing watch time data for the user from the watch_time table
-                await cursor.execute("SELECT total_watch_time_live, total_watch_time_offline, last_active FROM watch_time WHERE user_id = %s", (user_id,))
-                user_data = await cursor.fetchone()
-                if user_data:
-                    total_watch_time_live = user_data['total_watch_time_live']
-                    total_watch_time_offline = user_data['total_watch_time_offline']
-                    if stream_online:
-                        total_watch_time_live += 60
-                    else:
-                        total_watch_time_offline += 60
-                    # Update watch time in the database
-                    await cursor.execute("UPDATE watch_time SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s WHERE user_id = %s", (total_watch_time_live, total_watch_time_offline, current_time, user_id))
+                user_login = user['user_login']
+                if user_id in existing_data:
+                    data = existing_data[user_id]
+                    total_live = data['total_watch_time_live'] + (60 if stream_online else 0)
+                    total_offline = data['total_watch_time_offline'] + (60 if not stream_online else 0)
+                    updates.append((total_live, total_offline, current_time, user_id))
                 else:
-                    # Insert new user data if not found
-                    await cursor.execute("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s)", (user_id, user_login, 60 if stream_online else 0, 60 if not stream_online else 0, current_time))
+                    inserts.append((user_id, user_login, 60 if stream_online else 0, 60 if not stream_online else 0, current_time))
+            # Execute batch updates
+            if updates:
+                await cursor.executemany("UPDATE watch_time SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s WHERE user_id = %s", updates)
+            # Execute batch inserts
+            if inserts:
+                await cursor.executemany("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s)", inserts)
             await connection.commit()
     except Exception as e:
         bot_logger.error(f"Error in track_watch_time: {e}", exc_info=True)
