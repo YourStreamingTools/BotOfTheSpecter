@@ -8399,11 +8399,7 @@ async def known_users():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     connection = await mysql_connection()
     try:
-        headers = {
-            "Authorization": f"Bearer {CHANNEL_AUTH}",
-            "Client-Id": CLIENT_ID,
-            "Content-Type": "application/json"
-        }
+        headers = {"Authorization": f"Bearer {CHANNEL_AUTH}","Client-Id": CLIENT_ID,"Content-Type": "application/json"}
         async with httpClientSession() as session:
             # Get all the mods and put them into the database
             url_mods = f'https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={CHANNEL_ID}'
@@ -8411,26 +8407,33 @@ async def known_users():
                 if response.status == 200:
                     data = await response.json()
                     moderators = data.get('data', [])
-                    mod_list = [mod['user_name'] for mod in moderators]
-                    async with connection.cursor(DictCursor) as cursor:
-                        for mod in mod_list:
-                            await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (mod, "MOD", "MOD"))
-                        await connection.commit()
+                    mod_list = [(mod['user_name'], "MOD") for mod in moderators]
                 else:
                     api_logger.error(f"Failed to fetch moderators: {response.status} - {await response.text()}")
+                    mod_list = []
             # Get all the VIPs and put them into the database
             url_vips = f'https://api.twitch.tv/helix/channels/vips?broadcaster_id={CHANNEL_ID}'
             async with session.get(url_vips, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
                     vips = data.get('data', [])
-                    vip_list = [vip['user_name'] for vip in vips]
-                    async with connection.cursor(DictCursor) as cursor:
-                        for vip in vip_list:
-                            await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "VIP", "VIP"))
-                        await connection.commit()
+                    vip_list = [(vip['user_name'], "VIP") for vip in vips]
                 else:
                     api_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
+                    vip_list = []
+        # Combine lists, prioritizing MOD over VIP for users in both
+        user_groups = {}
+        for username, group in mod_list + vip_list:
+            if username not in user_groups or group == "MOD":
+                user_groups[username] = group
+        if user_groups:
+            async with connection.cursor(DictCursor) as cursor:
+                values = [(username, group, group) for username, group in user_groups.items()]
+                await cursor.executemany(
+                    "INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s",
+                    values
+                )
+                await connection.commit()
     except Exception as e:
         bot_logger.error(f"An error occurred in known_users: {e}")
     finally:
