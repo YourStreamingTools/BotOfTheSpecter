@@ -19,6 +19,7 @@ from websockets import ConnectionClosed as WebSocketConnectionClosed
 from websockets import ConnectionClosedError as WebSocketConnectionClosedError
 from aiohttp import ClientSession as httpClientSession
 from aiohttp import ClientError as aiohttpClientError
+from aiohttp import ClientTimeout
 from socketio import AsyncClient
 from aiomysql import connect as sql_connect
 from aiomysql import IntegrityError as MySQLIntegrityError
@@ -8476,24 +8477,40 @@ async def check_premium_feature():
 # Make a Stream Marker for events
 async def make_stream_marker(description: str):
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-    payload = {
-        "user_id": CHANNEL_ID,
-        "description": description
-    }
-    headers = {
-        "Client-ID": CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Content-Type": "application/json"
-    }
+    # Validate description
+    if not description or not description.strip():
+        twitch_logger.error("Stream marker description cannot be empty")
+        return False
+    if len(description) > 140:
+        twitch_logger.error(f"Stream marker description too long: {len(description)} characters (max 140)")
+        return False
+    payload = {"user_id": CHANNEL_ID,"description": description.strip()}
+    headers = {"Client-ID": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}","Content-Type": "application/json"}
+    timeout = ClientTimeout(total=10)  # 10 second timeout
     try:
         async with httpClientSession() as session:
-            async with session.post('https://api.twitch.tv/helix/streams/markers', headers=headers, json=payload) as marker_response:
+            async with session.post('https://api.twitch.tv/helix/streams/markers', headers=headers, json=payload, timeout=timeout) as marker_response:
                 if marker_response.status == 200:
-                    return True
+                    try:
+                        data = await marker_response.json()
+                        marker_id = data.get("data", [{}])[0].get("id")
+                        twitch_logger.info(f"Stream marker created successfully with ID: {marker_id}")
+                        return True
+                    except (aiohttpClientError, json.JSONDecodeError) as e:
+                        twitch_logger.error(f"Failed to parse response JSON: {e}")
+                        return False
                 else:
+                    response_text = await marker_response.text()
+                    twitch_logger.error(f"Failed to create stream marker: HTTP {marker_response.status} - {response_text}")
                     return False
+    except ClientTimeout as e:
+        twitch_logger.error(f"Timeout creating stream marker: {e}")
+        return False
     except aiohttpClientError as e:
-        twitch_logger.error(f"Error creating stream marker: {e}")
+        twitch_logger.error(f"Client error creating stream marker: {e}")
+        return False
+    except Exception as e:
+        twitch_logger.error(f"Unexpected error creating stream marker: {e}")
         return False
 
 # Function to check if a URL or domain matches whitelisted or blacklisted URLs
