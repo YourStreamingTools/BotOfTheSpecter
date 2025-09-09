@@ -8445,24 +8445,21 @@ async def check_premium_feature():
         twitch_user_url = "https://api.twitch.tv/helix/users"
         twitch_subscriptions_url = f"https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id={CHANNEL_ID}"
         beta_users_url = f"https://api.botofthespecter.com/authorizedusers?api_key={ADMIN_API_KEY}"
-        headers = {
-            "Client-ID": CLIENT_ID,
-            "Authorization": f"Bearer {CHANNEL_AUTH}",
-        }
+        headers = {"Client-ID": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}",}
         async with httpClientSession() as session:
-            # Check Display Name and get Auth List from Specter API
-            async with session.get(twitch_user_url, headers=headers) as response:
-                response.raise_for_status()
-                user_data = await response.json()
-                display_name = user_data["data"][0]["display_name"]
-            # Check if the user is in the authorized list
-            async with session.get(beta_users_url) as response:
-                response.raise_for_status()
-                auth_data = await response.json()
-                # Convert usernames in the users list to lowercase for comparison
-                authorized_users = [user.lower() for user in auth_data.get("users", [])]
-                if display_name.lower() in authorized_users:
-                    return 4000
+            # Parallelize fetching user data and auth list
+            user_task = session.get(twitch_user_url, headers=headers)
+            auth_task = session.get(beta_users_url)
+            user_response, auth_response = await gather(user_task, auth_task)
+            user_response.raise_for_status()
+            auth_response.raise_for_status()
+            user_data = await user_response.json()
+            auth_data = await auth_response.json()
+            display_name = user_data["data"][0]["display_name"]
+            # Convert usernames in the users list to lowercase for comparison
+            authorized_users = [user.lower() for user in auth_data.get("users", [])]
+            if display_name.lower() in authorized_users:
+                return 4000
             # If user not found in Auth List, check if they're a subscriber
             async with session.get(twitch_subscriptions_url, headers=headers) as response:
                 response.raise_for_status()
