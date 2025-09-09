@@ -217,6 +217,9 @@ websocket_connected = False                             # Whether the websocket 
 bot_owner = "gfaundead"                                 # Bot owner's username
 streamelements_token = None                             # StreamElements OAuth2 access token
 streamlabs_token = None                                 # StreamLabs access token
+ad_settings_cache = None                                # Global cache for ad settings
+ad_settings_cache_time = 0                              # Last time the ad settings were cached
+CACHE_DURATION = 60                                     # 1 minute (matches ad check interval)
 
 SPOTIFY_ERROR_MESSAGES = {
     400: "It looks like something went wrong with the request. Please try again.",
@@ -6998,46 +7001,6 @@ async def delete_recorded_files():
     except Exception as e:
         api_logger.error(f"An error occurred while deleting recorded files: {e}")
 
-## Functions for the EventSub
-# Function for AD BREAK
-async def handle_ad_break_start(duration_seconds):
-    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    connection = await mysql_connection()
-    try:
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT * FROM ad_notice_settings WHERE id = %s", (1,))
-            settings = await cursor.fetchone()
-            if settings:
-                ad_start_message = settings["ad_start_message"]
-                ad_end_message = settings["ad_end_message"]
-                enable_ad_notice = settings["enable_ad_notice"]
-            else:
-                ad_start_message = "Ads are running for (duration). We'll be right back after these ads."
-                ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!"
-                enable_ad_notice = True
-    finally:
-        await connection.ensure_closed()
-    if enable_ad_notice:
-        minutes = duration_seconds // 60
-        seconds = duration_seconds % 60
-        if minutes == 0:
-            formatted_duration = f"{seconds} seconds"
-        elif seconds == 0:
-            formatted_duration = f"{minutes} minutes"
-        else:
-            formatted_duration = f"{minutes} minutes, {seconds} seconds"
-        ad_start_message = ad_start_message.replace("(duration)", formatted_duration)
-        await channel.send(ad_start_message)
-        @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
-        async def handle_ad_break_end(channel):
-            await channel.send(ad_end_message)
-            # Check for the next ad after this one completes
-            global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-            ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
-            headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
-            create_task(check_next_ad_after_completion(channel, ads_api_url, headers))
-        handle_ad_break_end.start(channel)
-
 # Fcuntion for POLLS
 async def handel_twitch_poll(event=None, poll_title=None, half_time=None, message=None):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
@@ -8660,6 +8623,68 @@ async def remove_shoutout_user(username: str, delay: int):
         chat_logger.info(f"Removed temporary shoutout data for {username}")
         shoutout_user = None
 
+# Helper function to format duration
+def format_duration(duration_seconds):
+    minutes = duration_seconds // 60
+    seconds = duration_seconds % 60
+    if minutes == 0:
+        return f"{seconds} second{'s' if seconds != 1 else ''}"
+    elif seconds == 0:
+        return f"{minutes} minute{'s' if minutes != 1 else ''}"
+    else:
+        return f"{minutes} minute{'s' if minutes != 1 else ''} and {seconds} second{'s' if seconds != 1 else ''}"
+
+# Helper function to get ad settings with caching (refreshed every minute to ensure accuracy)
+async def get_ad_settings():
+    global ad_settings_cache, ad_settings_cache_time
+    current_time = time.time()
+    if ad_settings_cache and (current_time - ad_settings_cache_time) < CACHE_DURATION:
+        return ad_settings_cache
+    connection = await mysql_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT * FROM ad_notice_settings WHERE id = 1")
+            settings = await cursor.fetchone()
+            if settings:
+                ad_settings_cache = {
+                    'ad_start_message': settings.get("ad_start_message", "Ads are running for (duration). We'll be right back after these ads."),
+                    'ad_end_message': settings.get("ad_end_message", "Thanks for sticking with us through the ads! Welcome back, everyone!"),
+                    'ad_upcoming_message': settings.get("ad_upcoming_message", "Heads up! An ad break is coming up in (minutes) minutes and will last (duration)."),
+                    'ad_snoozed_message': settings.get("ad_snoozed_message", "Ads have been snoozed."),
+                    'enable_ad_notice': settings.get("enable_ad_notice", True)
+                }
+            else:
+                ad_settings_cache = {
+                    'ad_start_message': "Ads are running for (duration). We'll be right back after these ads.",
+                    'ad_end_message': "Thanks for sticking with us through the ads! Welcome back, everyone!",
+                    'ad_upcoming_message': "Heads up! An ad break is coming up in (minutes) minutes and will last (duration).",
+                    'ad_snoozed_message': "Ads have been snoozed.",
+                    'enable_ad_notice': True
+                }
+            ad_settings_cache_time = current_time
+            return ad_settings_cache
+    finally:
+        await connection.ensure_closed()
+
+# Function for AD BREAK
+async def handle_ad_break_start(duration_seconds):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+    settings = await get_ad_settings()
+    if not settings['enable_ad_notice']:
+        return
+    formatted_duration = format_duration(duration_seconds)
+    ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
+    await channel.send(ad_start_message)
+    @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
+    async def handle_ad_break_end(channel):
+        await channel.send(settings['ad_end_message'])
+        # Check for the next ad after this one completes
+        global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+        ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+        headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
+        create_task(check_next_ad_after_completion(channel, ads_api_url, headers))
+    handle_ad_break_end.start(channel)
+
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
     global CHANNEL_NAME, stream_online
@@ -8701,25 +8726,19 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                 snooze_count = int(ad_info.get("snooze_count", 0))
                 last_ad_at = ad_info.get("last_ad_at")
                 api_logger.debug(f"Ad info - next_ad_at: {next_ad_at}, duration: {duration}, preroll_free_time: {preroll_free_time}")
-                # Check if the ad was snoozed
+                skip_upcoming_check = False
                 if last_snooze_count is not None and snooze_count > last_snooze_count:
-                    # Get the ad snoozed message from database
-                    connection = await mysql_connection()
-                    try:
-                        async with connection.cursor(DictCursor) as cursor:
-                            await cursor.execute("SELECT ad_snoozed_message FROM ad_notice_settings WHERE id = 1")
-                            result = await cursor.fetchone()
-                            snooze_message = result['ad_snoozed_message'] if result and result['ad_snoozed_message'] else "Ads have been snoozed."
-                    finally:
-                        await connection.ensure_closed()
+                    settings = await get_ad_settings()
+                    snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
                     await channel.send(snooze_message)
                     api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
                     last_snooze_count = snooze_count
+                    skip_upcoming_check = True
                     return last_notification_time, last_ad_time, last_snooze_count
                 # Update the last snooze count
                 last_snooze_count = snooze_count
                 # Check if we have a scheduled ad
-                if next_ad_at:
+                if next_ad_at and not skip_upcoming_check:
                     try:
                         # Parse the next ad time
                         next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), set_timezone.UTC)
@@ -8729,30 +8748,16 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                         if 270 <= time_until_ad <= 330:
                             if last_notification_time != next_ad_at:
                                 minutes_until = 5
-                                if duration >= 60:
-                                    duration_minutes = duration // 60
-                                    remaining_seconds = duration % 60
-                                    if remaining_seconds == 0:
-                                        duration_text = f"{duration_minutes} minute" if duration_minutes == 1 else f"{duration_minutes} minutes"
-                                    else:
-                                        duration_text = f"{duration_minutes} minute{'s' if duration_minutes != 1 else ''} and {remaining_seconds} second{'s' if remaining_seconds != 1 else ''}"
+                                duration_text = format_duration(duration)
+                                settings = await get_ad_settings()
+                                if settings and settings['ad_upcoming_message']:
+                                    message = settings['ad_upcoming_message']
+                                    # Replace placeholders
+                                    message = message.replace("(minutes)", str(minutes_until))
+                                    message = message.replace("(duration)", duration_text)
                                 else:
-                                    duration_text = f"{duration} second" if duration == 1 else f"{duration} seconds"
-                                connection = await mysql_connection()
-                                try:
-                                    async with connection.cursor(DictCursor) as cursor:
-                                        await cursor.execute("SELECT ad_upcoming_message FROM ad_notice_settings WHERE id = 1")
-                                        result = await cursor.fetchone()
-                                        if result and result['ad_upcoming_message']:
-                                            message = result['ad_upcoming_message']
-                                            # Replace placeholders
-                                            message = message.replace("(minutes)", str(minutes_until))
-                                            message = message.replace("(duration)", duration_text)
-                                        else:
-                                            message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
-                                finally:
-                                    await connection.ensure_closed()
-                                    await channel.send(message)
+                                    message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
+                                await channel.send(message)
                                 api_logger.info(f"Sent 5-minute ad notification: {message}")
                                 last_notification_time = next_ad_at
                     except Exception as e:
@@ -8795,34 +8800,17 @@ async def check_next_ad_after_completion(channel, ads_api_url, headers):
                         current_time = time_right_now(set_timezone.UTC)
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
                         api_logger.info(f"Next ad scheduled in {time_until_ad} seconds ({time_until_ad/60:.1f} minutes)")
-                        # If the next ad is 5 minutes or less away, send immediate notification
                         if time_until_ad <= 300:  # 5 minutes or less
                             minutes_until = max(1, int(time_until_ad / 60))
-                            # Convert duration to a more user-friendly format
-                            if duration >= 60:
-                                duration_minutes = duration // 60
-                                remaining_seconds = duration % 60
-                                if remaining_seconds == 0:
-                                    duration_text = f"{duration_minutes} minute" if duration_minutes == 1 else f"{duration_minutes} minutes"
-                                else:
-                                    duration_text = f"{duration_minutes} minute{'s' if duration_minutes != 1 else ''} and {remaining_seconds} second{'s' if remaining_seconds != 1 else ''}"
+                            duration_text = format_duration(duration)
+                            settings = await get_ad_settings()
+                            if settings and settings['ad_upcoming_message']:
+                                message = settings['ad_upcoming_message']
+                                # Replace placeholders
+                                message = message.replace("(minutes)", str(minutes_until))
+                                message = message.replace("(duration)", duration_text)
                             else:
-                                duration_text = f"{duration} second" if duration == 1 else f"{duration} seconds"
-                            # Get the ad notification message from database
-                            connection = await mysql_connection()
-                            try:
-                                async with connection.cursor(DictCursor) as cursor:
-                                    await cursor.execute("SELECT ad_upcoming_message FROM ad_notice_settings WHERE id = 1")
-                                    result = await cursor.fetchone()
-                                    if result and result['ad_upcoming_message']:
-                                        message = result['ad_upcoming_message']
-                                        # Replace placeholders
-                                        message = message.replace("(minutes)", str(minutes_until))
-                                        message = message.replace("(duration)", duration_text)
-                                    else:
-                                        message = f"Heads up! Another ad break is coming up in {minutes_until} minute{'s' if minutes_until != 1 else ''} and will last {duration_text}."
-                            finally:
-                                await connection.ensure_closed()
+                                message = f"Heads up! Another ad break is coming up in {minutes_until} minute{'s' if minutes_until != 1 else ''} and will last {duration_text}."
                             await channel.send(message)
                             api_logger.info(f"Sent immediate next-ad notification: {message}")
                     except Exception as e:
