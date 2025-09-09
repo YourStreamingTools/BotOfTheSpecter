@@ -185,8 +185,6 @@ specterSocket = AsyncClient()                           # Specter Socket Client 
 streamelements_socket = AsyncClient()                   # StreamElements Socket Client instance
 bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
-SPOTIFY_REFRESH_TOKEN = None                            # Spotify API refresh token 
-SPOTIFY_ACCESS_TOKEN = None                             # Spotify API access token 
 next_spotify_refresh_time = None                        # Time for the next Spotify token refresh 
 HEARTRATE = None                                        # Current heart rate value 
 hyperate_task = None                                    # HypeRate WebSocket task
@@ -2761,7 +2759,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
     @commands.command(name='songrequest', aliases=['sr'])
     async def songrequest_command(self, ctx):
-        global SPOTIFY_ACCESS_TOKEN, SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
+        global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -2779,7 +2777,8 @@ class TwitchBot(commands.Bot):
                 if not await command_permissions(permissions, ctx.author):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
-            headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
+            access_token = await get_spotify_access_token()
+            headers = {"Authorization": f"Bearer {access_token}"}
             message = ctx.message.content
             parts = message.split(" ", 1)
             if len(parts) < 2 or not parts[1].strip():
@@ -2932,7 +2931,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
     @commands.command(name='skipsong', aliases=['skip'])
     async def skipsong_command(self, ctx):
-        global SPOTIFY_ACCESS_TOKEN, SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
+        global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -2947,7 +2946,8 @@ class TwitchBot(commands.Bot):
                 if not await command_permissions(permissions, ctx.author):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
-            headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
+            access_token = await get_spotify_access_token()
+            headers = {"Authorization": f"Bearer {access_token}"}
             device_url = "https://api.spotify.com/v1/me/player/devices"
             async with httpClientSession() as session:
                 device_id = None
@@ -2994,7 +2994,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=30, bucket=commands.Bucket.member)
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
     async def songqueue_command(self, ctx):
-        global SPOTIFY_ACCESS_TOKEN, SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
+        global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3013,7 +3013,8 @@ class TwitchBot(commands.Bot):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
             # Request the queue information from Spotify
-            headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
+            access_token = await get_spotify_access_token()
+            headers = {"Authorization": f"Bearer {access_token}"}
             queue_url = "https://api.spotify.com/v1/me/player/queue"
             async with httpClientSession() as queue_session:
                 async with queue_session.get(queue_url, headers=headers) as response:
@@ -6703,10 +6704,42 @@ async def send_timed_message(message_id, message, delay):
     else:
         chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
 
+# Function to get Spotify access token from database
+async def get_spotify_access_token():
+    connection = await mysql_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            # Get the user_id from the profile table based on CHANNEL_NAME
+            await cursor.execute("SELECT id FROM profile WHERE username = %s", (CHANNEL_NAME,))
+            user_row = await cursor.fetchone()
+            if user_row:
+                user_id = user_row["id"]
+                # Fetch the Spotify access token for this user
+                await cursor.execute("SELECT access_token FROM spotify_tokens WHERE user_id = %s", (user_id,))
+                token_row = await cursor.fetchone()
+                if token_row and token_row.get("access_token"):
+                    return token_row["access_token"]
+                else:
+                    api_logger.error(f"No Spotify access token found for user {CHANNEL_NAME}")
+                    return None
+            else:
+                api_logger.error(f"No user found with username {CHANNEL_NAME}")
+                return None
+    except Exception as e:
+        api_logger.error(f"Error retrieving Spotify access token: {e}")
+        return None
+    finally:
+        await connection.ensure_closed()
+
 # Function to get the song via Spotify
 async def get_spotify_current_song():
-    global SPOTIFY_ACCESS_TOKEN, SPOTIFY_ERROR_MESSAGES, song_requests
-    headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
+    global SPOTIFY_ERROR_MESSAGES, song_requests
+    # Get the Spotify access token from the database
+    access_token = await get_spotify_access_token()
+    if not access_token:
+        api_logger.error("Failed to retrieve Spotify access token from database")
+        return None, None, None, "Failed to retrieve Spotify access token"
+    headers = { "Authorization": f"Bearer {access_token}" }
     async with httpClientSession() as session:
         async with session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers) as response:
             if response.status == 200:
@@ -8462,11 +8495,13 @@ async def track_watch_time(active_users):
 
 # Function to periodically check the queue
 async def check_song_requests():
-    global SPOTIFY_ACCESS_TOKEN, song_requests
+    global song_requests
     while True:
         await sleep(180)
         if song_requests:
-            headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
+            # Get the Spotify access token from the database
+            access_token = await get_spotify_access_token()
+            headers = { "Authorization": f"Bearer {access_token}" }
             queue_url = "https://api.spotify.com/v1/me/player/queue"
             async with httpClientSession() as session:
                 async with session.get(queue_url, headers=headers) as response:
