@@ -7692,7 +7692,8 @@ async def check_stream_online():
                     'Authorization': f'Bearer {CHANNEL_AUTH}'
                 }
                 async with session.get(f'https://api.twitch.tv/helix/streams?user_login={CHANNEL_NAME}&type=live', headers=headers) as response:
-                    data = await response.json()                    # Check if the stream is offline
+                    data = await response.json()
+                    # Check if the stream is offline
                     if not data.get('data'):
                         stream_online = False
                         # Stop all timed messages when stream goes offline
@@ -7703,8 +7704,18 @@ async def check_stream_online():
                             file.write('False')
                         await cursor.execute("UPDATE stream_status SET status = %s", ("False",))
                         bot_logger.info(f"Bot Starting, Stream is offline.")
+                        # When offline, call channels to get the set game and title
+                        async with session.get(f"https://api.twitch.tv/helix/channels?broadcaster_id={CHANNEL_ID}", headers=headers) as channel_response:
+                            channel_data = await channel_response.json()
+                            if channel_data.get('data'):
+                                current_game = channel_data['data'][0].get('game_name', None)
+                                stream_title = channel_data['data'][0].get('title', None)
                     else:
                         stream_online = True
+                        # Extract game and title from streams data
+                        stream_data = data['data'][0]
+                        current_game = stream_data.get('game_name', None)
+                        stream_title = stream_data.get('title', None)
                         looped_tasks["timed_message"] = get_event_loop().create_task(timed_message())
                         looped_tasks["handle_upcoming_ads"] = get_event_loop().create_task(handle_upcoming_ads())
                         # Log the status to the file
@@ -7714,11 +7725,6 @@ async def check_stream_online():
                         await cursor.execute("UPDATE stream_status SET status = %s", ("True",))
                         bot_logger.info(f"Bot Starting, Stream is online.")
                 await connection.commit()
-                async with session.get(f"https://api.twitch.tv/helix/channels?broadcaster_id={CHANNEL_ID}", headers=headers) as channel_response:
-                    channel_data = await channel_response.json()
-                    if channel_data.get('data'):
-                        current_game = channel_data['data'][0].get('game_name', None)
-                        stream_title = channel_data['data'][0].get('title', None)
     finally:
         await connection.ensure_closed()
 
