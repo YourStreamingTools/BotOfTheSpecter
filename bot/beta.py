@@ -7733,24 +7733,31 @@ async def convert_currency(amount, from_currency, to_currency):
                 if data['result'] == "success":
                     converted_amount = data['conversion_result']
                     api_logger.info(f"Converted {amount} {from_currency} to {converted_amount:.2f} {to_currency}")
-                    # Read the remaining requests from the file, subtract 1, and write it back
-                    file_path = "/var/www/api/exchangerate.txt"
+                    # Update API usage count in database
+                    connection = await mysql_connection(db_name="website")
                     try:
-                        with open(file_path, 'r') as file:
-                            remaining_requests = int(file.read())
-                    except (FileNotFoundError, ValueError):
-                        # If the file doesn't exist or contains invalid data, initialize with a default value
-                        remaining_requests = 1500
-                    remaining_requests -= 1
-                    with open(file_path, 'w') as file:
-                        file.write(str(remaining_requests))
-                    api_logger.info(f"Exchangerate API Requests Remaining: {remaining_requests}")
+                        async with connection.cursor(DictCursor) as cursor:
+                            # Get current count
+                            await cursor.execute("SELECT count FROM api_counts WHERE type = %s", ("exchangerate",))
+                            result = await cursor.fetchone()
+                            if result:
+                                remaining_requests = int(result['count']) - 1
+                                # Update the count
+                                await cursor.execute("UPDATE api_counts SET count = %s WHERE type = %s", (remaining_requests, "exchangerate"))
+                                await connection.commit()
+                                api_logger.info(f"Exchangerate API Requests Remaining: {remaining_requests}")
+                            else:
+                                api_logger.warning("No exchangerate count found in api_counts table")
+                    except Exception as e:
+                        api_logger.error(f"Error updating API count: {e}")
+                    finally:
+                        await connection.ensure_closed()
                     return converted_amount
                 else:
                     error_message = data.get('error-type', 'Unknown error')
                     api_logger.error(f"convert_currency Error: {error_message}")
                     sanitized_error = str(error_message).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
-                    return f"Sorry, I got an error: {sanitized_error}"
+                    raise ValueError(f"Currency conversion failed: {sanitized_error}")
     except aiohttpClientError as e:
         sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {sanitized_error}")
