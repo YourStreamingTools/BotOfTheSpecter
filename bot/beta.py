@@ -6706,7 +6706,7 @@ async def send_timed_message(message_id, message, delay):
 
 # Function to get Spotify access token from database
 async def get_spotify_access_token():
-    connection = await mysql_connection()
+    connection = await mysql_connection(db_name="website")
     try:
         async with connection.cursor(DictCursor) as cursor:
             # Get the user_id from the profile table based on CHANNEL_NAME
