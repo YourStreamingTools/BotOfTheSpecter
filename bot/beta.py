@@ -8626,42 +8626,31 @@ async def check_song_requests():
 
 # Function to return the action back to the user
 async def return_the_action_back(ctx, author, action):
+    action_config = {
+        "kiss": ("kiss_counts", "kiss_count"),
+        "hug": ("hug_counts", "hug_count"),
+        "highfive": ("highfive_counts", "highfive_count")
+    }
+    if action not in action_config:
+        return
+    table, column = action_config[action]
+    display_action = "high five" if action == "highfive" else action
     connection = await mysql_connection()
-    count = None
-    async with connection.cursor(DictCursor) as cursor:
-        if action == "kiss":
+    try:
+        async with connection.cursor(DictCursor) as cursor:
             await cursor.execute(
-                'INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) '
-                'ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1', 
+                f'INSERT INTO {table} (username, {column}) VALUES (%s, 1) '
+                f'ON DUPLICATE KEY UPDATE {column} = {column} + 1',
                 (author,)
             )
             await connection.commit()
-            await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (author,))
-        elif action == "hug":
-            await cursor.execute(
-                'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) '
-                'ON DUPLICATE KEY UPDATE hug_count = hug_count + 1', 
-                (author,)
-            )
-            await connection.commit()
-            await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (author,))
-        elif action == "highfive":
-            await cursor.execute(
-                'INSERT INTO highfive_counts (username, highfive_count) VALUES (%s, 1) '
-                'ON DUPLICATE KEY UPDATE highfive_count = highfive_count + 1', 
-                (author,)
-            )
-            await connection.commit()
-            await cursor.execute('SELECT highfive_count FROM highfive_counts WHERE username = %s', (author,))
-            action = "high five"
-        else:
-            return
-        result = await cursor.fetchone()
-        if result:
-            count = list(result.values())[0]
-    await connection.ensure_closed()
-    if count is not None:
-        await ctx.send(f"Thanks for the {action}, {author}! I've given you a {action} too, you have been {action} {count} times!")
+            await cursor.execute(f'SELECT {column} FROM {table} WHERE username = %s', (author,))
+            result = await cursor.fetchone()
+            if result:
+                count = result[column]
+                await ctx.send(f"Thanks for the {display_action}, {author}! I've given you a {display_action} too, you have been {display_action} {count} times!")
+    finally:
+        await connection.ensure_closed()
 
 # Function to remove the temp user from the shoutout_user dict
 async def remove_shoutout_user(username: str, delay: int):
