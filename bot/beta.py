@@ -328,86 +328,6 @@ async def refresh_twitch_token(current_refresh_token):
         twitch_logger.error(f"Twitch token refresh error: {e}")
     return time.time() + 3600  # Default retry time of 1 hour
 
-# Setup Spotify Access
-async def spotify_token_refresh():
-    global SPOTIFY_REFRESH_TOKEN, SPOTIFY_ACCESS_TOKEN, next_spotify_refresh_time
-    try:
-        # Connect to the database to retrieve the user's Spotify tokens
-        connection = await mysql_connection(db_name="website")
-        async with connection.cursor(DictCursor) as cursor:
-            # Fetch the user ID for the specified CHANNEL_NAME
-            await cursor.execute("SELECT id FROM users WHERE username = %s", (CHANNEL_NAME,))
-            user_row = await cursor.fetchone()
-            if user_row:
-                user_id = user_row["id"]
-                # Fetch the Spotify tokens associated with the user_id
-                await cursor.execute("SELECT access_token, refresh_token FROM spotify_tokens WHERE user_id = %s", (user_id,))
-                tokens_row = await cursor.fetchone()
-                if not tokens_row:
-                    bot_logger.info(f"No Spotify tokens found for user {CHANNEL_NAME}.")
-                    await connection.ensure_closed()
-                    return
-                SPOTIFY_ACCESS_TOKEN = tokens_row["access_token"]
-                SPOTIFY_REFRESH_TOKEN = tokens_row["refresh_token"]
-            else:
-                bot_logger.error(f"No user found with username {CHANNEL_NAME}.")
-                await connection.ensure_closed()
-                return
-        await connection.ensure_closed()
-        await sleep(300)  # 5 minutes initial sleep
-        SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
-        # Set next refresh time to 55 minutes from now (1 hour - 5 minutes buffer)
-        next_spotify_refresh_time = time.time() + 60 * 60 - 300
-        while True:
-            current_time = time.time()
-            if current_time >= next_spotify_refresh_time:
-                SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
-            else:
-                time_until_expiration = next_spotify_refresh_time - current_time
-                sleep_time = min(60, max(300, time_until_expiration)) # Adjust sleep time dynamically
-                await sleep(sleep_time)
-    except Exception as e:
-        bot_logger.error(f"An error occurred in spotify_token_refresh: {e}")
-
-# Function to refresh Spotify token
-async def refresh_spotify_token(current_refresh_token, user_id):
-    global SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time
-    url = "https://accounts.spotify.com/api/token"
-    data = {
-        "grant_type": "refresh_token",
-        "refresh_token": current_refresh_token,
-        "client_id": SPOTIFY_CLIENT_ID,
-        "client_secret": SPOTIFY_CLIENT_SECRET,
-    }
-    try:
-        async with httpClientSession() as session:
-            async with session.post(url, data=data) as response:
-                if response.status == 200:
-                    tokens = await response.json()
-                    new_access_token = tokens.get("access_token")
-                    new_refresh_token = tokens.get("refresh_token", current_refresh_token) # Use existing if not provided
-                    expires_in = tokens.get("expires_in", 3600) # Default to 1 hour if not provided
-                    next_refresh_time = time.time() + expires_in - 300 # Refresh 5 minutes before expiration
-                    SPOTIFY_ACCESS_TOKEN = new_access_token
-                    SPOTIFY_REFRESH_TOKEN = new_refresh_token
-                    # Save the new tokens in the database
-                    connection = await mysql_connection(db_name="website")
-                    async with connection.cursor(DictCursor) as cursor:
-                        await cursor.execute(
-                            "UPDATE spotify_tokens SET access_token = %s, refresh_token = %s WHERE user_id = %s",
-                            (new_access_token, new_refresh_token, user_id)
-                        )
-                        await connection.commit()
-                    await connection.ensure_closed()
-                    return new_access_token, new_refresh_token, next_refresh_time
-                else:
-                    error_response = await response.json()
-                    bot_logger.error(f"Spotify token refresh failed: HTTP {response.status} - {error_response}")
-                    return SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time
-    except Exception as e:
-        bot_logger.error(f"Spotify token refresh error: {e}")
-        return SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time
-
 # Setup Twitch EventSub
 async def twitch_eventsub():
     twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
@@ -1458,7 +1378,6 @@ class TwitchBot(commands.Bot):
         create_task(known_users())
         create_task(channel_point_rewards())
         looped_tasks["twitch_token_refresh"] = create_task(twitch_token_refresh())
-        looped_tasks["spotify_token_refresh"] = create_task(spotify_token_refresh())
         looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
         looped_tasks["connect_to_tipping_services"] = create_task(connect_to_tipping_services())
