@@ -2,6 +2,7 @@ import os
 import asyncio
 import aiohttp
 import aiomysql
+import base64
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,13 +18,10 @@ TOKEN_URL = "https://accounts.spotify.com/api/token"
 
 async def refresh_spotify_token(session, pool, user_id, refresh_token):
     try:
-        data = {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "client_id": SPOTIFY_CLIENT_ID,
-            "client_secret": SPOTIFY_CLIENT_SECRET,
-        }
-        async with session.post(TOKEN_URL, data=data) as response:
+        data = {"grant_type": "refresh_token","refresh_token": refresh_token,}
+        auth_string = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode()
+        headers = {'Content-Type': 'application/x-www-form-urlencoded','Authorization': f'Basic {auth_string}'}
+        async with session.post(TOKEN_URL, data=data, headers=headers) as response:
             result = await response.json()
             if response.status == 200 and 'access_token' in result:
                 new_access_token = result['access_token']
