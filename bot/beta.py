@@ -6710,7 +6710,7 @@ async def get_spotify_access_token():
     try:
         async with connection.cursor(DictCursor) as cursor:
             # Get the user_id from the profile table based on CHANNEL_NAME
-            await cursor.execute("SELECT id FROM profile WHERE username = %s", (CHANNEL_NAME,))
+            await cursor.execute("SELECT id FROM users WHERE username = %s", (CHANNEL_NAME,))
             user_row = await cursor.fetchone()
             if user_row:
                 user_id = user_row["id"]
