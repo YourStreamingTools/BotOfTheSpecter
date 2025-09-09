@@ -37,7 +37,7 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
             channel_index = cmdline.index("-channel")
         if channel_index >= 0 and channel_index + 1 < len(cmdline):
             channel = cmdline[channel_index + 1]
-            stable_bots.append(channel)
+            stable_bots.append((channel, process.info['pid']))
     # If it's a beta bot, find the channel
     if script_match_beta:
         channel_index = -1
@@ -45,21 +45,21 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
             channel_index = cmdline.index("-channel")
         if channel_index >= 0 and channel_index + 1 < len(cmdline):
             channel = cmdline[channel_index + 1]
-            beta_bots.append(channel)
+            beta_bots.append((channel, process.info['pid']))
 
 # Print results
 print("Stable bots running:")
 if stable_bots:
-    for channel in stable_bots:
-        print(f"- Channel: {channel}")
+    for channel, pid in stable_bots:
+        print(f"- Channel: {channel}, PID: {pid}")
     print(f"Total: {len(stable_bots)}")
 else:
     print("None")
 
 print("\nBeta bots running:")
 if beta_bots:
-    for channel in beta_bots:
-        print(f"- Channel: {channel}")
+    for channel, pid in beta_bots:
+        print(f"- Channel: {channel}, PID: {pid}")
     print(f"Total: {len(beta_bots)}")
 else:
     print("None")
