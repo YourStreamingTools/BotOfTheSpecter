@@ -165,24 +165,6 @@ def time_right_now(tz=None):
         return datetime.now(tz)
     return datetime.now()
 
-# Setup Globals
-global bot_owner
-global stream_online
-global current_game
-global stream_title
-global bot_started
-global SPOTIFY_REFRESH_TOKEN
-global SPOTIFY_ACCESS_TOKEN
-global SPOTIFY_ERROR_MESSAGES
-global next_spotify_refresh_time
-global HEARTRATE
-global TWITCH_SHOUTOUT_GLOBAL_COOLDOWN
-global TWITCH_SHOUTOUT_USER_COOLDOWN
-global last_shoutout_time
-global shoutout_user
-global last_message_time
-global websocket_connected
-
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 scheduled_tasks = set()                                 # Set for scheduled tasks
 shoutout_queue = Queue()                                # Queue for shoutouts
