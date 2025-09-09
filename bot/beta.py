@@ -77,8 +77,6 @@ else:
 TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
-SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
-SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
 SSH_USERNAME = os.getenv('SSH_USERNAME')
@@ -8193,8 +8191,7 @@ async def reload_env_vars():
     # Load in all the globals
     global SQL_HOST, SQL_USER, SQL_PASSWORD, ADMIN_API_KEY, USE_BACKUP_SYSTEM
     global BACKUP_SYSTEM, OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET, TWITCH_GQL
-    global SHAZAM_API, STEAM_API, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
-    global EXCHANGE_RATE_API_KEY, HYPERATE_API_KEY, CHANNEL_AUTH
+    global SHAZAM_API, STEAM_API, EXCHANGE_RATE_API_KEY, HYPERATE_API_KEY, CHANNEL_AUTH
     # Reload the .env file
     load_dotenv()
     SQL_HOST = os.getenv('SQL_HOST')
@@ -8215,8 +8212,6 @@ async def reload_env_vars():
     TWITCH_GQL = os.getenv('TWITCH_GQL')
     SHAZAM_API = os.getenv('SHAZAM_API')
     STEAM_API = os.getenv('STEAM_API')
-    SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
-    SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
     EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
     HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
     # Log or handle any environment variable updates
