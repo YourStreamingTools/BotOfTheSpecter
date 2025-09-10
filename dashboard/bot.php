@@ -977,7 +977,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = JSON.parse(text);
             console.log('Parsed bot status data:', data);
             // Check if the bot is running - be more lenient with the checks
-            if (data.success) {
+            if (typeof data.running !== 'undefined') {
               if (data.running && data.pid && parseInt(data.pid) > 0) {
                 // Bot is now running with a valid PID - success!
                 clearInterval(pollInterval);
@@ -1032,7 +1032,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
       updateBotStatus(true) // Silent update to avoid showing duplicate messages
         .then(data => {
-          if (data && data.success) {
+          if (data && typeof data.running !== 'undefined') {
             if (data.running === expectedRunning) {
               // State has changed as expected!
               const actionText = expectedRunning ? 'started' : 'stopped';
@@ -1190,127 +1190,130 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
     if (!selectedBot) { selectedBot = 'stable'; }
     return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 5000) // Reduced from 8000 to 5000
-        .then(async response => {
-            const text = await response.text();
-            try {
-                const data = JSON.parse(text);
-                console.log('updateBotStatus parsed data:', data);
-                if (data.success) {
-                    console.log('Bot status data received:', {
-                        bot: data.bot,
-                        running: data.running,
-                        version: data.version,
-                        lastModified: data.lastModified,
-                        lastRun: data.lastRun
-                    });
-                    const statusText = data.running ? 'ONLINE' : 'OFFLINE';
-                    const statusClass = data.running ? 'success' : 'danger';
-                    // Update status text
-                    const statusTextElement = document.getElementById('bot-status-text');
-                    if (statusTextElement) {
-                        statusTextElement.innerHTML = `<span class="has-text-${statusClass}">${statusText}</span>`;
-                    }
-                    // Update heart icon
-                    const heartIconContainer = document.getElementById('botStatusIcon');
-                    if (heartIconContainer) {
-                        if (data.running) {
-                            heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
-                        } else {
-                            heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
-                        }
-                    }
-                    // Update buttons based on status
-                    const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
-                    if (buttonContainer) {
-                        if (data.running) {
-                            // Show Stop button
-                            buttonContainer.innerHTML = `
-                                <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3">
-                                    <span class="icon"><i class="fas fa-stop"></i></span>
-                                    <span><?php echo addslashes(t('bot_stop')); ?></span>
-                                </button>
-                            `;
-                        } else {
-                            // Show Run button
-                            buttonContainer.innerHTML = `
-                                <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${!isBotMod ? 'disabled' : ''}>
-                                    <span class="icon"><i class="fas fa-play"></i></span>
-                                    <span><?php echo addslashes(t('bot_run')); ?></span>
-                                </button>
-                            `;
-                        }
-                        // Re-attach event listeners
-                        attachBotButtonListeners();
-                    }
-                    
-                    // Update PID display if technical mode is enabled
-                    if (isTechnical) {
-                        const pidDisplay = document.getElementById('bot-pid-display');
-                        const pidValue = document.getElementById('bot-pid-value');
-                        if (pidDisplay && pidValue) {
-                            if (data.running && data.pid) {
-                                pidDisplay.style.display = '';
-                                pidValue.textContent = data.pid;
-                            } else {
-                                pidDisplay.style.display = 'none';
-                            }
-                        }
-                    }
-                    // Update version info card
-                    const lastUpdatedElement = document.getElementById('last-updated');
-                    const lastRunElement = document.getElementById('last-run');
-                    if (lastUpdatedElement) {
-                        lastUpdatedElement.textContent = data.lastModified || 'Unknown';
-                        console.log('Updated last-updated to:', data.lastModified || 'Unknown');
-                    }
-                    if (lastRunElement) {
-                        lastRunElement.textContent = data.lastRun || 'Never';
-                        console.log('Updated last-run to:', data.lastRun || 'Never');
-                    }
-                    // Update technical info if available
-                    const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
-                    const lastCheckElement = document.getElementById(`${selectedBot}-service-lastcheck`);
-                    if (latencyElement && lastCheckElement) {
-                        latencyElement.textContent = `${data.latency || '--'}ms`;
-                        lastCheckElement.textContent = data.lastRun || '--';
-                    }
-                } else {
-                    console.error('Bot status API returned error:', data);
-                    // Set fallback values if API fails
-                    const lastUpdatedElement = document.getElementById('last-updated');
-                    const lastRunElement = document.getElementById('last-run');
-                    if (lastUpdatedElement) {
-                        lastUpdatedElement.textContent = 'Error loading';
-                    }
-                    if (lastRunElement) {
-                        lastRunElement.textContent = 'Error loading';
-                    }
-                }
-            } catch (e) {
-                console.error('Error parsing bot status JSON:', e);
-                // Set fallback values if JSON parsing fails
-                const lastUpdatedElement = document.getElementById('last-updated');
-                const lastRunElement = document.getElementById('last-run');
-                if (lastUpdatedElement) {
-                    lastUpdatedElement.textContent = 'Error loading';
-                }
-                if (lastRunElement) {
-                    lastRunElement.textContent = 'Error loading';
-                }
+      .then(async response => {
+        const text = await response.text();
+        try {
+          const data = JSON.parse(text);
+          console.log('updateBotStatus parsed data:', data);
+          if (data.running !== undefined) {
+            console.log('Bot status data received:', {
+              bot: data.bot,
+              running: data.running,
+              version: data.version,
+              lastModified: data.lastModified,
+              lastRun: data.lastRun
+            });
+            const statusText = data.running ? 'ONLINE' : 'OFFLINE';
+            const statusClass = data.running ? 'success' : 'danger';
+            // Update status text
+            const statusTextElement = document.getElementById('bot-status-text');
+            if (statusTextElement) {
+              statusTextElement.innerHTML = `<span class="has-text-${statusClass}">${statusText}</span>`;
             }
-        })
-        .catch(error => {
-            console.error('Error fetching bot status:', error);
-            // Set fallback values if fetch fails
+            // Update heart icon
+            const heartIconContainer = document.getElementById('botStatusIcon');
+            if (heartIconContainer) {
+              if (data.running) {
+                heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
+              } else {
+                heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
+              }
+            }
+            // Update buttons based on status
+            const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
+            if (buttonContainer) {
+              if (data.running) {
+                // Show Stop button
+                buttonContainer.innerHTML = `
+                  <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3">
+                    <span class="icon"><i class="fas fa-stop"></i></span>
+                    <span><?php echo addslashes(t('bot_stop')); ?></span>
+                  </button>
+                `;
+              } else {
+                // Show Run button
+                buttonContainer.innerHTML = `
+                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${!isBotMod ? 'disabled' : ''}>
+                    <span class="icon"><i class="fas fa-play"></i></span>
+                    <span><?php echo addslashes(t('bot_run')); ?></span>
+                  </button>
+                `;
+              }
+              // Re-attach event listeners
+              attachBotButtonListeners();
+            }
+            // Update PID display if technical mode is enabled
+            if (isTechnical) {
+              const pidDisplay = document.getElementById('bot-pid-display');
+              const pidValue = document.getElementById('bot-pid-value');
+              if (pidDisplay && pidValue) {
+                if (data.running && data.pid) {
+                  pidDisplay.style.display = '';
+                  pidValue.textContent = data.pid;
+                } else {
+                  pidDisplay.style.display = 'none';
+                }
+              }
+            }
+            // Update version info card
             const lastUpdatedElement = document.getElementById('last-updated');
             const lastRunElement = document.getElementById('last-run');
             if (lastUpdatedElement) {
-                lastUpdatedElement.textContent = 'Error loading';
+              lastUpdatedElement.textContent = data.lastModified || 'Unknown';
+              console.log('Updated last-updated to:', data.lastModified || 'Unknown');
             }
             if (lastRunElement) {
-                lastRunElement.textContent = 'Error loading';
+              lastRunElement.textContent = data.lastRun || 'Never';
+              console.log('Updated last-run to:', data.lastRun || 'Never');
             }
-        });
+            // Update technical info if available
+            const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
+            const lastCheckElement = document.getElementById(`${selectedBot}-service-lastcheck`);
+            if (latencyElement && lastCheckElement) {
+              latencyElement.textContent = `${data.latency || '--'}ms`;
+              lastCheckElement.textContent = data.lastRun || '--';
+            }
+            return data; // Return the data for status verification
+          } else {
+            console.error('Bot status API returned invalid data:', data);
+            // Set fallback values if API fails
+            const lastUpdatedElement = document.getElementById('last-updated');
+            const lastRunElement = document.getElementById('last-run');
+            if (lastUpdatedElement) {
+              lastUpdatedElement.textContent = 'Error loading';
+            }
+            if (lastRunElement) {
+              lastRunElement.textContent = 'Error loading';
+            }
+            return null;
+          }
+        } catch (e) {
+          console.error('Error parsing bot status JSON:', e);
+          // Set fallback values if JSON parsing fails
+          const lastUpdatedElement = document.getElementById('last-updated');
+          const lastRunElement = document.getElementById('last-run');
+          if (lastUpdatedElement) {
+            lastUpdatedElement.textContent = 'Error loading';
+          }
+          if (lastRunElement) {
+            lastRunElement.textContent = 'Error loading';
+          }
+          return null;
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching bot status:', error);
+        // Set fallback values if fetch fails
+        const lastUpdatedElement = document.getElementById('last-updated');
+        const lastRunElement = document.getElementById('last-run');
+        if (lastUpdatedElement) {
+          lastUpdatedElement.textContent = 'Error loading';
+        }
+        if (lastRunElement) {
+          lastRunElement.textContent = 'Error loading';
+        }
+        return null;
+      });
   }
   // Function to update API limits from api_limits.php
   function updateApiLimits() {
@@ -1601,7 +1604,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update server metrics
     updateServerMetrics();
   }
-    // Function to update server metrics using real data
+  // Function to update server metrics using real data
   function updateServerMetrics() {
     if (!isTechnical) return;
     fetch('server_metrics.php')
@@ -1824,8 +1827,8 @@ python /home/botofthespecter/bot.py -channel <?php echo htmlspecialchars($userna
 
 For Beta Bot:
 python /home/botofthespecter/beta.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
--->
 
+-->
 <?php
 // Get the buffered content
 $scripts = ob_get_clean();
