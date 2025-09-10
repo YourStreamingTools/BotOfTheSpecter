@@ -134,6 +134,39 @@ function checkTwitchStreamStatus($twitchUserId, $authToken, $clientID) {
   }
 }
 
+function checkBotIsMod($broadcasterId, $authToken, $clientID) {
+  try {
+    $url = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=" . urlencode($broadcasterId);
+    $headers = ['Authorization: Bearer ' . $authToken,'Client-ID: ' . $clientID];
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($response === false || $httpCode !== 200) {
+      error_log("Twitch API mod check failed. HTTP Code: $httpCode");
+      return false;
+    }
+    $data = json_decode($response, true);
+    if (!isset($data['data'])) {
+      error_log("Twitch API mod check response missing data field");
+      return false;
+    }
+    $botUserId = '971436498'; // The bot's user ID
+    foreach ($data['data'] as $mod) {
+      if ($mod['user_id'] === $botUserId) {
+        return true;
+      }
+    }
+    return false;
+  } catch (Exception $e) {
+    error_log("Twitch API mod check exception: " . $e->getMessage());
+    return false;
+  }
+}
+
 // Check Beta Access
 $betaAccess = false;
 if ($user['beta_access'] == 1) {
@@ -160,6 +193,12 @@ if ($user['beta_access'] == 1) {
   } else {
     $_SESSION['tier'] = "None";
   }
+}
+
+// Check if bot is mod
+$BotIsMod = checkBotIsMod($twitchUserId, $authToken, $clientID);
+if (!$BotIsMod) {
+  $BotModMessage = "The bot is not a moderator on your channel. Please make the bot a moderator to start it.";
 }
 
 // Display subscription warning for Beta if no access
@@ -445,6 +484,9 @@ ob_start();
             <?php endif; ?>
           </span>
         </div>
+        <?php if ($BotModMessage): ?>
+        <p class="has-text-danger has-text-centered mb-2"><?php echo $BotModMessage; ?></p>
+        <?php endif; ?>
         <div class="buttons is-centered mb-2">
           <button class="button is-info is-medium has-text-black has-text-weight-bold px-6 mr-3" disabled>
             <span class="icon"><i class="fas fa-spinner fa-spin"></i></span>
@@ -723,6 +765,7 @@ if (<?php echo json_encode($isTechnical); ?>) {
 }
 document.addEventListener('DOMContentLoaded', function() {
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
+  const isBotMod = <?php echo json_encode($BotIsMod); ?>;
   // Initialize the notification deletion functionality
   const deleteButtons = document.querySelectorAll('.notification .delete');
   deleteButtons.forEach(button => {
@@ -769,6 +812,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   attachBotButtonListeners();  // Function to handle bot actions
   function handleStableBotAction(action) {
+    if (action === 'run' && !isBotMod) {
+      showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
+      return;
+    }
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     // Show immediate feedback that action was initiated
@@ -831,6 +878,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 10); // Small delay to prevent UI blocking
   }
   function handleBetaBotAction(action) {
+    if (action === 'run' && !isBotMod) {
+      showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
+      return;
+    }
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     // Show immediate feedback that action was initiated
@@ -1114,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         // Show Run button
         buttonContainer.innerHTML = `
-          <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3">
+          <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${!isBotMod ? 'disabled' : ''}>
             <span class="icon"><i class="fas fa-play"></i></span>
             <span><?php echo addslashes(t('bot_run')); ?></span>
           </button>
@@ -1180,7 +1231,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         } else {
                             // Show Run button
                             buttonContainer.innerHTML = `
-                                <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3">
+                                <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${!isBotMod ? 'disabled' : ''}>
                                     <span class="icon"><i class="fas fa-play"></i></span>
                                     <span><?php echo addslashes(t('bot_run')); ?></span>
                                 </button>
