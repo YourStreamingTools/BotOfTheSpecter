@@ -903,19 +903,19 @@ async def process_twitch_eventsub_message(message):
                     create_task(handle_ad_break_start(event_data["duration_seconds"]))
                 # Charity Campaign Donate Event
                 elif event_type == 'channel.charity_campaign.donate':
-                    user = event_data["event"]["user_name"]
-                    charity = event_data["event"]["charity_name"]
-                    value = event_data["event"]["amount"]["value"]
-                    currency = event_data["event"]["amount"]["currency"]
+                    user = event_data["user_name"]
+                    charity = event_data["charity_name"]
+                    value = event_data["amount"]["value"]
+                    currency = event_data["amount"]["currency"]
                     value_formatted = "{:,.2f}".format(value)
                     message = f"Thank you so much {user} for your ${value_formatted}{currency} donation to {charity}. Your support means so much to us and to {charity}."
                     await channel.send(message)
                 # Moderation Event
                 elif event_type == 'channel.moderate':
-                    moderator_user_name = event_data["event"].get("moderator_user_name", "Unknown Moderator")
+                    moderator_user_name = event_data.get("moderator_user_name", "Unknown Moderator")
                     # Handle timeout action
-                    if event_data["event"].get("action") == "timeout":
-                        timeout_info = event_data["event"].get("timeout", {})
+                    if event_data.get("action") == "timeout":
+                        timeout_info = event_data.get("timeout", {})
                         user_name = timeout_info.get("user_name", "Unknown User")
                         reason = timeout_info.get("reason", "No reason provided")
                         expires_at_str = timeout_info.get("expires_at")
@@ -925,17 +925,17 @@ async def process_twitch_eventsub_message(message):
                         else:
                             expires_at_formatted = "No expiration time provided"
                     # Handle untimeout action
-                    elif event_data["event"].get("action") == "untimeout":
-                        untimeout_info = event_data["event"].get("untimeout", {})
+                    elif event_data.get("action") == "untimeout":
+                        untimeout_info = event_data.get("untimeout", {})
                         user_name = untimeout_info.get("user_name", "Unknown User")
                     # Handle ban action
-                    elif event_data["event"].get("action") == "ban":
-                        banned_info = event_data["event"].get("ban", {})
+                    elif event_data.get("action") == "ban":
+                        banned_info = event_data.get("ban", {})
                         banned_user_name = banned_info.get("user_name", "Unknown User")
                         reason = banned_info.get("reason", "No reason provided")
                     # Handle unban action
-                    elif event_data["event"].get("action") == "unban":
-                        unban_info = event_data["event"].get("unban", {})
+                    elif event_data.get("action") == "unban":
+                        unban_info = event_data.get("unban", {})
                         banned_user_name = unban_info.get("user_name", "Unknown User")
                 # Channel Point Rewards Event
                 elif event_type in [
@@ -992,9 +992,9 @@ async def process_twitch_eventsub_message(message):
                 # AutoMod Message Hold Event
                 elif event_type == "automod.message.hold":
                     event_logger.info(f"Got an AutoMod Message Hold: {event_data}")
-                    messageContent = event_data["event"]["message"]
-                    messageAuthor = event_data["event"]["user_name"]
-                    messageAuthorID = event_data["event"]["user_id"]
+                    messageContent = event_data["message"]["text"]
+                    messageAuthor = event_data["user_name"]
+                    messageAuthorID = event_data["user_id"]
                     spam_pattern = await get_spam_patterns()
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
@@ -1003,9 +1003,9 @@ async def process_twitch_eventsub_message(message):
                 # User Message Hold Event
                 elif event_type == "channel.chat.user_message_hold":
                     event_logger.info(f"Got a User Message Hold in Chat: {event_data}")
-                    messageContent = event_data["event"]["message"]["text"]
-                    messageAuthor = event_data["event"]["user_name"]
-                    messageAuthorID = event_data["event"]["user_id"]
+                    messageContent = event_data["message"]["text"]
+                    messageAuthor = event_data["user_name"]
+                    messageAuthorID = event_data["user_id"]
                     spam_pattern = await get_spam_patterns()
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
@@ -1014,11 +1014,11 @@ async def process_twitch_eventsub_message(message):
                 # Suspicious User Message Event
                 elif event_type == "channel.suspicious_user.message":
                     event_logger.info(f"Got a Suspicious User Message: {event_data}")
-                    messageContent = event_data["event"]["message"]["text"]
-                    messageAuthor = event_data["event"]["user_name"]
-                    messageAuthorID = event_data["event"]["user_id"]
-                    lowTrustStatus = event_data["event"]["low_trust_status"]
-                    banEvasionTypes = event_data["event"]["types"]
+                    messageContent = event_data["message"]["text"]
+                    messageAuthor = event_data["user_name"]
+                    messageAuthorID = event_data["user_id"]
+                    lowTrustStatus = event_data["low_trust_status"]
+                    banEvasionTypes = event_data["types"]
                     if banEvasionTypes:
                         twitch_logger.info(f"Suspicious user {messageAuthor} has the following types: {banEvasionTypes}")
                     if lowTrustStatus == "active_monitoring":
@@ -1027,8 +1027,8 @@ async def process_twitch_eventsub_message(message):
                 elif event_type == "channel.shoutout.create" or event_type == "channel.shoutout.receive":
                     if event_type == "channel.shoutout.create":
                         global shoutout_user
-                        user_id = event_data['event']['to_broadcaster_user_id']
-                        user_to_shoutout = event_data['event']['to_broadcaster_user_name']
+                        user_id = event_data['to_broadcaster_user_id']
+                        user_to_shoutout = event_data['to_broadcaster_user_name']
                         if shoutout_user.lower() == user_to_shoutout.lower():
                             return
                         game = await get_latest_stream_game(user_id, user_to_shoutout)
@@ -1045,7 +1045,7 @@ async def process_twitch_eventsub_message(message):
                                 f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
                             )
                     elif event_type == "channel.shoutout.receive":
-                        shoutout_message = f"@{event_data['event']['from_broadcaster_user_name']} has given @{CHANNEL_NAME} a shoutout."
+                        shoutout_message = f"@{event_data['from_broadcaster_user_name']} has given @{CHANNEL_NAME} a shoutout."
                     else:
                         shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct inforamtion from twitch to process the request."
                     await channel.send(shoutout_message)
