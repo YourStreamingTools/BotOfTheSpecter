@@ -262,6 +262,8 @@ if (isset($username) && $username !== '') {
     // If one is False and the other is unknown, default to False
     $finalStatus = 'False';
   }
+  // Determine internal status for force buttons
+  $internalOnline = ($dbStatus === 'True' || $sshStatus === 'True');
   // Generate status display based on final status
   if ($finalStatus === 'True') {
     $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-success" style="width:100%;">' . t('bot_status_online') . '</span>';
@@ -342,10 +344,10 @@ ob_start();
           <?php echo $userOnlineStatus; ?>
           <div class="mt-3">
             <?php
-              if ($finalStatus === 'True') {
+              if ($internalOnline) {
                 echo '<button id="force-offline-btn" class="button is-warning is-medium is-fullwidth has-text-black has-text-weight-bold mt-2">'
                   . t('bot_force_offline') . '</button>';
-              } elseif ($finalStatus === 'False' || $finalStatus === null || $finalStatus === 'N/A') {
+              } else {
                 echo '<button id="force-online-btn" class="button is-success is-medium is-fullwidth has-text-black has-text-weight-bold mt-2">'
                   . t('bot_force_online') . '</button>';
               }
