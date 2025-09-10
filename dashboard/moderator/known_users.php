@@ -6,8 +6,8 @@ include_once __DIR__ . '/../lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: ../login.php');
-    exit();
+  header('Location: ../login.php');
+  exit();
 }
 
 // Page Title
@@ -33,7 +33,7 @@ date_default_timezone_set($timezone);
 $totalUsers = 0;
 $totalUsersSTMT = $db->query("SELECT COUNT(*) as total_users FROM seen_users");
 if ($totalUsersSTMT && $row = $totalUsersSTMT->fetch_assoc()) {
-    $totalUsers = $row['total_users'];
+  $totalUsers = $row['total_users'];
 }
 
 // Cache for banned users
@@ -41,19 +41,15 @@ $cacheUsername = $_SESSION['editing_username'];
 $cacheExpiration = 86400; // Cache expires after 24 hours
 $cacheDirectory = "cache/$cacheUsername";
 $cacheFile = "$cacheDirectory/bannedUsers.json";
-
-if (!is_dir($cacheDirectory)) {
-    mkdir($cacheDirectory, 0755, true);
-}
 $bannedUsersCache = [];
+
+if (!is_dir($cacheDirectory)) { mkdir($cacheDirectory, 0755, true); }
 if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
-    $cacheContent = file_get_contents($cacheFile);
-    if ($cacheContent) {
-        $bannedUsersCache = json_decode($cacheContent, true);
-    }
+  $cacheContent = file_get_contents($cacheFile);
+  if ($cacheContent) { $bannedUsersCache = json_decode($cacheContent, true); }
 } else {
-    // Clear the cache if it is expired
-    $bannedUsersCache = [];
+  // Clear the cache if it is expired
+  $bannedUsersCache = [];
 }
 
 // Handle POST requests for updates
@@ -262,78 +258,34 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
   });
-
   // Fetch the banned status for each user asynchronously
   fetchBannedStatuses();
 });
 
 function fetchBannedStatuses() {
-  const usernames = document.querySelectorAll('.username');
-  let remainingRequests = usernames.length;
-  usernames.forEach(usernameElement => {
-    const username = usernameElement.dataset.username;
-    if (!(username in bannedUsersCache)) {
-      fetchBannedStatus(username, usernameElement, () => {
-        remainingRequests--;
-        loadedUsers++;
-        updateLoadingNotice();
-        if (remainingRequests === 0) {
-          const loadingNoticeBox = document.getElementById('loadingNoticeBox');
-          const loadingNotice = document.getElementById('loadingNotice');
-          loadingNotice.innerText = 'Loading completed, you can start editing';
-          loadingNoticeBox.classList.remove('has-background-warning-light', 'has-text-warning-dark');
-          loadingNoticeBox.classList.add('has-background-success-light', 'has-text-success-dark');
-          setTimeout(() => {
-            loadingNoticeBox.style.display = 'none';
-            document.getElementById('content').style.display = 'block';
-          }, 2000); // Show the success message for 2 seconds before hiding it
-        }
-      });
-    } else {
-      remainingRequests--;
-      loadedUsers++;
-      updateLoadingNotice();
-      if (remainingRequests === 0) {
-        const loadingNoticeBox = document.getElementById('loadingNoticeBox');
-        const loadingNotice = document.getElementById('loadingNotice');
-        loadingNotice.innerText = 'Loading completed, you can start editing';
-        loadingNoticeBox.classList.remove('has-background-warning-light', 'has-text-warning-dark');
-        loadingNoticeBox.classList.add('has-background-success-light', 'has-text-success-dark');
-        setTimeout(() => {
-          loadingNoticeBox.style.display = 'none';
-          document.getElementById('content').style.display = 'block';
-        }, 2000); // Show the success message for 2 seconds before hiding it
-      }
-    }
-  });
-}
-
-function updateLoadingNotice() {
-  const loadingNotice = document.getElementById('loadingNotice');
-  loadingNotice.innerText = `Please wait while we load the users and their status... (${loadedUsers}/${totalUsers})`;
-}
-
-function fetchBannedStatus(username, usernameElement, callback) {
-  console.log(`Fetching banned status for ${username}`);
+  const usernameElements = document.querySelectorAll('.username');
+  const usernames = Array.from(usernameElements).map(el => el.dataset.username);
+  // Send batch request
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "fetch_banned_status.php", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
-      console.log(`Response received for banned status of ${username}`);
       if (xhr.status === 200) {
-        console.log(`XHR response: ${xhr.responseText}`);
         const response = JSON.parse(xhr.responseText);
-        const bannedStatusElement = usernameElement.nextElementSibling;
-        if (response.banned) {
-          console.log(`${username} is banned`);
-          bannedStatusElement.innerHTML = " <em style='color:red'>(banned)</em>";
-        } else {
-          console.log(`${username} is not banned`);
-        }
-        // Update the cache
-        bannedUsersCache[username] = response.banned;
-        // Update the cache file with new data
+        usernameElements.forEach(usernameElement => {
+          const username = usernameElement.dataset.username;
+          const banned = response[username];
+          const bannedStatusElement = usernameElement.nextElementSibling;
+          if (banned) {
+            bannedStatusElement.innerHTML = " <em style='color:red'>(banned)</em>";
+          }
+          // Update cache
+          bannedUsersCache[username] = banned;
+          loadedUsers++;
+          updateLoadingNotice();
+        });
+        // Update cache on server
         fetch('update_banned_users_cache.php', {
           method: 'POST',
           headers: {
@@ -345,13 +297,26 @@ function fetchBannedStatus(username, usernameElement, callback) {
         }).catch(error => {
           console.error('Error updating cache', error);
         });
+        // Show success
+        const loadingNoticeBox = document.getElementById('loadingNoticeBox');
+        const loadingNotice = document.getElementById('loadingNotice');
+        loadingNotice.innerText = 'Loading completed, you can start editing';
+        loadingNoticeBox.classList.remove('has-background-warning', 'has-text-warning-dark');
+        loadingNoticeBox.classList.add('has-background-success-light', 'has-text-success-dark');
+        setTimeout(() => {
+          loadingNoticeBox.style.display = 'none';
+          document.getElementById('content').style.display = 'block';
+        }, 2000);
       } else {
-        console.log(`Error fetching banned status for ${username}: ${xhr.status}`);
+        console.log(`Error fetching banned statuses: ${xhr.status}`);
       }
-      callback();
     }
   };
-  xhr.send("usernameToCheck=" + encodeURIComponent(username));
+  const data = 'usernames=' + encodeURIComponent(JSON.stringify(usernames));
+  xhr.send(data);
+}function updateLoadingNotice() {
+  const loadingNotice = document.getElementById('loadingNotice');
+  loadingNotice.innerText = `Please wait while we load the users and their status... (${loadedUsers}/${totalUsers})`;
 }
 
 function updateWelcomeMessage(userId, newWelcomeMessage, button) {
@@ -389,6 +354,5 @@ function toggleStatus(username, isChecked) {
 <script src="/js/search.js"></script>
 <?php
 $scripts = ob_get_clean();
-
 include 'mod_layout.php';
-exit;
+?>
