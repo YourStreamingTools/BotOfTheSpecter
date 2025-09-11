@@ -20,6 +20,8 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+$jsonText = file_get_contents(__DIR__ . '/../api/builtin_commands.json');
+$builtinCommands = json_decode($jsonText, true);
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -45,27 +47,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Remove all non-alphanumeric characters
         $new_command_name = strtolower(str_replace(' ', '', $_POST['new_command_name']));
         $new_command_name = preg_replace('/[^a-z0-9]/', '', $new_command_name);
-        try {
-            // If the command name is changed, update it as well
-            $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ? WHERE command = ?");
-            $updateSTMT->bind_param("ssis", $new_command_name, $command_response, $cooldown, $command_to_edit);
-            $updateSTMT->execute();
-            if ($updateSTMT->affected_rows > 0) {
-                $status = "Command ". $command_to_edit . " updated successfully!";
-                $notification_status = "is-success";
-            } else {
-                $status = $command_to_edit . " not found or no changes made.";
+        // Check if new command name is built-in
+        if (array_key_exists($new_command_name, $builtinCommands['commands'])) {
+            $status = "Failed to update: The new command name matches a built-in command.";
+            $notification_status = "is-danger";
+        } else {
+            try {
+                // If the command name is changed, update it as well
+                $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ? WHERE command = ?");
+                $updateSTMT->bind_param("ssis", $new_command_name, $command_response, $cooldown, $command_to_edit);
+                $updateSTMT->execute();
+                if ($updateSTMT->affected_rows > 0) {
+                    $status = "Command ". $command_to_edit . " updated successfully!";
+                    $notification_status = "is-success";
+                } else {
+                    $status = $command_to_edit . " not found or no changes made.";
+                    $notification_status = "is-danger";
+                }
+                $updateSTMT->close();
+                $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+                $commandsSTMT->execute();
+                $result = $commandsSTMT->get_result();
+                $commands = $result->fetch_all(MYSQLI_ASSOC);
+                $commandsSTMT->close();
+            } catch (Exception $e) {
+                $status = "Error updating " .$command_to_edit . ": " . $e->getMessage();
                 $notification_status = "is-danger";
             }
-            $updateSTMT->close();
-            $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
-            $commandsSTMT->execute();
-            $result = $commandsSTMT->get_result();
-            $commands = $result->fetch_all(MYSQLI_ASSOC);
-            $commandsSTMT->close();
-        } catch (Exception $e) {
-            $status = "Error updating " .$command_to_edit . ": " . $e->getMessage();
-            $notification_status = "is-danger";
         }
     }
     // Adding a new custom command
@@ -74,20 +82,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $newCommand = preg_replace('/[^a-z0-9]/', '', $newCommand);
         $newResponse = $_POST['response'];
         $cooldown = $_POST['cooldown'];
-        // Insert new command into MySQL database
-        try {
-            $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown) VALUES (?, ?, 'Enabled', ?)");
-            $insertSTMT->bind_param("ssi", $newCommand, $newResponse, $cooldown);
-            $insertSTMT->execute();
-            $insertSTMT->close();
-            $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
-            $commandsSTMT->execute();
-            $result = $commandsSTMT->get_result();
-            $commands = $result->fetch_all(MYSQLI_ASSOC);
-            $commandsSTMT->close();
-        } catch (Exception $e) {
-            $status = t('custom_commands_error_generic');
+        // Check if command is built-in
+        if (array_key_exists($newCommand, $builtinCommands['commands'])) {
+            $status = "Failed to add: The custom command name matches a built-in command.";
             $notification_status = "is-danger";
+        } else {
+            // Insert new command into MySQL database
+            try {
+                $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown) VALUES (?, ?, 'Enabled', ?)");
+                $insertSTMT->bind_param("ssi", $newCommand, $newResponse, $cooldown);
+                $insertSTMT->execute();
+                $insertSTMT->close();
+                $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+                $commandsSTMT->execute();
+                $result = $commandsSTMT->get_result();
+                $commands = $result->fetch_all(MYSQLI_ASSOC);
+                $commandsSTMT->close();
+            } catch (Exception $e) {
+                $status = t('custom_commands_error_generic');
+                $notification_status = "is-danger";
+            }
         }
     }
 }
