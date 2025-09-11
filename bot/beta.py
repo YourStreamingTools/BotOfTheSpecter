@@ -3618,12 +3618,7 @@ class TwitchBot(commands.Bot):
                         if lurk_result:
                             previous_start_time = datetime.strptime(lurk_result["start_time"], "%Y-%m-%d %H:%M:%S")
                             lurk_duration = now - previous_start_time
-                            days, seconds = divmod(lurk_duration.total_seconds(), 86400)
-                            months, days = divmod(days, 30)
-                            hours, remainder = divmod(seconds, 3600)
-                            minutes, seconds = divmod(remainder, 60)
-                            periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
-                            time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+                            time_string = format_lurk_time(lurk_duration)
                             lurk_message = (f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
                             chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {time_string}.")
                         else:
@@ -3674,15 +3669,7 @@ class TwitchBot(commands.Bot):
                     if result:
                         start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
                         elapsed_time = time_right_now() - start_time
-                        # Calculate the duration
-                        days = elapsed_time.days
-                        months = days // 30
-                        days %= 30
-                        hours, seconds = divmod(elapsed_time.seconds, 3600)
-                        minutes, seconds = divmod(seconds, 60)
-                        # Build the time string
-                        periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
-                        time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+                        time_string = format_lurk_time(elapsed_time)
                         # Send the lurk time message
                         await ctx.send(f"{ctx.author.name}, you've been lurking for {time_string} so far.")
                         chat_logger.info(f"{ctx.author.name} checked their lurk time: {time_string}.")
@@ -3730,12 +3717,7 @@ class TwitchBot(commands.Bot):
                         if longest_lurk_user_id:
                             display_name = await get_display_name(longest_lurk_user_id)
                             if display_name:
-                                days, seconds = divmod(longest_lurk.total_seconds(), 86400)
-                                months, days = divmod(days, 30)
-                                hours, remainder = divmod(seconds, 3600)
-                                minutes, seconds = divmod(remainder, 60)
-                                periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
-                                time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+                                time_string = format_lurk_time(longest_lurk)
                                 await ctx.send(f"{display_name} is currently lurking the most with {time_string} on the clock.")
                                 chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
                             else:
@@ -3792,14 +3774,7 @@ class TwitchBot(commands.Bot):
                             # Convert start_time from string to datetime
                             start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
                             elapsed_time = time_now - start_time
-                            # Calculate the duration
-                            days, seconds = divmod(elapsed_time.total_seconds(), 86400)
-                            months, days = divmod(days, 30)
-                            hours, remainder = divmod(seconds, 3600)
-                            minutes, seconds = divmod(remainder, 60)
-                            # Build the time string
-                            periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
-                            time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+                            time_string = format_lurk_time(elapsed_time)
                             # Log the unlurk command execution and send a response
                             chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
                             await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
@@ -5685,6 +5660,22 @@ class TwitchBot(commands.Bot):
 
 # Functions for all the commands
 ##
+# Function to format lurk time duration
+def format_lurk_time(elapsed_time):
+    total_seconds = int(elapsed_time.total_seconds())
+    years = total_seconds // (365 * 24 * 3600)
+    total_seconds %= (365 * 24 * 3600)
+    months = total_seconds // (30 * 24 * 3600)
+    total_seconds %= (30 * 24 * 3600)
+    days = total_seconds // (24 * 3600)
+    total_seconds %= (24 * 3600)
+    hours = total_seconds // 3600
+    total_seconds %= 3600
+    minutes = total_seconds // 60
+    seconds = total_seconds % 60
+    periods = [("year", years), ("month", months), ("day", days), ("hour", hours), ("minute", minutes), ("second", seconds)]
+    return ", ".join(f"{value} {name}{'s' if value != 1 else ''}" for name, value in periods if value)
+
 # Function  to check if the user is a real user on Twitch
 async def is_valid_twitch_user(user_name):
     global CLIENT_ID, CHANNEL_AUTH
