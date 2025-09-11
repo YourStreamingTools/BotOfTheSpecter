@@ -196,7 +196,11 @@ if ($user['beta_access'] == 1) {
 }
 
 // Check if bot is mod
-$BotIsMod = checkBotIsMod($twitchUserId, $authToken, $clientID);
+if ($username !== 'botofthespecter') {
+  $BotIsMod = checkBotIsMod($twitchUserId, $authToken, $clientID);
+} else {
+  $BotIsMod = true; // Bot is the channel owner, no mod check needed
+}
 if (!$BotIsMod) {
   $BotModMessage = "The bot is not a moderator on your channel. Please make the bot a moderator to start it.";
 }
