@@ -601,7 +601,7 @@ return [
     'builtin_commands_table_usage_level' => 'Usage Level',
     'builtin_commands_table_status' => 'Status',
     'builtin_commands_table_action' => 'Action',
-    'builtin_commands_no_commands' => 'No commands found. Please run the Twitch Chat Bot to sync the commands.',
+    'builtin_commands_no_commands' => 'No commands found.',
     'builtin_commands_no_description' => 'No description available',
     'builtin_commands_permission_everyone' => 'Everyone',
     'builtin_commands_permission_mod' => 'Mods',
