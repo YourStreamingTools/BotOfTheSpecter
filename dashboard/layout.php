@@ -7,7 +7,7 @@ if (!isset($scripts)) $scripts = '';
 // Add language support for layout
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
-$dashboardVersion = '2.1.2';
+$dashboardVersion = '2.1.3';
 // Maintenance mode control
 $maintenanceMode = false;
 ?>
