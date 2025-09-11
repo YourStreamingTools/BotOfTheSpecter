@@ -11,7 +11,7 @@ function sanitize_input($input) {
 $status = "";
 
 // Database credentials
-include '/var/www/config/database.php';
+include __DIR__ . '/../config/database.php';
 $maindb = 'website';
 
 function build_event_section($user_db, $event, $section_name, $clean_data = false) {
@@ -158,7 +158,7 @@ $buildStatus = $status;
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.4/css/bulma.min.css">
 <style>
 body {
-    background: #181A1B !important;
+    background: transparent !important;
 }
 .container.is-fluid {
     background: rgba(24, 26, 27, 0.85);
