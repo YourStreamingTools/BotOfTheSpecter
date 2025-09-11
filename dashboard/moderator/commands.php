@@ -44,21 +44,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['command']) && isset($_POST['status'])) {
         $dbcommand = $_POST['command'];
         $status = $_POST['status'];
-        $updateQuery = $db->prepare("UPDATE custom_commands SET status = :status WHERE command = :command");
-        $updateQuery->bindParam(':status', $status);
-        $updateQuery->bindParam(':command', $dbcommand);
+        $updateQuery = $db->prepare("UPDATE custom_commands SET status = ? WHERE command = ?");
+        $updateQuery->bind_param("ss", $status, $dbcommand);
         $updateQuery->execute();
+        $updateQuery->close();
     }
     if (isset($_POST['remove_command'])) {
         $commandToRemove = $_POST['remove_command'];
         $deleteStmt = $db->prepare("DELETE FROM custom_commands WHERE command = ?");
-        $deleteStmt->bindParam(1, $commandToRemove, PDO::PARAM_STR);
+        $deleteStmt->bind_param("s", $commandToRemove);
         try {
             $deleteStmt->execute();
+            $deleteStmt->close();
             $status = "Command removed successfully";
             header("Refresh: 1; url={$_SERVER['PHP_SELF']}");
             exit();
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             $status = "Error removing command: " . $e->getMessage();
         }
     }
