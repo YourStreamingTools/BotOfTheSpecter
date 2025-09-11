@@ -545,7 +545,7 @@ return [
     'builtin_commands_table_usage_level' => 'Nutzungsstufe',
     'builtin_commands_table_status' => 'Status',
     'builtin_commands_table_action' => 'Aktion',
-    'builtin_commands_no_commands' => 'Keine Befehle gefunden. Bitte starte den Twitch Chat Bot, um die Befehle zu synchronisieren.',
+    'builtin_commands_no_commands' => 'Keine Befehle gefunden.',
     'builtin_commands_no_description' => 'Keine Beschreibung verfügbar',
     'builtin_commands_permission_everyone' => 'Jeder',
     'builtin_commands_permission_mod' => 'Moderatoren',
