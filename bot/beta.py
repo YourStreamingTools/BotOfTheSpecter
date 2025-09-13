@@ -3793,6 +3793,38 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='userslurking')
+    async def userslurking_command(self, ctx):
+        global bot_owner
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("userslurking",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        chat_logger.info(f"{ctx.author.name} tried to use the userslurking command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                await cursor.execute('SELECT COUNT(*) as count FROM lurk_times')
+                result = await cursor.fetchone()
+                count = result.get("count", 0)
+                if count == 0:
+                    await ctx.send("No one is currently lurking.")
+                else:
+                    await ctx.send(f"There are currently {count} user{'s' if count != 1 else ''} lurking.")
+                chat_logger.info(f"{ctx.author.name} checked the number of lurkers: {count}.")
+        except Exception as e:
+            chat_logger.error(f"Error in userslurking_command: {e}")
+            await ctx.send("Oops, something went wrong while trying to check the number of lurkers.")
+        finally:
+            await connection.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='clip')
     async def clip_command(self, ctx):
         global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID

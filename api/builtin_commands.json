@@ -37,6 +37,7 @@
 		"unlurk": "This command will remove your lurking status.",
 		"lurking": "This command will notify that you are currently lurking.",
 		"lurklead": "This command will show the top most lurked user in your channel.",
+		"userslurking": "This command will show a count of users that are currently marked as lurking.",
 		"clip": "This command will create a clip of the current stream action.",
 		"subscription": "This command will display what subscription tier you are at.",
 		"hug": "This command will send a virtual hug to a mentioned user.",
