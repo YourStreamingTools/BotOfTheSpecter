@@ -218,9 +218,18 @@ allowed_ops = {
 }
 
 # Function to handle termination signals
-async def signal_handler(sig, frame):
+def signal_handler(sig, frame):
     bot_logger.info("Received termination signal. Shutting down gracefully...")
-    await specterSocket.disconnect() # Disconnect the SocketClient
+    # Schedule the async cleanup tasks
+    loop = get_event_loop()
+    if loop.is_running():
+        loop.create_task(async_signal_cleanup())
+    else:
+        sys.exit(0)  # Exit the program
+
+# Async cleanup function
+async def async_signal_cleanup():
+    await specterSocket.disconnect()     # Disconnect the SocketClient
     ssh_manager.close_all_connections()  # Close all SSH connections
     for task in scheduled_tasks:
         task.cancel()
