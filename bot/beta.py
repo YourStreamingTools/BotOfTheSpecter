@@ -800,8 +800,9 @@ async def process_tipping_message(data, source):
 
 async def process_twitch_eventsub_message(message):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             event_type = message.get("payload", {}).get("subscription", {}).get("type")
             event_data = message.get("payload", {}).get("event")
@@ -1177,8 +1178,9 @@ async def hyperate_websocket_persistent():
     while True:
         try:
             # Check DB for heartrate code before attempting any websocket connection
-            connection = await mysql_connection()
+            connection = None
             try:
+                connection = await mysql_connection()
                 async with connection.cursor(DictCursor) as cursor:
                     await cursor.execute('SELECT heartrate_code FROM profile')
                     heartrate_code_data = await cursor.fetchone()
@@ -1410,22 +1412,23 @@ class TwitchBot(commands.Bot):
                 bot_logger.error(f"Unable to send cooldown message: Target channel '{CHANNEL_NAME}' not joined yet.")
         elif isinstance(error, commands.CommandNotFound):
             # Check if the command is a custom command
-            connection = await mysql_connection()
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute('SELECT * FROM custom_commands WHERE command = %s', (command,))
-                result = await cursor.fetchone()
-                if result:
-                    bot_logger.debug(f"[CUSTOM COMMAND] Command '{command}' exists in the database. Ignoring error.")
-                    await cursor.close()
+            connection = None
+            try:
+                connection = await mysql_connection()
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute('SELECT * FROM custom_commands WHERE command = %s', (command,))
+                    result = await cursor.fetchone()
+                    if result:
+                        bot_logger.debug(f"[CUSTOM COMMAND] Command '{command}' exists in the database. Ignoring error.")
+                        return
+                    await cursor.execute('SELECT * FROM custom_user_commands WHERE command = %s', (command,))
+                    result = await cursor.fetchone()
+                    if result:
+                        bot_logger.debug(f"[CUSTOM USER COMMAND] Command '{command}' exists in the database. Ignoring error.")
+                        return
+            finally:
+                if connection:
                     await connection.ensure_closed()
-                    return
-                await cursor.execute('SELECT * FROM custom_user_commands WHERE command = %s', (command,))
-                result = await cursor.fetchone()
-                if result:
-                    bot_logger.debug(f"[CUSTOM USER COMMAND] Command '{command}' exists in the database. Ignoring error.")
-                    await cursor.close()
-                    await connection.ensure_closed()
-                    return
             bot_logger.error(f"Command '{command}' was not found in the bot or custom commands.")
         else:
             bot_logger.error(f"Command: '{command}', Error: {type(error).__name__}, Details: {error}")
@@ -1751,8 +1754,9 @@ class TwitchBot(commands.Bot):
         if messageAuthor in [bannedUser, None, ""]:
             chat_logger.info(f"Blocked message from {messageAuthor} - banned or invalid.")
             return
-        connection = await mysql_connection()
+        connection = None
         try:
+            connection = await mysql_connection()
             async with connection.cursor(DictCursor) as cursor:
                 # Check user level
                 is_vip = await is_user_vip(messageAuthorID)
@@ -1857,8 +1861,9 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Failed to send WALKON for {user}: {e}")
 
     async def user_points(self, messageAuthor, messageAuthorID):
-        connection = await mysql_connection()
+        connection = None
         try:
+            connection = await mysql_connection()
             async with connection.cursor(DictCursor) as cursor:
                 settings = await get_point_settings()
                 if not settings or 'chat_points' not in settings or 'excluded_users' not in settings:
@@ -1891,8 +1896,9 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
-        connection = await mysql_connection()
+        connection = None
         try:
+            connection = await mysql_connection()
             group_names = []
             # Check if the user is the broadcaster
             if messageAuthor == self.channel_name:
@@ -6087,7 +6093,12 @@ async def shoutout_worker():
 
 # Function to trigger a Twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout, user_id):
-    connection = await mysql_connection(db_name="website")
+    connection = None
+    try:
+        connection = await mysql_connection(db_name="website")
+    except Exception as e:
+        twitch_logger.error(f"Database connection error while fetching bot access token: {e}")
+        return
     async with connection.cursor(DictCursor) as cursor:
         bot_id = "971436498"
         await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
@@ -6376,7 +6387,7 @@ async def process_weather_websocket(data):
 # Function to process the stream being online
 async def process_stream_online_websocket():
     global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
-    connection = await mysql_connection()
+    connection = None
     stream_online = True
     looped_tasks["timed_message"] = create_task(timed_message())
     looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
@@ -6396,15 +6407,9 @@ async def process_stream_online_websocket():
             data = await response.json()
     # Extract necessary data from the API response
     if data.get('data'):
-        current_game = data['data'][0].get('game_name', None)
-        image_data = data['data'][0].get('thumbnail_url', None)
+        current_game = data['data'][0].get('game_name')
     else:
-        current_game = None
-        image_data = None
-    if image_data:
-        image = image_data.replace("{width}", "1280").replace("{height}", "720")
-    else:
-        image = ""
+        current_game = "Unknown"
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await channel.send(message)
@@ -6413,6 +6418,7 @@ async def process_stream_online_websocket():
     with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
         file.write('True')
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             # Update the stream status in the database
             await cursor.execute("UPDATE stream_status SET status = %s", ("True",))
@@ -6423,7 +6429,7 @@ async def process_stream_online_websocket():
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
     global stream_online, scheduled_clear_task
-    connection = await mysql_connection()
+    connection = None
     stream_online = False  # Update the stream status
     # Cancel any previous scheduled task to avoid duplication
     if "hyperate_websocket" in looped_tasks:
@@ -6438,6 +6444,7 @@ async def process_stream_offline_websocket():
     with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
         file.write('False')
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             # Update the stream status in the database
             await cursor.execute("UPDATE stream_status SET status = %s", ("False",))
@@ -6472,8 +6479,9 @@ async def delayed_clear_tables():
 
 # Function to clear the seen users table at the end of stream
 async def clear_seen_today():
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('TRUNCATE TABLE seen_today')
             await connection.commit()
@@ -6485,8 +6493,9 @@ async def clear_seen_today():
 
 # Function to clear the ending credits table at the end of stream
 async def clear_credits_data():
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('TRUNCATE TABLE stream_credits')
             await connection.commit()
@@ -6498,8 +6507,9 @@ async def clear_credits_data():
 
 # Function to clear the death count per stream
 async def clear_per_stream_deaths():
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('TRUNCATE TABLE per_stream_deaths')
             await connection.commit()
@@ -6511,8 +6521,9 @@ async def clear_per_stream_deaths():
 
 # Function to clear the lotto numbers at the end of stream
 async def clear_lotto_numbers():
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('TRUNCATE TABLE stream_lotto')
             await connection.commit()
@@ -6561,8 +6572,9 @@ async def update_timed_messages():
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, stream_online
     if not stream_online:
         return
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             # Fetch all enabled messages
             await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger FROM timed_messages WHERE status = 1")
@@ -6738,8 +6750,9 @@ async def send_timed_message(message_id, message, delay):
 
 # Function to get Spotify access token from database
 async def get_spotify_access_token():
-    connection = await mysql_connection(db_name="website")
+    connection = None
     try:
+        connection = await mysql_connection(db_name="website")
         async with connection.cursor(DictCursor) as cursor:
             # Get the user_id from the profile table based on CHANNEL_NAME
             await cursor.execute("SELECT id FROM users WHERE username = %s", (CHANNEL_NAME,))
@@ -6884,7 +6897,7 @@ async def twitch_gql_token_valid():
         return False
 
 async def shazam_detect_song(raw_audio_b64):
-    connection = await mysql_connection(db_name="website")
+    connection = None
     try:
         url = "https://shazam.p.rapidapi.com/songs/v2/detect"
         querystring = {"timezone": "Australia/Sydney", "locale": "en-US"}
@@ -6904,6 +6917,7 @@ async def shazam_detect_song(raw_audio_b64):
                     with open(file_path, 'w') as file:
                         file.write(requests_left)
                     api_logger.info(f"There are {requests_left} requests lefts for the song command.")
+                    connection = await mysql_connection(db_name="website")
                     async with connection.cursor(DictCursor) as cursor:
                         await cursor.execute("UPDATE api_counts SET count=%s WHERE type=%s", (requests_left, "shazam"))
                         await connection.commit()
@@ -6992,8 +7006,9 @@ async def handel_twitch_poll(event=None, poll_title=None, half_time=None, messag
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             # Check existing raid data
             await cursor.execute('SELECT raid_count, viewers FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
@@ -7059,8 +7074,9 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
 # Function for BITS
 async def process_cheer_event(user_id, user_name, bits):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("cheer_alert",))
             result = await cursor.fetchone()
@@ -7134,8 +7150,9 @@ async def process_cheer_event(user_id, user_name, bits):
 # Function for Subscriptions
 async def process_subscription_event(user_id, user_name, sub_plan, event_months):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             event_logger.info(f"Processing subscription event for user_id: {user_id}, user_name: {user_name}")
             await cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
@@ -7223,8 +7240,9 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
 # Function for Resubscriptions with Messages
 async def process_subscription_message_event(user_id, user_name, sub_plan, event_months):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             event_logger.info(f"Processing subscription message event for user_id: {user_id}, user_name: {user_name}")
             await cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
@@ -7312,8 +7330,9 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
 # Function for Gift Subscriptions
 async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (gifter_user_name, "Gift Subscriptions", f"{number_gifts} - GIFT SUBSCRIPTIONS"))
             await connection.commit()
@@ -7345,8 +7364,9 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         time_now = time_right_now()
         followed_at = time_now.strftime("%Y-%m-%d %H:%M:%S")
         async with connection.cursor(DictCursor) as cursor:
@@ -7402,6 +7422,7 @@ async def process_followers_event(user_id, user_name):
 # Function to ban a user
 async def ban_user(username, user_id, use_streamer=False):
     # Connect to the database
+    connection = None
     try:
         connection = await mysql_connection(db_name="website")
         async with connection.cursor(DictCursor) as cursor:
@@ -7442,8 +7463,9 @@ async def websocket_notice(
     sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
     video=None, additional_data=None, rewards_data=None
 ):
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             async with httpClientSession() as session:
                 params = {
@@ -7535,9 +7557,10 @@ async def websocket_notice(
 
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():
-    connection = await mysql_connection()
+    all_commands = list(mod_commands) + list(builtin_commands)
+    connection = None
     try:
-        all_commands = list(mod_commands) + list(builtin_commands)
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             # Create placeholders for the query
             placeholders = ', '.join(['%s'] * len(all_commands))
@@ -7611,8 +7634,9 @@ async def update_version_control():
 
 async def check_stream_online():
     global stream_online, current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             async with httpClientSession() as session:
                 headers = {
@@ -7658,6 +7682,7 @@ async def check_stream_online():
 
 async def convert_currency(amount, from_currency, to_currency):
     global EXCHANGE_RATE_API_KEY
+    connection = None
     url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/pair/{from_currency}/{to_currency}/{amount}"
     try:
         async with httpClientSession() as session:
@@ -7668,8 +7693,8 @@ async def convert_currency(amount, from_currency, to_currency):
                     converted_amount = data['conversion_result']
                     api_logger.info(f"Converted {amount} {from_currency} to {converted_amount:.2f} {to_currency}")
                     # Update API usage count in database
-                    connection = await mysql_connection(db_name="website")
                     try:
+                        connection = await mysql_connection(db_name="website")
                         async with connection.cursor(DictCursor) as cursor:
                             # Get current count
                             await cursor.execute("SELECT count FROM api_counts WHERE type = %s", ("exchangerate",))
@@ -7699,6 +7724,7 @@ async def convert_currency(amount, from_currency, to_currency):
 
 # Channel Point Rewards Proccessing
 async def process_channel_point_rewards(event_data, event_type):
+    connection = None
     connection = await mysql_connection()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     async with connection.cursor(DictCursor) as cursor:
@@ -7810,6 +7836,7 @@ async def process_channel_point_rewards(event_data, event_type):
 
 async def channel_point_rewards():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+    connection = None
     # Check the broadcaster's type
     user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
     headers = {"Client-Id": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}"}
@@ -7859,62 +7886,71 @@ async def channel_point_rewards():
             await connection.ensure_closed()
 
 async def generate_winning_lotto_numbers():
-    connection = await mysql_connection()
-    async with connection.cursor(DictCursor) as cursor:
-        await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
-        result = await cursor.fetchone()
-        if result:
-            winning_numbers = result.get("winning_numbers")
-            supplementary_numbers = result.get("supplementary_numbers")
-            return "exists"
-        # Draw 7 winning numbers and 3 supplementary numbers from 1-47
-        all_numbers = random.sample(range(1, 48), 9)
-        winning_str = ', '.join(map(str, all_numbers[:6]))
-        supplementary_str = ', '.join(map(str, all_numbers[6:]))
-        winning_numbers = winning_str
-        supplementary_numbers = supplementary_str
-        await cursor.execute(
-            "INSERT INTO stream_lotto_winning_numbers (winning_numbers, supplementary_numbers) VALUES (%s, %s)",
-            (winning_numbers, supplementary_numbers)
-            )
-        await connection.commit()
-        await connection.ensure_closed()
-    return True
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
+            result = await cursor.fetchone()
+            if result:
+                winning_numbers = result.get("winning_numbers")
+                supplementary_numbers = result.get("supplementary_numbers")
+                return "exists"
+            # Draw 7 winning numbers and 3 supplementary numbers from 1-47
+            all_numbers = random.sample(range(1, 48), 9)
+            winning_str = ', '.join(map(str, all_numbers[:6]))
+            supplementary_str = ', '.join(map(str, all_numbers[6:]))
+            winning_numbers = winning_str
+            supplementary_numbers = supplementary_str
+            await cursor.execute(
+                "INSERT INTO stream_lotto_winning_numbers (winning_numbers, supplementary_numbers) VALUES (%s, %s)",
+                (winning_numbers, supplementary_numbers)
+                )
+            await connection.commit()
+            await connection.ensure_closed()
+        return True
+    except MySQLOtherErrors as e:
+        api_logger.error(f"An error occurred in generate_winning_lotto_numbers: {str(e)}")
 
 # Function to generate random Lotto numbers
 async def generate_user_lotto_numbers(user_name):
     user_name = user_name.lower()
-    connection = await mysql_connection()
-    async with connection.cursor(DictCursor) as cursor:
-        # Check if there are winning numbers in the database
-        await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
-        game_running = await cursor.fetchone()
-        # Check if the user has already played
-        await cursor.execute("SELECT username FROM stream_lotto WHERE username = %s", (user_name,))
-        user_exists = await cursor.fetchone()
-        if user_exists:
-            return {"error": "you've already played the lotto, please wait until the next round."}
-        # If there are no winning numbers, generate them
-        if not game_running:
-            done = await generate_winning_lotto_numbers()
-            if done == True:
-                await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
-                game_running = await cursor.fetchone()
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            # Check if there are winning numbers in the database
+            await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
+            game_running = await cursor.fetchone()
+            # Check if the user has already played
+            await cursor.execute("SELECT username FROM stream_lotto WHERE username = %s", (user_name,))
+            user_exists = await cursor.fetchone()
+            if user_exists:
+                return {"error": "you've already played the lotto, please wait until the next round."}
+            # If there are no winning numbers, generate them
             if not game_running:
-                return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
-        # Draw the numbers if the game is running
-        all_numbers = random.sample(range(1, 48), 9)
-        # Combine both sets of numbers into one string
-        winning_numbers = ', '.join(map(str, all_numbers[:6]))
-        supplementary_numbers = ', '.join(map(str, all_numbers[6:]))
-        all_numbers_str = f"Winning Numbers: {winning_numbers} Supplementary Numbers: {supplementary_numbers}"
-        # Insert the user's numbers into the database
-        await cursor.execute(
-            "INSERT INTO stream_lotto (username, winning_numbers, supplementary_numbers) VALUES (%s, %s, %s)",
-            (user_name, winning_numbers, supplementary_numbers)
-        )
-        await connection.commit()
-        return all_numbers_str
+                done = await generate_winning_lotto_numbers()
+                if done == True:
+                    await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
+                    game_running = await cursor.fetchone()
+                if not game_running:
+                    return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
+            # Draw the numbers if the game is running
+            all_numbers = random.sample(range(1, 48), 9)
+            # Combine both sets of numbers into one string
+            winning_numbers = ', '.join(map(str, all_numbers[:6]))
+            supplementary_numbers = ', '.join(map(str, all_numbers[6:]))
+            all_numbers_str = f"Winning Numbers: {winning_numbers} Supplementary Numbers: {supplementary_numbers}"
+            # Insert the user's numbers into the database
+            await cursor.execute(
+                "INSERT INTO stream_lotto (username, winning_numbers, supplementary_numbers) VALUES (%s, %s, %s)",
+                (user_name, winning_numbers, supplementary_numbers)
+            )
+            await connection.commit()
+            return all_numbers_str
+    except MySQLOtherErrors as e:
+        api_logger.error(f"An error occurred in generate_user_lotto_numbers: {str(e)}")
+        return {"error": "An error occurred while generating your lotto numbers."}
 
 # Function to fetch a random fortune
 async def tell_fortune():
@@ -8068,8 +8104,9 @@ async def fetch_category_name(cursor, category_id):
 
 # Function to start subathon timer
 async def start_subathon(ctx):
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
@@ -8099,9 +8136,10 @@ async def start_subathon(ctx):
 
 # Function to stop subathon timer
 async def stop_subathon(ctx):
-    connection = await mysql_connection()
+    connection = None
     subathon_state = await get_subathon_state()
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             if subathon_state and not subathon_state["paused"]:
                 await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state["id"]))
@@ -8117,8 +8155,9 @@ async def stop_subathon(ctx):
 
 # Function to pause subathon
 async def pause_subathon(ctx):
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
@@ -8137,8 +8176,9 @@ async def pause_subathon(ctx):
 
 # Function to resume subathon
 async def resume_subathon(ctx):
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and subathon_state["paused"]:
@@ -8156,8 +8196,9 @@ async def resume_subathon(ctx):
 
 # Function to Add Time to subathon
 async def addtime_subathon(ctx, minutes):
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
@@ -8188,6 +8229,7 @@ async def subathon_status(ctx):
 
 # Function to start the subathon countdown
 async def subathon_countdown():
+    connection = None
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     while True:
         subathon_state = await get_subathon_state()
@@ -8195,8 +8237,8 @@ async def subathon_countdown():
             now = time_right_now()
             if now >= subathon_state["end_time"]:
                 await channel.send(f"Subathon has ended!")
-                connection = await mysql_connection()
                 try:
+                    connection = await mysql_connection()
                     async with connection.cursor(DictCursor) as cursor:
                         await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state["id"]))
                         await connection.commit()
@@ -8208,8 +8250,9 @@ async def subathon_countdown():
 
 # Function to get the current subathon state
 async def get_subathon_state():
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT * FROM subathon ORDER BY id DESC LIMIT 1")
             return await cursor.fetchone()
@@ -8220,37 +8263,41 @@ async def get_subathon_state():
 # Function to run at midnight each night
 async def midnight():
     # Get the timezone once outside the loop
-    connection = await mysql_connection()
-    async with connection.cursor(DictCursor) as cursor:
-        await cursor.execute("SELECT timezone FROM profile")
-        result = await cursor.fetchone()
-        if result and result.get("timezone"):
-            timezone = result.get("timezone")
-            tz = pytz_timezone(timezone)
-        else:
-            # Default to UTC if no timezone is set
-            bot_logger.info("No timezone set for the user. Defaulting to UTC.")
-            tz = set_timezone.UTC  # Set to UTC
-    while True:
-        # Get the current time in the user's timezone
-        current_time = time_right_now(tz)
-        # Check if it's exactly midnight (00:00:00)
-        if current_time.hour == 0 and current_time.minute == 0:
-            # Reload the .env file at midnight
-            await reload_env_vars()
-            # Send the midnight message to the channel
-            cur_date = current_time.strftime("%d %B %Y")
-            cur_time = current_time.strftime("%I %p")
-            cur_day = current_time.strftime("%A")
-            if stream_online:
-                message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
-                channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-                await channel.send(message)
-            # Sleep for 120 seconds to avoid sending the message multiple times
-            await sleep(120)
-        else:
-            # Sleep for 10 seconds before checking again
-            await sleep(10)
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT timezone FROM profile")
+            result = await cursor.fetchone()
+            if result and result.get("timezone"):
+                timezone = result.get("timezone")
+                tz = pytz_timezone(timezone)
+            else:
+                # Default to UTC if no timezone is set
+                bot_logger.info("No timezone set for the user. Defaulting to UTC.")
+                tz = set_timezone.UTC  # Set to UTC
+        while True:
+            # Get the current time in the user's timezone
+            current_time = time_right_now(tz)
+            # Check if it's exactly midnight (00:00:00)
+            if current_time.hour == 0 and current_time.minute == 0:
+                # Reload the .env file at midnight
+                await reload_env_vars()
+                # Send the midnight message to the channel
+                cur_date = current_time.strftime("%d %B %Y")
+                cur_time = current_time.strftime("%I %p")
+                cur_day = current_time.strftime("%A")
+                if stream_online:
+                    message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
+                    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+                    await channel.send(message)
+                # Sleep for 120 seconds to avoid sending the message multiple times
+                await sleep(120)
+            else:
+                # Sleep for 10 seconds before checking again
+                await sleep(10)
+    except Exception as e:
+        bot_logger.error(f"An error occurred in midnight function: {str(e)}")
 
 async def reload_env_vars():
     # Load in all the globals
@@ -8283,8 +8330,9 @@ async def reload_env_vars():
     bot_logger.info("Reloaded environment variables")
 
 async def get_point_settings():
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("""
                 SELECT 
@@ -8322,8 +8370,9 @@ async def get_point_settings():
 
 async def known_users():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         headers = {"Authorization": f"Bearer {CHANNEL_AUTH}","Client-Id": CLIENT_ID,"Content-Type": "application/json"}
         async with httpClientSession() as session:
             # Get all the mods and put them into the database
@@ -8485,8 +8534,9 @@ async def fetch_active_users():
 # Function to add time in the database
 async def track_watch_time(active_users):
     global stream_online
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             current_time = int(time.time())
             # Fetch the excluded_users list once
@@ -8564,8 +8614,9 @@ async def return_the_action_back(ctx, author, action):
         return
     table, column = action_config[action]
     display_action = "high five" if action == "highfive" else action
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute(
                 f'INSERT INTO {table} (username, {column}) VALUES (%s, 1) '
@@ -8606,8 +8657,9 @@ async def get_ad_settings():
     current_time = time.time()
     if ad_settings_cache and (current_time - ad_settings_cache_time) < CACHE_DURATION:
         return ad_settings_cache
-    connection = await mysql_connection()
+    connection = None
     try:
+        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT * FROM ad_notice_settings WHERE id = 1")
             settings = await cursor.fetchone()
