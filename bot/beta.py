@@ -8346,10 +8346,13 @@ async def known_users():
             async with connection.cursor(DictCursor) as cursor:
                 values = [(username, group, group) for username, group in user_groups.items()]
                 await cursor.executemany(
-                    "INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s",
+                    "INSERT INTO everyone (username, group_name) VALUES (%s, %s) AS new ON DUPLICATE KEY UPDATE group_name = new.group_name",
                     values
                 )
                 await connection.commit()
+    except asyncioCancelledError:
+        bot_logger.info("known_users task was cancelled")
+        raise
     except Exception as e:
         bot_logger.error(f"An error occurred in known_users: {e}")
     finally:
