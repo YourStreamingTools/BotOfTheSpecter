@@ -6369,8 +6369,8 @@ async def process_stream_online_websocket():
     global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
     connection = await mysql_connection()
     stream_online = True
-    looped_tasks["timed_message"] = get_event_loop().create_task(timed_message())
-    looped_tasks["handle_upcoming_ads"] = get_event_loop().create_task(handle_upcoming_ads())
+    looped_tasks["timed_message"] = create_task(timed_message())
+    looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
     await generate_winning_lotto_numbers()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
@@ -7635,8 +7635,8 @@ async def check_stream_online():
                         stream_data = data['data'][0]
                         current_game = stream_data.get('game_name', None)
                         stream_title = stream_data.get('title', None)
-                        looped_tasks["timed_message"] = get_event_loop().create_task(timed_message())
-                        looped_tasks["handle_upcoming_ads"] = get_event_loop().create_task(handle_upcoming_ads())
+                        looped_tasks["timed_message"] = create_task(timed_message())
+                        looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
                         # Log the status to the file
                         os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
                         with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
