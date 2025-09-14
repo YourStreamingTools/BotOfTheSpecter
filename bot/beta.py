@@ -7833,8 +7833,8 @@ async def channel_point_rewards():
                             # Insert or update the reward in the database
                             await cursor.execute(
                                 "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) "
-                                "VALUES (%s, %s, %s) "
-                                "ON DUPLICATE KEY UPDATE reward_title = VALUES(reward_title), reward_cost = VALUES(reward_cost)",
+                                "VALUES (%s, %s, %s) AS new "
+                                "ON DUPLICATE KEY UPDATE reward_title = new.reward_title, reward_cost = new.reward_cost",
                                 (reward_id, reward_title, reward_cost)
                             )
                             api_logger.info(f"Processed reward: {reward_id}, {reward_title}, {reward_cost}")
