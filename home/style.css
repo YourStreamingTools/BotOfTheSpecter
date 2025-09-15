@@ -24,6 +24,15 @@ main.section {
     background-color: transparent;
 }
 
+.title, .subtitle {
+    color: #FFFFFF !important;
+}
+
+.tag-line {
+    color: #FFD700 !important;
+    font-weight: 600 !important;
+}
+
 .box {
     background-color: #181818;
     color: #FFFFFF;

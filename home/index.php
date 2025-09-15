@@ -11,7 +11,7 @@ $pageDescription = "BotOfTheSpecter is a powerful bot system designed to enhance
 ?>
 <section class="has-text-centered mb-5">
     <h1 class="title is-2" style="font-weight:900; letter-spacing:0.01em;">BotOfTheSpecter</h1>
-    <p class="subtitle is-4" style="font-weight:600; color: #FFD700;">The Twitch Chat Bot built to replace them all!</p>
+    <p class="subtitle is-4 tag-line">The Twitch Chat Bot built to replace them all!</p>
 </section>
 <section class="notification is-dark is-light has-text-warning is-flex is-align-items-center is-justify-content-center mb-5 info-notice-bar" style="border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.18); font-size:1.1rem; width:100%; margin-left:0; margin-right:0; padding: 1.25rem 2rem; border: 1.5px solid #ffd700;">
     <span class="icon-text" style="width:100%;display:flex;align-items:center;justify-content:center;">
