@@ -376,8 +376,6 @@ async def subscribe_to_events(session_id):
         "channel.subscription.message",
         "channel.bits.use",
         "channel.raid",
-        "channel.hype_train.begin",
-        "channel.hype_train.end",
         "channel.ad_break.begin",
         "channel.charity_campaign.donate",
         "channel.channel_points_automatic_reward_redemption.add",
@@ -391,7 +389,9 @@ async def subscribe_to_events(session_id):
     ]
     v2topics = [
         "channel.follow",
-        "channel.update"
+        "channel.update",
+        "channel.hype_train.begin",
+        "channel.hype_train.end",
     ]
     responses = []
     async with httpClientSession() as v1topic_session:
