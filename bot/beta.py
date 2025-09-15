@@ -374,7 +374,7 @@ async def subscribe_to_events(session_id):
         "channel.subscribe",
         "channel.subscription.gift",
         "channel.subscription.message",
-        "channel.cheer",
+        "channel.bits.use",
         "channel.raid",
         "channel.hype_train.begin",
         "channel.hype_train.end",
@@ -852,7 +852,7 @@ async def process_twitch_eventsub_message(message):
                         event_data.get("cumulative_total")
                     ))
                 # Cheer Event
-                elif event_type == "channel.cheer":
+                elif event_type == "channel.bits.use":
                     create_task(process_cheer_event(
                         event_data["user_id"],
                         event_data["user_name"],
