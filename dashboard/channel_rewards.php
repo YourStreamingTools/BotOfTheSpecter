@@ -96,7 +96,7 @@ ob_start();
                             <strong><?php echo t('channel_rewards_sync_important'); ?></strong> <?php echo t('channel_rewards_sync_important_desc'); ?>
                         </div>
                         <div style="margin-left: 24px;">
-                            <button class="button is-primary" name="syncRewards" type="submit" id="sync-btn" style="margin-top: 0;">
+                            <button class="button is-primary" name="syncRewards" type="submit" id="sync-btn" style="margin-top: 0;" disabled>
                                 <span id="sync-btn-spinner" class="icon is-small" style="display:none;">
                                     <i class="fas fa-spinner fa-spin"></i>
                                 </span>
