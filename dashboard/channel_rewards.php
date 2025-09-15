@@ -67,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
 }
 
 // Fetch channel point rewards
-$rewardsQuery = $db->prepare("SELECT reward_id, reward_title, custom_message, reward_cost FROM channel_point_rewards ORDER BY reward_title ASC");
+$rewardsQuery = $db->prepare("SELECT reward_id, reward_title, custom_message, reward_cost FROM channel_point_rewards ORDER BY CAST(reward_cost AS UNSIGNED) ASC");
 $rewardsQuery->execute();
 $result = $rewardsQuery->get_result();
 $channelPointRewards = $result->fetch_all(MYSQLI_ASSOC);
@@ -170,12 +170,19 @@ ob_start();
                                                 <?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?>
                                             </div>
                                             <div class="edit-box" id="edit-box-<?php echo $reward['reward_id']; ?>" style="display: none;">
-                                                <textarea class="textarea custom-message" data-reward-id="<?php echo $reward['reward_id']; ?>"><?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?></textarea>
+                                                <textarea class="textarea custom-message" data-reward-id="<?php echo $reward['reward_id']; ?>" maxlength="255"><?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?></textarea>
+                                                <div class="character-count" id="count-<?php echo $reward['reward_id']; ?>" style="margin-top: 5px; font-size: 0.8em;">0 / 255 characters</div>
                                             </div>
                                         </td>
                                         <td class="has-text-centered" style="vertical-align: middle;"><?php echo isset($reward['reward_cost']) ? htmlspecialchars($reward['reward_cost']) : ''; ?></td>
                                         <td class="has-text-centered" style="vertical-align: middle;">
-                                            <button class="button is-small is-info edit-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-pencil-alt"></i></button>
+                                            <div class="edit-controls" id="controls-<?php echo $reward['reward_id']; ?>" style="display: flex; justify-content: center; align-items: center;">
+                                                <button class="button is-small is-info edit-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-pencil-alt"></i></button>
+                                                <div class="save-cancel" id="save-cancel-<?php echo $reward['reward_id']; ?>" style="display: none;">
+                                                    <button class="button is-small is-success save-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-check"></i></button>
+                                                    <button class="button is-small is-danger cancel-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-times"></i></button>
+                                                </div>
+                                            </div>
                                         </td>
                                         <td class="has-text-centered" style="vertical-align: middle;">
                                             <button class="button is-small is-danger delete-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-trash-alt"></i></button>
@@ -196,15 +203,17 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
         const rewardid = this.getAttribute('data-reward-id');
         const editBox = document.getElementById('edit-box-' + rewardid);
         const customMessage = document.getElementById(rewardid);
-        if (editBox.style.display === 'none') {
-            editBox.style.display = 'block';
-            customMessage.style.display = 'none';
-            this.classList.add('editing');
-        } else {
-            const newCustomMessage = editBox.querySelector('.custom-message').value;
-            updateCustomMessage(rewardid, newCustomMessage);
-            this.classList.remove('editing');
-        }
+        const controls = document.getElementById('controls-' + rewardid);
+        // Enter edit mode
+        editBox.style.display = 'block';
+        customMessage.style.display = 'none';
+        controls.querySelector('.edit-btn').style.display = 'none';
+        const saveCancel = controls.querySelector('.save-cancel');
+        saveCancel.style.display = 'flex';
+        saveCancel.style.justifyContent = 'center';
+        saveCancel.style.alignItems = 'center';
+        saveCancel.style.gap = '5px';
+        updateCharCount(rewardid);
     });
 });
 
@@ -223,7 +232,20 @@ function updateCustomMessage(rewardid, newCustomMessage) {
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     xhr.onreadystatechange = function() {
         if (xhr.readyState === XMLHttpRequest.DONE) {
-            location.reload();
+            if (xhr.status === 200) {
+                // Update the display
+                const customMessage = document.getElementById(rewardid);
+                customMessage.textContent = newCustomMessage;
+                // Hide edit mode
+                const editBox = document.getElementById('edit-box-' + rewardid);
+                const controls = document.getElementById('controls-' + rewardid);
+                editBox.style.display = 'none';
+                customMessage.style.display = 'block';
+                controls.querySelector('.edit-btn').style.display = 'block';
+                controls.querySelector('.save-cancel').style.display = 'none';
+            } else {
+                alert('Error saving message');
+            }
         }
     };
     xhr.send("rewardid=" + encodeURIComponent(rewardid) + "&newCustomMessage=" + encodeURIComponent(newCustomMessage));
@@ -249,6 +271,50 @@ document.getElementById('sync-form').addEventListener('submit', function(e) {
     spinner.style.display = '';
     text.textContent = <?php echo json_encode(t('channel_rewards_syncing')); ?>;
 });
+
+document.querySelectorAll('.cancel-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const rewardid = this.getAttribute('data-reward-id');
+        const editBox = document.getElementById('edit-box-' + rewardid);
+        const customMessage = document.getElementById(rewardid);
+        const controls = document.getElementById('controls-' + rewardid);
+        editBox.style.display = 'none';
+        customMessage.style.display = 'block';
+        controls.querySelector('.edit-btn').style.display = 'block';
+        controls.querySelector('.save-cancel').style.display = 'none';
+        // Reset textarea
+        const textarea = editBox.querySelector('.custom-message');
+        textarea.value = customMessage.textContent.trim();
+        updateCharCount(rewardid);
+    });
+});
+
+document.querySelectorAll('.save-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const rewardid = this.getAttribute('data-reward-id');
+        const newCustomMessage = document.querySelector(`.custom-message[data-reward-id="${rewardid}"]`).value;
+        updateCustomMessage(rewardid, newCustomMessage);
+    });
+});
+
+document.querySelectorAll('.custom-message').forEach(textarea => {
+    textarea.addEventListener('input', function() {
+        const rewardid = this.getAttribute('data-reward-id');
+        updateCharCount(rewardid);
+    });
+});
+
+function updateCharCount(rewardid) {
+    const textarea = document.querySelector(`.custom-message[data-reward-id="${rewardid}"]`);
+    const countDiv = document.getElementById('count-' + rewardid);
+    const length = textarea.value.length;
+    countDiv.textContent = length + ' / 255 characters';
+    if (length > 255) {
+        countDiv.style.color = 'red';
+    } else {
+        countDiv.style.color = '';
+    }
+}
 </script>
 <?php
 // Get the buffered content
