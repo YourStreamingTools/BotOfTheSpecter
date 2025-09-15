@@ -8402,7 +8402,7 @@ async def known_users():
                 user_groups[username] = group
         if user_groups:
             async with connection.cursor(DictCursor) as cursor:
-                values = [(username, group, group) for username, group in user_groups.items()]
+                values = [(username, group) for username, group in user_groups.items()]
                 await cursor.executemany(
                     "INSERT INTO everyone (username, group_name) VALUES (%s, %s) AS new ON DUPLICATE KEY UPDATE group_name = new.group_name",
                     values
