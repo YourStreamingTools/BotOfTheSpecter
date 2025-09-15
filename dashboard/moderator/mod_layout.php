@@ -5,6 +5,10 @@ include_once dirname(__FILE__) . "/../mod_access.php";
 // Add language support for moderator layout
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once dirname(__FILE__) . "/../lang/i18n.php";
+
+$config = include '/var/www/config/main.php';
+$dashboardVersion = $config['dashboardVersion'];
+$maintenanceMode = $config['maintenanceMode'];
 ?>
 <!DOCTYPE html>
 <html lang="en">

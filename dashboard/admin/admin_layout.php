@@ -5,6 +5,10 @@ require_once "/var/www/config/db_connect.php";
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
 
+$config = include '/var/www/config/main.php';
+$dashboardVersion = $config['dashboardVersion'];
+$maintenanceMode = $config['maintenanceMode'];
+
 // Database query to check if user is admin
 function isAdmin() {
     global $conn;

@@ -2,14 +2,17 @@
 // This file serves as a template for all dashboard pages
 include "mod_access.php";
 
-if (!isset($scripts)) $scripts = '';
+if (!isset($pageTitle)) $pageTitle = "BotOfTheSpecter";
+if (!isset($pageDescription)) $pageDescription = "BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.";
+if (!isset($pageContent)) $pageContent = "";
+if (!isset($scripts)) $scripts = "";
 
 // Add language support for layout
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
-$dashboardVersion = '2.1.3';
-// Maintenance mode control
-$maintenanceMode = false;
+$config = include '/var/www/config/main.php';
+$dashboardVersion = $config['dashboardVersion'];
+$maintenanceMode = $config['maintenanceMode'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
