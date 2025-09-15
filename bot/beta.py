@@ -367,148 +367,67 @@ async def subscribe_to_events(session_id):
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Content-Type": "application/json"
     }
-    v1topics = [
-        "stream.online",
-        "stream.offline",
-        "channel.subscribe",
-        "channel.subscription.gift",
-        "channel.subscription.message",
-        "channel.bits.use",
-        "channel.raid",
-        "channel.ad_break.begin",
-        "channel.charity_campaign.donate",
-        "channel.channel_points_automatic_reward_redemption.add",
-        "channel.channel_points_custom_reward_redemption.add",
-        "channel.poll.begin",
-        "channel.poll.end",
-        "automod.message.hold",
-        "channel.suspicious_user.message",
-        "channel.shoutout.create",
-        "channel.shoutout.receive"
+    # Define topics with their versions and conditions
+    topics = [
+        # v1 topics
+        {"type": "stream.online", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "stream.offline", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.subscribe", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.subscription.gift", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.subscription.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.bits.use", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.raid", "version": "1", "condition": {"to_broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.ad_break.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.charity_campaign.donate", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.channel_points_automatic_reward_redemption.add", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.channel_points_custom_reward_redemption.add", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.poll.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.poll.end", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "automod.message.hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "channel.suspicious_user.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "channel.chat.user_message_hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "channel.shoutout.create", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "channel.shoutout.receive", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        # v2 topics
+        {"type": "channel.follow", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "channel.update", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.hype_train.begin", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.hype_train.end", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.moderate", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
     ]
-    v2topics = [
-        "channel.follow",
-        "channel.update",
-        "channel.hype_train.begin",
-        "channel.hype_train.end",
-        "channel.moderate"
-    ]
+    # Prepare payloads
+    payloads = []
+    for topic in topics:
+        payload = {
+            "type": topic["type"],
+            "version": topic["version"],
+            "condition": topic["condition"],
+            "transport": {
+                "method": "websocket",
+                "session_id": session_id
+            }
+        }
+        payloads.append(payload)
+    # Subscribe concurrently
     responses = []
-    async with httpClientSession() as v1topic_session:
-        for v1topic in v1topics:
-            if v1topic == "channel.raid":
-                payload = {
-                    "type": v1topic,
-                    "version": "1",
-                    "condition": {
-                        "to_broadcaster_user_id": CHANNEL_ID
-                    },
-                    "transport": {
-                        "method": "websocket",
-                        "session_id": session_id
-                    }
-                }
-            elif v1topic == "automod.message.hold":
-                payload = {
-                    "type": v1topic,
-                    "version": "1",
-                    "condition": {
-                        "broadcaster_user_id": CHANNEL_ID,
-                        "moderator_user_id": CHANNEL_ID
-                    },
-                    "transport": {
-                        "method": "websocket",
-                        "session_id": session_id
-                    }
-                }
-            elif v1topic == "channel.suspicious_user.message":
-                payload = {
-                    "type": v1topic,
-                    "version": "1",
-                    "condition": {
-                        "broadcaster_user_id": CHANNEL_ID,
-                        "moderator_user_id": CHANNEL_ID
-                    },
-                    "transport": {
-                        "method": "websocket",
-                        "session_id": session_id
-                    }
-                }
-            elif v1topic == "channel.chat.user_message_hold":
-                payload = {
-                    "type": v1topic,
-                    "version": "1",
-                    "condition": {
-                        "broadcaster_user_id": CHANNEL_ID,
-                        "moderator_user_id": CHANNEL_ID
-                    },
-                    "transport": {
-                        "method": "websocket",
-                        "session_id": session_id
-                    }
-                }
-            elif v1topic == "channel.shoutout.create" or v1topic == "channel.shoutout.receive":
-                payload = {
-                    "type": v1topic,
-                    "version": "1",
-                    "condition": {
-                        "broadcaster_user_id": CHANNEL_ID,
-                        "moderator_user_id": CHANNEL_ID
-                    },
-                    "transport": {
-                        "method": "websocket",
-                        "session_id": session_id
-                    }
-                }
+    async with httpClientSession() as session:
+        tasks = []
+        for payload in payloads:
+            task = session.post(url, headers=headers, json=payload)
+            tasks.append(task)
+        # Gather all responses
+        results = await gather(*tasks, return_exceptions=True)
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                twitch_logger.error(f"Error subscribing to {payloads[i]['type']}: {result}")
             else:
-                payload = {
-                    "type": v1topic,
-                    "version": "1",
-                    "condition": {
-                        "broadcaster_user_id": CHANNEL_ID
-                    },
-                    "transport": {
-                        "method": "websocket",
-                        "session_id": session_id
-                    }
-                }
-            # asynchronous POST request
-            async with v1topic_session.post(url, headers=headers, json=payload) as response:
+                response = result
                 if response.status in (200, 202):
                     responses.append(await response.json())
-                    twitch_logger.info(f"Subscribed to {v1topic} successfully.")
-    async with httpClientSession() as v2topic_session:
-        for v2topic in v2topics:
-            if v2topic == "channel.follow" or v2topic == "channel.moderate":
-                payload = {
-                    "type": v2topic,
-                    "version": "2",
-                    "condition": {
-                        "broadcaster_user_id": CHANNEL_ID,
-                        "moderator_user_id": CHANNEL_ID
-                    },
-                    "transport": {
-                        "method": "websocket",
-                        "session_id": session_id
-                    }
-                }
-            else:
-                payload = {
-                    "type": v2topic,
-                    "version": "2",
-                    "condition": {
-                        "broadcaster_user_id": CHANNEL_ID
-                    },
-                    "transport": {
-                        "method": "websocket",
-                        "session_id": session_id
-                    }
-                }
-            # asynchronous POST request
-            async with v2topic_session.post(url, headers=headers, json=payload) as response:
-                if response.status in (200, 202):
-                    responses.append(await response.json())
-                    twitch_logger.info(f"Subscribed to {v2topic} successfully.")
+                    twitch_logger.info(f"Subscribed to {payloads[i]['type']} successfully.")
+                else:
+                    error_text = await response.text()
+                    twitch_logger.error(f"Failed to subscribe to {payloads[i]['type']}: HTTP {response.status} - {error_text}")
 
 async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
     while True:
