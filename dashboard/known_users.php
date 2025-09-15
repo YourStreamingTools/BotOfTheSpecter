@@ -155,7 +155,10 @@ ob_start();
                         <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
                       </div>
                       <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
-                        <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
+                        <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>" maxlength="255"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
+                        <div class="character-counter" id="counter-<?php echo $userData['id']; ?>" style="font-size: 0.8em; margin-top: 0.25em; text-align: right; color: #ccc;">
+                          <span class="current-count"><?php echo strlen($userData['welcome_message'] ?? ''); ?></span>/255 characters
+                        </div>
                       </div>
                     </td>
                     <td class="has-text-centered" style="vertical-align: middle;">
@@ -285,6 +288,24 @@ document.addEventListener('DOMContentLoaded', function() {
           form.submit();
         }
       });
+    });
+  });
+  // Character counter functionality
+  document.querySelectorAll('.welcome-message').forEach(textarea => {
+    textarea.addEventListener('input', function() {
+      const userId = this.getAttribute('data-user-id');
+      const counter = document.getElementById('counter-' + userId);
+      const currentCount = this.value.length;
+      const currentCountSpan = counter.querySelector('.current-count');
+      currentCountSpan.textContent = currentCount;
+      // Change color based on character count
+      if (currentCount >= 240) {
+        counter.style.color = '#ff3860'; // Red for near limit
+      } else if (currentCount >= 200) {
+        counter.style.color = '#ff9f43'; // Orange for warning
+      } else {
+        counter.style.color = '#ccc'; // Default gray
+      }
     });
   });
   // Fetch the banned status for each user asynchronously
