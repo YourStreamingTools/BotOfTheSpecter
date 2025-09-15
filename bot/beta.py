@@ -368,7 +368,6 @@ async def subscribe_to_events(session_id):
         "Content-Type": "application/json"
     }
     v1topics = [
-        "channel.moderate",
         "stream.online",
         "stream.offline",
         "channel.subscribe",
@@ -392,6 +391,7 @@ async def subscribe_to_events(session_id):
         "channel.update",
         "channel.hype_train.begin",
         "channel.hype_train.end",
+        "channel.moderate"
     ]
     responses = []
     async with httpClientSession() as v1topic_session:
@@ -479,7 +479,7 @@ async def subscribe_to_events(session_id):
                     twitch_logger.info(f"Subscribed to {v1topic} successfully.")
     async with httpClientSession() as v2topic_session:
         for v2topic in v2topics:
-            if v2topic == "channel.follow":
+            if v2topic == "channel.follow" or v2topic == "channel.moderate":
                 payload = {
                     "type": v2topic,
                     "version": "2",
