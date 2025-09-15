@@ -3,7 +3,9 @@
 if (!isset($pageTitle)) $pageTitle = "BotOfTheSpecter";
 if (!isset($pageDescription)) $pageDescription = "BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.";
 if (!isset($pageContent)) $pageContent = "";
-$dashboardVersion = "2.0.4";
+$config = include '/var/www/config/main.php';
+$dashboardVersion = $config['dashboardVersion'];
+$maintenanceMode = $config['maintenanceMode'];
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
