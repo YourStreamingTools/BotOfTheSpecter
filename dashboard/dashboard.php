@@ -395,6 +395,142 @@ if ($isLoggedIn) {
             </div>
         </div>
     </section>
+    <!-- Premium Plans Section -->
+    <section class="section">
+        <div class="container">
+            <h2 class="title is-2 has-text-centered has-text-white mb-6">
+                Premium Plans
+            </h2>
+            <div class="columns is-multiline is-variable is-5">
+                <!-- Free Plan -->
+                <div class="column is-12-mobile is-6-tablet is-3-desktop">
+                    <div class="card feature-card has-shadow is-shadowless-mobile has-background-dark" style="height: 100%; border-radius: 12px;">
+                        <div class="card-content" style="height: 100%; display: flex; flex-direction: column;">
+                            <div class="has-text-centered mb-4">
+                                <div class="icon is-large has-text-grey-light mb-2">
+                                    <i class="fas fa-rocket fa-2x"></i>
+                                </div>
+                                <h3 class="title is-4 has-text-weight-bold has-text-white mb-2">
+                                    Free
+                                </h3>
+                                <p class="subtitle is-5 has-text-weight-semibold has-text-primary">
+                                    $0/month
+                                </p>
+                            </div>
+                            <div class="content" style="flex-grow: 1;">
+                                <ul class="is-size-6" style="list-style: none; padding-left: 0;">
+                                    <li class="mb-2">
+                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                        Core bot commands
+                                    </li>
+                                    <li class="mb-2">
+                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                        Community Support
+                                    </li>
+                                    <li class="mb-2">
+                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                        1GB Storage
+                                    </li>
+                                    <li class="mb-2">
+                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                        Shared Bot Instance
+                                    </li>
+                                </ul>
+                                <p class="is-size-7 has-text-grey mt-3 has-text-centered">
+                                    <strong>90-95% of the bot is FREE!</strong>
+                                </p>
+                            </div>
+                            <footer class="mt-4">
+                                <a href="login.php" class="button is-success is-fullwidth is-rounded has-text-weight-semibold">
+                                    <span class="icon"><i class="fas fa-sign-in-alt"></i></span>
+                                    <span>Get Started</span>
+                                </a>
+                            </footer>
+                        </div>
+                    </div>
+                </div>
+                <!-- Premium Plans -->
+                <?php
+                $plans = [
+                    '1000' => [
+                        'name' => 'Tier 1',
+                        'price' => '$4.99/month',
+                        'features' => [
+                            'Song Request Command',
+                            'Priority Support',
+                            'Beta Access',
+                            '10GB Storage',
+                            'Shared Bot Instance',
+                        ],
+                        'icon' => 'fas fa-star',
+                        'color' => 'has-text-info',
+                    ],
+                    '2000' => [
+                        'name' => 'Tier 2',
+                        'price' => '$9.99/month',
+                        'features' => [
+                            'Everything in Tier 1',
+                            'Personal Support',
+                            'AI Features',
+                            '25GB Storage',
+                            'Shared Bot Instance',
+                        ],
+                        'icon' => 'fas fa-crown',
+                        'color' => 'has-text-warning',
+                    ],
+                    '3000' => [
+                        'name' => 'Tier 3',
+                        'price' => '$14.99/month',
+                        'features' => [
+                            'Everything in Tier 2',
+                            '50GB Storage',
+                            'Dedicated Bot Instance',
+                        ],
+                        'icon' => 'fas fa-gem',
+                        'color' => 'has-text-danger',
+                    ],
+                ];
+                foreach ($plans as $planKey => $planDetails):
+                ?>
+                <div class="column is-12-mobile is-6-tablet is-3-desktop">
+                    <div class="card feature-card has-shadow is-shadowless-mobile has-background-dark" style="height: 100%; border-radius: 12px;">
+                        <div class="card-content" style="height: 100%; display: flex; flex-direction: column;">
+                            <div class="has-text-centered mb-4">
+                                <div class="icon is-large <?php echo $planDetails['color']; ?> mb-2">
+                                    <i class="<?php echo $planDetails['icon']; ?> fa-2x"></i>
+                                </div>
+                                <h3 class="title is-4 has-text-weight-bold has-text-white mb-2">
+                                    <?php echo htmlspecialchars($planDetails['name']); ?>
+                                </h3>
+                                <p class="subtitle is-5 has-text-weight-semibold has-text-primary">
+                                    <?php echo htmlspecialchars($planDetails['price']); ?>
+                                </p>
+                            </div>
+                            <div class="content" style="flex-grow: 1;">
+                                <ul class="is-size-6" style="list-style: none; padding-left: 0;">
+                                    <?php foreach ($planDetails['features'] as $feature): ?>
+                                    <li class="mb-2">
+                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
+                                        <?php echo htmlspecialchars($feature); ?>
+                                    </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                            <footer class="mt-4">
+                                <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="button is-primary is-fullwidth is-rounded has-text-weight-semibold">
+                                    <span class="icon">
+                                        <i class="fas fa-plus-circle"></i>
+                                    </span>
+                                    <span>Subscribe</span>
+                                </a>
+                            </footer>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
     <!-- CTA Section -->
     <section class="section has-background-black-bis">
         <div class="container has-text-centered">
