@@ -24,3 +24,10 @@
 
 # JSON files: treat as text, force LF line endings, recognize as JSON
 *.json text eol=lf linguist-language=JSON
+
+# Documentation
+LICENSE text eol=lf
+README  text eol=lf
+CODE_OF_CONDUCT text eol=lf
+SECURITY text eol=lf
+agpl-3.0 text eol=lf
