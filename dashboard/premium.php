@@ -212,9 +212,9 @@ ob_start();
                     </div>
                     <div class="content" style="flex-grow: 1;">
                         <ul class="is-size-6" style="list-style: none; padding-left: 0;">
-                            <li class="mb-2" title="<?php echo t('premium_plan_free_feature_basic_commands_tip'); ?>">
+                            <li class="mb-2" title="<?php echo t('premium_plan_free_feature_commands_tip'); ?>">
                                 <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                <?php echo t('premium_plan_free_feature_basic_commands'); ?>
+                                <?php echo t('premium_plan_free_feature_commands'); ?>
                             </li>
                             <li class="mb-2" title="<?php echo t('premium_plan_free_feature_support_tip'); ?>">
                                 <span class="icon has-text-success"><i class="fas fa-check"></i></span>
@@ -229,6 +229,9 @@ ob_start();
                                 <?php echo t('premium_plan_free_feature_shared_bot'); ?>
                             </li>
                         </ul>
+                        <p class="is-size-7 has-text-grey mt-3 has-text-centered">
+                            <strong>90-95% of the bot is FREE!</strong>
+                        </p>
                     </div>
                     <?php if ($currentPlan === 'free'): ?>
                         <footer class="mt-4">
