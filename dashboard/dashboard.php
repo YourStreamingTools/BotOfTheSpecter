@@ -421,7 +421,7 @@ if ($isLoggedIn) {
                                 <ul class="is-size-6" style="list-style: none; padding-left: 0;">
                                     <li class="mb-2">
                                         <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                        Core bot commands
+                                        Core Bot Features
                                     </li>
                                     <li class="mb-2">
                                         <span class="icon has-text-success"><i class="fas fa-check"></i></span>
@@ -429,7 +429,7 @@ if ($isLoggedIn) {
                                     </li>
                                     <li class="mb-2">
                                         <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                        1GB Storage
+                                        20MB Storage
                                     </li>
                                     <li class="mb-2">
                                         <span class="icon has-text-success"><i class="fas fa-check"></i></span>
@@ -459,7 +459,7 @@ if ($isLoggedIn) {
                             'Song Request Command',
                             'Priority Support',
                             'Beta Access',
-                            '10GB Storage',
+                            '50MB Storage',
                             'Shared Bot Instance',
                         ],
                         'icon' => 'fas fa-star',
@@ -472,7 +472,7 @@ if ($isLoggedIn) {
                             'Everything in Tier 1',
                             'Personal Support',
                             'AI Features',
-                            '25GB Storage',
+                            '100MB Storage',
                             'Shared Bot Instance',
                         ],
                         'icon' => 'fas fa-crown',
@@ -483,7 +483,7 @@ if ($isLoggedIn) {
                         'price' => '$14.99/month',
                         'features' => [
                             'Everything in Tier 2',
-                            '50GB Storage',
+                            '200MB Storage',
                             'Dedicated Bot Instance',
                         ],
                         'icon' => 'fas fa-gem',
