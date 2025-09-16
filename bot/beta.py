@@ -383,7 +383,7 @@ async def subscribe_to_events(session_id):
         {"type": "channel.channel_points_custom_reward_redemption.add", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.poll.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.poll.end", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
-        {"type": "automod.message.hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "automod.message.hold", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.suspicious_user.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.chat.user_message_hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         {"type": "channel.shoutout.create", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
@@ -924,22 +924,64 @@ async def process_twitch_eventsub_message(message):
                     messageContent = event_data["message"]["text"]
                     messageAuthor = event_data["user_name"]
                     messageAuthorID = event_data["user_id"]
+                    messageHoldID = event_data["message_id"]
                     spam_pattern = await get_spam_patterns()
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                             create_task(ban_user(messageAuthor, messageAuthorID))
+                            # Deny the message via Twitch API
+                            try:
+                                # Determine which user ID to use for the API request
+                                use_streamer = False  # Use bot token to make it appear as bot denied
+                                api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+                                # Fetch settings from the twitch_bot_access table
+                                await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
+                                result = await cursor.fetchone()
+                                # Use the token from the database if found, otherwise default to CHANNEL_AUTH
+                                api_user_auth = result.get('twitch_access_token') if result else CHANNEL_AUTH
+                                async with httpClientSession() as session:
+                                    headers = {"Authorization": f"Bearer {api_user_auth}", "Client-Id": CLIENT_ID, "Content-Type": "application/json"}
+                                    body = {"user_id": messageAuthorID, "msg_id": messageHoldID, "action": "DENY"}
+                                    async with session.post("https://api.twitch.tv/helix/moderation/automod/message", headers=headers, json=body) as response:
+                                        if response.status == 204:
+                                            twitch_logger.info(f"Denied message with ID {messageHoldID} for spam pattern.")
+                                        else:
+                                            twitch_logger.error(f"Failed to deny message {messageHoldID}: {response.status}")
+                            except Exception as e:
+                                twitch_logger.error(f"Error denying message {messageHoldID}: {e}")
                 # User Message Hold Event
                 elif event_type == "channel.chat.user_message_hold":
                     event_logger.info(f"Got a User Message Hold in Chat: {event_data}")
                     messageContent = event_data["message"]["text"]
                     messageAuthor = event_data["user_name"]
                     messageAuthorID = event_data["user_id"]
+                    messageHoldID = event_data["message_id"]
                     spam_pattern = await get_spam_patterns()
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                             create_task(ban_user(messageAuthor, messageAuthorID))
+                            # Deny the message via Twitch API
+                            try:
+                                # Determine which user ID to use for the API request
+                                use_streamer = False  # Use bot token to make it appear as bot denied
+                                api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+                                # Fetch settings from the twitch_bot_access table
+                                await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
+                                result = await cursor.fetchone()
+                                # Use the token from the database if found, otherwise default to CHANNEL_AUTH
+                                api_user_auth = result.get('twitch_access_token') if result else CHANNEL_AUTH
+                                async with httpClientSession() as session:
+                                    headers = {"Authorization": f"Bearer {api_user_auth}", "Client-Id": CLIENT_ID, "Content-Type": "application/json"}
+                                    body = {"user_id": messageAuthorID, "msg_id": messageHoldID, "action": "DENY"}
+                                    async with session.post("https://api.twitch.tv/helix/moderation/automod/message", headers=headers, json=body) as response:
+                                        if response.status == 204:
+                                            twitch_logger.info(f"Denied message with ID {messageHoldID} for spam pattern.")
+                                        else:
+                                            twitch_logger.error(f"Failed to deny message {messageHoldID}: {response.status}")
+                            except Exception as e:
+                                twitch_logger.error(f"Error denying message {messageHoldID}: {e}")
                 # Suspicious User Message Event
                 elif event_type == "channel.suspicious_user.message":
                     event_logger.info(f"Got a Suspicious User Message: {event_data}")
