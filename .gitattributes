@@ -1,2 +1,26 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# PHP files: treat as text, force LF line endings, recognize as PHP
+*.php text eol=lf linguist-language=PHP
+
+# Markdown files: treat as text, force LF line endings, recognize as Markdown
+*.md text eol=lf linguist-language=Markdown
+
+# CSS files: treat as text, force LF line endings, recognize as CSS
+*.css text eol=lf linguist-language=CSS
+
+# Python files: treat as text, force LF line endings, recognize as Python
+*.py text eol=lf linguist-language=Python
+
+# HTML files: treat as text, force LF line endings, recognize as HTML
+*.html text eol=lf linguist-language=HTML
+
+# YAML files: treat as text, force LF line endings, recognize as YAML
+*.yml text eol=lf linguist-language=YAML
+
+# JavaScript files: treat as text, force LF line endings, recognize as JavaScript
+*.js text eol=lf linguist-language=JavaScript
+
+# JSON files: treat as text, force LF line endings, recognize as JSON
+*.json text eol=lf linguist-language=JSON
