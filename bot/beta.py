@@ -372,6 +372,7 @@ async def subscribe_to_events(session_id):
         # v1 topics
         {"type": "stream.online", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "stream.offline", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "automod.message.hold", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.subscribe", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.subscription.gift", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.subscription.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
@@ -383,7 +384,6 @@ async def subscribe_to_events(session_id):
         {"type": "channel.channel_points_custom_reward_redemption.add", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.poll.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.poll.end", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
-        {"type": "automod.message.hold", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.suspicious_user.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.chat.user_message_hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         {"type": "channel.shoutout.create", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
@@ -1020,6 +1020,7 @@ async def process_twitch_eventsub_message(message):
                     else:
                         shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct inforamtion from twitch to process the request."
                     await channel.send(shoutout_message)
+                    twitch_logger.info(f"Shoutout message sent: {shoutout_message}")
                 else:
                     # Logging for unknown event types
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
