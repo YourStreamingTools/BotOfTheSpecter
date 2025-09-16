@@ -1081,7 +1081,7 @@ return [
     'premium_plan_free_price' => '$0 USD',
     'premium_plan_free_feature_basic_commands' => 'Basic Commands',
     'premium_plan_free_feature_basic_commands_tip' => 'Use basic bot commands in your chat.',
-    'premium_plan_free_feature_commands' => 'Core bot commands',
+    'premium_plan_free_feature_commands' => 'Core Bot Features',
     'premium_plan_free_feature_commands_tip' => 'Access to essential bot commands and features.',
     'premium_plan_free_feature_support' => 'Limited Support',
     'premium_plan_free_feature_support_tip' => 'Receive community-based support for basic issues.',
