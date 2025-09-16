@@ -9,6 +9,10 @@ include_once dirname(__FILE__) . "/../lang/i18n.php";
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
+
+if (!isset($pageTitle)) $pageTitle = "BotOfTheSpecter Moderator";
+if (!isset($pageDescription)) $pageDescription = "BotOfTheSpecter Moderator Dashboard";
+if (!isset($pageContent)) $pageContent = "";
 ?>
 <!DOCTYPE html>
 <html lang="en">
