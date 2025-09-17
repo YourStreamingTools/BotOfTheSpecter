@@ -1356,10 +1356,7 @@ class BotOfTheSpecter(commands.Bot):
         account_username = user_row['username'] if user_row else "Unknown User"
         thumbnail_url = "https://cdn.botofthespecter.com/webhook"
         # Get the appropriate username based on event type
-        if event_type == "FOLLOW":
-            twitch_username = data.get("twitch-username", "Unknown User")
-        else:
-            twitch_username = data.get("username", "Unknown User")
+        twitch_username = data.get("twitch-username", "Unknown User")
         message_text = data.get("message", "")
         embed = None
         if event_type == "ONLINE":
@@ -1377,8 +1374,8 @@ class BotOfTheSpecter(commands.Bot):
                 description=f"**{twitch_username}** just followed the stream!",
                 color=discord.Color.blue()
             )
-            embed.set_thumbnail(url=data.get(f"{thumbnail_url}/follow.png"))
-        elif event_type == "SUBSCRIPTION":
+            embed.set_thumbnail(url=(f"{thumbnail_url}/follow.png"))
+        elif event_type == "SUB":
             months = data.get("months", 1)
             tier = data.get("tier")
             desc = f"**{twitch_username}** just subscribed"
@@ -1390,7 +1387,7 @@ class BotOfTheSpecter(commands.Bot):
                 description=desc,
                 color=discord.Color.gold()
             )
-            embed.set_thumbnail(url=data.get(f"{thumbnail_url}/sub.png"))
+            embed.set_thumbnail(url=(f"{thumbnail_url}/sub.png"))
         elif event_type == "CHEER":
             bits = data.get("bits", 0)
             embed = discord.Embed(
@@ -1404,7 +1401,7 @@ class BotOfTheSpecter(commands.Bot):
                 image = "cheer100.png"
             else:
                 image = "cheer1000.png"
-            embed.set_thumbnail(url=data.get(f"{thumbnail_url}/{image}"))
+            embed.set_thumbnail(url=(f"{thumbnail_url}/{image}"))
         elif event_type == "RAID":
             viewers = data.get("viewers", 0)
             embed = discord.Embed(
@@ -1412,10 +1409,9 @@ class BotOfTheSpecter(commands.Bot):
                 description=f"**{twitch_username}** raided with {viewers} viewers!",
                 color=discord.Color.green()
             )
-            embed.set_thumbnail(url=data.get(f"{thumbnail_url}/raid.png"))
+            embed.set_thumbnail(url=(f"{thumbnail_url}/raid.png"))
         if message_text:
             embed.insert_field_at(index=1, name="Message", value=message_text, inline=False)
-        embed.set_author(name="BotOfTheSpecter", icon_url="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg")
         timestamp = await self.format_discord_embed_timestamp(channel_code)
         embed.set_footer(text=f"Auto Posted by BotOfTheSpecter | {timestamp}")
         return embed
