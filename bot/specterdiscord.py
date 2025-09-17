@@ -1339,7 +1339,6 @@ class BotOfTheSpecter(commands.Bot):
         if not channel:
             self.logger.warning(f"Channel {channel_id} not found in guild {guild.name}")
             return
-        channel_name = mapping.get("channel_name")
         message = await self.format_twitch_message(event_type, data, channel_code)
         if message:
             if mention_everyone:
