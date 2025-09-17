@@ -849,8 +849,6 @@ function refreshTable() {
                 document.getElementById('filesTableBody').innerHTML = data.html;
                 // Re-initialize event handlers for the newly added elements
                 reattachEventHandlers();
-                // Update conversion tags
-                updateConversionTags();
                 // Update countdowns
                 updateAllCountdowns();
             }
