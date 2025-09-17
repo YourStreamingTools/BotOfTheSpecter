@@ -318,6 +318,11 @@ if (isset($_GET['admin_system_log_type'])) {
             $logPath = "/var/log/apache2/specterbot.app_access.log";
             $result = read_apache2_log_over_ssh($logPath, 200, $since);
             break;
+        case 'discordbot':
+            // Discord bot log in custom directory (use SSH)
+            $logPath = "/home/botofthespecter/logs/specterdiscord/discordbot.txt";
+            $result = read_bot_log_over_ssh($logPath, 200, $since);
+            break;
         default:
             // Other system logs in custom directory (use SSH)
             $logPath = "/home/botofthespecter/logs/system/$logType.txt";
@@ -397,6 +402,7 @@ $systemLogTypes = [
             ['value' => 'database', 'label' => 'Database Log'],
             ['value' => 'websocket', 'label' => 'Websocket Log'],
             ['value' => 'api', 'label' => 'API Log'],
+            ['value' => 'discordbot', 'label' => 'Discord Bot Log']
         ]
     ],
 ];
