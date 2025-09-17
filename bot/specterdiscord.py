@@ -1374,7 +1374,7 @@ class BotOfTheSpecter(commands.Bot):
                 description=f"**{twitch_username}** just followed the stream!",
                 color=discord.Color.blue()
             )
-            embed.set_thumbnail(url=(f"{thumbnail_url}/follow.png"))
+            embed.set_image(url=(f"{thumbnail_url}/follow.png"))
         elif event_type == "SUB":
             months = data.get("months", 1)
             tier = data.get("tier")
@@ -1387,7 +1387,7 @@ class BotOfTheSpecter(commands.Bot):
                 description=desc,
                 color=discord.Color.gold()
             )
-            embed.set_thumbnail(url=(f"{thumbnail_url}/sub.png"))
+            embed.set_image(url=(f"{thumbnail_url}/sub.png"))
         elif event_type == "CHEER":
             bits = data.get("bits", 0)
             embed = discord.Embed(
@@ -1401,7 +1401,7 @@ class BotOfTheSpecter(commands.Bot):
                 image = "cheer100.png"
             else:
                 image = "cheer1000.png"
-            embed.set_thumbnail(url=(f"{thumbnail_url}/{image}"))
+            embed.set_image(url=(f"{thumbnail_url}/{image}"))
         elif event_type == "RAID":
             viewers = data.get("viewers", 0)
             embed = discord.Embed(
@@ -1409,7 +1409,7 @@ class BotOfTheSpecter(commands.Bot):
                 description=f"**{twitch_username}** raided with {viewers} viewers!",
                 color=discord.Color.green()
             )
-            embed.set_thumbnail(url=(f"{thumbnail_url}/raid.png"))
+            embed.set_image(url=(f"{thumbnail_url}/raid.png"))
         if message_text:
             embed.insert_field_at(index=1, name="Message", value=message_text, inline=False)
         timestamp = await self.format_discord_embed_timestamp(channel_code)
