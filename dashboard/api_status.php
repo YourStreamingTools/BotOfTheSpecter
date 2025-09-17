@@ -76,7 +76,8 @@ $serviceMap = [
     'websocket' => [
         'name' => 'Notification Service',
         'host' => 'websocket.botofthespecter.com',
-        'port' => 443
+        'port' => 443,
+        'disabled' => true
     ],
     'bots' => [
         'name' => 'Bots Service',
@@ -104,7 +105,8 @@ $serviceMap = [
     'streamingServiceEast' => [
         'name' => 'US-EAST-1 Streaming Service',
         'host' => 'us-east-1.botofthespecter.video',
-        'port' => 1935
+        'port' => 1935,
+        'disabled' => true
     ]
 ];
 
@@ -115,44 +117,54 @@ $discordVersion = file_exists($discordVersionFilePath) ? trim(file_get_contents(
 // Check status
 if (isset($serviceMap[$service])) {
     $svc = $serviceMap[$service];
-    // Check if this is an SSH service or regular port check
-    if (isset($svc['type']) && $svc['type'] === 'ssh_service') {
-        // SSH service check
-        $result = checkSSHService($svc['ssh_host'], $svc['ssh_username'], $svc['ssh_password'], $svc['service_name']);
-        // Special handling for Discord bot service - use Bots service latency when running
-        $latency_to_show = $result['latency_ms'];
-        if ($service === 'discordbot' && $result['status'] === 'OK') {
-            // Get the Bots service latency to show instead of SSH latency
-            $botsResult = checkPort($serviceMap['bots']['host'], $serviceMap['bots']['port']);
-            if ($botsResult['status'] === 'OK') {
-                $latency_to_show = $botsResult['latency_ms'];
-            }
-        }
+    if (isset($svc['disabled']) && $svc['disabled']) {
         $serviceData = [
             'name' => $svc['name'],
-            'status' => $result['status'],
-            'latency_ms' => $result['status'] === 'OK' ? $latency_to_show : null,
-            'host' => $svc['ssh_host'],
-            'service' => $svc['service_name'],
+            'status' => 'DISABLED',
+            'message' => 'Service is disabled',
             'timestamp' => date('c'),
-            'checked_at' => time(),
-            'message' => $result['status'] === 'OK' ? '' : $result['message'],
-            'version' => $discordVersion
+            'checked_at' => time()
         ];
     } else {
-        // Regular port check
-        $result = checkPort($svc['host'], $svc['port']);
-        $serviceData = [
-            'name' => $svc['name'],
-            'status' => $result['status'],
-            'latency_ms' => $result['status'] === 'OK' ? $result['latency_ms'] : null,
-            'host' => $svc['host'],
-            'port' => $svc['port'],
-            'host_port' => $svc['host'] . ':' . $svc['port'],
-            'timestamp' => date('c'),
-            'checked_at' => time(),
-            'message' => $result['status'] === 'OK' ? '' : $result['message']
-        ];
+        // Check if this is an SSH service or regular port check
+        if (isset($svc['type']) && $svc['type'] === 'ssh_service') {
+            // SSH service check
+            $result = checkSSHService($svc['ssh_host'], $svc['ssh_username'], $svc['ssh_password'], $svc['service_name']);
+            // Special handling for Discord bot service - use Bots service latency when running
+            $latency_to_show = $result['latency_ms'];
+            if ($service === 'discordbot' && $result['status'] === 'OK') {
+                // Get the Bots service latency to show instead of SSH latency
+                $botsResult = checkPort($serviceMap['bots']['host'], $serviceMap['bots']['port']);
+                if ($botsResult['status'] === 'OK') {
+                    $latency_to_show = $botsResult['latency_ms'];
+                }
+            }
+            $serviceData = [
+                'name' => $svc['name'],
+                'status' => $result['status'],
+                'latency_ms' => $result['status'] === 'OK' ? $latency_to_show : null,
+                'host' => $svc['ssh_host'],
+                'service' => $svc['service_name'],
+                'timestamp' => date('c'),
+                'checked_at' => time(),
+                'message' => $result['status'] === 'OK' ? '' : $result['message'],
+                'version' => $discordVersion
+            ];
+        } else {
+            // Regular port check
+            $result = checkPort($svc['host'], $svc['port']);
+            $serviceData = [
+                'name' => $svc['name'],
+                'status' => $result['status'],
+                'latency_ms' => $result['status'] === 'OK' ? $result['latency_ms'] : null,
+                'host' => $svc['host'],
+                'port' => $svc['port'],
+                'host_port' => $svc['host'] . ':' . $svc['port'],
+                'timestamp' => date('c'),
+                'checked_at' => time(),
+                'message' => $result['status'] === 'OK' ? '' : $result['message']
+            ];
+        }
     }
 } elseif ($service === 'ping') {
     $serviceData = [

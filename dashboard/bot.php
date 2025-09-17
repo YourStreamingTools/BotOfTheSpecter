@@ -1482,15 +1482,35 @@ document.addEventListener('DOMContentLoaded', function() {
           // Robust icon update logic
           if (data && data.status === 'OK') {
             icon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
+          } else if (data.status === 'DISABLED') {
+            icon.className = 'fas fa-pause-circle fa-2x has-text-grey';
           } else {
             icon.className = 'fas fa-heart-broken fa-2x has-text-danger';
+          }
+          // Update status text
+          if (statusElem) {
+            if (data.status === 'OK') {
+              statusElem.textContent = runningNormallyText;
+              statusElem.className = 'is-size-7 has-text-success';
+            } else if (data.status === 'ERROR') {
+              statusElem.textContent = data.message || serviceDegradedText;
+              statusElem.className = 'is-size-7 has-text-danger';
+            } else if (data.status === 'DISABLED') {
+              statusElem.textContent = 'Monitoring Disabled';
+              statusElem.className = 'is-size-7 has-text-grey';
+            } else {
+              statusElem.textContent = serviceDegradedText;
+              statusElem.className = 'is-size-7 has-text-warning';
+            }
           }
           // Update technical information if in technical mode
           if (isTechnical) {
             const latencyElem = document.getElementById(svc.latencyId);
             const lastCheckElem = document.getElementById(svc.lastCheckId);
             if (latencyElem) {
-              if (data.latency_ms !== null && data.latency_ms !== undefined) {
+              if (data.status === 'DISABLED') {
+                latencyElem.innerHTML = '<span class="has-text-grey">--ms</span>';
+              } else if (data.latency_ms !== null && data.latency_ms !== undefined) {
                 const latencyColor = data.latency_ms < 100 ? 'has-text-success' : data.latency_ms < 300 ? 'has-text-warning' : 'has-text-danger';
                 latencyElem.innerHTML = `<span class="${latencyColor}">${data.latency_ms}ms</span>`;
               } else {
