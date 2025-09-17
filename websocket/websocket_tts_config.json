@@ -1,22 +1,13 @@
 {
-    "tts_model": "tts_models/en/ljspeech/fast_pitch",
-    "performance": {
-        "use_gpu": false,
-        "cpu_threads": 4,
-        "use_cache": true,
-        "cache_dir": "/home/botofthespecter/tts_cache",
-        "max_text_length": 255,
-        "batch_processing": false,
-        "optimize_for_cpu": true
-    },
+    "tts_model": "tts_models/en/ljspeech/tacotron2-DDC",
     "voice_processing": {
         "pitch_shift": -3,
         "speed_adjustment": 0.95
     },
     "ssh_config": {
         "hostname": "your-server.com",
-        "username": "your-username",
-        "key_filename": "/path/to/your/private/key",
+        "username": "username",
+        "key_filename": null,
         "password": null,
         "port": 22
     },
