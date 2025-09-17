@@ -136,16 +136,17 @@ $stmt->close();
 
 // Load auto_record setting from new table (only one record per user)
 $auto_record = 0;
-$stmt = $db->prepare("SELECT server_location, enabled FROM auto_record_settings WHERE id = 1");
-if ($stmt) {
-    $stmt->execute();
-    $stmt->bind_result($server_location_db, $auto_record_db);
-    if ($stmt->fetch()) {
+$auto_record_stmt = $db->prepare("SELECT server_location, enabled FROM auto_record_settings WHERE id = 1");
+if ($auto_record_stmt) {
+    $auto_record_stmt->execute();
+    $auto_record_stmt->bind_result($server_location_db, $auto_record_db);
+    if ($auto_record_stmt->fetch()) {
         $selected_server = $server_location_db ?? $selected_server;
         $auto_record = $auto_record_db ?? 0;
     }
-    $stmt->close();
+    $auto_record_stmt->close();
 }
+
 // Function to get files from the storage server
 function getStorageFiles($server_host, $server_username, $server_password, $user_dir, $api_key, $recording_dir) {
     $files = [];
@@ -489,6 +490,7 @@ ob_start();
                                                 value="<?php echo htmlspecialchars($twitch_key); ?>"
                                                 <?php echo !empty($twitch_key) ? 'readonly' : ''; ?>
                                                 required
+                                                autocomplete="new-password"
                                                 style="padding-right:2.75em;"
                                             >
                                             <?php if (!empty($twitch_key)): ?>
@@ -638,7 +640,7 @@ ob_start();
     <button class="modal-close is-large" aria-label="close"></button>
     <div class="modal-content" style="width:100%; max-width:900px; min-width:320px;">
         <div id="customPlayerContainer" style="background:#181c24; border-radius:12px; box-shadow:0 4px 32px rgba(0,0,0,0.4); padding:24px; display:flex; flex-direction:column; align-items:center;">
-            <video id="customVideoPlayer" style="width:100%; max-width:800px; border-radius:8px; background:#000; outline:none;" controls poster="/cdn/BotOfTheSpecter.png">
+            <video id="customVideoPlayer" style="width:100%; max-width:800px; border-radius:8px; background:#000; outline:none;" controls poster="https://cdn.botofthespecter.com/noimage.png">
                 <source id="customVideoSource" src="" type="video/mp4">
                 Your browser does not support the video tag.
             </video>
@@ -661,7 +663,7 @@ ob_start();
             <div class="field">
                 <label class="label"><?= t('streaming_new_title_label') ?></label>
                 <div class="control">
-                    <input class="input" type="text" id="edit-title-input">
+                    <input class="input" type="text" id="edit-title-input" autocomplete="off">
                     <input type="hidden" id="edit-file-input">
                     <input type="hidden" id="edit-server-input">
                 </div>
