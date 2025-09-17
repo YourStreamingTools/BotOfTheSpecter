@@ -948,20 +948,12 @@ class BotOfTheSpecter_WebsocketServer:
             if voice_name:
                 cmd.extend(["--voice", voice_name])
             self.logger.info(f"Running TTS command: {' '.join(cmd)}")
-            # Set environment variables to suppress NNPACK warnings
-            env = os.environ.copy()
-            env.update({
-                'NNPACK_DISABLE': '1',
-                'PYTORCH_DISABLE_NNPACK_RUNTIME_ERROR': '1',
-                'OMP_NUM_THREADS': '1',
-                'MKL_NUM_THREADS': '1'
-            })
+            # Run the subprocess without overriding environment variables
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd="/home/botofthespecter",
-                env=env
+                cwd="/home/botofthespecter"
             )
             stdout, stderr = await process.communicate()
             if process.returncode == 0:
