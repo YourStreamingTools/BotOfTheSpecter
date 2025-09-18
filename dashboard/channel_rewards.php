@@ -167,7 +167,14 @@ ob_start();
                                         <td><?php echo isset($reward['reward_title']) ? htmlspecialchars($reward['reward_title']) : ''; ?></td>
                                         <td>
                                             <div id="<?php echo $reward['reward_id']; ?>">
-                                                <?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?>
+                                                <?php 
+                                                $message = isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : '';
+                                                if (strpos($message, '(userstreak)') !== false) {
+                                                    echo '<span style="color: #a259ff;">' . $message . '</span>';
+                                                } else {
+                                                    echo $message;
+                                                }
+                                                ?>
                                             </div>
                                             <div class="edit-box" id="edit-box-<?php echo $reward['reward_id']; ?>" style="display: none;">
                                                 <textarea class="textarea custom-message" data-reward-id="<?php echo $reward['reward_id']; ?>" maxlength="255"><?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?></textarea>
@@ -198,6 +205,17 @@ ob_start();
     </div>
 </div>
 <script>
+function escapeHtml(text) {
+    var map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
 document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const rewardid = this.getAttribute('data-reward-id');
@@ -235,7 +253,12 @@ function updateCustomMessage(rewardid, newCustomMessage) {
             if (xhr.status === 200) {
                 // Update the display
                 const customMessage = document.getElementById(rewardid);
-                customMessage.textContent = newCustomMessage;
+                const escapedMessage = escapeHtml(newCustomMessage);
+                if (escapedMessage.includes('(userstreak)')) {
+                    customMessage.innerHTML = '<span style="color: #a259ff;">' + escapedMessage + '</span>';
+                } else {
+                    customMessage.innerHTML = escapedMessage;
+                }
                 // Hide edit mode
                 const editBox = document.getElementById('edit-box-' + rewardid);
                 const controls = document.getElementById('controls-' + rewardid);
