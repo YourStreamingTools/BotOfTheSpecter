@@ -1,5 +1,5 @@
 # Async Twitch API client
-twitchio
+twitchio==2.10.0
 # Async HTTP client for Python
 aiohttp
 # WebSocket libraries
