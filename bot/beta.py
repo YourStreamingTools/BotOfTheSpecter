@@ -1343,7 +1343,7 @@ class TwitchBot(commands.Bot):
         channel = self.get_channel(self.channel_name)
         await update_version_control()
         await builtin_commands_creation()
-        await check_stream_online()
+        looped_tasks["check_stream_online"] = create_task(check_stream_online())
         create_task(known_users())
         create_task(channel_point_rewards())
         looped_tasks["twitch_token_refresh"] = create_task(twitch_token_refresh())
@@ -7514,8 +7514,33 @@ async def websocket_notice(
                         websocket_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
     except Exception as e:
         websocket_logger.error(f"Error while processing websocket notice: {e}")
+    except asyncioCancelledError:
+        bot_logger.info('check_stream_online task was cancelled')
+        # attempt to clean up any spawned looped tasks related to streaming
+        try:
+            if looped_tasks.get("timed_message"):
+                looped_tasks["timed_message"].cancel()
+        except Exception:
+            pass
+        try:
+            if looped_tasks.get("handle_upcoming_ads"):
+                looped_tasks["handle_upcoming_ads"].cancel()
+        except Exception:
+            pass
+        raise
+    except GeneratorExit:
+        bot_logger.info('check_stream_online received GeneratorExit during shutdown')
+        raise
+    except Exception as e:
+        bot_logger.error(f"Error in check_stream_online: {e}")
     finally:
-        await connection.ensure_closed()
+        try:
+            if connection:
+                connection.close()
+        except Exception:
+            pass
+        if connection:
+            await connection.ensure_closed()
 
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():
