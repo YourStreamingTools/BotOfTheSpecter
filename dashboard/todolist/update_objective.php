@@ -130,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <button type="submit" name="submit" class="button is-primary is-medium is-rounded px-5">Update All</button>
               </div>
               <div class="control">
-                <a href="dashboard.php" class="button is-light is-medium is-rounded px-5">Cancel</a>
+                <a href="index.php" class="button is-light is-medium is-rounded px-5">Cancel</a>
               </div>
             </div>
           </form>
