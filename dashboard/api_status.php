@@ -66,23 +66,26 @@ $serviceMap = [
     'api' => [
         'name' => 'API Service',
         'host' => 'api.botofthespecter.com',
-        'port' => 443
+        'port' => 443,
+        'disabled' => false
     ],
     'database' => [
         'name' => 'Database Service',
         'host' => 'sql.botofthespecter.com',
-        'port' => 3306
+        'port' => 3306,
+        'disabled' => false
     ],
     'websocket' => [
         'name' => 'Notification Service',
         'host' => 'websocket.botofthespecter.com',
         'port' => 443,
-        'disabled' => true
+        'disabled' => false
     ],
     'bots' => [
         'name' => 'Bots Service',
         'host' => 'bots.botofthespecter.com',
-        'port' => 22
+        'port' => 22,
+        'disabled' => false
     ],
     'discordbot' => [
         'name' => 'Discord Bot Service',
@@ -90,17 +93,20 @@ $serviceMap = [
         'service_name' => 'discordbot',
         'ssh_host' => $bots_ssh_host,
         'ssh_username' => $bots_ssh_username,
-        'ssh_password' => $bots_ssh_password
+        'ssh_password' => $bots_ssh_password,
+        'disabled' => false
     ],
     'streamingService' => [
         'name' => 'AU-EAST-1 Streaming Service',
         'host' => 'au-east-1.botofthespecter.video',
-        'port' => 1935
+        'port' => 1935,
+        'disabled' => false
     ],
     'streamingServiceWest' => [
         'name' => 'US-WEST-1 Streaming Service',
         'host' => 'us-west-1.botofthespecter.video',
-        'port' => 1935
+        'port' => 1935,
+        'disabled' => false
     ],
     'streamingServiceEast' => [
         'name' => 'US-EAST-1 Streaming Service',
