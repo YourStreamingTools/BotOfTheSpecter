@@ -1466,7 +1466,7 @@ class TwitchBot(commands.Bot):
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
                                 '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
-                                '(random.pick.', '(math.', '(call.', '(usercount)', '(timeuntil.'
+                                '(random.pick.', '(math.', '(call.', '(usercount)', '(timeuntil.', '(game)'
                             ]
                             responses_to_send = []
                             while any(switch in response for switch in switches):
@@ -1622,6 +1622,14 @@ class TwitchBot(commands.Bot):
                                             url = url[5:]  # Remove 'json.' prefix for fetching
                                         api_response = await fetch_api_response(url, json_flag=json_flag)
                                         response = response.replace(full_placeholder, api_response)
+                                # Handle (game)
+                                if '(game)' in response:
+                                    try:
+                                        game_name = await get_current_game()
+                                        response = response.replace('(game)', game_name)
+                                    except Exception as e:
+                                        chat_logger.error(f"Error getting current game: {e}")
+                                        response = response.replace('(game)', "Error")
                             await channel.send(response)
                             for resp in responses_to_send:
                                 chat_logger.info(f"{command} command ran with response: {resp}")
@@ -6672,10 +6680,11 @@ async def handle_chat_message(messageAuthor, messageContent=""):
             chat_logger.info(f"Chat count trigger reached for message ID: {message_id}")
 
 async def send_interval_message(message_id, message, interval_seconds):
-    global stream_online, current_game, scheduled_tasks
+    global stream_online, scheduled_tasks
     switchs = ["(game)",]
     if message and any(switch in message for switch in switchs):
-        message = message.replace("(game)", current_game or "Unknown Game")
+        game_name = await get_current_game()
+        message = message.replace("(game)", game_name)
     while stream_online:
         await sleep(interval_seconds)
         if stream_online:
@@ -7669,6 +7678,29 @@ async def check_stream_online():
                 await connection.commit()
     finally:
         await connection.ensure_closed()
+
+async def get_current_game():
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, current_game
+    url = f"https://api.twitch.tv/helix/channels?broadcaster_id={CHANNEL_ID}"
+    headers = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}"}
+    try:
+        async with httpClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data['data']:
+                        game_name = data['data'][0]['game_name']
+                        current_game = game_name
+                        return game_name
+                    else:
+                        api_logger.info("Stream is offline or no game data available")
+                        return "Offline"
+                else:
+                    api_logger.error(f"Failed to fetch stream data: {response.status}")
+                    return "Error"
+    except Exception as e:
+        api_logger.error(f"Error fetching current game: {e}")
+        return "Error"
 
 async def convert_currency(amount, from_currency, to_currency):
     global EXCHANGE_RATE_API_KEY
