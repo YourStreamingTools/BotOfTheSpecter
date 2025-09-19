@@ -1486,29 +1486,12 @@ class TwitchBot(commands.Bot):
                                     try:
                                         user_mention = re.search(r'@(\w+)', messageContent)
                                         user_name = user_mention.group(1) if user_mention else messageAuthor
-                                        # Get the user count for the specific command
-                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
-                                        result = await cursor.fetchone()
-                                        if result:
-                                            user_count = result.get("count")
+                                        if arg is None:
+                                            await update_user_count(command, user_name, "1")
                                         else:
-                                            # If no entry found, initialize it to 0
-                                            user_count = 0
-                                            await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user_name, user_count))
-                                            await cursor.connection.commit()
-                                        # Increment the count
-                                        user_count += 1
-                                        await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (user_count, command, user_name))
-                                        await cursor.connection.commit()
-                                        # Fetch the updated count
-                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
-                                        updated_result = await cursor.fetchone()
-                                        if updated_result:
-                                            updated_user_count = updated_result.get("count")
-                                        else:
-                                            updated_user_count = 0
-                                        # Replace the (usercount) placeholder with the updated user count
-                                        response = response.replace('(usercount)', str(updated_user_count))
+                                            await update_user_count(command, user_name, arg)
+                                        get_count = await get_user_count(command, user_name)
+                                        response = response.replace('(usercount)', str(get_count))
                                     except Exception as e:
                                         chat_logger.error(f"Error while handling (usercount): {e}")
                                         response = response.replace('(usercount)', "Error")
@@ -5949,6 +5932,48 @@ async def get_custom_count(command):
                 return 0
     except Exception as e:
         chat_logger.error(f"Error retrieving count for command '{command}': {e}")
+        return 0
+    finally:
+        await connection.ensure_closed()
+
+# Function to update user counts
+async def update_user_count(command, user, count):
+    count = int(count)
+    connection = await mysql_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
+            result = await cursor.fetchone()
+            if result:
+                current_count = result.get("count")
+                new_count = current_count + count
+                await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (new_count, command, user))
+                chat_logger.info(f"Updated user count for command '{command}' and user '{user}' to {new_count}.")
+            else:
+                await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user, count))
+                chat_logger.info(f"Inserted new user count for command '{command}' and user '{user}' with count {count}.")
+        await connection.commit()
+    except Exception as e:
+        chat_logger.error(f"Error updating user count for command '{command}' and user '{user}': {e}")
+        await connection.rollback()
+    finally:
+        await connection.ensure_closed()
+
+async def get_user_count(command, user):
+    connection = await mysql_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
+            result = await cursor.fetchone()
+            if result:
+                count = result.get("count")
+                chat_logger.info(f"Retrieved user count for command '{command}' and user '{user}': {count}")
+                return count
+            else:
+                chat_logger.info(f"No user count found for command '{command}' and user '{user}', returning 0.")
+                return 0
+    except Exception as e:
+        chat_logger.error(f"Error retrieving user count for command '{command}' and user '{user}': {e}")
         return 0
     finally:
         await connection.ensure_closed()
