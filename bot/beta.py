@@ -4015,12 +4015,15 @@ class TwitchBot(commands.Bot):
                         return
                     if await command_permissions(permissions, ctx.author):
                         chat_logger.info("Typo Command ran.")
-                        # Check if the broadcaster is running the command
-                        if ctx.author.name.lower() == CHANNEL_NAME.lower() or (mentioned_username and mentioned_username.lower() == CHANNEL_NAME.lower()):
-                            await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
-                            return
                         # Determine the target user: mentioned user or the command caller
                         target_user = mentioned_username.lower().lstrip('@') if mentioned_username else ctx.author.name.lower()
+                        # Check if the target is the broadcaster
+                        if target_user == CHANNEL_NAME.lower():
+                            if ctx.author.name.lower() == CHANNEL_NAME.lower():
+                                await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
+                            else:
+                                await ctx.send("The streamer cannot have a typo count.")
+                            return
                         # Increment typo count in the database
                         await cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE typo_count = typo_count + 1', (target_user,))
                         await connection.commit()
