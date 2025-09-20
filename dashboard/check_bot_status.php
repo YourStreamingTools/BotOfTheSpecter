@@ -51,9 +51,9 @@ if ($versionApiData !== false) {
   }
 } else {
   if ($bot === 'stable') {
-    $latestVersion = '5.2';
-  } elseif ($bot === 'beta') {
     $latestVersion = '5.4';
+  } elseif ($bot === 'beta') {
+    $latestVersion = '5.5';
   }
 }
 
