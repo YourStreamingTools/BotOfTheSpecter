@@ -1901,7 +1901,7 @@ class TwitchBot(commands.Bot):
         if command_method:
             await command_method(ctx)
         else:
-            await ctx.send(f"Command '{command_name}' not found.")
+            await send_chat_message(f"Command '{command_name}' not found.")
 
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id, message_author_name)
@@ -1958,19 +1958,19 @@ class TwitchBot(commands.Bot):
                         is_mod = await command_permissions("mod", ctx.author)
                         if is_mod:
                             mod_commands_list = ", ".join(sorted(f"!{command}" for command in mod_commands))
-                            await ctx.send(f"Moderator commands: {mod_commands_list}")
+                            await send_chat_message(f"Moderator commands: {mod_commands_list}")
                         # Include builtin commands for both mod and normal users
                         builtin_commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
-                        await ctx.send(f"General commands: {builtin_commands_list}")
+                        await send_chat_message(f"General commands: {builtin_commands_list}")
                         # Custom commands link
                         custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
-                        await ctx.send(custom_response_message)
+                        await send_chat_message(custom_response_message)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the commands command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
-            await ctx.send("An error occurred while fetching the twitch_commands. Please try again later.")
+            await send_chat_message("An error occurred while fetching the twitch_commands. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -1993,13 +1993,13 @@ class TwitchBot(commands.Bot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
-                        await ctx.send(f"This amazing bot is built by the one and the only {bot_owner}. Check me out on my website: https://botofthespecter.com")
+                        await send_chat_message(f"This amazing bot is built by the one and the only {bot_owner}. Check me out on my website: https://botofthespecter.com")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the bot command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the bot command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2023,14 +2023,14 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now online!")
-                        await ctx.send("Stream status has been forcibly set to online.")
+                        await send_chat_message("Stream status has been forcibly set to online.")
                         create_task(websocket_notice(event="STREAM_ONLINE"))
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in forceonline_command: {e}")
-            await ctx.send(f"An error occurred while executing the command. {e}")
+            await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
             await connection.ensure_closed()
 
@@ -2054,16 +2054,16 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now offline.")
-                        await ctx.send("Stream status has been forcibly set to offline.")
+                        await send_chat_message("Stream status has been forcibly set to offline.")
                         create_task(websocket_notice(event="STREAM_OFFLINE"))
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                 else:
-                    await ctx.send("Command not found.")
+                    await send_chat_message("Command not found.")
         except Exception as e:
             chat_logger.error(f"Error in forceoffline_command: {e}")
-            await ctx.send(f"An error occurred while executing the command. {e}")
+            await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
             await connection.ensure_closed()
 
@@ -2117,13 +2117,13 @@ class TwitchBot(commands.Bot):
                             premium_status = "Premium Features: Tier 1 Subscriber"
                         else:
                             premium_status = "Premium Features: None"
-                        await ctx.send(f"{message[:-2]}. {premium_status}")
+                        await send_chat_message(f"{message[:-2]}. {premium_status}")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the version command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the version command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2145,13 +2145,13 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
+                        await send_chat_message("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the roadmap command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roadmap command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2173,7 +2173,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if websocket is connected - weather data comes via websocket
                     if not websocket_connected:
-                        await ctx.send(f"The bot is not connected to the weather data service. @{CHANNEL_NAME} please restart me to reconnect to the service.")
+                        await send_chat_message(f"The bot is not connected to the weather data service. @{CHANNEL_NAME} please restart me to reconnect to the service.")
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2184,18 +2184,18 @@ class TwitchBot(commands.Bot):
                                 response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
                                 result = await response.json()
                                 if "detail" in result and "404: Location" in result["detail"]:
-                                    await ctx.send(f"Error: The location '{location}' was not found.")
+                                    await send_chat_message(f"Error: The location '{location}' was not found.")
                                     api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
                                 else:
                                     api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
                         else:
-                            await ctx.send("Unable to retrieve location.")
+                            await send_chat_message("Unable to retrieve location.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the weather command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the weather command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2233,13 +2233,13 @@ class TwitchBot(commands.Bot):
                                 (user_id, user_name, points)
                             )
                             await connection.commit()
-                        await ctx.send(f'@{user_name}, you have {points} points.')
+                        await send_chat_message(f'@{user_name}, you have {points} points.')
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the points command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the points command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2276,10 +2276,10 @@ class TwitchBot(commands.Bot):
                                 (user_id, user_name, new_points)
                             )
                         await connection.commit()
-                        await ctx.send(f"Added {points_to_add} points to {user_name}. They now have {new_points} points.")
+                        await send_chat_message(f"Added {points_to_add} points to {user_name}. They now have {new_points} points.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of addpoints_command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2310,12 +2310,12 @@ class TwitchBot(commands.Bot):
                             new_points = max(0, result["points"] - points_to_remove)
                             await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
                             await connection.commit()
-                            await ctx.send(f"Removed {points_to_remove} points from {user_name}. They now have {new_points} points.")
+                            await send_chat_message(f"Removed {points_to_remove} points from {user_name}. They now have {new_points} points.")
                         else:
-                            await ctx.send(f"{user_name} does not have any points.")
+                            await send_chat_message(f"{user_name} does not have any points.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of removepoints_command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2341,7 +2341,7 @@ class TwitchBot(commands.Bot):
                             geolocator = Nominatim(user_agent="BotOfTheSpecter")
                             location_data = geolocator.geocode(timezone)
                             if not location_data:
-                                await ctx.send(f"Could not find the time location that you requested.")
+                                await send_chat_message(f"Could not find the time location that you requested.")
                                 chat_logger.info(f"Could not find the time location that you requested.")
                                 return
                             timezone_api_key = os.getenv('TIMEZONE_API')
@@ -2349,12 +2349,12 @@ class TwitchBot(commands.Bot):
                             async with httpClientSession() as session:
                                 async with session.get(timezone_url) as response:
                                     if response.status != 200:
-                                        await ctx.send(f"Could not retrieve time information from the API.")
+                                        await send_chat_message(f"Could not retrieve time information from the API.")
                                         chat_logger.info(f"Failed to retrieve time information from the API, status code: {response.status}")
                                         return
                                     timezone_data = await response.json()
                             if timezone_data['status'] != "OK":
-                                await ctx.send(f"Could not find the time location that you requested.")
+                                await send_chat_message(f"Could not find the time location that you requested.")
                                 chat_logger.info(f"Could not find the time location that you requested.")
                                 return
                             timezone_str = timezone_data["zoneName"]
@@ -2378,15 +2378,15 @@ class TwitchBot(commands.Bot):
                                 time_format_week = current_time.strftime("%A")
                                 time_format = f"It is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
                             else:
-                                await ctx.send("Streamer timezone is not set.")
+                                await send_chat_message("Streamer timezone is not set.")
                                 return
-                        await ctx.send(time_format)
+                        await send_chat_message(time_format)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the time command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the time command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2425,17 +2425,17 @@ class TwitchBot(commands.Bot):
                                     break
                             # Send the joke based on its type
                             if get_joke["type"] == "single":
-                                await ctx.send(f"Here's a joke from {get_joke['category']}: {get_joke['joke']}")
+                                await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['joke']}")
                             else:
-                                await ctx.send(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
+                                await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
                         else:
-                            await ctx.send("Error: Could not fetch the blacklist settings.")
+                            await send_chat_message("Error: Could not fetch the blacklist settings.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the joke command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the joke command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2461,22 +2461,22 @@ class TwitchBot(commands.Bot):
                             await cursor.execute("SELECT quote FROM quotes ORDER BY RAND() LIMIT 1")
                             quote = await cursor.fetchone()
                             if quote:
-                                await ctx.send("Random Quote: " + quote["quote"])
+                                await send_chat_message("Random Quote: " + quote["quote"])
                             else:
-                                await ctx.send("No quotes available.")
+                                await send_chat_message("No quotes available.")
                         else:  # If a number is provided, retrieve the quote by its ID
                             await cursor.execute("SELECT quote FROM quotes WHERE id = %s", (number,))
                             quote = await cursor.fetchone()
                             if quote:
-                                await ctx.send(f"Quote {number}: " + quote["quote"])
+                                await send_chat_message(f"Quote {number}: " + quote["quote"])
                             else:
-                                await ctx.send(f"No quote found with ID {number}.")
+                                await send_chat_message(f"No quote found with ID {number}.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the quote command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the quote command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2500,13 +2500,13 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         await cursor.execute("INSERT INTO quotes (quote) VALUES (%s)", (quote,))
                         await connection.commit()
-                        await ctx.send("Quote added successfully: " + quote)
+                        await send_chat_message("Quote added successfully: " + quote)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to add a quote but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the quoteadd command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2529,20 +2529,20 @@ class TwitchBot(commands.Bot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         if number is None:
-                            await ctx.send("Please specify the ID to remove.")
+                            await send_chat_message("Please specify the ID to remove.")
                             return
                         await cursor.execute("DELETE FROM quotes WHERE id = %s", (number,))
                         await connection.commit()
                         if cursor.rowcount > 0:  # Check if a row was deleted
-                            await ctx.send(f"Quote {number} has been removed.")
+                            await send_chat_message(f"Quote {number} has been removed.")
                         else:
-                            await ctx.send(f"No quote found with ID {number}.")
+                            await send_chat_message(f"No quote found with ID {number}.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to remove a quote but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the removequote command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2567,15 +2567,15 @@ class TwitchBot(commands.Bot):
                         permit_user = permit_user.lstrip('@')
                         if permit_user:
                             permitted_users[permit_user] = time.time() + 30
-                            await ctx.send(f"{permit_user} is now permitted to post links for the next 30 seconds.")
+                            await send_chat_message(f"{permit_user} is now permitted to post links for the next 30 seconds.")
                         else:
-                            await ctx.send("Please specify a user to permit.")
+                            await send_chat_message("Please specify a user to permit.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the permit command but lacked permissions.")
-                        await ctx.send("You do not have the correct permissions to use this command.")
+                        await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the permit command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2598,17 +2598,17 @@ class TwitchBot(commands.Bot):
                     # Check if the user has the required permissions
                     if await command_permissions(permissions, ctx.author):
                         if title is None:
-                            await ctx.send("Stream titles cannot be blank. You must provide a title for the stream.")
+                            await send_chat_message("Stream titles cannot be blank. You must provide a title for the stream.")
                             return
                         # Update the stream title
                         await trigger_twitch_title_update(title)
                         twitch_logger.info(f'Setting stream title to: {title}')
-                        await ctx.send(f'Stream title updated to: {title}')
+                        await send_chat_message(f'Stream title updated to: {title}')
                     else:
-                        await ctx.send("You do not have the correct permissions to use this command.")
+                        await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the settitle command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2631,22 +2631,22 @@ class TwitchBot(commands.Bot):
                     # Verify user permissions
                     if await command_permissions(permissions, ctx.author):
                         if game is None:
-                            await ctx.send("You must provide a game for the stream.")
+                            await send_chat_message("You must provide a game for the stream.")
                             return
                         try:
                             game_name = await update_twitch_game(game)
-                            await ctx.send(f'Stream game updated to: {game_name}')
+                            await send_chat_message(f'Stream game updated to: {game_name}')
                         except GameNotFoundException as e:
-                            await ctx.send(f"Game not found: {str(e)}")
+                            await send_chat_message(f"Game not found: {str(e)}")
                         except GameUpdateFailedException as e:
-                            await ctx.send(f"Failed to update game: {str(e)}")
+                            await send_chat_message(f"Failed to update game: {str(e)}")
                         except Exception as e:
-                            await ctx.send(f'An error occurred in setgame command: {str(e)}')
+                            await send_chat_message(f'An error occurred in setgame command: {str(e)}')
                     else:
-                        await ctx.send("You do not have the correct permissions to use this command.")
+                        await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the setgame command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2668,49 +2668,49 @@ class TwitchBot(commands.Bot):
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Get the current song and artist from Spotify
                 song_name, artist_name, song_id, spotify_error = await get_spotify_current_song()
                 # Check if there was a Spotify error
                 if spotify_error:
-                    await ctx.send(spotify_error)
+                    await send_chat_message(spotify_error)
                     return
                 if song_name and artist_name:
                     # If the stream is offline, notify that the user that the streamer is listening to music while offline
                     if not stream_online:
-                        await ctx.send(f"{CHANNEL_NAME} is currently listening to \"{song_name} by {artist_name}\" while being offline.")
+                        await send_chat_message(f"{CHANNEL_NAME} is currently listening to \"{song_name} by {artist_name}\" while being offline.")
                         return
                     # Check if the song is in the tracked list and if a user is associated
                     requested_by = None
                     if song_id in song_requests:
                         requested_by = song_requests[song_id].get("user")
                     if requested_by:
-                        await ctx.send(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
+                        await send_chat_message(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
                     else:
-                        await ctx.send(f"The current playing song is: {song_name} by {artist_name}")
+                        await send_chat_message(f"The current playing song is: {song_name} by {artist_name}")
                     return
                 if not stream_online:
-                    await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
+                    await send_chat_message("Sorry, I can only get the current playing song while the stream is online.")
                     return
                 # If no song on Spotify, check the alternative method if premium
                 premium_tier = await check_premium_feature()
                 if premium_tier in (1000, 2000, 3000, 4000):
                     # Premium feature access granted
-                    await ctx.send("Please stand by, checking what song is currently playing...")
+                    await send_chat_message("Please stand by, checking what song is currently playing...")
                     try:
                         song_info = await shazam_the_song()
-                        await ctx.send(song_info)
+                        await send_chat_message(song_info)
                         await delete_recorded_files()
                     except Exception as e:
                         chat_logger.error(f"An error occurred while getting current song: {e}")
-                        await ctx.send("Sorry, there was an error retrieving the current song.")
+                        await send_chat_message("Sorry, there was an error retrieving the current song.")
                 else:
                     # No premium access
-                    await ctx.send("This channel doesn't have a premium subscription to use the alternative method.")
+                    await send_chat_message("This channel doesn't have a premium subscription to use the alternative method.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the song command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2729,18 +2729,18 @@ class TwitchBot(commands.Bot):
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
-                        await ctx.send(f"Requesting songs is currently disabled.")
+                        await send_chat_message(f"Requesting songs is currently disabled.")
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
             message = ctx.message.content
             parts = message.split(" ", 1)
             if len(parts) < 2 or not parts[1].strip():
-                await ctx.send("Please provide a song title, artist, YouTube link, or a Spotify link. Examples: !songrequest [song title] by [artist] or !songrequest https://www.youtube.com/watch?v=... or !songrequest https://open.spotify.com/track/...")
+                await send_chat_message("Please provide a song title, artist, YouTube link, or a Spotify link. Examples: !songrequest [song title] by [artist] or !songrequest https://www.youtube.com/watch?v=... or !songrequest https://open.spotify.com/track/...")
                 return
             message_content = parts[1].strip()
             # Spotify URL patterns - both track and album
@@ -2762,7 +2762,7 @@ class TwitchBot(commands.Bot):
                 if album_match:
                     break
             if album_match:
-                await ctx.send("That looks like a Spotify album link. Please provide a Spotify track link instead.")
+                await send_chat_message("That looks like a Spotify album link. Please provide a Spotify track link instead.")
                 return
             # YouTube URL patterns
             youtube_url_patterns = [
@@ -2792,7 +2792,7 @@ class TwitchBot(commands.Bot):
                         info = ydl.extract_info(message_content, download=False)
                         video_title = info.get('title', '')
                         if not video_title:
-                            await ctx.send("Could not extract title from the YouTube video.")
+                            await send_chat_message("Could not extract title from the YouTube video.")
                             return
                         # Clean up the title for better Spotify search results
                         # Remove common YouTube suffixes and prefixes
@@ -2813,7 +2813,7 @@ class TwitchBot(commands.Bot):
                         api_logger.info(f"YouTube title extracted: '{video_title}' -> cleaned: '{cleaned_title}'")
                 except Exception as e:
                     api_logger.error(f"Error extracting YouTube video info: {e}")
-                    await ctx.send("Sorry, I couldn't extract information from that YouTube link. Please try a different link or provide the song title manually.")
+                    await send_chat_message("Sorry, I couldn't extract information from that YouTube link. Please try a different link or provide the song title manually.")
                     return
             # Check for Spotify track links
             track_match = None
@@ -2834,14 +2834,14 @@ class TwitchBot(commands.Bot):
                             artist_name = track_data["artists"][0]["name"]
                             unwanted_keywords = ["instrumental", "karaoke version"]
                             if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
-                                await ctx.send(f"Sorry, I don't accept karaoke or instrumental versions.")
+                                await send_chat_message(f"Sorry, I don't accept karaoke or instrumental versions.")
                                 return
                             api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
                             song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
                         else:
                             api_logger.error(f"Spotify returned response code: {response.status}")
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
-                            await ctx.send(f"Sorry, I couldn't find that song. {error_message}")
+                            await send_chat_message(f"Sorry, I couldn't find that song. {error_message}")
                             return
             else:
                 # Use search for non-Spotify URL requests (including YouTube-extracted titles)
@@ -2853,7 +2853,7 @@ class TwitchBot(commands.Bot):
                             data = await response.json()
                             tracks = data.get("tracks", {}).get("items", [])
                             if not tracks:
-                                await ctx.send(f"No song found: {message_content}")
+                                await send_chat_message(f"No song found: {message_content}")
                                 return
                             track = tracks[0]
                             song_id = track["uri"]
@@ -2861,28 +2861,28 @@ class TwitchBot(commands.Bot):
                             artist_name = track["artists"][0]["name"]
                             unwanted_keywords = ["instrumental", "karaoke version"]
                             if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
-                                await ctx.send(f"No song found: {message_content}")
+                                await send_chat_message(f"No song found: {message_content}")
                                 return
                             api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
                             song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
                         else:
                             api_logger.error(f"Spotify returned response code: {response.status}")
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
-                            await ctx.send(f"Sorry, I couldn't add the song to the queue. {error_message}")
+                            await send_chat_message(f"Sorry, I couldn't add the song to the queue. {error_message}")
                             return
             # Add to Spotify queue
             request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
             async with httpClientSession() as queue_session:
                 async with queue_session.post(request_url, headers=headers) as response:
                     if response.status == 200:
-                        await ctx.send(f"The song {song_name} by {artist_name} has been added to the queue.")
+                        await send_chat_message(f"The song {song_name} by {artist_name} has been added to the queue.")
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
-                        await ctx.send(f"Sorry, I couldn't add the song to the queue. {error_message}")
+                        await send_chat_message(f"Sorry, I couldn't add the song to the queue. {error_message}")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the songrequest command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2899,10 +2899,10 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
-                        await ctx.send(f"Skipping songs is currently disabled.")
+                        await send_chat_message(f"Skipping songs is currently disabled.")
                         return
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
@@ -2914,14 +2914,14 @@ class TwitchBot(commands.Bot):
                         active_devices = await response.json()
                         current_active_devices = active_devices.get("devices", [])
                         if not current_active_devices:
-                            await ctx.send("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
+                            await send_chat_message("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
                             return
                         for device in current_active_devices:
                             if device.get("is_active"):
                                 device_id = device["id"]
                                 break
                         if device_id is None:
-                            await ctx.send("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
+                            await send_chat_message("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
                             return
                     else:
                         # If status is 200, still need to parse devices
@@ -2932,20 +2932,20 @@ class TwitchBot(commands.Bot):
                                 device_id = device["id"]
                                 break
                         if device_id is None:
-                            await ctx.send("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
+                            await send_chat_message("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
                             return
                 next_url = f"https://api.spotify.com/v1/me/player/next?device_id={device_id}"
                 async with session.post(next_url, headers=headers) as response:
                     if response.status in (200, 204):
                         api_logger.info(f"Song skipped successfully by {ctx.message.author.name}")
-                        await ctx.send("Song skipped successfully.")
+                        await send_chat_message("Song skipped successfully.")
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
-                        await ctx.send(f"Sorry, I couldn't skip the song. {error_message}")
+                        await send_chat_message(f"Sorry, I couldn't skip the song. {error_message}")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the skipsong command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -2964,11 +2964,11 @@ class TwitchBot(commands.Bot):
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
-                        await ctx.send(f"Sorry, checking the song queue is currently disabled.")
+                        await send_chat_message(f"Sorry, checking the song queue is currently disabled.")
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
             # Request the queue information from Spotify
             access_token = await get_spotify_access_token()
@@ -2985,14 +2985,14 @@ class TwitchBot(commands.Bot):
                             song_name, artist_name, song_id, spotify_error = await get_spotify_current_song()
                             # Check if there was a Spotify error when getting current song
                             if spotify_error:
-                                await ctx.send(spotify_error)
+                                await send_chat_message(spotify_error)
                                 return
                             current_song_requester = song_requests.get(song_id, {}).get("user") if song_id in song_requests else None
                             if song_name and artist_name:
                                 if current_song_requester:
-                                    await ctx.send(f"🎵 Now Playing: {song_name} by {artist_name} (requested by {current_song_requester})")
+                                    await send_chat_message(f"🎵 Now Playing: {song_name} by {artist_name} (requested by {current_song_requester})")
                                 else:
-                                    await ctx.send(f"🎵 Now Playing: {song_name} by {artist_name}")
+                                    await send_chat_message(f"🎵 Now Playing: {song_name} by {artist_name}")
                             # Format the song queue
                             song_list = []
                             for idx, song in enumerate(queue, start=1):
@@ -3011,17 +3011,17 @@ class TwitchBot(commands.Bot):
                                 song_list.append(f"...and {queue_length - 3} more songs in the queue.")
                             # Send the queue to chat
                             if song_list:
-                                await ctx.send(f"Upcoming Songs:\n" + "\n".join(song_list))
+                                await send_chat_message(f"Upcoming Songs:\n" + "\n".join(song_list))
                             else:
-                                await ctx.send("The queue is empty right now. Add some songs!")
+                                await send_chat_message("The queue is empty right now. Add some songs!")
                         else:
-                            await ctx.send("It seems like nothing is playing on Spotify right now.")
+                            await send_chat_message("It seems like nothing is playing on Spotify right now.")
                     else:
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Something went wrong with Spotify. Please try again soon.")
-                        await ctx.send(f"Sorry, I couldn't fetch the queue. {error_message}")
+                        await send_chat_message(f"Sorry, I couldn't fetch the queue. {error_message}")
                         api_logger.error(f"Spotify returned response code: {response.status}")
         except Exception as e:
-            await ctx.send("Something went wrong while fetching the song queue. Please try again later.")
+            await send_chat_message("Something went wrong while fetching the song queue. Please try again later.")
             api_logger.error(f"Error in songqueue_command: {e}")
         finally:
             await connection.ensure_closed()
@@ -3044,13 +3044,13 @@ class TwitchBot(commands.Bot):
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check if the user already has an active timer
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
                 if active_timer:
-                    await ctx.send(f"@{ctx.author.name}, you already have an active timer.")
+                    await send_chat_message(f"@{ctx.author.name}, you already have an active timer.")
                     return
                 content = ctx.message.content.strip()
                 try:
@@ -3062,15 +3062,15 @@ class TwitchBot(commands.Bot):
                 end_time = time_right_now(timezone.utc) + timedelta(minutes=minutes)
                 await cursor.execute("INSERT INTO active_timers (user_id, end_time) VALUES (%s, %s)", (ctx.author.id, end_time))
                 await connection.commit()
-                await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
+                await send_chat_message(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
                 await sleep(minutes * 60)
-                await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
+                await send_chat_message(f"The {minutes} minute timer has ended @{ctx.author.name}!")
                 # Remove the timer from the active_timers table
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 await connection.commit()
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -3092,19 +3092,19 @@ class TwitchBot(commands.Bot):
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
                 if not active_timer:
-                    await ctx.send(f"@{ctx.author.name}, you don't have an active timer.")
+                    await send_chat_message(f"@{ctx.author.name}, you don't have an active timer.")
                     return
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 await connection.commit()
-                await ctx.send(f"Your timer has been stopped @{ctx.author.name}.")
+                await send_chat_message(f"Your timer has been stopped @{ctx.author.name}.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the stoptimer command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -3126,21 +3126,21 @@ class TwitchBot(commands.Bot):
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
                 if not active_timer:
-                    await ctx.send(f"@{ctx.author.name}, you don't have an active timer.")
+                    await send_chat_message(f"@{ctx.author.name}, you don't have an active timer.")
                     return
                 end_time = active_timer["end_time"]
                 remaining_time = end_time - time_right_now(timezone.utc)
                 minutes_left = remaining_time.total_seconds() // 60
                 seconds_left = remaining_time.total_seconds() % 60
-                await ctx.send(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
+                await send_chat_message(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the checktimer command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -3162,22 +3162,22 @@ class TwitchBot(commands.Bot):
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
                     mentioned_username = mentioned_username.lstrip('@')
                 else:
-                    await ctx.send("Usage: !hug @username")
+                    await send_chat_message("Usage: !hug @username")
                     return
                 if mentioned_username == ctx.author.name:
-                    await ctx.send("You can't hug yourself.")
+                    await send_chat_message("You can't hug yourself.")
                     return
                 # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Instead, you hugged the air.")
-                    await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
+                    await send_chat_message(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
                 # Increment hug count in the database
                 await cursor.execute(
@@ -3193,16 +3193,16 @@ class TwitchBot(commands.Bot):
                     hug_count = hug_count_result.get("hug_count")
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
-                    await ctx.send(f"@{mentioned_username} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
+                    await send_chat_message(f"@{mentioned_username} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "hug")
                 else:
                     chat_logger.error(f"No hug count found for user: {mentioned_username}")
-                    await ctx.send(f"Sorry @{ctx.author.name}, you can't hug @{mentioned_username} right now, there's an issue in my system.")
+                    await send_chat_message(f"Sorry @{ctx.author.name}, you can't hug @{mentioned_username} right now, there's an issue in my system.")
         except Exception as e:
             chat_logger.error(f"Error in hug command: {e}")
-            await ctx.send("An error occurred while processing the command.")
+            await send_chat_message("An error occurred while processing the command.")
         finally:
             await connection.ensure_closed()
 
@@ -3224,22 +3224,22 @@ class TwitchBot(commands.Bot):
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
                     mentioned_username = mentioned_username.lstrip('@')
                 else:
-                    await ctx.send("Usage: !highfive @username")
+                    await send_chat_message("Usage: !highfive @username")
                     return
                 if mentioned_username == ctx.author.name:
-                    await ctx.send("You can't high-five yourself.")
+                    await send_chat_message("You can't high-five yourself.")
                     return
                 # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. You swung and hit only air.")
-                    await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
+                    await send_chat_message(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
                 # Increment highfive count in the database
                 await cursor.execute(
@@ -3255,16 +3255,16 @@ class TwitchBot(commands.Bot):
                     highfive_count = highfive_count_result.get("highfive_count")
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been high-fived by {ctx.author.name}. They have been high-fived: {highfive_count}")
-                    await ctx.send(f"@{mentioned_username} has been high-fived by @{ctx.author.name}, they have been high-fived {highfive_count} times.")
+                    await send_chat_message(f"@{mentioned_username} has been high-fived by @{ctx.author.name}, they have been high-fived {highfive_count} times.")
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "highfive")
                 else:
                     chat_logger.error(f"No high-five count found for user: {mentioned_username}")
-                    await ctx.send(f"Sorry @{ctx.author.name}, you can't high-five @{mentioned_username} right now, there's an issue in my system.")
+                    await send_chat_message(f"Sorry @{ctx.author.name}, you can't high-five @{mentioned_username} right now, there's an issue in my system.")
         except Exception as e:
             chat_logger.error(f"Error in highfive command: {e}")
-            await ctx.send("An error occurred while processing the command.")
+            await send_chat_message("An error occurred while processing the command.")
         finally:
             await connection.ensure_closed()
 
@@ -3286,22 +3286,22 @@ class TwitchBot(commands.Bot):
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
-                    await ctx.send("You do not have the required permissions to use this command.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
                     mentioned_username = mentioned_username.lstrip('@')
                 else:
-                    await ctx.send("Usage: !kiss @username")
+                    await send_chat_message("Usage: !kiss @username")
                     return
                 if mentioned_username == ctx.author.name:
-                    await ctx.send("You can't kiss yourself.")
+                    await send_chat_message("You can't kiss yourself.")
                     return
                 # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. You kissed the air.")
-                    await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
+                    await send_chat_message(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
                 # Increment kiss count in the database
                 await cursor.execute(
@@ -3317,16 +3317,16 @@ class TwitchBot(commands.Bot):
                     kiss_count = kiss_count_result.get("kiss_count")
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
-                    await ctx.send(f"@{mentioned_username} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
+                    await send_chat_message(f"@{mentioned_username} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "kiss")
                 else:
                     chat_logger.error(f"No kiss count found for user: {mentioned_username}")
-                    await ctx.send(f"Sorry @{ctx.author.name}, you can't kiss @{mentioned_username} right now, there's an issue in my system.")
+                    await send_chat_message(f"Sorry @{ctx.author.name}, you can't kiss @{mentioned_username} right now, there's an issue in my system.")
         except Exception as e:
             chat_logger.error(f"Error in kiss command: {e}")
-            await ctx.send("An error occurred while processing the command.")
+            await send_chat_message("An error occurred while processing the command.")
         finally:
             await connection.ensure_closed()
 
@@ -3357,16 +3357,16 @@ class TwitchBot(commands.Bot):
                             ping_time = match.group(1)
                             bot_logger.info(f"Pong: {ping_time} ms")
                             # Updated message to make it clear to the user
-                            await ctx.send(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
+                            await send_chat_message(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
                         else:
                             bot_logger.error(f"Error Pinging. {output}")
-                            await ctx.send(f'Error pinging the internet from the bot server.')
+                            await send_chat_message(f'Error pinging the internet from the bot server.')
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the ping command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in ping_command: {e}")
-            await ctx.send(f"An error occurred while executing the command. {e}")
+            await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
             await connection.ensure_closed()
 
@@ -3392,27 +3392,27 @@ class TwitchBot(commands.Bot):
                         message = ctx.message.content[len("!translate "):]
                         # Check if there is a message to translate
                         if not message:
-                            await ctx.send("Please provide a message to translate.")
+                            await send_chat_message("Please provide a message to translate.")
                             return
                         try:
                             # Check if the input message is too short
                             if len(message.strip()) < 5:
-                                await ctx.send("The provided message is too short for reliable translation.")
+                                await send_chat_message("The provided message is too short for reliable translation.")
                                 return
                             translate_message = translator(source='auto', target='en').translate(text=message)
-                            await ctx.send(f"Translation: {translate_message}")
+                            await send_chat_message(f"Translation: {translate_message}")
                         except AttributeError as ae:
                             chat_logger.error(f"AttributeError: {ae}")
-                            await ctx.send("An error occurred while detecting the language.")
+                            await send_chat_message("An error occurred while detecting the language.")
                         except Exception as e:
                             chat_logger.error(f"Translating error: {e}")
-                            await ctx.send("An error occurred while translating the message.")
+                            await send_chat_message("An error occurred while translating the message.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the translate command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in translate_command: {e}")
-            await ctx.send(f"An error occurred while executing the command. {e}")
+            await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
             await connection.ensure_closed()
 
@@ -3448,19 +3448,19 @@ class TwitchBot(commands.Bot):
                                     if data['data']:
                                         top_cheerer = data['data'][0]
                                         score = "{:,}".format(top_cheerer['score'])
-                                        await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
+                                        await send_chat_message(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
                                     else:
-                                        await ctx.send("There is no one currently in the leaderboard for bits; cheer to take this spot.")
+                                        await send_chat_message("There is no one currently in the leaderboard for bits; cheer to take this spot.")
                                 elif response.status == 401:
-                                    await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+                                    await send_chat_message("Sorry, something went wrong while reaching the Twitch API.")
                                 else:
-                                    await ctx.send("Sorry, I couldn't fetch the leaderboard.")
+                                    await send_chat_message("Sorry, I couldn't fetch the leaderboard.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the cheerleader command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in cheerleader_command: {e}")
-            await ctx.send(f"An error occurred while executing the command. {e}")
+            await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
             await connection.ensure_closed()
 
@@ -3511,26 +3511,26 @@ class TwitchBot(commands.Bot):
                                             await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s', (api_bits, user_id))
                                             await connection.commit()
                                             bits = "{:,}".format(api_bits)
-                                            await ctx.send(f"You have given {bits} bits in total.")
+                                            await send_chat_message(f"You have given {bits} bits in total.")
                                         elif api_bits < db_bits:
                                             # Inform the user that the local database has a higher value
                                             bits = "{:,}".format(db_bits)
-                                            await ctx.send(f"Our records show you have given {bits} bits in total.")
+                                            await send_chat_message(f"Our records show you have given {bits} bits in total.")
                                         else:
                                             bits = "{:,}".format(api_bits)
-                                            await ctx.send(f"You have given {bits} bits in total.")
+                                            await send_chat_message(f"You have given {bits} bits in total.")
                                     else:
-                                        await ctx.send("You haven't given any bits yet.")
+                                        await send_chat_message("You haven't given any bits yet.")
                                 elif response.status == 401:
-                                    await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+                                    await send_chat_message("Sorry, something went wrong while reaching the Twitch API.")
                                 else:
-                                    await ctx.send("Sorry, I couldn't fetch your bits information.")
+                                    await send_chat_message("Sorry, I couldn't fetch your bits information.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the mybits command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in mybits_command: {e}")
-            await ctx.send(f"An error occurred while executing the command. {e}")
+            await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
             await connection.ensure_closed()
 
@@ -3550,12 +3550,12 @@ class TwitchBot(commands.Bot):
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the lurk command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     user_id = str(ctx.author.id)
                     now = time_right_now()
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                        await ctx.send(f"You cannot lurk in your own channel, Streamer.")
+                        await send_chat_message(f"You cannot lurk in your own channel, Streamer.")
                         chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
                         return
                     # Check if the user is already in the lurk table
@@ -3585,7 +3585,7 @@ class TwitchBot(commands.Bot):
                     else:
                         lurk_message = (f"Thanks for lurking, {ctx.author.name}! See you soon.")
                     # Send message to chat
-                    await ctx.send(lurk_message)
+                    await send_chat_message(lurk_message)
                     # Update the start time in the database
                     formatted_datetime = now.strftime("%Y-%m-%d %H:%M:%S")
                     await cursor.execute(
@@ -3595,7 +3595,7 @@ class TwitchBot(commands.Bot):
                     await connection.commit()
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
-            await ctx.send(f"Thanks for lurking! See you soon.")
+            await send_chat_message(f"Thanks for lurking! See you soon.")
         finally:
             await connection.ensure_closed()
 
@@ -3615,11 +3615,11 @@ class TwitchBot(commands.Bot):
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the lurking command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                        await ctx.send(f"Streamer, you're always present!")
+                        await send_chat_message(f"Streamer, you're always present!")
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time in their own channel.")
                         return
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
@@ -3629,14 +3629,14 @@ class TwitchBot(commands.Bot):
                         elapsed_time = time_right_now() - start_time
                         time_string = format_lurk_time(elapsed_time)
                         # Send the lurk time message
-                        await ctx.send(f"{ctx.author.name}, you've been lurking for {time_string} so far.")
+                        await send_chat_message(f"{ctx.author.name}, you've been lurking for {time_string} so far.")
                         chat_logger.info(f"{ctx.author.name} checked their lurk time: {time_string}.")
                     else:
-                        await ctx.send(f"{ctx.author.name}, you're not currently lurking.")
+                        await send_chat_message(f"{ctx.author.name}, you're not currently lurking.")
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time but is not lurking.")
         except Exception as e:
             chat_logger.error(f"Error in lurking_command: {e}")
-            await ctx.send(f"Oops, something went wrong while trying to check your lurk time.")
+            await send_chat_message(f"Oops, something went wrong while trying to check your lurk time.")
         finally:
             await connection.ensure_closed()
 
@@ -3656,7 +3656,7 @@ class TwitchBot(commands.Bot):
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the lurklead command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     try:
                         await cursor.execute('SELECT user_id, start_time FROM lurk_times')
@@ -3676,19 +3676,19 @@ class TwitchBot(commands.Bot):
                             display_name = await get_display_name(longest_lurk_user_id)
                             if display_name:
                                 time_string = format_lurk_time(longest_lurk)
-                                await ctx.send(f"{display_name} is currently lurking the most with {time_string} on the clock.")
+                                await send_chat_message(f"{display_name} is currently lurking the most with {time_string} on the clock.")
                                 chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
                             else:
-                                await ctx.send("There was an issue retrieving the display name of the lurk leader.")
+                                await send_chat_message("There was an issue retrieving the display name of the lurk leader.")
                         else:
-                            await ctx.send("No one is currently lurking.")
+                            await send_chat_message("No one is currently lurking.")
                             chat_logger.info("Lurklead command run but no lurkers found.")
                     except Exception as e:
                         chat_logger.error(f"Error in lurklead_command: {e}")
-                        await ctx.send("Oops, something went wrong while trying to find the lurk leader.")
+                        await send_chat_message("Oops, something went wrong while trying to find the lurk leader.")
         except Exception as e:
             chat_logger.error(f"Error in lurklead_command: {e}")
-            await ctx.send("Oops, something went wrong while trying to check the command status.")
+            await send_chat_message("Oops, something went wrong while trying to check the command status.")
         finally:
             await connection.ensure_closed()
 
@@ -3707,11 +3707,11 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                        await ctx.send(f"Streamer, you've been here all along!")
+                        await send_chat_message(f"Streamer, you've been here all along!")
                         chat_logger.info(f"{ctx.author.name} tried to unlurk in their own channel.")
                         return
                     await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("unlurk",))
@@ -3735,18 +3735,18 @@ class TwitchBot(commands.Bot):
                             time_string = format_lurk_time(elapsed_time)
                             # Log the unlurk command execution and send a response
                             chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
-                            await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
+                            await send_chat_message(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
                         else:
                             chat_logger.info(f"{ctx.author.name} is no longer lurking.")
-                            await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
+                            await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
                         # Remove the user's start time from the database
                         await cursor.execute('DELETE FROM lurk_times WHERE user_id = %s', (user_id,))
                         await connection.commit()
                     else:
-                        await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
+                        await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
-            await ctx.send("Oops, something went wrong with the unlurk command.")
+            await send_chat_message("Oops, something went wrong with the unlurk command.")
         finally:
             await connection.ensure_closed()
 
@@ -3766,19 +3766,19 @@ class TwitchBot(commands.Bot):
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the userslurking command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 await cursor.execute('SELECT COUNT(*) as count FROM lurk_times')
                 result = await cursor.fetchone()
                 count = result.get("count", 0)
                 if count == 0:
-                    await ctx.send("No one is currently lurking.")
+                    await send_chat_message("No one is currently lurking.")
                 else:
-                    await ctx.send(f"There are currently {count} user{'s' if count != 1 else ''} lurking.")
+                    await send_chat_message(f"There are currently {count} user{'s' if count != 1 else ''} lurking.")
                 chat_logger.info(f"{ctx.author.name} checked the number of lurkers: {count}.")
         except Exception as e:
             chat_logger.error(f"Error in userslurking_command: {e}")
-            await ctx.send("Oops, something went wrong while trying to check the number of lurkers.")
+            await send_chat_message("Oops, something went wrong while trying to check the number of lurkers.")
         finally:
             await connection.ensure_closed()
 
@@ -3797,10 +3797,10 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     if not stream_online:
-                        await ctx.send("Sorry, I can only create clips while the stream is online.")
+                        await send_chat_message("Sorry, I can only create clips while the stream is online.")
                         return
                     headers = {
                         "Client-ID": CLIENT_ID,
@@ -3815,7 +3815,7 @@ class TwitchBot(commands.Bot):
                                 clip_data = await clip_response.json()
                                 clip_id = clip_data['data'][0]['id']
                                 clip_url = f"http://clips.twitch.tv/{clip_id}"
-                                await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
+                                await send_chat_message(f"{ctx.author.name} created a clip: {clip_url}")
                                 marker_description = f"Clip creation by {ctx.author.name}"
                                 if await make_stream_marker(marker_description):
                                     twitch_logger.info(f"A stream marker was created for the clip: {marker_description}.")
@@ -3827,11 +3827,11 @@ class TwitchBot(commands.Bot):
                                     twitch_logger.info(f"A stream marker was created for the clip: {marker_description}.")
                                 else:
                                     twitch_logger.info("Failed to create a stream marker for the clip.")
-                                await ctx.send(marker_description)
+                                await send_chat_message(marker_description)
                                 twitch_logger.error(f"Clip Error Code: {clip_response.status}")
         except Exception as e:
             twitch_logger.error(f"Error in clip_command: {e}")
-            await ctx.send("An error occurred while executing the clip command.")
+            await send_chat_message("An error occurred while executing the clip command.")
         finally:
             await connection.ensure_closed()
 
@@ -3850,19 +3850,19 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not stream_online:
-                        await ctx.send("Sorry, I can only make a marker while the stream is online.")
+                        await send_chat_message("Sorry, I can only make a marker while the stream is online.")
                         return
                     if await command_permissions(permissions, ctx.author):
                         marker_description = description if description else f"Marker made by {ctx.author.name}"
                         if await make_stream_marker(marker_description):
-                            await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
+                            await send_chat_message(f'A stream marker was created with the description: "{marker_description}".')
                         else:
-                            await ctx.send("Failed to create a stream marker.")
+                            await send_chat_message("Failed to create a stream marker.")
                     else:
-                        await ctx.send("You do not have the correct permissions to use this command.")
+                        await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the marker command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -3908,19 +3908,19 @@ class TwitchBot(commands.Bot):
                                             gifter_name = subscription.get('gifter_name') if is_gift else None
                                             tier_name = tier_mapping.get(tier, tier)
                                             if is_gift:
-                                                await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
+                                                await send_chat_message(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
                                             else:
-                                                await ctx.send(f"{user_name}, you are currently subscribed at {tier_name}.")
+                                                await send_chat_message(f"{user_name}, you are currently subscribed at {tier_name}.")
                                     else:
-                                        await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
+                                        await send_chat_message(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
                                 else:
-                                    await ctx.send("Failed to retrieve subscription information. Please try again later.")
+                                    await send_chat_message("Failed to retrieve subscription information. Please try again later.")
                                     twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
                     else:
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subscription command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -3939,7 +3939,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not stream_online:
-                        await ctx.send(f"{CHANNEL_NAME} is currently offline.")
+                        await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
                         return
                     if await command_permissions(permissions, ctx.author):
                         headers = {
@@ -3961,22 +3961,22 @@ class TwitchBot(commands.Bot):
                                             uptime = time_right_now(timezone.utc) - started_at
                                             hours, remainder = divmod(uptime.seconds, 3600)
                                             minutes, seconds = divmod(remainder, 60)
-                                            await ctx.send(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
+                                            await send_chat_message(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
                                             chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
                                         else:
-                                            await ctx.send(f"{CHANNEL_NAME} is currently offline.")
+                                            await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
                                             api_logger.info(f"{CHANNEL_NAME} is currently offline.")
                                     else:
-                                        await ctx.send(f"Failed to retrieve stream data. Status: {response.status}")
+                                        await send_chat_message(f"Failed to retrieve stream data. Status: {response.status}")
                                         chat_logger.error(f"Failed to retrieve stream data. Status: {response.status}")
                         except Exception as e:
                             chat_logger.error(f"Error retrieving stream data: {e}")
-                            await ctx.send("Oops, something went wrong while trying to check uptime.")
+                            await send_chat_message("Oops, something went wrong while trying to check uptime.")
                     else:
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the uptime command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4001,9 +4001,9 @@ class TwitchBot(commands.Bot):
                         # Check if the target is the broadcaster
                         if target_user == CHANNEL_NAME.lower():
                             if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                                await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
+                                await send_chat_message("Dear Streamer, you can never have a typo in your own channel.")
                             else:
-                                await ctx.send("The streamer cannot have a typo count.")
+                                await send_chat_message("The streamer cannot have a typo count.")
                             return
                         # Increment typo count in the database
                         await cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE typo_count = typo_count + 1', (target_user,))
@@ -4014,12 +4014,12 @@ class TwitchBot(commands.Bot):
                         typo_count = result.get("typo_count") if result else 0
                         # Send the message
                         chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
-                        await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
+                        await send_chat_message(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
                     else:
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
-            await ctx.send(f"An error occurred while trying to add to your typo count.")
+            await send_chat_message(f"An error occurred while trying to add to your typo count.")
         finally:
             await connection.ensure_closed()
 
@@ -4039,11 +4039,11 @@ class TwitchBot(commands.Bot):
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the typos command but lacked permissions.")
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     chat_logger.info("Typos Command ran.")
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                        await ctx.send(f"Dear Streamer, you can never have a typo in your own channel.")
+                        await send_chat_message(f"Dear Streamer, you can never have a typo in your own channel.")
                         return
                     mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
                     target_user = mentioned_username_lower.lstrip('@')
@@ -4051,10 +4051,10 @@ class TwitchBot(commands.Bot):
                     result = await cursor.fetchone()
                     typo_count = result.get("typo_count") if result else 0
                     chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
-                    await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
+                    await send_chat_message(f"{target_user} has made {typo_count} typos in chat.")
         except Exception as e:
             chat_logger.error(f"Error in typos_command: {e}")
-            await ctx.send(f"An error occurred while trying to check typos.")
+            await send_chat_message(f"An error occurred while trying to check typos.")
         finally:
             await connection.ensure_closed()
 
@@ -4073,7 +4073,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send(f"You do not have the required permissions to use this command.")
+                        await send_chat_message(f"You do not have the required permissions to use this command.")
                         return
                     chat_logger.info("Edit Typos Command ran.")
                     try:
@@ -4084,17 +4084,17 @@ class TwitchBot(commands.Bot):
                         # Check if mentioned_username is not provided
                         if mentioned_username is None:
                             chat_logger.error("There was no mentioned username for the command to run.")
-                            await ctx.send("Usage: !edittypos @username [amount]")
+                            await send_chat_message("Usage: !edittypos @username [amount]")
                             return
                         # Check if new_count is not provided
                         if new_count is None:
                             chat_logger.error("There was no count added to the command to edit.")
-                            await ctx.send(f"Usage: !edittypos @{target_user} [amount]")
+                            await send_chat_message(f"Usage: !edittypos @{target_user} [amount]")
                             return
                         # Check if new_count is non-negative
                         if new_count < 0:
                             chat_logger.error(f"Typo count for {target_user} tried to be set to {new_count}.")
-                            await ctx.send(f"Typo count cannot be negative.")
+                            await send_chat_message(f"Typo count cannot be negative.")
                             return
                         # Check if the user exists in the database
                         await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
@@ -4104,19 +4104,19 @@ class TwitchBot(commands.Bot):
                             await cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
                             await connection.commit()
                             chat_logger.info(f"Typo count for {target_user} has been updated to {new_count}.")
-                            await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
+                            await send_chat_message(f"Typo count for {target_user} has been updated to {new_count}.")
                         else:
                             # If user does not exist, add the user with the given typo count
                             await cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, %s)', (target_user, new_count))
                             await connection.commit()
                             chat_logger.info(f"Typo count for {target_user} has been set to {new_count}.")
-                            await ctx.send(f"Typo count for {target_user} has been set to {new_count}.")
+                            await send_chat_message(f"Typo count for {target_user} has been set to {new_count}.")
                     except Exception as e:
                         chat_logger.error(f"Error in edit_typo_command: {e}")
-                        await ctx.send(f"An error occurred while trying to edit typos. {e}")
+                        await send_chat_message(f"An error occurred while trying to edit typos. {e}")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4135,18 +4135,18 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send(f"You do not have the required permissions to use this command.")
+                        await send_chat_message(f"You do not have the required permissions to use this command.")
                         return
                     if mentioned_username is None:
                         chat_logger.error("Command missing username parameter.")
-                        await ctx.send(f"Usage: !removetypos @username")
+                        await send_chat_message(f"Usage: !removetypos @username")
                         return
                     mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
                     target_user = mentioned_username_lower.lstrip('@')
                     chat_logger.info(f"Remove Typos Command ran with params: {target_user}, decrease_amount: {decrease_amount}")
                     if decrease_amount < 0:
                         chat_logger.error(f"Invalid decrease amount {decrease_amount} for typo count of {target_user}.")
-                        await ctx.send(f"Remove amount cannot be negative.")
+                        await send_chat_message(f"Remove amount cannot be negative.")
                         return
                     await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                     result = await cursor.fetchone()
@@ -4155,12 +4155,12 @@ class TwitchBot(commands.Bot):
                         new_count = max(0, current_count - decrease_amount)
                         await cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
                         await connection.commit()
-                        await ctx.send(f"Typo count for {target_user} decreased by {decrease_amount}. New count: {new_count}.")
+                        await send_chat_message(f"Typo count for {target_user} decreased by {decrease_amount}. New count: {new_count}.")
                     else:
-                        await ctx.send(f"No typo record found for {target_user}.")
+                        await send_chat_message(f"No typo record found for {target_user}.")
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
-            await ctx.send(f"An error occurred while trying to remove typos.")
+            await send_chat_message(f"An error occurred while trying to remove typos.")
         finally:
             await connection.ensure_closed()
 
@@ -4179,7 +4179,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
             # File path
             file_path = '/var/www/api/steamapplist.json'
@@ -4202,7 +4202,7 @@ class TwitchBot(commands.Bot):
                         with open(file_path, 'w') as file:
                             json.dump(data, file)
                     else:
-                        await ctx.send("Failed to fetch Steam games list.")
+                        await send_chat_message("Failed to fetch Steam games list.")
                         return
             game_name_lower = current_game.lower()
             if game_name_lower.startswith('the '):
@@ -4210,17 +4210,17 @@ class TwitchBot(commands.Bot):
                 if game_name_without_the in steam_app_list:
                     game_id = steam_app_list[game_name_without_the]
                     store_url = f"https://store.steampowered.com/app/{game_id}"
-                    await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
+                    await send_chat_message(f"{current_game} is available on Steam, you can get it here: {store_url}")
                     return
             if game_name_lower in steam_app_list:
                 game_id = steam_app_list[game_name_lower]
                 store_url = f"https://store.steampowered.com/app/{game_id}"
-                await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
+                await send_chat_message(f"{current_game} is available on Steam, you can get it here: {store_url}")
             else:
-                await ctx.send("This game is not available on Steam.")
+                await send_chat_message("This game is not available on Steam.")
         except Exception as e:
             chat_logger.error(f"Error in steam_command: {e}")
-            await ctx.send("An error occurred while trying to check the Steam store.")
+            await send_chat_message("An error occurred while trying to check the Steam store.")
         finally:
             await connection.ensure_closed()
 
@@ -4239,10 +4239,10 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 if current_game is None:
-                    await ctx.send("Current game is not set. Can't see death count.")
+                    await send_chat_message("Current game is not set. Can't see death count.")
                     return
                 chat_logger.info("Deaths command ran.")
                 await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
@@ -4255,13 +4255,13 @@ class TwitchBot(commands.Bot):
                 stream_death_count_result = await cursor.fetchone()
                 stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
                 chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}. Stream deaths are: {stream_death_count}")
-                await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times.")
+                await send_chat_message(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times.")
                 if await command_permissions("mod", ctx.author):
                     chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {stream_death_count}")
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
-            await ctx.send(f"An error occurred while executing the command. {e}")
+            await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
             await connection.ensure_closed()
 
@@ -4280,10 +4280,10 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 if current_game is None:
-                    await ctx.send("Current game is not set. Cannot add death to nothing.")
+                    await send_chat_message("Current game is not set. Cannot add death to nothing.")
                     return
                 try:
                     chat_logger.info("Death Add Command ran by a mod or broadcaster.")
@@ -4314,14 +4314,14 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count}")
                     chat_logger.info(f"Stream death count for {current_game} is now: {stream_death_count}")
-                    await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
+                    await send_chat_message(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except Exception as e:
-                    await ctx.send(f"An error occurred while executing the command. {e}")
+                    await send_chat_message(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathadd_command: {e}")
         except Exception as e:
             chat_logger.error(f"Unexpected error in deathadd_command: {e}")
-            await ctx.send(f"An unexpected error occurred: {e}")
+            await send_chat_message(f"An unexpected error occurred: {e}")
         finally:
             await connection.ensure_closed()
 
@@ -4340,10 +4340,10 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 if current_game is None:
-                    await ctx.send("Current game is not set. Can't remove from nothing.")
+                    await send_chat_message("Current game is not set. Can't remove from nothing.")
                     return
                 try:
                     chat_logger.info("Death Remove Command Ran")
@@ -4366,14 +4366,14 @@ class TwitchBot(commands.Bot):
                     stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
                     chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count} to reflect the removal.")
-                    await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
+                    await send_chat_message(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except Exception as e:
-                    await ctx.send(f"An error occurred while executing the command. {e}")
+                    await send_chat_message(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathremove_command: {e}")
         except Exception as e:
             chat_logger.error(f"Unexpected error in deathremove_command: {e}")
-            await ctx.send(f"An unexpected error occurred: {e}")
+            await send_chat_message(f"An unexpected error occurred: {e}")
         finally:
             await connection.ensure_closed()
 
@@ -4392,15 +4392,15 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 if current_game is not None:
-                    await ctx.send(f"The current game we're playing is: {current_game}")
+                    await send_chat_message(f"The current game we're playing is: {current_game}")
                 else:
-                    await ctx.send("We're not currently streaming any specific game category.")
+                    await send_chat_message("We're not currently streaming any specific game category.")
         except Exception as e:
             chat_logger.error(f"Error in game_command: {e}")
-            await ctx.send("Oops, something went wrong while trying to retrieve the game information.")
+            await send_chat_message("Oops, something went wrong while trying to retrieve the game information.")
         finally:
             await connection.ensure_closed()
 
@@ -4419,7 +4419,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
                 headers = {
@@ -4436,7 +4436,7 @@ class TwitchBot(commands.Bot):
                                 'broadcaster_id': CHANNEL_ID
                             }
                         else:
-                            await ctx.send(f"The user {target_user} is not a user on Twitch.")
+                            await send_chat_message(f"The user {target_user} is not a user on Twitch.")
                             return
                     else:
                         params = {
@@ -4469,20 +4469,20 @@ class TwitchBot(commands.Bot):
                                     if seconds > 0:
                                         parts.append(f"{seconds} second{'s' if seconds > 1 else ''}")
                                     followage_text = ", ".join(parts)
-                                    await ctx.send(f"{target_user} has been following for: {followage_text}.")
+                                    await send_chat_message(f"{target_user} has been following for: {followage_text}.")
                                     chat_logger.info(f"{target_user} has been following for: {followage_text}.")
                                 else:
-                                    await ctx.send(f"{target_user} does not follow {CHANNEL_NAME}.")
+                                    await send_chat_message(f"{target_user} does not follow {CHANNEL_NAME}.")
                                     chat_logger.info(f"{target_user} does not follow {CHANNEL_NAME}.")
                             else:
-                                await ctx.send(f"Failed to retrieve followage information for {target_user}.")
+                                await send_chat_message(f"Failed to retrieve followage information for {target_user}.")
                                 chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
                 except Exception as e:
                     chat_logger.error(f"Error retrieving followage: {e}")
-                    await ctx.send(f"Oops, something went wrong while trying to check followage.")
+                    await send_chat_message(f"Oops, something went wrong while trying to check followage.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the followage command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4501,7 +4501,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 await cursor.execute("SELECT timezone FROM profile")
                 timezone_row = await cursor.fetchone()
@@ -4533,9 +4533,9 @@ class TwitchBot(commands.Bot):
                                             start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
                                             start_time = start_time_utc.astimezone(tz)
                                             if start_time >= vacation_end and (start_time - current_time).days <= 2:
-                                                await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). My next stream is on {start_time.strftime('%A, %d %B %Y')} ({start_time.strftime('%H:%M %Z')} UTC).")
+                                                await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). My next stream is on {start_time.strftime('%A, %d %B %Y')} ({start_time.strftime('%H:%M %Z')} UTC).")
                                                 return
-                                        await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). No streams during this time!")
+                                        await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). No streams during this time!")
                                         return
                                 next_stream = None
                                 canceled_stream = None
@@ -4553,7 +4553,7 @@ class TwitchBot(commands.Bot):
                                         break  # Exit the loop after finding the first upcoming stream
                                 if canceled_stream:
                                     canceled_time, canceled_until = canceled_stream
-                                    await ctx.send(f"The next stream scheduled for {canceled_time.strftime('%A, %d %B %Y')} ({canceled_time.strftime('%H:%M %Z')} UTC) has been canceled.")
+                                    await send_chat_message(f"The next stream scheduled for {canceled_time.strftime('%A, %d %B %Y')} ({canceled_time.strftime('%H:%M %Z')} UTC) has been canceled.")
                                 if next_stream:
                                     start_date_utc = next_stream['start_time'].split('T')[0]  # Extract date from start_time
                                     start_time_utc = datetime.strptime(next_stream['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
@@ -4565,17 +4565,17 @@ class TwitchBot(commands.Bot):
                                     minutes = (seconds % 3600) // 60
                                     seconds = (seconds % 60)
                                     time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
-                                    await ctx.send(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} ({start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
+                                    await send_chat_message(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} ({start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                                 else:
-                                    await ctx.send(f"There are no upcoming streams in the next three days.")
+                                    await send_chat_message(f"There are no upcoming streams in the next three days.")
                             else:
-                                await ctx.send(f"Something went wrong while trying to get the schedule from Twitch.")
+                                await send_chat_message(f"Something went wrong while trying to get the schedule from Twitch.")
                 except Exception as e:
                     chat_logger.error(f"Error retrieving schedule: {e}")
-                    await ctx.send(f"Oops, something went wrong while trying to check the schedule.")
+                    await send_chat_message(f"Oops, something went wrong while trying to check the schedule.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the schedule command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4594,7 +4594,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 API_URL = "https://api.botofthespecter.com/versions"
                 async with httpClientSession() as session:
@@ -4613,16 +4613,16 @@ class TwitchBot(commands.Bot):
                                 else:
                                     message = f"There is no {SYSTEM.lower()} update pending. You are currently running V{VERSION}."
                                 bot_logger.info(f"Bot {SYSTEM.lower()} update available. (V{remote_version})")
-                                await ctx.send(message)
+                                await send_chat_message(message)
                             else:
                                 message = f"There is no {SYSTEM.lower()} update pending. You are currently running V{VERSION}."
                                 bot_logger.info(f"{message}")
-                                await ctx.send(message)
+                                await send_chat_message(message)
                         else:
-                            await ctx.send("Failed to check for updates. Please try again later.")
+                            await send_chat_message("Failed to check for updates. Please try again later.")
         except Exception as e:
             chat_logger.error(f"Error in checkupdate_command: {e}")
-            await ctx.send("Oops, something went wrong while trying to check for updates.")
+            await send_chat_message("Oops, something went wrong while trying to check for updates.")
         finally:
             await connection.ensure_closed()
 
@@ -4641,12 +4641,12 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
             chat_logger.info(f"Shoutout command running from {ctx.author.name}")
             if not user_to_shoutout:
                 chat_logger.error(f"Shoutout command missing username parameter.")
-                await ctx.send(f"Usage: !so @username")
+                await send_chat_message(f"Usage: !so @username")
                 return
             try:
                 chat_logger.info(f"Shoutout command trying to run.")
@@ -4654,12 +4654,12 @@ class TwitchBot(commands.Bot):
                 is_valid_user = await is_valid_twitch_user(user_to_shoutout)
                 if not is_valid_user:
                     chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch.")
-                    await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
+                    await send_chat_message(f"The user @{user_to_shoutout} does not exist on Twitch.")
                     return
                 chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
                 user_info = await self.fetch_users(names=[user_to_shoutout])
                 if not user_info:
-                    await ctx.send("Failed to fetch user information.")
+                    await send_chat_message("Failed to fetch user information.")
                     return
                 user_id = user_info[0].id
                 game = await get_latest_stream_game(user_id, user_to_shoutout)
@@ -4676,14 +4676,14 @@ class TwitchBot(commands.Bot):
                         f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
                     )
                 chat_logger.info(shoutout_message)
-                await ctx.send(shoutout_message)
+                await send_chat_message(shoutout_message)
                 await add_shoutout(user_to_shoutout, user_id)
             except Exception as e:
                 chat_logger.error(f"Error in shoutout_command: {e}")
-                await ctx.send("An error occurred while processing the shoutout command.")
+                await send_chat_message("An error occurred while processing the shoutout command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4703,23 +4703,23 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Parse the command and response from the message
                 try:
                     command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
                 except ValueError:
-                    await ctx.send(f"Invalid command format. Use: !addcommand [command] [response]")
+                    await send_chat_message(f"Invalid command format. Use: !addcommand [command] [response]")
                     return
                 # Insert the command and response into the database
                 async with connection.cursor(DictCursor) as cursor:
                     await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
                     await connection.commit()
                 chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
-                await ctx.send(f'Custom command added: !{command}')
+                await send_chat_message(f'Custom command added: !{command}')
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the addcommand command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4739,23 +4739,23 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Parse the command and new response from the message
                 try:
                     command, new_response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
                 except ValueError:
-                    await ctx.send(f"Invalid command format. Use: !editcommand [command] [new_response]")
+                    await send_chat_message(f"Invalid command format. Use: !editcommand [command] [new_response]")
                     return
                 # Update the command's response in the database
                 async with connection.cursor(DictCursor) as cursor:
                     await cursor.execute('UPDATE custom_commands SET response = %s WHERE command = %s', (new_response, command))
                     await connection.commit()
                 chat_logger.info(f"{ctx.author.name} has edited the command !{command} to have the new response: {new_response}")
-                await ctx.send(f'Custom command edited: !{command}')
+                await send_chat_message(f'Custom command edited: !{command}')
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the editcommand command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4775,23 +4775,23 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Parse the command from the message
                 try:
                     command = ctx.message.content.strip().split(' ')[1]
                 except IndexError:
-                    await ctx.send(f"Invalid command format. Use: !removecommand [command]")
+                    await send_chat_message(f"Invalid command format. Use: !removecommand [command]")
                     return
                 # Delete the command from the database
                 async with connection.cursor(DictCursor) as cursor:
                     await cursor.execute('DELETE FROM custom_commands WHERE command = %s', (command,))
                     await connection.commit()
                 chat_logger.info(f"{ctx.author.name} has removed {command}")
-                await ctx.send(f'Custom command removed: !{command}')
+                await send_chat_message(f'Custom command removed: !{command}')
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the removecommand command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4811,13 +4811,13 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Parse the command from the message
                 try:
                     command = ctx.message.content.strip().split(' ')[1]
                 except IndexError:
-                    await ctx.send(f"Invalid command format. Use: !enablecommand [command]")
+                    await send_chat_message(f"Invalid command format. Use: !enablecommand [command]")
                     return
                 # First check if it's a built-in command
                 await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
@@ -4827,7 +4827,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Enabled', command))
                     await connection.commit()
                     chat_logger.info(f"{ctx.author.name} has enabled the built-in command: {command}")
-                    await ctx.send(f'Built-in command enabled: !{command}')
+                    await send_chat_message(f'Built-in command enabled: !{command}')
                 else:
                     # Check if it's a custom command
                     await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
@@ -4837,13 +4837,13 @@ class TwitchBot(commands.Bot):
                         await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Enabled', command))
                         await connection.commit()
                         chat_logger.info(f"{ctx.author.name} has enabled the custom command: {command}")
-                        await ctx.send(f'Custom command enabled: !{command}')
+                        await send_chat_message(f'Custom command enabled: !{command}')
                     else:
                         # Command doesn't exist in either table
-                        await ctx.send(f"Command !{command} not found.")
+                        await send_chat_message(f"Command !{command} not found.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4863,13 +4863,13 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Parse the command from the message
                 try:
                     command = ctx.message.content.strip().split(' ')[1]
                 except IndexError:
-                    await ctx.send(f"Invalid command format. Use: !disablecommand [command]")
+                    await send_chat_message(f"Invalid command format. Use: !disablecommand [command]")
                     return
                 # First check if it's a built-in command
                 await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
@@ -4879,7 +4879,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
                     await connection.commit()
                     chat_logger.info(f"{ctx.author.name} has disabled the built-in command: {command}")
-                    await ctx.send(f'Built-in command disabled: !{command}')
+                    await send_chat_message(f'Built-in command disabled: !{command}')
                 else:
                     # Check if it's a custom command
                     await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
@@ -4889,13 +4889,13 @@ class TwitchBot(commands.Bot):
                         await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Disabled', command))
                         await connection.commit()
                         chat_logger.info(f"{ctx.author.name} has disabled the custom command: {command}")
-                        await ctx.send(f'Custom command disabled: !{command}')
+                        await send_chat_message(f'Custom command disabled: !{command}')
                     else:
                         # Command doesn't exist in either table
-                        await ctx.send(f"Command !{command} not found.")
+                        await send_chat_message(f"Command !{command} not found.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4916,7 +4916,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Fetch user's points from the database
                     await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
@@ -4957,10 +4957,10 @@ class TwitchBot(commands.Bot):
                     # Update user's points in the database
                     await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
                     await connection.commit()
-                    await ctx.send(message)
+                    await send_chat_message(message)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the slots command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -4979,7 +4979,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 async with httpClientSession() as session:
                     async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
@@ -4988,11 +4988,11 @@ class TwitchBot(commands.Bot):
                             kill_message = data.get("killcommand", {})
                             if not kill_message:
                                 chat_logger.error("No 'killcommand' found in the API response.")
-                                await ctx.send("No kill messages found.")
+                                await send_chat_message("No kill messages found.")
                                 return
                         else:
                             chat_logger.error(f"Failed to fetch kill messages from API. Status code: {response.status}")
-                            await ctx.send("Unable to retrieve kill messages.")
+                            await send_chat_message("Unable to retrieve kill messages.")
                             return
                 if mention:
                     mention = mention.lstrip('@')
@@ -5014,11 +5014,11 @@ class TwitchBot(commands.Bot):
                         result = f"{ctx.author.name} tried to kill themselves, but something went wrong."
                         chat_logger.error("No 'self' kill message found.")
                     api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
-                await ctx.send(result)
+                await send_chat_message(result)
                 chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the kill command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -5039,7 +5039,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Fetch user's points from the database
                 await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
@@ -5067,10 +5067,10 @@ class TwitchBot(commands.Bot):
                     # Update user's points in the database
                     await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
                     await connection.commit()
-                await ctx.send(message)
+                await send_chat_message(message)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roulette command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -5089,13 +5089,13 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 choices = ["rock", "paper", "scissors"]
                 bot_choice = random.choice(choices)
                 user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
                 if user_input not in choices:
-                    await ctx.send(f'Please choose "Rock", "Paper" or "Scissors". Usage: !rps <choice>')
+                    await send_chat_message(f'Please choose "Rock", "Paper" or "Scissors". Usage: !rps <choice>')
                     return
                 user_choice = user_input
                 if user_choice == bot_choice:
@@ -5106,10 +5106,10 @@ class TwitchBot(commands.Bot):
                     result = f"You Win! You chose {user_choice} and I chose {bot_choice}."
                 else:
                     result = f"You lose! You chose {user_choice} and I chose {bot_choice}."
-                await ctx.send(result)
+                await send_chat_message(result)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the RPS command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -5130,12 +5130,12 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Parse command arguments
                 parts = ctx.message.content.split(' ')
                 if len(parts) < 2:
-                    await ctx.send(f"{ctx.author.name}, please specify a game type. Try !gamble coinflip 100, !gamble blackjack 100, or !gamble roulette red 100")
+                    await send_chat_message(f"{ctx.author.name}, please specify a game type. Try !gamble coinflip 100, !gamble blackjack 100, or !gamble roulette red 100")
                     return
                 game_type = parts[1].lower()
                 try:
@@ -5160,7 +5160,7 @@ class TwitchBot(commands.Bot):
                     else:
                         choice = None
                     if not choice or choice not in ["red", "black"]:
-                        await ctx.send(f"{ctx.author.name}, please specify red or black for roulette. Usage: !gamble roulette red 100 or !gamble roulette 100 red")
+                        await send_chat_message(f"{ctx.author.name}, please specify red or black for roulette. Usage: !gamble roulette red 100 or !gamble roulette 100 red")
                         return
                 # Fetch user's points from the database
                 await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
@@ -5176,7 +5176,7 @@ class TwitchBot(commands.Bot):
                     user_points = user_data.get("points")
                 # Check if user has enough points
                 if user_points < bet_amount:
-                    await ctx.send(f"{ctx.author.name}, you don't have enough points to gamble {bet_amount}. You have {user_points} points.")
+                    await send_chat_message(f"{ctx.author.name}, you don't have enough points to gamble {bet_amount}. You have {user_points} points.")
                     return
                 # Handle game types
                 if game_type == "coinflip":
@@ -5208,15 +5208,15 @@ class TwitchBot(commands.Bot):
                         user_points -= bet_amount
                         message = f"{ctx.author.name}, roulette landed on {bot_choice}, you lost {bet_amount} points. Total points: {user_points}"
                 else:
-                    await ctx.send(f"{ctx.author.name}, invalid game type. Try !gamble coinflip {bet_amount}, !gamble blackjack {bet_amount}, or !gamble roulette red {bet_amount}")
+                    await send_chat_message(f"{ctx.author.name}, invalid game type. Try !gamble coinflip {bet_amount}, !gamble blackjack {bet_amount}, or !gamble roulette red {bet_amount}")
                     return
                 # Update user's points in the database
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
                 await connection.commit()
-                await ctx.send(message)
+                await send_chat_message(message)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the gamble command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -5235,19 +5235,19 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 words = ctx.message.content.split(' ')[1:]
                 if len(words) < 5:
-                    await ctx.send(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
+                    await send_chat_message(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
                     return
                 template = "Once upon a time, there was a {0} who loved to {1}. One day, they found a {2} {3} and decided to {4}."
                 story = template.format(*words)
                 response = await self.handle_ai_response(story, ctx.author.id, ctx.author.name)
-                await ctx.send(response)
+                await send_chat_message(response)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the story command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -5267,7 +5267,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 try:
                     startwitch = ["€", "$", "£", "¥", "₹", "₣", "₽", "₺", "₩", "₼", "₱", "₪", "₴", "₭", "₨", "฿", "₮", "₳", "₵", "ƒ", "៛", "﷼", "R$"]
@@ -5279,7 +5279,7 @@ class TwitchBot(commands.Bot):
                         to_currency = args[2].upper()
                         converted_amount = await convert_currency(amount, from_currency, to_currency)
                         formatted_converted_amount = f"{converted_amount:,.2f}"
-                        await ctx.send(f"The currency exchange for {amount_str} {from_currency} is {formatted_converted_amount} {to_currency}")
+                        await send_chat_message(f"The currency exchange for {amount_str} {from_currency} is {formatted_converted_amount} {to_currency}")
                     elif len(args) == 3:
                         # Handle unit conversion
                         amount_str = args[0]
@@ -5303,16 +5303,16 @@ class TwitchBot(commands.Bot):
                         quantity = amount * ureg(from_unit)
                         converted_quantity = quantity.to(to_unit)
                         formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
-                        await ctx.send(f"{amount_str} {args[1]} in {args[2]} is {formatted_converted_quantity} {converted_quantity.units}")
+                        await send_chat_message(f"{amount_str} {args[1]} in {args[2]} is {formatted_converted_quantity} {converted_quantity.units}")
                     else:
-                        await ctx.send("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
+                        await send_chat_message("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except Exception as e:
-                    await ctx.send("Failed to convert. Please ensure the format is correct: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency.")
+                    await send_chat_message("Failed to convert. Please ensure the format is correct: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency.")
                     sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[API_KEY]')
                     api_logger.error(f"An error occurred in convert command: {sanitized_error}")
         except Exception as e:
             chat_logger.error(f"An unexpected error occurred during the execution of the convert command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -5334,10 +5334,10 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
             if message_content.lower() == '!todo':
-                await ctx.send(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/")
+                await send_chat_message(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/")
                 chat_logger.info(f"{user.name} viewed the todo list.")
                 return
             action, *params = message_content[5:].strip().split(' ', 1)
@@ -5355,13 +5355,13 @@ class TwitchBot(commands.Bot):
             if action in actions:
                 if action in ['add', 'edit', 'remove', 'complete', 'done']:
                     if not await command_permissions("mod", user):
-                        await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
+                        await send_chat_message(f"{user.name}, you do not have the required permissions for this action.")
                         chat_logger.warning(f"{user.name} attempted to {action} without proper permissions.")
                         return
                 await actions[action](ctx, params, user_id, connection)
                 chat_logger.info(f"{user.name} executed the action {action} with params {params}.")
             else:
-                await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
+                await send_chat_message(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
                 chat_logger.warning(f"{user.name} used an unrecognized action: {action}.")
         except Exception as e:
             bot_logger.error(f"An error occurred in todo_command: {e}")
@@ -5383,13 +5383,13 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
             user = ctx.author
             # Check permissions for valid actions
             if action in ['start', 'stop', 'pause', 'resume', 'addtime']:
                 if not await command_permissions("mod", user):
-                    await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
+                    await send_chat_message(f"{user.name}, you do not have the required permissions for this action.")
                     return
             if action == "start":
                 await start_subathon(ctx)
@@ -5403,14 +5403,14 @@ class TwitchBot(commands.Bot):
                 if minutes is not None:
                     await addtime_subathon(ctx, minutes)
                 else:
-                    await ctx.send(f"{user.name}, please provide the number of minutes to add. Usage: !subathon addtime <minutes>")
+                    await send_chat_message(f"{user.name}, please provide the number of minutes to add. Usage: !subathon addtime <minutes>")
             elif action == "status":
                 await subathon_status(ctx)
             else:
-                await ctx.send(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
+                await send_chat_message(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subathon command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -5430,28 +5430,28 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check if heartrate code exists in database
                     await cursor.execute('SELECT heartrate_code FROM profile')
                     heartrate_code_data = await cursor.fetchone()
                     if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
-                        await ctx.send("Heart rate monitoring is not setup.")
+                        await send_chat_message("Heart rate monitoring is not setup.")
                         return
                     # Start the persistent websocket connection if not already running
                     if hyperate_task is None or hyperate_task.done():
                         hyperate_task = create_task(hyperate_websocket_persistent())
                         bot_logger.info("HypeRate info: Started persistent websocket connection")
                         # Wait a moment for connection to establish and get initial data
-                        await ctx.send(f"Just a moment, scanning the heart right now.")
+                        await send_chat_message(f"Just a moment, scanning the heart right now.")
                         await sleep(10)
                     if HEARTRATE is None:
-                        await ctx.send("The Heart Rate is not turned on right now.")
+                        await send_chat_message("The Heart Rate is not turned on right now.")
                     else:
-                        await ctx.send(f"The current Heart Rate is: {HEARTRATE}")
+                        await send_chat_message(f"The current Heart Rate is: {HEARTRATE}")
         except Exception as e:
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
-            await ctx.send("An unexpected error occurred. Please try again later.")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
@@ -5473,7 +5473,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Query watch time for the user
                 await cursor.execute("""
@@ -5509,13 +5509,13 @@ class TwitchBot(commands.Bot):
                     live_str = format_time(live_years, live_months, live_days, live_hours, live_minutes)
                     offline_str = format_time(offline_years, offline_months, offline_days, offline_hours, offline_minutes)
                     # Respond with the user's watch time
-                    await ctx.send(f"@{username}, you have watched for {live_str} live, and {offline_str} offline.")
+                    await send_chat_message(f"@{username}, you have watched for {live_str} live, and {offline_str} offline.")
                 else:
                     # If no watch time data is found
-                    await ctx.send(f"@{username}, no watch time data recorded for you yet.")
+                    await send_chat_message(f"@{username}, no watch time data recorded for you yet.")
         except Exception as e:
             bot_logger.error(f"Error fetching watch time for {username}: {e}")
-            await ctx.send(f"@{username}, an error occurred while fetching your watch time.")
+            await send_chat_message(f"@{username}, an error occurred while fetching your watch time.")
         finally:
             await connection.ensure_closed()
 
@@ -5533,18 +5533,18 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 done = await generate_winning_lotto_numbers()
                 if done == True:
-                    await ctx.send("Lotto numbers have been generated. Good luck everyone!")
+                    await send_chat_message("Lotto numbers have been generated. Good luck everyone!")
                 elif done == "exists":
-                    await ctx.send("Lotto numbers have already been generated. Ready to draw the winners.")
+                    await send_chat_message("Lotto numbers have already been generated. Ready to draw the winners.")
                 else:
-                    await ctx.send("There was an error generating the lotto numbers.")
+                    await send_chat_message("There was an error generating the lotto numbers.")
         except Exception as e:
             bot_logger.error(f"Error in starting lotto game: {e}")
-            await ctx.send("There was an error generating the lotto numbers.")
+            await send_chat_message("There was an error generating the lotto numbers.")
         finally:
             await connection.ensure_closed()
 
@@ -5563,7 +5563,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 prize_pool = {
                     "Division 1 (Jackpot!)": 100000,
@@ -5584,13 +5584,13 @@ class TwitchBot(commands.Bot):
                         await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
                         winning_lotto_numbers = await cursor.fetchone()
                     if not winning_lotto_numbers:
-                        await ctx.send("No winning numbers selected. The draw cannot proceed.")
+                        await send_chat_message("No winning numbers selected. The draw cannot proceed.")
                         return  # If there are no winning numbers, end the draw
                 # Extract winning numbers and supplementary numbers
                 winning_set = set(map(int, winning_lotto_numbers["winning_numbers"].split(', ')))
                 supplementary_set = set(map(int, winning_lotto_numbers["supplementary_numbers"].split(', ')))
                 if not user_lotto_numbers:
-                    await ctx.send(f"No users have played the lotto yet!")
+                    await send_chat_message(f"No users have played the lotto yet!")
                     return  # If no users have played, send a message and exit
                 winners = 0
                 for user in user_lotto_numbers:
@@ -5633,21 +5633,21 @@ class TwitchBot(commands.Bot):
                         total_points = total_points_data["points"] if total_points_data else prize
                         # Send message about the win
                         message = f"@{user_name} you've won {division} and received {prize} points! Total points: {total_points}"
-                        await ctx.send(message)
+                        await send_chat_message(message)
                         winners += 1
                     # Remove user lotto entry after the draw
                     await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
                     await connection.commit()
                 if winners == 0 and user_lotto_numbers:
-                    await ctx.send(f"No winners this time! The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
+                    await send_chat_message(f"No winners this time! The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
                 else:
-                    await ctx.send(f"The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
+                    await send_chat_message(f"The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
                 # Clear winning numbers after the draw
                 await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
                 await connection.commit()
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
-            await ctx.send("Sorry, there is an error in drawing the lotto winners.")
+            await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
         finally:
             await connection.ensure_closed()
 
@@ -7996,13 +7996,13 @@ async def add_task(ctx, params, user_id, connection):
                 task_id = cursor.lastrowid
                 await connection.commit()
                 category_name = await fetch_category_name(cursor, category_id)
-                await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name or ("Unknown" if category_name is None else category_name)}".')
+                await send_chat_message(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name or ("Unknown" if category_name is None else category_name)}".')
                 chat_logger.info(f"{user.name} added a task: '{task_description}' in category: '{category_name or 'Unknown'}' with ID {task_id}.")
             except (ValueError, IndexError):
-                await ctx.send(f"{user.name}, please provide a valid task description and optional category ID.")
+                await send_chat_message(f"{user.name}, please provide a valid task description and optional category ID.")
                 chat_logger.warning(f"{user.name} provided invalid task description or category ID for adding a task.")
         else:
-            await ctx.send(f"{user.name}, please provide a task to add.")
+            await send_chat_message(f"{user.name}, please provide a task to add.")
             chat_logger.warning(f"{user.name} did not provide any task to add.")
 
 # ToDo List Function - Edit Task
@@ -8016,17 +8016,17 @@ async def edit_task(ctx, params, user_id, connection):
                 new_task = new_task.strip()
                 await cursor.execute("UPDATE todos SET objective = %s WHERE id = %s", (new_task, todo_id))
                 if cursor.rowcount == 0:
-                    await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                    await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
                     chat_logger.warning(f"{user.name} tried to edit non-existing task ID {todo_id}.")
                 else:
                     await connection.commit()
-                    await ctx.send(f"{user.name}, task {todo_id} has been updated to \"{new_task}\".")
+                    await send_chat_message(f"{user.name}, task {todo_id} has been updated to \"{new_task}\".")
                     chat_logger.info(f"{user.name} edited task ID {todo_id} to new task: '{new_task}'.")
             except ValueError:
-                await ctx.send(f"{user.name}, please provide the task ID and new description separated by a comma.")
+                await send_chat_message(f"{user.name}, please provide the task ID and new description separated by a comma.")
                 chat_logger.warning(f"{user.name} provided invalid format for editing a task.")
         else:
-            await ctx.send(f"{user.name}, please provide the task ID and new description.")
+            await send_chat_message(f"{user.name}, please provide the task ID and new description.")
             chat_logger.warning(f"{user.name} did not provide task ID and new description for editing.")
 
 # ToDo List Function - Remove Task
@@ -8039,16 +8039,16 @@ async def remove_task(ctx, params, user_id, connection):
                 await cursor.execute("SELECT id FROM todos WHERE id = %s", (todo_id,))
                 if await cursor.fetchone():
                     pending_removals[user_id] = todo_id
-                    await ctx.send(f"{user.name}, please use `!todo confirm` to remove task ID {todo_id}.")
+                    await send_chat_message(f"{user.name}, please use `!todo confirm` to remove task ID {todo_id}.")
                     chat_logger.info(f"{user.name} initiated removal of task ID {todo_id}.")
                 else:
-                    await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                    await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
                     chat_logger.warning(f"{user.name} tried to remove non-existing task ID {todo_id}.")
             except ValueError:
-                await ctx.send(f"{user.name}, please provide a valid task ID to remove.")
+                await send_chat_message(f"{user.name}, please provide a valid task ID to remove.")
                 chat_logger.warning(f"{user.name} provided invalid task ID for removal.")
         else:
-            await ctx.send(f"{user.name}, please provide the task ID to remove.")
+            await send_chat_message(f"{user.name}, please provide the task ID to remove.")
             chat_logger.warning(f"{user.name} did not provide task ID for removal.")
 
 # ToDo List Function - Complete Task
@@ -8060,17 +8060,17 @@ async def complete_task(ctx, params, user_id, connection):
                 todo_id = int(params[0].strip())
                 await cursor.execute("UPDATE todos SET completed = 'Yes' WHERE id = %s", (todo_id,))
                 if cursor.rowcount == 0:
-                    await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                    await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
                     chat_logger.warning(f"{user.name} tried to complete non-existing task ID {todo_id}.")
                 else:
                     await connection.commit()
-                    await ctx.send(f"{user.name}, task {todo_id} has been marked as complete.")
+                    await send_chat_message(f"{user.name}, task {todo_id} has been marked as complete.")
                     chat_logger.info(f"{user.name} marked task ID {todo_id} as complete.")
             except ValueError:
-                await ctx.send(f"{user.name}, please provide a valid task ID to mark as complete.")
+                await send_chat_message(f"{user.name}, please provide a valid task ID to mark as complete.")
                 chat_logger.warning(f"{user.name} provided invalid task ID for completion.")
         else:
-            await ctx.send(f"{user.name}, please provide the task ID to mark as complete.")
+            await send_chat_message(f"{user.name}, please provide the task ID to mark as complete.")
             chat_logger.warning(f"{user.name} did not provide task ID for completion.")
 
 # ToDo List Function - Confirm Removal
@@ -8081,10 +8081,10 @@ async def confirm_removal(ctx, params, user_id, connection):
             todo_id = pending_removals.pop(user_id)
             await cursor.execute("DELETE FROM todos WHERE id = %s", (todo_id,))
             await connection.commit()
-            await ctx.send(f"{user.name}, task ID {todo_id} has been removed.")
+            await send_chat_message(f"{user.name}, task ID {todo_id} has been removed.")
             chat_logger.info(f"{user.name} confirmed and removed task ID {todo_id}.")
         else:
-            await ctx.send(f"{user.name}, you have no pending task removal to confirm.")
+            await send_chat_message(f"{user.name}, you have no pending task removal to confirm.")
             chat_logger.warning(f"{user.name} tried to confirm removal without pending task.")
 
 # ToDo List Function - View Task
@@ -8101,16 +8101,16 @@ async def view_task(ctx, params, user_id, connection):
                     category_id = result.get("category")
                     completed = result.get("completed")
                     category_name = await fetch_category_name(cursor, category_id)
-                    await ctx.send(f"Task ID {todo_id}: Description: {objective} Category: {category_name or 'Unknown'} Completed: {completed}")
+                    await send_chat_message(f"Task ID {todo_id}: Description: {objective} Category: {category_name or 'Unknown'} Completed: {completed}")
                     chat_logger.info(f"{user.name} viewed task ID {todo_id}.")
                 else:
-                    await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                    await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
                     chat_logger.warning(f"{user.name} tried to view non-existing task ID {todo_id}.")
             except ValueError:
-                await ctx.send(f"{user.name}, please provide a valid task ID to view.")
+                await send_chat_message(f"{user.name}, please provide a valid task ID to view.")
                 chat_logger.warning(f"{user.name} provided invalid task ID for viewing.")
         else:
-            await ctx.send(f"{user.name}, please provide the task ID to view.")
+            await send_chat_message(f"{user.name}, please provide the task ID to view.")
             chat_logger.warning(f"{user.name} did not provide task ID for viewing.")
 
 # Function to get Category Names for the ToDo List
@@ -8127,7 +8127,7 @@ async def start_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
-                await ctx.send(f"A subathon is already running!")
+                await send_chat_message(f"A subathon is already running!")
                 return
             if subathon_state and subathon_state["paused"]:
                 await resume_subathon(ctx)
@@ -8140,13 +8140,13 @@ async def start_subathon(ctx):
                     subathon_end_time = subathon_start_time + timedelta(minutes=starting_minutes)
                     await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
                     await connection.commit()
-                    await ctx.send(f"Subathon started!")
+                    await send_chat_message(f"Subathon started!")
                     create_task(subathon_countdown())
                     # Send websocket notice
                     additional_data = {'starting_minutes': starting_minutes}
                     create_task(websocket_notice(event="SUBATHON_START", additional_data=additional_data))
                 else:
-                    await ctx.send(f"Can't start subathon, please go to the dashboard and set up subathons.")
+                    await send_chat_message(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
         await cursor.close()
         await connection.ensure_closed()
@@ -8161,11 +8161,11 @@ async def stop_subathon(ctx):
             if subathon_state and not subathon_state["paused"]:
                 await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state["id"]))
                 await connection.commit()
-                await ctx.send(f"Subathon ended!")
+                await send_chat_message(f"Subathon ended!")
                 # Send websocket notice
                 create_task(websocket_notice(event="SUBATHON_STOP"))
             else:
-                await ctx.send(f"No subathon active.")
+                await send_chat_message(f"No subathon active.")
     finally:
         await cursor.close()
         await connection.ensure_closed()
@@ -8181,12 +8181,12 @@ async def pause_subathon(ctx):
                 remaining_minutes = (subathon_state["end_time"] - time_right_now()).total_seconds() // 60
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state["id"]))
                 await connection.commit()
-                await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
+                await send_chat_message(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
                 additional_data = {'remaining_minutes': remaining_minutes}
                 create_task(websocket_notice(event="SUBATHON_PAUSE", additional_data=additional_data))
             else:
-                await ctx.send("No subathon is active or it's already paused!")
+                await send_chat_message("No subathon is active or it's already paused!")
     finally:
         await cursor.close()
         await connection.ensure_closed()
@@ -8202,7 +8202,7 @@ async def resume_subathon(ctx):
                 subathon_end_time = time_right_now()+ timedelta(minutes=subathon_state["remaining_minutes"])
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))
                 await connection.commit()
-                await ctx.send(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
+                await send_chat_message(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
                 create_task(subathon_countdown())
                 # Send websocket notice
                 additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
@@ -8222,12 +8222,12 @@ async def addtime_subathon(ctx, minutes):
                 subathon_end_time = subathon_state["end_time"] + timedelta(minutes=minutes)
                 await cursor.execute("UPDATE subathon SET end_time = %s WHERE id = %s", (subathon_end_time, subathon_state["id"]))
                 await connection.commit()
-                await ctx.send(f"Added {minutes} minutes to the subathon timer!")
+                await send_chat_message(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
                 additional_data = {'added_minutes': minutes}
                 create_task(websocket_notice(event="SUBATHON_ADD_TIME", additional_data=additional_data))
             else:
-                await ctx.send("No subathon is active or it's paused!")
+                await send_chat_message("No subathon is active or it's paused!")
     finally:
         await cursor.close()
         await connection.ensure_closed()
@@ -8237,12 +8237,12 @@ async def subathon_status(ctx):
     subathon_state = await get_subathon_state()
     if subathon_state:
         if subathon_state["paused"]:
-            await ctx.send(f"Subathon is paused with {subathon_state['remaining_minutes']} minutes remaining.")
+            await send_chat_message(f"Subathon is paused with {subathon_state['remaining_minutes']} minutes remaining.")
         else:
             remaining = subathon_state["end_time"] - time_right_now()
-            await ctx.send(f"Subathon time remaining: {remaining}.")
+            await send_chat_message(f"Subathon time remaining: {remaining}.")
     else:
-        await ctx.send("No subathon is active!")
+        await send_chat_message("No subathon is active!")
 
 # Function to start the subathon countdown
 async def subathon_countdown():
@@ -8646,7 +8646,7 @@ async def return_the_action_back(ctx, author, action):
             result = await cursor.fetchone()
             if result:
                 count = result[column]
-                await ctx.send(f"Thanks for the {display_action}, {author}! I've given you a {display_action} too, you have been {display_action} {count} times!")
+                await send_chat_message(f"Thanks for the {display_action}, {author}! I've given you a {display_action} too, you have been {display_action} {count} times!")
     finally:
         await connection.ensure_closed()
 
