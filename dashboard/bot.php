@@ -1519,7 +1519,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const serviceDegradedText = <?php echo json_encode(t('bot_status_unknown')); ?>;
     const statusCheckFailedText = <?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>;
     services.forEach(svc => {
-      fetch('api_status.php?service=' + svc.api)
+      fetchWithTimeout('api_status.php?service=' + svc.api, {}, 8000)
         .then(r => r.json())
         .then(data => {
           const icon = document.getElementById(svc.id);
@@ -1615,7 +1615,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let latencyCount = 0;
     let servicesChecked = 0;
     services.forEach(service => {
-      fetch(`api_status.php?service=${service}`)
+      fetchWithTimeout(`api_status.php?service=${service}`, {}, 8000)
         .then(r => r.json())
         .then(data => {
           servicesChecked++;
@@ -1677,7 +1677,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Function to update server metrics using real data
   function updateServerMetrics() {
     if (!isTechnical) return;
-    fetch('server_metrics.php')
+    fetchWithTimeout('server_metrics.php', {}, 8000)
       .then(r => r.json())
       .then(data => {
         if (data.error) {
@@ -1758,7 +1758,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Only run if no bot action is in progress
     if (botActionInProgress) return;
     // AJAX call to get the latest status from the backend
-    fetch('check_channel_status.php')
+    fetchWithTimeout('check_channel_status.php', {}, 8000)
       .then(r => {
         if (!r.ok) throw new Error('Network response was not ok');
         return r.json();
@@ -1800,7 +1800,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (onlineBtn) {
       onlineBtn.addEventListener('click', function() {
         onlineBtn.disabled = true;
-        fetch('https://api.botofthespecter.com/websocket/stream_online?api_key=' + encodeURIComponent(apiKey))
+        fetchWithTimeout('https://api.botofthespecter.com/websocket/stream_online?api_key=' + encodeURIComponent(apiKey), {}, 8000)
           .then(r => r.json())
           .then(data => {
             showNotification(<?php echo json_encode(t('bot_channel_forced_online')); ?>, 'success');
@@ -1815,7 +1815,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (offlineBtn) {
       offlineBtn.addEventListener('click', function() {
         offlineBtn.disabled = true;
-        fetch('https://api.botofthespecter.com/websocket/stream_offline?api_key=' + encodeURIComponent(apiKey))
+        fetchWithTimeout('https://api.botofthespecter.com/websocket/stream_offline?api_key=' + encodeURIComponent(apiKey), {}, 8000)
           .then(r => r.json())
           .then(data => {
             showNotification(<?php echo json_encode(t('bot_channel_forced_offline')); ?>, 'success');
