@@ -328,10 +328,50 @@ ob_start();
                         </div>
                     </div>
                 </div>
+                <!-- Current Timed Messages Table -->
+                <div class="columns is-centered mt-5">
+                    <div class="column is-fullwidth">
+                        <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                            <header class="card-header">
+                                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                                    <span class="icon mr-2"><i class="fas fa-list"></i></span>
+                                    Current Timed Messages
+                                </span>
+                            </header>
+                            <div class="card-content">
+                                <table class="table is-fullwidth has-background-dark has-text-white">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 42px; text-align: center; vertical-align: middle;">ID</th>
+                                            <th style="vertical-align: middle;">Message</th>
+                                            <th style="width: 120px; text-align: center; vertical-align: middle;">Interval (min)</th>
+                                            <th style="width: 120px; text-align: center; vertical-align: middle;">Chat Line Trigger</th>
+                                            <th style="width: 120px; text-align: center; vertical-align: middle;">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php if (!empty($timedMessagesData)): ?>
+                                            <?php foreach ($timedMessagesData as $msg): ?>
+                                                <tr>
+                                                    <td style="text-align: center; vertical-align: middle;"><?php echo $msg['id']; ?></td>
+                                                    <td><?php echo htmlspecialchars($msg['message']); ?></td>
+                                                    <td style="text-align: center; vertical-align: middle;"><?php echo $msg['interval_count']; ?></td>
+                                                    <td style="text-align: center; vertical-align: middle;"><?php echo $msg['chat_line_trigger']; ?></td>
+                                                    <td style="text-align: center; vertical-align: middle;"><?php echo $msg['status'] == 1 ? 'Enabled' : 'Disabled'; ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <tr>
+                                                <td colspan="5" class="has-text-centered">No timed messages found.</td>
+                                            </tr>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</div>
 <?php
 $content = ob_get_clean();
 
