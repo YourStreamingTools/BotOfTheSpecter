@@ -372,6 +372,14 @@ ob_start();
                     <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
                     <code><?php echo t('custom_var_random_percent_in_chat'); ?></code>
                 </div>
+                <div class="column is-4">
+                    <span class="has-text-weight-bold variable-title">(game)</span><br>
+                    <?php echo t('custom_var_game_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_game_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_game_in_chat'); ?></code>
+                </div>
             </div>
         </section>
     </div>
