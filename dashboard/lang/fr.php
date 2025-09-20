@@ -167,7 +167,7 @@ return [
     'bot_streaming_service_status' => 'Statut du service de streaming',
     'bot_generic_services' => 'Services génériques',
     'bot_view_detailed_uptime' => 'Voir les moniteurs de disponibilité détaillés',
-    'bot_beta_subscription_warning' => 'Vous avez besoin d\'un abonnement actif pour accéder à cette version du bot. Veuillez visiter la <a href=":premium_url">page Premium</a> pour plus d\'informations.',
+    'bot_beta_subscription_warning' => 'Vous avez besoin d\'un abonnement actif pour accéder à cette version du bot.<br>Veuillez visiter la <a href=":premium_url">page Premium</a> pour plus d\'informations.',
     'bot_multi_bot_warning' => '<span class="has-text-weight-bold">Attention :</span> L\'exécution simultanée de plusieurs versions du bot (Stable, Bêta) peut entraîner des conflits de données et un comportement inattendu. Veuillez vous assurer qu\'une seule version fonctionne à la fois.',
     'bot_status_online' => 'STATUT : EN LIGNE',
     'bot_status_offline' => 'STATUT : HORS LIGNE',

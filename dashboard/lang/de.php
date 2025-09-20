@@ -165,7 +165,7 @@ return [
     'bot_streaming_service_status' => 'Streaming-Dienststatus',
     'bot_generic_services' => 'Allgemeine Dienste',
     'bot_view_detailed_uptime' => 'Detaillierte Uptime-Monitore anzeigen',
-    'bot_beta_subscription_warning' => 'Sie benötigen ein aktives Abonnement, um diese Version des Bots zu nutzen. Bitte besuchen Sie die <a href=":premium_url">Premium-Seite</a> für weitere Informationen.',
+    'bot_beta_subscription_warning' => 'Sie benötigen ein aktives Abonnement, um diese Version des Bots zu nutzen.<br>Bitte besuchen Sie die <a href=":premium_url">Premium-Seite</a> für weitere Informationen.',
     'bot_multi_bot_warning' => '<span class="has-text-weight-bold">Hinweis:</span> Das gleichzeitige Ausführen mehrerer Bot-Versionen (Stable, Beta) kann zu Datenkonflikten und unerwartetem Verhalten führen. Bitte stellen Sie sicher, dass jeweils nur eine Version läuft.',
     'bot_status_online' => 'STATUS: ONLINE',
     'bot_status_offline' => 'STATUS: OFFLINE',

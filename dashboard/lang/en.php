@@ -190,7 +190,7 @@ return [
     'bot_streaming_service_status' => 'Streaming Service Status',
     'bot_generic_services' => 'Generic Services',
     'bot_view_detailed_uptime' => 'View Detailed Uptime Monitors',
-    'bot_beta_subscription_warning' => 'You need an active subscription to access this version of the bot. Please visit the <a href=":premium_url">Premium page</a> for more information.',
+    'bot_beta_subscription_warning' => 'You need an active subscription to access this version of the bot.<br>Please visit the <a href=":premium_url">Premium page</a> for more information.',
     'bot_multi_bot_warning' => '<span class="has-text-weight-bold">Notice:</span> Running multiple versions of the bot (Stable, Beta) at the same time can cause data conflicts and unexpected behavior. Please ensure only one version is running at a time for best results.',
     'bot_status_online' => 'STATUS: ONLINE',
     'bot_status_offline' => 'STATUS: OFFLINE',

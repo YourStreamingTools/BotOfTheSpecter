@@ -331,9 +331,6 @@ ob_start();
 <?php if($multiBotWarning): ?>
   <?php echo $multiBotWarning; ?>
 <?php endif; ?>
-<?php if($subscriptionWarning): ?>
-  <?php echo $subscriptionWarning; ?>
-<?php endif; ?>
 <div class="columns is-variable is-6">
   <div class="column is-4">
     <div class="card has-background-dark has-text-white mb-4">
@@ -435,11 +432,9 @@ ob_start();
               <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
                 <?php echo t('bot_stable_bot'); ?>
               </option>
-              <?php if ($betaAccess): ?>
               <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
                 <?php echo t('bot_beta_bot'); ?>
               </option>
-              <?php endif; ?>
             </select>
           </div>
         </div>
@@ -495,12 +490,18 @@ ob_start();
         <?php if ($BotModMessage): ?>
         <p class="has-text-danger has-text-centered mb-2"><?php echo $BotModMessage; ?></p>
         <?php endif; ?>
+        <?php if ($selectedBot === 'beta' && !$betaAccess): ?>
+        <div class="notification is-warning has-text-black has-text-weight-bold has-text-centered is-centered mb-2">
+          <?php echo t('bot_beta_subscription_warning', ['premium_url' => 'premium.php']); ?>
+        </div>
+        <?php else: ?>
         <div class="buttons is-centered mb-2">
           <button class="button is-info is-medium has-text-black has-text-weight-bold px-6 mr-3" disabled>
             <span class="icon"><i class="fas fa-spinner fa-spin"></i></span>
             <span>Checking status...</span>
           </button>
         </div>
+        <?php endif; ?>
         <?php endif; ?>
       </div>
     </div>
@@ -776,6 +777,7 @@ if (<?php echo json_encode($isTechnical); ?>) {
 document.addEventListener('DOMContentLoaded', function() {
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
   const isBotMod = <?php echo json_encode($BotIsMod); ?>;
+  const hasBetaAccess = <?php echo json_encode($betaAccess); ?>;
   // Initialize the notification deletion functionality
   const deleteButtons = document.querySelectorAll('.notification .delete');
   deleteButtons.forEach(button => {
@@ -890,6 +892,10 @@ document.addEventListener('DOMContentLoaded', function() {
   function handleBetaBotAction(action) {
     if (action === 'run' && !isBotMod) {
       showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
+      return;
+    }
+    if (action === 'run' && !hasBetaAccess) {
+      showNotification("You do not have access to the beta bot. Please subscribe to access beta features.", 'danger');
       return;
     }
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
@@ -1200,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         // Show Run button
         buttonContainer.innerHTML = `
-          <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${!isBotMod ? 'disabled' : ''}>
+          <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess)) ? 'disabled' : ''}>
             <span class="icon"><i class="fas fa-play"></i></span>
             <span><?php echo addslashes(t('bot_run')); ?></span>
           </button>
@@ -1283,7 +1289,7 @@ document.addEventListener('DOMContentLoaded', function() {
               } else {
                 // Show Run button
                 buttonContainer.innerHTML = `
-                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${!isBotMod ? 'disabled' : ''}>
+                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess)) ? 'disabled' : ''}>
                     <span class="icon"><i class="fas fa-play"></i></span>
                     <span><?php echo addslashes(t('bot_run')); ?></span>
                   </button>
