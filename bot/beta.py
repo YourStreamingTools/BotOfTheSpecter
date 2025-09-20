@@ -74,6 +74,8 @@ else:
     OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
     CLIENT_ID = os.getenv('CLIENT_ID')
     CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
+TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
@@ -1354,7 +1356,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["shoutout_worker"] = create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = create_task(periodic_watch_time_update())
         looped_tasks["check_song_requests"] = create_task(check_song_requests())
-        await channel.send(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
+        await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
         self.target_channel = channel 
@@ -8351,6 +8353,7 @@ async def reload_env_vars():
     global SQL_HOST, SQL_USER, SQL_PASSWORD, ADMIN_API_KEY, USE_BACKUP_SYSTEM
     global BACKUP_SYSTEM, OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET, TWITCH_GQL
     global SHAZAM_API, STEAM_API, EXCHANGE_RATE_API_KEY, HYPERATE_API_KEY, CHANNEL_AUTH
+    global TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
     # Reload the .env file
     load_dotenv()
     SQL_HOST = os.getenv('SQL_HOST')
@@ -8368,6 +8371,8 @@ async def reload_env_vars():
         OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
         CLIENT_ID = os.getenv('CLIENT_ID')
         CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+    TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
+    TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
     TWITCH_GQL = os.getenv('TWITCH_GQL')
     SHAZAM_API = os.getenv('SHAZAM_API')
     STEAM_API = os.getenv('STEAM_API')
@@ -8882,6 +8887,51 @@ async def check_next_ad_after_completion(channel, ads_api_url, headers):
                         api_logger.error(f"Error parsing next ad time after completion: {e}")
     except Exception as e:
         api_logger.error(f"Error checking next ad after completion: {e}")
+
+async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
+    if len(message) > 255:
+        chat_logger.error(f"Message too long: {len(message)} characters (max 255)")
+        return False
+    url = "https://api.twitch.tv/helix/chat/messages"
+    headers = {
+        "Authorization": f"Bearer {TWITCH_OAUTH_API_TOKEN}",
+        "Client-Id": TWITCH_OAUTH_API_CLIENT_ID,
+        "Content-Type": "application/json"
+    }
+    data = {
+        "broadcaster_id": CHANNEL_ID,
+        "sender_id": "971436498",
+        "message": message
+    }
+    if reply_parent_message_id:
+        data["reply_parent_message_id"] = reply_parent_message_id
+    try:
+        async with httpClientSession() as session:
+            async with session.post(url, headers=headers, json=data) as response:
+                if response.status == 200:
+                    response_data = await response.json()
+                    if response_data.get("data"):
+                        msg_data = response_data["data"][0]
+                        message_id = msg_data.get("message_id")
+                        is_sent = msg_data.get("is_sent", False)
+                        drop_reason = msg_data.get("drop_reason")
+                        if is_sent:
+                            chat_logger.info(f"Successfully sent chat message: {message} (ID: {message_id})")
+                            chat_history_logger.info(f"Chat message from botofthespecter: {message}")
+                            return True
+                        else:
+                            chat_logger.error(f"Message not sent. Drop reason: {drop_reason}")
+                            return False
+                    else:
+                        chat_logger.error("No data in response")
+                        return False
+                else:
+                    error_text = await response.text()
+                    chat_logger.error(f"Failed to send chat message: {response.status} - {error_text}")
+                    return False
+    except Exception as e:
+        chat_logger.error(f"Error sending chat message: {e}")
+        return False
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
