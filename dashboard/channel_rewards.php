@@ -140,7 +140,7 @@ ob_start();
                             <ul>
                                 <li><span class="has-text-weight-bold">(user)</span>: <?php echo t('channel_rewards_var_user'); ?></li>
                                 <li><span class="has-text-weight-bold">(usercount)</span>: <?php echo t('channel_rewards_var_usercount'); ?></li>
-                                <li><span class="has-text-weight-bold" style="color: #a259ff;">(userstreak)</span>: <?php echo t('channel_rewards_var_userstreak'); ?></li>
+                                <li><span class="has-text-weight-bold">(userstreak)</span>: <?php echo t('channel_rewards_var_userstreak'); ?></li>
                             </ul>
                         </div>
                     </div>
@@ -169,11 +169,7 @@ ob_start();
                                             <div id="<?php echo $reward['reward_id']; ?>">
                                                 <?php 
                                                 $message = isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : '';
-                                                if (strpos($message, '(userstreak)') !== false) {
-                                                    echo '<span style="color: #a259ff;">' . $message . '</span>';
-                                                } else {
-                                                    echo $message;
-                                                }
+                                                echo $message;
                                                 ?>
                                             </div>
                                             <div class="edit-box" id="edit-box-<?php echo $reward['reward_id']; ?>" style="display: none;">
@@ -254,11 +250,7 @@ function updateCustomMessage(rewardid, newCustomMessage) {
                 // Update the display
                 const customMessage = document.getElementById(rewardid);
                 const escapedMessage = escapeHtml(newCustomMessage);
-                if (escapedMessage.includes('(userstreak)')) {
-                    customMessage.innerHTML = '<span style="color: #a259ff;">' + escapedMessage + '</span>';
-                } else {
-                    customMessage.innerHTML = escapedMessage;
-                }
+                customMessage.innerHTML = escapedMessage;
                 // Hide edit mode
                 const editBox = document.getElementById('edit-box-' + rewardid);
                 const controls = document.getElementById('controls-' + rewardid);
