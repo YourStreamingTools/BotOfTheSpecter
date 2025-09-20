@@ -27,7 +27,6 @@ $lastRestartOutput = '';
 $stableLastModifiedOutput = '';
 $stableLastRestartOutput = '';
 
-
 $selectedBot = $_GET['bot'] ?? null;
 if (isset($_GET['bot'])) {
   if (in_array($_GET['bot'], ['stable', 'beta'])) {
@@ -380,6 +379,9 @@ ob_start();
               <span class="has-text-grey-light"><?php echo t('bot_last_run'); ?></span>
               <span id="last-run" class="has-text-info">Loading...</span>
             </p>
+            <div id="version-update-indicator" class="mt-2" style="display: none;">
+              <span class="tag is-warning is-light is-small">Update Available</span>
+            </div>
           </div>
           <p class="is-size-7 mt-3 has-text-grey-light">
             <?php echo t('bot_last_run_hint'); ?>
@@ -738,6 +740,8 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+const latestStableVersion = <?php echo json_encode($newVersion); ?>;
+const latestBetaVersion = <?php echo json_encode($betaNewVersion); ?>;
 // Technical UI Enhancements
 const technicalCSS = `
   .technical-info-grid {
@@ -781,6 +785,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // Global flag to track bot run operations in progress
   let botRunOperationInProgress = false;
   let currentBotBeingStarted = null;
+  // Flag to track if update notification has been shown
+  let updateNotificationShown = false;
   // Bot control buttons
   let stopBotBtn = document.getElementById('stop-bot-btn');
   let runBotBtn = document.getElementById('run-bot-btn');
@@ -1080,12 +1086,20 @@ document.addEventListener('DOMContentLoaded', function() {
     notification.className = `notification is-${type}`;
     // Add special handling for bot run operations in progress
     const isPersistentBotOperation = message.includes('currently starting up') || message.includes('Cannot switch bot types');
-    if (isPersistentBotOperation) {
+    // Add special handling for update notifications
+    const isUpdateNotification = type === 'update' || message.includes('version is available');
+    if (isPersistentBotOperation || isUpdateNotification) {
       notification.classList.add('bot-operation-persistent');
       notification.innerHTML = `
+        <button class="delete"></button>
         <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
         ${message}
       `;
+      // Add delete button functionality for update notifications
+      const deleteBtn = notification.querySelector('.delete');
+      deleteBtn.addEventListener('click', () => {
+        notification.parentNode.removeChild(notification);
+      });
     } else {
       notification.innerHTML = `
         <button class="delete"></button>
@@ -1100,8 +1114,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add to the page
     const container = document.querySelector('.container');
     container.insertBefore(notification, container.firstChild);
-    // Auto-remove after time (except for persistent bot operation messages)
-    if (!isPersistentBotOperation) {
+    // Auto-remove after time (except for persistent bot operation messages and update notifications)
+    if (!isPersistentBotOperation && !isUpdateNotification) {
       const autoRemoveTime = type === 'info' ? 3000 : 5000;
       setTimeout(() => {
         if (notification.parentNode) {
@@ -1207,6 +1221,26 @@ document.addEventListener('DOMContentLoaded', function() {
               lastModified: data.lastModified,
               lastRun: data.lastRun
             });
+            // Check for version updates
+            const latestVersion = selectedBot === 'beta' ? latestBetaVersion : latestStableVersion;
+            if (data.version && data.version !== latestVersion && latestVersion !== 'N/A') {
+              // Show update notification only once per session
+              if (!updateNotificationShown) {
+                showNotification(`A new ${selectedBot} bot version is available! Current: ${data.version}, Latest: ${latestVersion}`, 'update');
+                updateNotificationShown = true;
+              }
+              // Show update indicator in version card
+              const updateIndicator = document.getElementById('version-update-indicator');
+              if (updateIndicator) {
+                updateIndicator.style.display = 'block';
+              }
+            } else {
+              // Hide update indicator if versions match
+              const updateIndicator = document.getElementById('version-update-indicator');
+              if (updateIndicator) {
+                updateIndicator.style.display = 'none';
+              }
+            }
             const statusText = data.running ? 'ONLINE' : 'OFFLINE';
             const statusClass = data.running ? 'success' : 'danger';
             // Update status text
@@ -1812,6 +1846,8 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       return; // Don't proceed with the change
     }
+    // Reset update notification flag when switching bots
+    updateNotificationShown = false;
     const url = new URL(window.location.href);
     url.searchParams.set('bot', bot);
     window.location.href = url.toString();
