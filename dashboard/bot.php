@@ -785,8 +785,6 @@ document.addEventListener('DOMContentLoaded', function() {
   // Global flag to track bot run operations in progress
   let botRunOperationInProgress = false;
   let currentBotBeingStarted = null;
-  // Flag to track if update notification has been shown
-  let updateNotificationShown = false;
   // Bot control buttons
   let stopBotBtn = document.getElementById('stop-bot-btn');
   let runBotBtn = document.getElementById('run-bot-btn');
@@ -1069,6 +1067,10 @@ document.addEventListener('DOMContentLoaded', function() {
   function showNotification(message, type) {
     // Remove existing notifications with the same message and type
     document.querySelectorAll(`.notification.is-${type}`).forEach(n => {
+      // Don't remove update notifications
+      if (type === 'update' || n.classList.contains('bot-operation-persistent')) {
+        return;
+      }
       if (n.textContent.trim() === message.trim()) {
         n.parentNode.removeChild(n);
       }
@@ -1076,6 +1078,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Remove previous status checking notifications when showing new ones
     if (message.includes('command sent') || message.includes('Checking') || message.includes('is now running')) {
       document.querySelectorAll('.notification.is-info').forEach(n => {
+        // Don't remove update notifications or persistent notifications
+        if (n.classList.contains('bot-operation-persistent') || n.querySelector('.fas.fa-exclamation-triangle')) {
+          return;
+        }
         if (n.textContent.includes('command sent') || n.textContent.includes('Checking') || n.textContent.includes('status check timed out')) {
           n.parentNode.removeChild(n);
         }
@@ -1090,16 +1096,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const isUpdateNotification = type === 'update' || message.includes('version is available');
     if (isPersistentBotOperation || isUpdateNotification) {
       notification.classList.add('bot-operation-persistent');
-      notification.innerHTML = `
-        <button class="delete"></button>
-        <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-        ${message}
-      `;
-      // Add delete button functionality for update notifications
-      const deleteBtn = notification.querySelector('.delete');
-      deleteBtn.addEventListener('click', () => {
-        notification.parentNode.removeChild(notification);
-      });
+      if (isUpdateNotification) {
+        // Update notifications are completely persistent with no delete button
+        notification.innerHTML = `
+          <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+          ${message}
+        `;
+      } else {
+        // Other persistent notifications get delete button
+        notification.innerHTML = `
+          <button class="delete"></button>
+          <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+          ${message}
+        `;
+        // Add delete button functionality for non-update persistent notifications
+        const deleteBtn = notification.querySelector('.delete');
+        deleteBtn.addEventListener('click', () => {
+          notification.parentNode.removeChild(notification);
+        });
+      }
     } else {
       notification.innerHTML = `
         <button class="delete"></button>
@@ -1224,11 +1239,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Check for version updates
             const latestVersion = selectedBot === 'beta' ? latestBetaVersion : latestStableVersion;
             if (data.version && data.version !== latestVersion && latestVersion !== 'N/A') {
-              // Show update notification only once per session
-              if (!updateNotificationShown) {
-                showNotification(`A new ${selectedBot} bot version is available! Current: ${data.version}, Latest: ${latestVersion}`, 'update');
-                updateNotificationShown = true;
-              }
+              // Always show update notification when there's an update available
+              showNotification(`A new ${selectedBot} bot version is available! Current: ${data.version}, Latest: ${latestVersion}`, 'update');
               // Show update indicator in version card
               const updateIndicator = document.getElementById('version-update-indicator');
               if (updateIndicator) {
@@ -1846,8 +1858,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       return; // Don't proceed with the change
     }
-    // Reset update notification flag when switching bots
-    updateNotificationShown = false;
     const url = new URL(window.location.href);
     url.searchParams.set('bot', bot);
     window.location.href = url.toString();
