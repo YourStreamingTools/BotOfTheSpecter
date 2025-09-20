@@ -366,17 +366,15 @@ class FortuneResponse(BaseModel):
 
 # Define the response model for Version Control
 class VersionControlResponse(BaseModel):
-    alpha_version: str
     beta_version: str
     stable_version: str
     discord_bot: str
     class Config:
         json_schema_extra = {
             "example": {
-                "alpha_version": "5.5",
-                "beta_version": "5.4",
-                "stable_version": "5.3",
-                "discord_bot": "4.3.4"
+                "beta_version": "5.5",
+                "stable_version": "5.4",
+                "discord_bot": "5.3.0"
             }
         }
 
@@ -585,7 +583,7 @@ async def fortune(api_key: str = Query(...)):
     "/versions",
     response_model=VersionControlResponse,
     summary="Get the current bot versions",
-    description="Fetch the alpha, beta, and stable version numbers of the bot.",
+    description="Fetch the beta, stable, and discord bot version numbers.",
     tags=["BotOfTheSpecter"],
     operation_id="get_bot_versions"
 )
