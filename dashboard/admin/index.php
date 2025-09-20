@@ -41,6 +41,10 @@ ob_start();
             <span class="icon"><i class="fas fa-clipboard-list"></i></span>
             <span>Log Management</span>
         </a>
+        <a href="admin_twitch_tokens.php" class="button is-primary is-light">
+            <span class="icon"><i class="fab fa-twitch"></i></span>
+            <span>Twitch Tokens</span>
+        </a>
         <!-- Add more quick links as needed -->
     </div>
 </div>

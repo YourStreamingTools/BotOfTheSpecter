@@ -145,6 +145,10 @@ ob_start();
                     <span class="icon"><i class="fas fa-clipboard-list"></i></span>
                     <span>Log Management</span>
                 </a>
+                <a class="navbar-item" href="admin_twitch_tokens.php">
+                    <span class="icon"><i class="fab fa-twitch"></i></span>
+                    <span>Twitch Tokens</span>
+                </a>
             </div>
             <div class="navbar-end">
                 <div class="navbar-item has-dropdown is-hoverable">

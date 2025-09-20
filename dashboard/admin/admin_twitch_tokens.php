@@ -1,0 +1,263 @@
+<?php
+session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/../lang/i18n.php';
+$pageTitle = 'Twitch App Access Tokens';
+require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
+
+// Handle AJAX request for token generation BEFORE any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_token'])) {
+    header('Content-Type: application/json');
+    $clientID = isset($_POST['client_id']) ? trim($_POST['client_id']) : '';
+    $clientSecret = isset($_POST['client_secret']) ? trim($_POST['client_secret']) : '';
+    // Fall back to config values if POST values are empty
+    if (empty($clientID) && isset($GLOBALS['clientID']) && !empty($GLOBALS['clientID'])) {
+        $clientID = $GLOBALS['clientID'];
+    }
+    if (empty($clientSecret) && isset($GLOBALS['clientSecret']) && !empty($GLOBALS['clientSecret'])) {
+        $clientSecret = $GLOBALS['clientSecret'];
+    }
+    if (empty($clientID) || empty($clientSecret)) {
+        echo json_encode(['success' => false, 'error' => 'Client ID and Client Secret are required. Please configure them in your config file or enter them manually.']);
+        exit;
+    }
+    $url = 'https://id.twitch.tv/oauth2/token';
+    $data = [
+        'client_id' => $clientID,
+        'client_secret' => $clientSecret,
+        'grant_type' => 'client_credentials'
+    ];
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/x-www-form-urlencoded'
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($httpCode === 200) {
+        $result = json_decode($response, true);
+        if (isset($result['access_token'])) {
+            echo json_encode([
+                'success' => true,
+                'access_token' => $result['access_token'],
+                'expires_in' => $result['expires_in'] ?? 0,
+                'token_type' => $result['token_type'] ?? 'bearer'
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Invalid response from Twitch API.']);
+        }
+    } else {
+        $error = json_decode($response, true);
+        $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to generate token.';
+        echo json_encode(['success' => false, 'error' => $errorMsg]);
+    }
+    exit;
+}
+
+ob_start();
+?>
+
+<div class="box">
+    <h1 class="title is-4"><span class="icon"><i class="fab fa-twitch"></i></span> Twitch App Access Tokens</h1>
+    <p class="mb-4">Generate App Access Tokens for Twitch API usage, such as for chatbot badge display.</p>
+    <div class="content">
+        <h2>How to Get a Twitch App Access Token</h2>
+        <p>To obtain an App Access Token, you need:</p>
+        <ol>
+            <li>A registered Twitch application in the <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></li>
+            <li>Your application's Client ID and Client Secret</li>
+            <li>Use the OAuth endpoint to request the token</li>
+        </ol>
+        <p>The token is generated using the Client Credentials flow and is not tied to a specific user.</p>
+        <h3>Redirect URI Configuration</h3>
+        <p><strong>For App Access Tokens (Client Credentials):</strong> No redirect URI is required in the Twitch Developer Console.</p>
+        <p><strong>For User Access Tokens (Authorization Code):</strong> You need to configure redirect URIs in your Twitch application settings.</p>
+        <p><strong>Current Configuration:</strong></p>
+        <ul>
+            <li>Production: <code><?php echo htmlspecialchars($redirectURI ?? 'Not configured'); ?></code></li>
+            <li>Beta: <code><?php echo htmlspecialchars($betaRedirectURI ?? 'Not configured'); ?></code></li>
+        </ul>
+        <h3>Requirements for Chat Bot Badge</h3>
+        <p>For a chatbot to display the Chat Bot Badge:</p>
+        <ul>
+            <li>Use the Send Chat Message API</li>
+            <li>Use an App Access Token</li>
+            <li>Have the <code>channel:bot</code> scope authorized by the broadcaster or moderator status</li>
+            <li>The chatbot's user account is not the channel's broadcaster</li>
+        </ul>
+    </div>
+    <div class="box">
+        <h3 class="title is-5">Enter Twitch Application Credentials</h3>
+        <p class="mb-4">Fields are pre-populated with your configured credentials. You can modify them if needed.</p>
+        <div class="field">
+            <label class="label">Client ID</label>
+            <div class="control">
+                <input class="input" type="text" id="client-id" placeholder="Enter your Twitch Client ID" value="<?php echo htmlspecialchars($clientID ?? ''); ?>" required>
+            </div>
+            <p class="help">Found in your Twitch Developer Console application settings</p>
+        </div>
+        <div class="field">
+            <label class="label">Client Secret</label>
+            <div class="control">
+                <input class="input" type="password" id="client-secret" placeholder="Enter your Twitch Client Secret" value="<?php echo htmlspecialchars($clientSecret ?? ''); ?>" required>
+            </div>
+            <p class="help">Keep this secret! Found in your Twitch Developer Console application settings</p>
+        </div>
+        <div class="field">
+            <div class="control">
+                <button class="button is-primary" id="generate-token-btn">
+                    <span class="icon"><i class="fas fa-key"></i></span>
+                    <span>Generate App Access Token</span>
+                </button>
+            </div>
+        </div>
+        <div class="notification is-info is-light">
+            <h4 class="title is-6">ℹ️ Redirect URI Setup</h4>
+            <p><strong>Current Status:</strong> Your system has redirect URIs configured for user authentication flows.</p>
+            <p><strong>For App Access Tokens:</strong> No additional redirect setup needed - you're good to go!</p>
+            <p><strong>For User Authentication:</strong> Make sure these URIs are added to your Twitch Developer Console application settings.</p>
+        </div>
+    </div>
+    <div id="token-result" class="notification is-hidden">
+        <div id="token-content"></div>
+    </div>
+</div>
+
+<?php
+$content = ob_get_clean();
+ob_start();
+?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const generateBtn = document.getElementById('generate-token-btn');
+    const tokenResult = document.getElementById('token-result');
+    const tokenContent = document.getElementById('token-content');
+    generateBtn.addEventListener('click', async function() {
+        const clientId = document.getElementById('client-id').value.trim();
+        const clientSecret = document.getElementById('client-secret').value.trim();
+        if (!clientId || !clientSecret) {
+            Swal.fire({
+                title: 'Missing Credentials',
+                text: 'Please enter both Client ID and Client Secret, or ensure they are configured in your config file.',
+                icon: 'warning'
+            });
+            return;
+        }
+        generateBtn.classList.add('is-loading');
+        generateBtn.disabled = true;
+        try {
+            const formData = new FormData();
+            formData.append('generate_token', '1');
+            formData.append('client_id', clientId);
+            formData.append('client_secret', clientSecret);
+            const response = await fetch('', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.success) {
+                tokenContent.innerHTML = `
+                    <h4 class="title is-5">Token Generated Successfully</h4>
+                    <div class="field">
+                        <label class="label">Access Token</label>
+                        <div class="control">
+                            <input class="input" type="text" value="${data.access_token}" readonly id="token-input">
+                        </div>
+                        <p class="help">Expires in: ${data.expires_in} seconds (${Math.floor(data.expires_in / 3600)} hours)</p>
+                    </div>
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-small" onclick="copyToken()">
+                                <span class="icon"><i class="fas fa-copy"></i></span>
+                                <span>Copy Token</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-small is-info" onclick="generateAuthLink()">
+                                <span class="icon"><i class="fas fa-link"></i></span>
+                                <span>Generate Auth Link</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                tokenResult.classList.remove('is-hidden');
+                tokenResult.classList.add('is-success');
+                tokenResult.classList.remove('is-danger');
+            } else {
+                tokenContent.innerHTML = `<p class="has-text-danger">${data.error}</p>`;
+                tokenResult.classList.remove('is-hidden');
+                tokenResult.classList.remove('is-success');
+                tokenResult.classList.add('is-danger');
+            }
+        } catch (error) {
+            tokenContent.innerHTML = '<p class="has-text-danger">An error occurred while generating the token.</p>';
+            tokenResult.classList.remove('is-hidden');
+            tokenResult.classList.remove('is-success');
+            tokenResult.classList.add('is-danger');
+        }
+        generateBtn.classList.remove('is-loading');
+        generateBtn.disabled = false;
+    });
+});
+
+function copyToken() {
+    const tokenInput = document.getElementById('token-input');
+    tokenInput.select();
+    document.execCommand('copy');
+    // Optional: Show a brief success message
+    Swal.fire({
+        title: 'Copied!',
+        text: 'Token copied to clipboard',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
+    });
+}
+
+function generateAuthLink() {
+    const clientId = document.getElementById('client-id').value.trim();
+    const clientSecret = document.getElementById('client-secret').value.trim();
+    if (!clientId || !clientSecret) {
+        Swal.fire({
+            title: 'Missing Credentials',
+            text: 'Please enter both Client ID and Client Secret.',
+            icon: 'warning'
+        });
+        return;
+    }
+    const authUrl = `https://id.twitch.tv/oauth2/token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&grant_type=client_credentials`;
+    // Copy to clipboard
+    navigator.clipboard.writeText(authUrl).then(() => {
+        Swal.fire({
+            title: 'Auth Link Generated!',
+            html: `The authorization URL has been copied to your clipboard:<br><br><code>${authUrl}</code>`,
+            icon: 'success'
+        });
+    }).catch(() => {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = authUrl;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        Swal.fire({
+            title: 'Auth Link Generated!',
+            html: `The authorization URL has been copied to your clipboard:<br><br><code>${authUrl}</code>`,
+            icon: 'success'
+        });
+    });
+}
+</script>
+
+<?php
+$scripts = ob_get_clean();
+include "admin_layout.php";
+?>
