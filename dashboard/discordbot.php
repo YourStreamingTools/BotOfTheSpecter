@@ -390,20 +390,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   }
 }
 
-// Fetch existing webhook URLs
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) { die('Connection failed: ' . $db->connect_error); }
-$webhookKeys = ['discord_alert', 'discord_mod', 'discord_alert_online'];
-$existingWebhooks = [];
-foreach ($webhookKeys as $key) {
-  $stmt = $db->prepare("SELECT $key FROM profile");
-  $stmt->execute();
-  $result = $stmt->get_result();
-  $row = $result->fetch_assoc();
-  $existingWebhooks[$key] = $row ? $row[$key] : "";
-  $stmt->close();
-}
-
 $savedStreamers = [];
 $savedStreamersSTMT = $db->prepare("SELECT username, stream_url FROM member_streams");
 $savedStreamersSTMT->execute();
@@ -1427,9 +1413,9 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
                       <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>
-                      Stream Alerts Channel ID
+                      Stream Online Alerts Channel
                     </label>
-                    <p class="help has-text-grey-light mb-2">Channel ID for stream online/offline notifications</p>
+                    <p class="help has-text-grey-light mb-2">For stream online notifications of your channel</p>
                     <div class="control has-icons-left">
                       <?php echo generateChannelInput('stream_channel_id', 'stream_channel_id', $existingStreamAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
@@ -1437,9 +1423,9 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" for="mod_channel_id" style="font-weight: 500;">
                       <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
-                      Moderation Channel ID
+                      Twitch Moderation Actions Channel
                     </label>
-                    <p class="help has-text-grey-light mb-2">Channel ID for moderation actions and logs</p>
+                    <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g. bans, timeouts, message deletions</p>
                     <div class="control has-icons-left">
                       <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
@@ -1447,9 +1433,9 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
                       <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
-                      Event Alert Channel ID
+                      Twitch Event Alerts Channel
                     </label>
-                    <p class="help has-text-grey-light mb-2">Channel ID for general bot alerts and notifications</p>
+                    <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g. Followers, Subscriptions, Bits</p>
                     <div class="control has-icons-left">
                       <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
@@ -1457,9 +1443,9 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" for="twitch_stream_monitor_id" style="font-weight: 500;">
                       <span class="icon mr-1 has-text-info"><i class="fab fa-twitch"></i></span>
-                      Twitch Stream Monitoring ID
+                      Twitch Stream Monitoring Channel
                     </label>
-                    <p class="help has-text-grey-light mb-2">Channel ID for Twitch Stream Monitoring</p>
+                    <p class="help has-text-grey-light mb-2">For our Twitch Stream Monitoring system, this channel will be used to post when the users you're tracking goes live.</p>
                     <div class="control has-icons-left">
                       <?php echo generateChannelInput('twitch_stream_monitor_id', 'twitch_stream_monitor_id', $existingTwitchStreamMonitoringID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
@@ -1467,9 +1453,9 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" for="live_channel_id" style="font-weight: 500;">
                       <span class="icon mr-1 has-text-info"><i class="fa-solid fa-volume-high"></i></span>
-                      <?php echo t('discordbot_live_channel_id_label'); ?>
+                      Live Status Channel
                     </label>
-                    <p class="help has-text-grey-light mb-2"><?php echo t('discordbot_live_channel_id_help'); ?></p>
+                    <p class="help has-text-grey-light mb-2">The voice channel to update with live status</p>
                     <div class="control has-icons-left">
                       <?php echo generateVoiceChannelInput('live_channel_id', 'live_channel_id', $existingLiveChannelId, 'e.g. 123456789123456789', $useManualIds, $guildVoiceChannels, 'fas fa-volume-up', true); ?>
                     </div>
@@ -1477,9 +1463,9 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" for="online_text" style="font-weight: 500;">
                       <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
-                      <?php echo t('discordbot_online_text_label'); ?>
+                      Online Text
                     </label>
-                    <p class="help has-text-grey-light mb-2">Text to display when your channel is online</p>
+                    <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is online</p>
                     <div class="control has-icons-left">
                       <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>"<?php if (empty($existingOnlineText)) { echo ' placeholder="e.g. Stream Online"'; } ?> maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                       <span class="icon is-small is-left has-text-success"><i class="fa-solid fa-comment"></i></span>
@@ -1491,9 +1477,9 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" for="offline_text" style="font-weight: 500;">
                       <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
-                      <?php echo t('discordbot_offline_text_label'); ?>
+                      Offline Text
                     </label>
-                    <p class="help has-text-grey-light mb-2">Text to display when your channel is offline</p>
+                    <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is offline</p>
                     <div class="control has-icons-left">
                       <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>"<?php if (empty($existingOfflineText)) { echo ' placeholder="e.g. Stream Offline"'; } ?> maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                       <span class="icon is-small is-left has-text-danger"><i class="fa-solid fa-comment"></i></span>
@@ -1537,73 +1523,14 @@ ob_start();
               </div>
             </div>
           </div>
-          <!-- Webhook URL Form - Legacy - Deprecated -->
+          <!-- Right Column -->
           <div class="column is-6">
-            <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0; cursor: pointer;" onclick="toggleDeprecatedCard()">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-primary"><i class="fas fa-link"></i></span>
-                  <?php echo t('discordbot_webhook_card_title'); ?> (Legacy)
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                    <span>Deprecated</span>
-                  </span>
-                  <span class="icon has-text-grey-light ml-2" id="deprecatedCardToggle">
-                    <i class="fas fa-chevron-down"></i>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content" id="deprecatedCardContent" style="display: none;">
-                <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                  <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                  <strong>Note:</strong> This feature is being phased out.
-                </div>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" for="option" style="font-weight: 500;">Select Event Type</label>
-                    <div class="control">
-                      <div class="select is-fullwidth">
-                        <select id="option" name="option" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                          <option value="discord_alert"><?php echo t('discordbot_webhook_option_alert'); ?></option>
-                          <option value="discord_mod"><?php echo t('discordbot_webhook_option_mod'); ?></option>
-                          <option value="discord_alert_online"><?php echo t('discordbot_webhook_option_online'); ?></option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" for="webhook" style="font-weight: 500;"><?php echo t('discordbot_webhook_url_label'); ?></label>
-                    <div class="control has-icons-left">
-                      <input class="input" type="text" id="webhook" name="webhook" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-link"></i></span>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                    <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;" disabled>
-                      <span class="icon"><i class="fas fa-save"></i></span>
-                      <span><?php echo t('discordbot_webhook_save_btn'); ?></span>
-                    </button>
-                    <p class="help has-text-warning mt-2 has-text-centered">This feature is deprecated and cannot be used.</p>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
             <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
               <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                 <p class="card-header-title has-text-white" style="font-weight: 600;">
                   <span class="icon mr-2 has-text-primary"><i class="fa-brands fa-twitch"></i></span>
                   Twitch Stream Monitoring
                 </p>
-                <div class="card-header-icon" style="cursor: default;">
-                  <span class="tag is-success is-light">
-                    <span class="icon"><i class="fas fa-check-circle"></i></span>
-                    <span>Fully integrated & live</span>
-                  </span>
-                </div>
               </header>
               <div class="card-content">
                 <form action="" method="post">
@@ -2187,14 +2114,7 @@ function removeStreamer(username) {
 </script>
 <script>
   $(document).ready(function() {
-    var webhooks = <?php echo json_encode($existingWebhooks); ?>;
-    var initialWebhook = webhooks['discord_alert'] || '';
-    $('#webhook').val(initialWebhook);
-    $('#option').change(function() {
-      var selectedOption = $(this).val();
-      $('#webhook').val(webhooks[selectedOption] || '');
-  });
-  // Character counters for online/offline text
+    // Character counters for online/offline text
   function updateCharCounter(inputId, counterId) {
     var input = $('#' + inputId);
     var counter = $('#' + counterId);
