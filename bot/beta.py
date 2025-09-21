@@ -1294,77 +1294,110 @@ async def process_stream_bingo_message(data):
     try:
         event_type = data.get('type', 'unknown')
         bot_logger.info(f"Stream Bingo: Processing event type: {event_type}")
-        # Handle different bingo event types
-        if event_type in ['bingo_started', 'GAME_STARTED']:
-            # Handle bingo game started
-            game_id = data.get('game_id')
-            events = data.get('events', [])
-            is_sub_only = data.get('isSubOnly', False)
-            random_call_only = data.get('randomCallOnly', True)
-            bingo_patterns = data.get('bingoPatterns', [])
-            bot_logger.info(f"Stream Bingo: Bingo game started - Game ID: {game_id}, Events: {len(events)}, Sub-only: {is_sub_only}, Random-only: {random_call_only}")
-            # You can add chat notifications or other actions here
-        elif event_type in ['bingo_ended', 'GAME_ENDED']:
-            # Handle bingo game ended
-            game_id = data.get('game_id')
-            bot_logger.info(f"Stream Bingo: Bingo game ended - Game ID: {game_id}")
-            # You can add chat notifications or other actions here
-        elif event_type in ['number_called', 'EVENT_CALLED']:
-            # Handle number called
-            number = data.get('number')
-            display_number = data.get('displayNumber')
-            event_id = data.get('eventId')
-            event_name = data.get('eventName')
-            game_id = data.get('game_id')
-            if event_name:
-                bot_logger.info(f"Stream Bingo: Event called - Event: {event_name} (ID: {event_id})")
-            elif number:
-                bot_logger.info(f"Stream Bingo: Number called - Game ID: {game_id}, Number: {number}")
-            elif display_number:
-                bot_logger.info(f"Stream Bingo: Display number called - {display_number}")
-            # You can add chat notifications or other actions here
-        elif event_type == 'PLAYER_JOINED':
-            # Handle player joined
-            player_name = data.get('playerName')
-            player_id = data.get('playerId')
-            bot_logger.info(f"Stream Bingo: Player joined - {player_name} (ID: {player_id})")
-            # You can add chat notifications or other actions here
-        elif event_type == 'BINGO_REGISTERED':
-            # Handle bingo registered (player got bingo)
-            player_name = data.get('playerName')
-            player_id = data.get('playerId')
-            rank = data.get('rank')
-            bot_logger.info(f"Stream Bingo: Bingo registered - {player_name} (ID: {player_id}) got bingo! Rank: {rank}")
-            # You can add chat notifications or other actions here
-        elif event_type == 'EXTRA_CARD_WITH_BITS':
-            # Handle extra card purchased with bits
-            player_name = data.get('playerName')
-            player_id = data.get('playerId')
-            bits = data.get('bits')
-            bot_logger.info(f"Stream Bingo: Extra card purchased - {player_name} (ID: {player_id}) bought extra card for {bits} bits")
-            # You can add chat notifications or other actions here
-        elif event_type == 'VOTE_STARTED':
-            # Handle vote started
-            bot_logger.info("Stream Bingo: Voting has started")
-            # You can add chat notifications or other actions here
-        elif event_type == 'EXTRA_VOTE_WITH_BITS':
-            # Handle extra vote purchased with bits
-            player_name = data.get('playerName')
-            player_id = data.get('playerId')
-            bits = data.get('bits')
-            bot_logger.info(f"Stream Bingo: Extra vote purchased - {player_name} (ID: {player_id}) bought extra vote for {bits} bits")
-            # You can add chat notifications or other actions here
-        elif event_type == 'VOTE_ENDED':
-            # Handle vote ended
-            bot_logger.info("Stream Bingo: Voting has ended")
-            # You can add chat notifications or other actions here
-        elif event_type == 'ALL_EVENTS_CALLED':
-            # Handle all events called
-            bot_logger.info("Stream Bingo: All events have been called")
-            # You can add chat notifications or other actions here
-        else:
-            bot_logger.debug(f"Stream Bingo: Unhandled event type: {event_type}")
-            
+        # Connect to user database for storing bingo data
+        user_db = await mysql_connection()
+        try:
+            # Handle different bingo event types
+            if event_type in ['bingo_started', 'GAME_STARTED']:
+                # Handle bingo game started
+                game_id = data.get('game_id')
+                events = data.get('events', [])
+                is_sub_only = data.get('isSubOnly', False)
+                random_call_only = data.get('randomCallOnly', True)
+                bingo_patterns = data.get('bingoPatterns', [])
+                # Save game data to database
+                async with user_db.cursor() as cursor:
+                    await cursor.execute("""
+                        INSERT INTO bingo_games (game_id, events_count, is_sub_only, random_call_only, status)
+                        VALUES (%s, %s, %s, %s, 'active')
+                        ON DUPLICATE KEY UPDATE
+                        events_count = VALUES(events_count),
+                        is_sub_only = VALUES(is_sub_only),
+                        random_call_only = VALUES(random_call_only),
+                        status = 'active'
+                    """, (game_id, len(events), is_sub_only, random_call_only))
+                    await user_db.commit()
+                bot_logger.info(f"Stream Bingo: Bingo game started - Game ID: {game_id}, Events: {len(events)}, Sub-only: {is_sub_only}, Random-only: {random_call_only}")
+                # You can add chat notifications or other actions here
+            elif event_type in ['bingo_ended', 'GAME_ENDED']:
+                # Handle bingo game ended
+                game_id = data.get('game_id')
+                # Update game data in database
+                async with user_db.cursor() as cursor:
+                    await cursor.execute("""
+                        UPDATE bingo_games 
+                        SET end_time = CURRENT_TIMESTAMP, status = 'completed' 
+                        WHERE game_id = %s
+                    """, (game_id,))
+                    await user_db.commit()
+                bot_logger.info(f"Stream Bingo: Bingo game ended - Game ID: {game_id}")
+                # You can add chat notifications or other actions here
+            elif event_type in ['number_called', 'EVENT_CALLED']:
+                # Handle number called
+                number = data.get('number')
+                display_number = data.get('displayNumber')
+                event_id = data.get('eventId')
+                event_name = data.get('eventName')
+                game_id = data.get('game_id')
+                if event_name:
+                    bot_logger.info(f"Stream Bingo: Event called - Event: {event_name} (ID: {event_id})")
+                elif number:
+                    bot_logger.info(f"Stream Bingo: Number called - Game ID: {game_id}, Number: {number}")
+                elif display_number:
+                    bot_logger.info(f"Stream Bingo: Display number called - {display_number}")
+                # You can add chat notifications or other actions here
+            elif event_type == 'PLAYER_JOINED':
+                # Handle player joined
+                player_name = data.get('playerName')
+                player_id = data.get('playerId')
+                bot_logger.info(f"Stream Bingo: Player joined - {player_name} (ID: {player_id})")
+                # You can add chat notifications or other actions here
+            elif event_type == 'BINGO_REGISTERED':
+                # Handle bingo registered (player got bingo)
+                player_name = data.get('playerName')
+                player_id = data.get('playerId')
+                rank = data.get('rank')
+                game_id = data.get('game_id')
+                # Save winner data to database
+                async with user_db.cursor() as cursor:
+                    await cursor.execute("""
+                        INSERT INTO bingo_winners (game_id, player_name, player_id, `rank`)
+                        VALUES (%s, %s, %s, %s)
+                    """, (game_id, player_name, player_id, rank))
+                    await user_db.commit()
+                bot_logger.info(f"Stream Bingo: Bingo registered - {player_name} (ID: {player_id}) got bingo! Rank: {rank}")
+                # You can add chat notifications or other actions here
+            elif event_type == 'EXTRA_CARD_WITH_BITS':
+                # Handle extra card purchased with bits
+                player_name = data.get('playerName')
+                player_id = data.get('playerId')
+                bits = data.get('bits')
+                bot_logger.info(f"Stream Bingo: Extra card purchased - {player_name} (ID: {player_id}) bought extra card for {bits} bits")
+                # You can add chat notifications or other actions here
+            elif event_type == 'VOTE_STARTED':
+                # Handle vote started
+                bot_logger.info("Stream Bingo: Voting has started")
+                # You can add chat notifications or other actions here
+            elif event_type == 'EXTRA_VOTE_WITH_BITS':
+                # Handle extra vote purchased with bits
+                player_name = data.get('playerName')
+                player_id = data.get('playerId')
+                bits = data.get('bits')
+                bot_logger.info(f"Stream Bingo: Extra vote purchased - {player_name} (ID: {player_id}) bought extra vote for {bits} bits")
+                # You can add chat notifications or other actions here
+            elif event_type == 'VOTE_ENDED':
+                # Handle vote ended
+                bot_logger.info("Stream Bingo: Voting has ended")
+                # You can add chat notifications or other actions here
+            elif event_type == 'ALL_EVENTS_CALLED':
+                # Handle all events called
+                bot_logger.info("Stream Bingo: All events have been called")
+                # You can add chat notifications or other actions here
+            else:
+                bot_logger.debug(f"Stream Bingo: Unhandled event type: {event_type}")
+        finally:
+            user_db.close()
+            await user_db.wait_closed()
     except Exception as e:
         bot_logger.error(f"Stream Bingo: Error processing message: {e}")
 

@@ -465,6 +465,28 @@ try {
                 command TEXT,
                 options JSON,
                 PRIMARY KEY (command(255))
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'bingo_games' => "
+            CREATE TABLE IF NOT EXISTS bingo_games (
+                game_id VARCHAR(255) PRIMARY KEY,
+                start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                end_time DATETIME NULL,
+                events_count INT DEFAULT 0,
+                is_sub_only BOOLEAN DEFAULT FALSE,
+                random_call_only BOOLEAN DEFAULT TRUE,
+                status ENUM('active', 'completed') DEFAULT 'active'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'bingo_winners' => "
+            CREATE TABLE IF NOT EXISTS bingo_winners (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                game_id VARCHAR(255) NOT NULL,
+                player_name VARCHAR(255) NOT NULL,
+                player_id VARCHAR(255) NOT NULL,
+                `rank` INT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_game_id (game_id),
+                INDEX idx_rank (`rank`),
+                FOREIGN KEY (game_id) REFERENCES bingo_games(game_id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)
