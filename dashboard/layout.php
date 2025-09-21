@@ -242,6 +242,10 @@ $maintenanceMode = $config['maintenanceMode'];
                             <span class="icon"><i class="fas fa-globe"></i></span>
                             <span><?php echo t('navbar_streamelements'); ?></span>
                         </a>
+                        <a class="navbar-item" href="bingo.php">
+                            <span class="icon"><i class="fas fa-trophy"></i></span>
+                            <span>Stream Bingo</span>
+                        </a>
                         <hr class="navbar-divider">
                         <a class="navbar-item" href="integrations.php">
                             <span class="icon"><i class="fas fa-globe"></i></span>
