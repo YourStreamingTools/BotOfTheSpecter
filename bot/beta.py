@@ -1816,7 +1816,7 @@ class TwitchBot(commands.Bot):
                         # Check if user has permission to post links
                         if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
                             return  # User is permitted, skip URL blocking
-                        if await command_permissions("mod", messageAuthor):
+                        if await command_permissions("mod", message.author):
                             return  # Mods and broadcaster have permission by default
                         # Fetch whitelist and blacklist from the database
                         await cursor.execute('SELECT link FROM link_whitelist')
