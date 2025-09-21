@@ -548,7 +548,10 @@ try {
         'reward_streaks' => ['reward_id' => "VARCHAR(255)",'current_user' => "VARCHAR(255)",'streak' => "INT DEFAULT 1"],
         'stream_status' => ['status' => "VARCHAR(255)"],
         'chat_history' => ['author' => "VARCHAR(255)",'message' => "TEXT",'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
-        'member_streams' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'username' => "VARCHAR(255) NOT NULL",'stream_url' => "VARCHAR(255) NOT NULL"]
+        'member_streams' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'username' => "VARCHAR(255) NOT NULL",'stream_url' => "VARCHAR(255) NOT NULL"],
+        'command_options' => ['command' => "TEXT",'options' => "JSON"],
+        'bingo_games' => ['game_id' => "VARCHAR(255) PRIMARY KEY",'start_time' => "DATETIME DEFAULT CURRENT_TIMESTAMP",'end_time' => "DATETIME NULL",'events_count' => "INT DEFAULT 0",'is_sub_only' => "BOOLEAN DEFAULT FALSE",'random_call_only' => "BOOLEAN DEFAULT TRUE",'status' => "ENUM('active', 'completed') DEFAULT 'active'"],
+        'bingo_winners' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'game_id' => "VARCHAR(255) NOT NULL",'player_name' => "VARCHAR(255) NOT NULL",'player_id' => "VARCHAR(255) NOT NULL",'rank' => "INT NOT NULL",'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"]
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
