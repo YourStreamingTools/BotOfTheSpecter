@@ -203,10 +203,8 @@ try {
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 timezone VARCHAR(255) DEFAULT NULL,
                 weather_location VARCHAR(255) DEFAULT NULL,
-                discord_alert VARCHAR(255) DEFAULT NULL,
-                discord_mod VARCHAR(255) DEFAULT NULL,
-                discord_alert_online VARCHAR(255) DEFAULT NULL,
-                heartrate_code VARCHAR(8) DEFAULT NULL
+                heartrate_code VARCHAR(8) DEFAULT NULL,
+                stream_bounty_api_key VARCHAR(255)
             ) ENGINE=InnoDB",
         'protection' => "
             CREATE TABLE IF NOT EXISTS protection (
@@ -495,7 +493,7 @@ try {
         'seen_users' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'username' => "VARCHAR(255)",'welcome_message' => "VARCHAR(255) DEFAULT NULL",'status' => "VARCHAR(255)"],
         'seen_today' => ['user_id' => "VARCHAR(255)",'username' => "VARCHAR(255)"],
         'timed_messages' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'interval_count' => "INT",'chat_line_trigger' => "INT DEFAULT 5",'message' => "TEXT",'status' => "VARCHAR(10) DEFAULT True"],
-        'profile' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'timezone' => "VARCHAR(255) DEFAULT NULL",'weather_location' => "VARCHAR(255) DEFAULT NULL",'discord_alert' => "VARCHAR(255) DEFAULT NULL",'discord_mod' => "VARCHAR(255) DEFAULT NULL",'discord_alert_online' => "VARCHAR(255) DEFAULT NULL",'heartrate_code' => "VARCHAR(8) DEFAULT NULL"],
+        'profile' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'timezone' => "VARCHAR(255) DEFAULT NULL",'weather_location' => "VARCHAR(255) DEFAULT NULL",'heartrate_code' => "VARCHAR(8) DEFAULT NULL",'stream_bounty_api_key' => "VARCHAR(255)"],
         'protection' => ['url_blocking' => "VARCHAR(255)"],
         'link_whitelist' => ['link' => "VARCHAR(255)"],
         'link_blacklisting' => ['link' => "VARCHAR(255)"],
@@ -576,6 +574,19 @@ try {
             echo "<script>console.log('Primary key removed from chat_history table successfully.');</script>";
         } else {
             echo "<script>console.error('Error removing primary key from chat_history table: " . addslashes($usrDBconn->error) . "');</script>";
+        }
+    }
+    // Special handling for profile table - remove deprecated discord columns
+    $deprecated_columns = ['discord_alert', 'discord_mod', 'discord_alert_online'];
+    foreach ($deprecated_columns as $column) {
+        $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = 'profile' AND COLUMN_NAME = '$column'");
+        if ($result && $result->num_rows > 0) {
+            echo "<script>console.log('Deprecated column $column found in profile table, removing it...');</script>";
+            if ($usrDBconn->query("ALTER TABLE profile DROP COLUMN `$column`") === TRUE) {
+                echo "<script>console.log('Column $column removed from profile table successfully.');</script>";
+            } else {
+                echo "<script>console.error('Error removing column $column from profile table: " . addslashes($usrDBconn->error) . "');</script>";
+            }
         }
     }
     // Function to log messages asynchronously
