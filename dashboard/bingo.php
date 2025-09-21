@@ -70,6 +70,9 @@ ob_start();
                             <?php echo htmlspecialchars($message); ?>
                         </div>
                     <?php endif; ?>
+                    <div class="notification is-info">
+                        <strong>Version Notice:</strong> This feature is only available in version 5.5 and later.
+                    </div>
                     <?php if (!$api_key_exists): ?>
                         <div class="notification is-warning">
                             <strong>API Key Required:</strong> Please enter your Stream Bounty API key below to enable the bingo game controls.
