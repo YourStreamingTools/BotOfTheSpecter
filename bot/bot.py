@@ -57,7 +57,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.4"
+VERSION = "5.4.1"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -1661,7 +1661,7 @@ class TwitchBot(commands.Bot):
                         # Check if user has permission to post links
                         if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
                             return  # User is permitted, skip URL blocking
-                        if await command_permissions("mod", messageAuthor):
+                        if await command_permissions("mod", message.author):
                             return  # Mods and broadcaster have permission by default
                         # Fetch whitelist and blacklist from the database
                         await cursor.execute('SELECT link FROM link_whitelist')
