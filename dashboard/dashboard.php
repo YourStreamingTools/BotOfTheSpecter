@@ -85,7 +85,7 @@ if ($isLoggedIn) {
                             </div>
                             <h4 class="title is-5">To-Do List</h4>
                             <p class="subtitle is-6">Manage your streaming tasks</p>
-                            <a href="todolist.php" class="button is-warning is-fullwidth">
+                            <a href="../todolist" class="button is-warning is-fullwidth">
                                 <span class="icon"><i class="fas fa-list"></i></span>
                                 <span>Open To-Do</span>
                             </a>
