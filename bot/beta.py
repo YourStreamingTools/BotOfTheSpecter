@@ -1241,6 +1241,133 @@ async def join_channel(hyperate_websocket, heartrate_code):
     except Exception as e:
         bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {redact(e)}")
 
+# Stream Bingo WebSocket integration
+async def stream_bingo_websocket():
+    global CHANNEL_ID
+    while True:
+        try:
+            # Retrieve Stream Bingo API key from database
+            connection = await mysql_connection()
+            stream_bingo_api_key = None
+            try:
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute("SELECT stream_bounty_api_key FROM profile")
+                    result = await cursor.fetchone()
+                    if result:
+                        stream_bingo_api_key = result.get('stream_bounty_api_key')
+            finally:
+                await connection.ensure_closed()
+            if not stream_bingo_api_key:
+                await sleep(300)  # Wait 5 minutes before checking again
+                continue
+            # Construct WebSocket URL
+            websocket_url = f"wss://api.stream-bingo.com/games/{CHANNEL_ID}/{stream_bingo_api_key}/notifications"
+            sanitized_url = websocket_url.replace(stream_bingo_api_key, "[REDACTED]")
+            bot_logger.info(f"Stream Bingo: Attempting to connect to WebSocket: {sanitized_url}")
+            async with WebSocketConnect(websocket_url) as stream_bingo_ws:
+                bot_logger.info("Stream Bingo: Successfully connected to WebSocket")
+                while True:
+                    try:
+                        message = await stream_bingo_ws.recv()
+                        bot_logger.info(f"Stream Bingo: Received message: {message}")
+                        # Parse JSON message
+                        try:
+                            data = json.loads(message)
+                            # Process bingo events here
+                            await process_stream_bingo_message(data)
+                        except json.JSONDecodeError as e:
+                            bot_logger.error(f"Stream Bingo: Failed to parse JSON message: {e}")
+                        except Exception as e:
+                            bot_logger.error(f"Stream Bingo: Error processing message: {e}")
+                            
+                    except WebSocketConnectionClosed:
+                        bot_logger.warning("Stream Bingo: WebSocket connection closed, reconnecting...")
+                        break
+                    except Exception as e:
+                        bot_logger.error(f"Stream Bingo: Error receiving message: {e}")
+                        break
+        except Exception as e:
+            bot_logger.error(f"Stream Bingo: WebSocket connection error: {e}")
+            await sleep(10)  # Wait before retrying
+
+async def process_stream_bingo_message(data):
+    try:
+        event_type = data.get('type', 'unknown')
+        bot_logger.info(f"Stream Bingo: Processing event type: {event_type}")
+        # Handle different bingo event types
+        if event_type in ['bingo_started', 'GAME_STARTED']:
+            # Handle bingo game started
+            game_id = data.get('game_id')
+            events = data.get('events', [])
+            is_sub_only = data.get('isSubOnly', False)
+            random_call_only = data.get('randomCallOnly', True)
+            bingo_patterns = data.get('bingoPatterns', [])
+            bot_logger.info(f"Stream Bingo: Bingo game started - Game ID: {game_id}, Events: {len(events)}, Sub-only: {is_sub_only}, Random-only: {random_call_only}")
+            # You can add chat notifications or other actions here
+        elif event_type in ['bingo_ended', 'GAME_ENDED']:
+            # Handle bingo game ended
+            game_id = data.get('game_id')
+            bot_logger.info(f"Stream Bingo: Bingo game ended - Game ID: {game_id}")
+            # You can add chat notifications or other actions here
+        elif event_type in ['number_called', 'EVENT_CALLED']:
+            # Handle number called
+            number = data.get('number')
+            display_number = data.get('displayNumber')
+            event_id = data.get('eventId')
+            event_name = data.get('eventName')
+            game_id = data.get('game_id')
+            if event_name:
+                bot_logger.info(f"Stream Bingo: Event called - Event: {event_name} (ID: {event_id})")
+            elif number:
+                bot_logger.info(f"Stream Bingo: Number called - Game ID: {game_id}, Number: {number}")
+            elif display_number:
+                bot_logger.info(f"Stream Bingo: Display number called - {display_number}")
+            # You can add chat notifications or other actions here
+        elif event_type == 'PLAYER_JOINED':
+            # Handle player joined
+            player_name = data.get('playerName')
+            player_id = data.get('playerId')
+            bot_logger.info(f"Stream Bingo: Player joined - {player_name} (ID: {player_id})")
+            # You can add chat notifications or other actions here
+        elif event_type == 'BINGO_REGISTERED':
+            # Handle bingo registered (player got bingo)
+            player_name = data.get('playerName')
+            player_id = data.get('playerId')
+            rank = data.get('rank')
+            bot_logger.info(f"Stream Bingo: Bingo registered - {player_name} (ID: {player_id}) got bingo! Rank: {rank}")
+            # You can add chat notifications or other actions here
+        elif event_type == 'EXTRA_CARD_WITH_BITS':
+            # Handle extra card purchased with bits
+            player_name = data.get('playerName')
+            player_id = data.get('playerId')
+            bits = data.get('bits')
+            bot_logger.info(f"Stream Bingo: Extra card purchased - {player_name} (ID: {player_id}) bought extra card for {bits} bits")
+            # You can add chat notifications or other actions here
+        elif event_type == 'VOTE_STARTED':
+            # Handle vote started
+            bot_logger.info("Stream Bingo: Voting has started")
+            # You can add chat notifications or other actions here
+        elif event_type == 'EXTRA_VOTE_WITH_BITS':
+            # Handle extra vote purchased with bits
+            player_name = data.get('playerName')
+            player_id = data.get('playerId')
+            bits = data.get('bits')
+            bot_logger.info(f"Stream Bingo: Extra vote purchased - {player_name} (ID: {player_id}) bought extra vote for {bits} bits")
+            # You can add chat notifications or other actions here
+        elif event_type == 'VOTE_ENDED':
+            # Handle vote ended
+            bot_logger.info("Stream Bingo: Voting has ended")
+            # You can add chat notifications or other actions here
+        elif event_type == 'ALL_EVENTS_CALLED':
+            # Handle all events called
+            bot_logger.info("Stream Bingo: All events have been called")
+            # You can add chat notifications or other actions here
+        else:
+            bot_logger.debug(f"Stream Bingo: Unhandled event type: {event_type}")
+            
+    except Exception as e:
+        bot_logger.error(f"Stream Bingo: Error processing message: {e}")
+
 # Bot classes
 class GameNotFoundException(Exception):
     pass
@@ -1349,6 +1476,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
         looped_tasks["connect_to_tipping_services"] = create_task(connect_to_tipping_services())
+        looped_tasks["stream_bingo_websocket"] = create_task(stream_bingo_websocket())
         looped_tasks["midnight"] = create_task(midnight())
         looped_tasks["shoutout_worker"] = create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = create_task(periodic_watch_time_update())
