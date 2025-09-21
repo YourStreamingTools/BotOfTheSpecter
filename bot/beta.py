@@ -1130,6 +1130,35 @@ async def PATREON(data):
     except Exception as e:
         websocket_logger.error(f"Failed to process Patreon event: {e}")
 
+@specterSocket.event
+async def SYSTEM_UPDATE(data):
+    websocket_logger.info(f"System update event received: {data}")
+    try:
+        # Fetch version information from API
+        async with httpClientSession() as session:
+            async with session.get("https://api.botofthespecter.com/versions") as response:
+                if response.status == 200:
+                    version_data = await response.json()
+                    # Select appropriate version based on SYSTEM variable
+                    if SYSTEM == "BETA":
+                        latest_version = version_data.get("beta_version")
+                    elif SYSTEM == "STABLE":
+                        latest_version = version_data.get("stable_version")
+                    else:
+                        websocket_logger.error(f"Unknown SYSTEM value: {SYSTEM}")
+                        return
+                    # Only send message if versions differ
+                    if latest_version and latest_version != VERSION:
+                        message = f"I have a new update ready ({latest_version}), please restart me from the dashboard when you are ready."
+                        await send_chat_message(message)
+                        websocket_logger.info(f"Update notification sent for version {latest_version}")
+                    else:
+                        websocket_logger.info(f"No update needed. Current version: {VERSION}, Latest version: {latest_version}")
+                else:
+                    websocket_logger.error(f"Failed to fetch version data from API: HTTP {response.status}")
+    except Exception as e:
+        websocket_logger.error(f"Failed to process system update event: {e}")
+
 # Helper to safely redact sensitive values
 def redact(s: str) -> str:
     return str(s).replace(HYPERATE_API_KEY, "[REDACTED]")
