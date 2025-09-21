@@ -181,6 +181,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.app.add_routes([
             web.get("/", self.index),
             web.get("/notify", self.notify_http),
+            web.get("/system-update", self.system_update_http),
             web.get("/heartbeat", self.heartbeat),
             web.get("/clients", self.list_clients),
             web.get("/favicon.ico", self.favicon_redirect)
@@ -212,6 +213,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("FOURTHWALL", self.handle_fourthwall_event),
             ("KOFI", self.handle_kofi_event),
             ("PATREON", self.handle_patreon_event),
+            ("SYSTEM_UPDATE", self.event_handler.handle_system_update),
             ("SEND_OBS_EVENT", self.event_handler.handle_obs_event),
             ("MUSIC_COMMAND", self.music_handler.music_command),
             ("*", self.event)
@@ -487,6 +489,18 @@ class BotOfTheSpecter_WebsocketServer:
         # Return a JSON response indicating success
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
 
+    async def system_update_http(self, request):
+        # Handle system update requests with admin key validation
+        admin_key = request.query.get("admin_key")
+        if not admin_key or admin_key != self.admin_code:
+            raise web.HTTPForbidden(text="403 Forbidden: Invalid or missing admin key")
+        
+        # Broadcast SYSTEM_UPDATE event to all clients
+        count = await self.broadcast_event_with_globals("SYSTEM_UPDATE", {}, None)
+        self.logger.info(f"System update triggered, broadcasted to {count} clients")
+        
+        return web.json_response({"success": 1, "count": count, "msg": f"System update notification sent to {count} clients"})
+
     async def notify(self, sid, data):
         self.logger.info(f"Notify event from SID [{sid}]: {data}")
         event = data.get('event')
@@ -672,6 +686,10 @@ class BotOfTheSpecter_WebsocketServer:
     async def video_alert(self, sid, data):
         # Redirect to event handler for proper global broadcasting
         return await self.event_handler.handle_video_alert(sid, data)
+
+    async def system_update(self, sid, data):
+        # Redirect to event handler for proper global broadcasting
+        return await self.event_handler.handle_system_update(sid, data)
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients

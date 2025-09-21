@@ -212,6 +212,17 @@ class EventHandler:
         else:
             await self.sio.emit(event, data)
 
+    async def handle_system_update(self, sid, data):
+        self.logger.info(f"System update event from SID [{sid}]: {data}")
+        # Get the channel code for this SID
+        code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
+        # Broadcast the system update event to clients and global listeners
+        payload = {**(data or {}), "channel_code": code or "unknown"}
+        if self.broadcast_with_globals:
+            await self.broadcast_with_globals("SYSTEM_UPDATE", payload, code)
+        else:
+            await self.sio.emit("SYSTEM_UPDATE", payload)
+
     async def broadcast_to_code_clients(self, code, event, data):
         count = 0
         if code in self.get_clients():
