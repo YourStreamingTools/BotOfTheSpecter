@@ -84,22 +84,81 @@ class TTSHandler:
         self.logger.info(f"TTS request added to queue: {text[:50]}...")
 
     async def process_tts_queue(self):
+        batch_size = 3  # Process up to 3 TTS requests concurrently
         while True:
             try:
-                # Wait for the next TTS request in the queue
-                request_data = await self.tts_queue.get()
-                text = request_data.get('text')
-                code = request_data.get('code')
-                language_code = request_data.get('language_code')
-                gender = request_data.get('gender')
-                voice_name = request_data.get('voice_name')
-                # Process the TTS request
-                await self.process_tts_request(text, code, language_code, gender, voice_name) # Mark the task as done
-                self.tts_queue.task_done()
+                # Collect a batch of requests
+                batch = []
+                for _ in range(batch_size):
+                    try:
+                        # Try to get a request with a short timeout
+                        request_data = await asyncio.wait_for(self.tts_queue.get(), timeout=0.1)
+                        batch.append(request_data)
+                    except asyncio.TimeoutError:
+                        # No more requests available, break
+                        break
+                if not batch:
+                    # No requests available, wait for the next one
+                    request_data = await self.tts_queue.get()
+                    batch = [request_data]
+                # Process the batch concurrently
+                await self.process_tts_batch(batch)
+                # Mark all tasks as done
+                for _ in batch:
+                    self.tts_queue.task_done()
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 self.logger.error(f"Error processing TTS queue: {e}")
+
+    async def process_tts_batch(self, batch):
+        self.logger.info(f"Processing batch of {len(batch)} TTS requests")
+        # Create tasks for concurrent API calls
+        tasks = []
+        for request_data in batch:
+            task = self.generate_api_tts(
+                request_data.get('text'),
+                request_data.get('code'),
+                request_data.get('voice_name')
+            )
+            tasks.append(task)
+        # Execute all API calls concurrently
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Process results in order (maintain sequence)
+        for i, (request_data, result) in enumerate(zip(batch, results)):
+            text = request_data.get('text')
+            code = request_data.get('code')
+            if isinstance(result, Exception):
+                self.logger.error(f"Failed to generate TTS for batch item {i}: {result}")
+                continue
+            audio_file = result
+            if audio_file is None:
+                self.logger.error(f"Failed to generate TTS audio for batch item {i}, code {code}")
+                continue
+            # Process this completed TTS request (transfer, emit, wait, cleanup)
+            await self.process_completed_tts(audio_file, code, text)
+
+    async def process_completed_tts(self, audio_file, code, text):
+        try:
+            # Transfer file to remote server if needed
+            remote_filename = os.path.basename(audio_file)
+            remote_path = await self.move_file_to_remote(audio_file, remote_filename)
+            if remote_path:
+                self.logger.info(f"TTS file transferred to remote server: {remote_path}")
+                # Emit TTS event to registered clients
+                await self.emit_tts_event(code, remote_filename, text)
+        except Exception as e:
+            self.logger.error(f"Error transferring TTS file: {e}")
+            return
+        # Estimate the duration of the audio and wait for it to finish
+        duration = self.estimate_audio_duration(audio_file, text)
+        self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
+        await asyncio.sleep(duration + 5)
+        # After playback, delete the TTS file from both local and remote
+        try:
+            await self.cleanup_tts_file(audio_file)
+        except Exception as e:
+            self.logger.error(f"Error cleaning up TTS file: {e}")
 
     async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
         self.logger.info(f"Processing TTS request for code {code} with text: {text}")
@@ -130,7 +189,6 @@ class TTSHandler:
             self.logger.error(f"Error cleaning up TTS file: {e}")
 
     async def generate_api_tts(self, text, code, voice_name=None):
-        """Generate TTS using Vultr API"""
         if not self.vultr_api_key:
             self.logger.error("VULTR_API_KEY not set")
             return None
