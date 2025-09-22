@@ -3,8 +3,13 @@ import uuid
 import json
 import asyncio
 import subprocess
-import shutil
+import aiohttp
 from pathlib import Path
+
+# Vultr TTS API Configuration
+API_URL = "https://api.vultrinference.com/v1/audio/speech"
+MODEL_NAME = "xtts"
+VOICE_NAME = "Abrahan Mack"
 
 class TTSHandler:
     def __init__(self, logger, ssh_manager, sio=None, get_clients=None):
@@ -16,6 +21,10 @@ class TTSHandler:
         self.tts_config = self.load_tts_config()
         self.tts_queue = asyncio.Queue()
         self.processing_task = None
+        self.vultr_api_key = os.getenv('VULTR_API_KEY')
+        self.api_url = API_URL
+        self.model_name = MODEL_NAME
+        self.default_voice = VOICE_NAME
 
     def load_tts_config(self):
         config_path = "/home/botofthespecter/websocket_tts_config.json"
@@ -27,6 +36,27 @@ class TTSHandler:
         except Exception as e:
             self.logger.error(f"Failed to load TTS config from {config_path}: {e}")
             return None
+
+    async def get_available_voices(self):
+        if not self.vultr_api_key:
+            self.logger.error("VULTR_API_KEY not set")
+            return []
+        voices_url = self.api_url.replace("/speech", "/voices")
+        headers = {"Authorization": f"Bearer {self.vultr_api_key}"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(voices_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        voices = data.get('voices', [])
+                        self.logger.info(f"Fetched {len(voices)} voices from Vultr API")
+                        return voices
+                    else:
+                        self.logger.error(f"Failed to fetch voices: {response.status} - {await response.text()}")
+                        return []
+        except Exception as e:
+            self.logger.error(f"Error fetching voices: {e}")
+            return []
 
     async def start_processing(self):
         if not self.processing_task:
@@ -73,8 +103,8 @@ class TTSHandler:
 
     async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
         self.logger.info(f"Processing TTS request for code {code} with text: {text}")
-        # Generate TTS using the local script in its own environment
-        audio_file = await self.generate_local_tts(text, code, voice_name)
+        # Generate TTS using Vultr API
+        audio_file = await self.generate_api_tts(text, code, voice_name)
         if audio_file is None:
             self.logger.error(f"Failed to generate TTS audio for code {code}")
             return
@@ -99,61 +129,45 @@ class TTSHandler:
         except Exception as e:
             self.logger.error(f"Error cleaning up TTS file: {e}")
 
-    async def generate_local_tts(self, text, code, voice_name=None):
+    async def generate_api_tts(self, text, code, voice_name=None):
+        """Generate TTS using Vultr API"""
+        if not self.vultr_api_key:
+            self.logger.error("VULTR_API_KEY not set")
+            return None
+        # Validate text length (max 2000 characters)
+        if len(text) > 2000:
+            self.logger.error(f"Text too long: {len(text)} characters (max 2000)")
+            return None
+        if not voice_name:
+            voice_name = self.default_voice  # Use configured default voice
+        unique_id = uuid.uuid4().hex[:8]
+        filename = f'tts_output_{code}_{unique_id}.mp3'
+        filepath = os.path.join(self.tts_dir, filename)
+        url = self.api_url
+        headers = {
+            "Authorization": f"Bearer {self.vultr_api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": self.model_name,
+            "input": text,
+            "voice": voice_name
+        }
         try:
-            unique_id = uuid.uuid4().hex[:8]
-            # Absolute paths for TTS script and environment (both in /home/botofthespecter/)
-            tts_script_path = "/home/botofthespecter/local_tts_generator.py"
-            python_exe = "/home/botofthespecter/tts_env/bin/python"
-            config_path = "/home/botofthespecter/websocket_tts_config.json"
-            desired_filename = f'tts_output_{code}_{unique_id}.mp3'
-            cmd = [
-                python_exe,
-                tts_script_path,
-                "--text", text,
-                "--config", config_path,
-                "--filename", desired_filename,
-                "--keep-local"  # Keep local copy for SFTP transfer
-            ]
-            # Add voice parameter if specified
-            if voice_name:
-                cmd.extend(["--voice", voice_name])
-            self.logger.info(f"Running TTS command: {' '.join(cmd)}")
-            # Set environment variables to suppress NNPACK warnings
-            env = os.environ.copy()
-            env.update({
-                'NNPACK_DISABLE': '1',
-                'PYTORCH_DISABLE_NNPACK_RUNTIME_ERROR': '1',
-                'OMP_NUM_THREADS': '1',
-                'MKL_NUM_THREADS': '1'
-            })
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd="/home/botofthespecter",
-                env=env
-            )
-            stdout, stderr = await process.communicate()
-            if process.returncode == 0:
-                self.logger.info(f"TTS generation successful: {stdout.decode()}")
-                # Check for local copy
-                local_output_dir = "/home/botofthespecter/local_tts_output"
-                local_file_path = os.path.join(local_output_dir, desired_filename)
-                if os.path.exists(local_file_path):
-                    # Move the local file to the TTS directory for serving
-                    final_file_path = os.path.join(self.tts_dir, desired_filename)
-                    shutil.move(local_file_path, final_file_path)
-                    self.logger.info(f"TTS file ready: {final_file_path}")
-                    return final_file_path
-                else:
-                    self.logger.error(f"Generated TTS file not found: {local_file_path}")
-                    return None
-            else:
-                self.logger.error(f"TTS generation failed: {stderr.decode()}")
-                return None
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status == 200:
+                        # Save the audio content to file
+                        with open(filepath, 'wb') as f:
+                            f.write(await response.read())
+                        self.logger.info(f"TTS audio generated and saved: {filepath}")
+                        return filepath
+                    else:
+                        error_text = await response.text()
+                        self.logger.error(f"TTS API request failed: {response.status} - {error_text}")
+                        return None
         except Exception as e:
-            self.logger.error(f"Error generating local TTS: {e}")
+            self.logger.error(f"Error generating TTS via API: {e}")
             return None
 
     def estimate_audio_duration(self, audio_file, text):
