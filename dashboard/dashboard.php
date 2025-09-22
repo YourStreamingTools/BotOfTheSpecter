@@ -570,7 +570,7 @@ if ($isLoggedIn) {
     // For non-logged in users, we'll create a custom layout without the dashboard navigation
     ?>
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" class="theme-dark">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
