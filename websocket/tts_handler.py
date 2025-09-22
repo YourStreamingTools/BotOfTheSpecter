@@ -211,22 +211,41 @@ class TTSHandler:
             "input": text,
             "voice": voice_name
         }
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as response:
-                    if response.status == 200:
-                        # Save the audio content to file
-                        with open(filepath, 'wb') as f:
-                            f.write(await response.read())
-                        self.logger.info(f"TTS audio generated and saved: {filepath}")
-                        return filepath
-                    else:
-                        error_text = await response.text()
-                        self.logger.error(f"TTS API request failed: {response.status} - {error_text}")
-                        return None
-        except Exception as e:
-            self.logger.error(f"Error generating TTS via API: {e}")
-            return None
+        base_delay = 1.0  # Start with 1 second delay
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers=headers, json=payload) as response:
+                        if response.status == 200:
+                            # Save the audio content to file
+                            with open(filepath, 'wb') as f:
+                                f.write(await response.read())
+                            self.logger.info(f"TTS audio generated and saved: {filepath}")
+                            return filepath
+                        elif response.status == 500:
+                            # Server error - retry endlessly
+                            error_text = await response.text()
+                            self.logger.warning(f"TTS API request failed (attempt {attempt}): {response.status} - {error_text}")
+                            delay = min(base_delay * (2 ** (attempt - 1)), 60.0)  # Exponential backoff, max 60 seconds
+                            self.logger.info(f"Retrying in {delay} seconds...")
+                            await asyncio.sleep(delay)
+                            continue
+                        else:
+                            # Other error - don't retry
+                            error_text = await response.text()
+                            self.logger.error(f"TTS API request failed (non-retryable): {response.status} - {error_text}")
+                            return None
+            except Exception as e:
+                self.logger.error(f"Error generating TTS via API (attempt {attempt}): {e}")
+                delay = min(base_delay * (2 ** (attempt - 1)), 60.0)  # Exponential backoff, max 60 seconds
+                self.logger.info(f"Retrying in {delay} seconds...")
+                await asyncio.sleep(delay)
+                continue
+        # This should never be reached, but just in case
+        self.logger.error(f"TTS generation failed after {attempt} attempts")
+        return None
 
     def estimate_audio_duration(self, audio_file, text):
         try:
