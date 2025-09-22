@@ -1,13 +1,18 @@
 /* Custom Styling */
 
 :root {
-    color: white;
+    --bg-color: #121212;
+    --card-bg: #23272f;
+    --muted-bg: #2a2a2a;
+    --text-color: #f5f5f5;
+    --muted-text: #b5b5b5;
+    --accent: #3273dc;
 }
 
 html, body {
     min-height: 100vh;
-    background-color: #121212;
-    color: #f5f5f5;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     cursor: auto;
 }
@@ -68,8 +73,8 @@ button.is-link {
 }
 
 .card {
-    background-color: #23272f;
-    color: #f5f5f5;
+    background-color: var(--card-bg);
+    color: var(--text-color);
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
@@ -199,8 +204,8 @@ button.is-link {
 }
 
 .table {
-    background-color: #2a2a2a;
-    color: #f5f5f5;
+    background-color: var(--muted-bg);
+    color: var(--text-color);
 }
 
 .table.is-striped tbody tr:not(.is-selected):nth-child(even) {
