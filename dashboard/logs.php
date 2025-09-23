@@ -103,13 +103,13 @@ if (isset($_GET['log'])) {
     exit();
   }
   $logContent = $result['logContent'];
-  $linesTotal = $result['linesTotal'];
-  // Only send the last 200 lines, reversed, to the frontend
   $lines = explode("\n", $logContent);
-  $lines = array_reverse($lines);
-  $last200 = array_slice($lines, 0, 200);
-  $last200 = array_reverse($last200); // Put back in correct order
-  $logContent = implode("\n", $last200);
+  $linesTotal = count($lines);
+  // Get the selected lines based on skip from end
+  $skip_from_end = $since;
+  $start = max(0, $linesTotal - $skip_from_end - 200);
+  $selected_lines = array_slice($lines, $start, 200);
+  $logContent = implode("\n", $selected_lines);
   $logContent = highlight_log_dates($logContent);
   echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
   exit();
@@ -120,11 +120,17 @@ if (isset($_GET['logType'])) {
   $currentUser = $_SESSION['username'];
   $log = "$logPath/$logType/$currentUser.txt";
   // Read the log file via SSH
-  $result = read_log_file($log, 200);  if (isset($result['error'])) {
+  $result = read_log_file($log);
+  if (isset($result['error'])) {
     $logContent = "Error: " . $result['error'];
   } else {
     $logContent = $result['logContent'];
-    if (trim($logContent) === '' || isset($result['empty'])) {
+    $lines = explode("\n", $logContent);
+    $linesTotal = count($lines);
+    $start = max(0, $linesTotal - 200);
+    $selected_lines = array_slice($lines, $start, 200);
+    $logContent = implode("\n", $selected_lines);
+    if (trim($logContent) === '') {
       $logContent = "Nothing has been logged yet.";
     }
   }
@@ -204,7 +210,7 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-var last_line = 0;
+var loaded_lines = 0;
 var autoRefresh = false;
 var currentLogName = ''; // Track the currently selected log
 var logtext = document.getElementById("logs-log-textarea");
@@ -235,20 +241,14 @@ async function fetchLogData(logname, loadMore = false) {
   if (currentLogName !== logname) {
     currentLogName = logname;
   }
-  // Prevent negative line counts
-  if (loadMore && last_line <= 0) {
-    console.log(<?php echo json_encode(t('logs_no_more_lines')); ?>);
-    return;
-  }
   // Load more lines or reset
-  if (loadMore) {
-    last_line -= 200;
-  } else {
-    last_line = 0;
+  if (!loadMore) {
+    loaded_lines = 0;
   }
+  let since = loaded_lines;
   try {
     // Add cache-busting timestamp to URL
-    const response = await fetch(`logs.php?log=${logname}&since=${last_line}&_=${Date.now()}`);
+    const response = await fetch(`logs.php?log=${logname}&since=${since}&_=${Date.now()}`);
     const json = await response.json();
       // Check for errors first
     if (json.error) {
@@ -260,12 +260,16 @@ async function fetchLogData(logname, loadMore = false) {
     if (json.empty || json["data"].length === 0 || json["data"].trim() === '') {
       logHtml.innerHTML = "(log is empty)";
     } else {
-      last_line = json["last_line"];
+      if (loadMore && loaded_lines >= json["last_line"]) {
+        console.log(<?php echo json_encode(t('logs_no_more_lines')); ?>);
+        return;
+      }
       if (loadMore) {
         logHtml.innerHTML = json["data"] + logHtml.innerHTML;
       } else {
         logHtml.innerHTML = json["data"];
       }
+      loaded_lines += 200;
     }
     toggleButtonsContainer(true);
   } catch (error) {
@@ -278,14 +282,13 @@ async function autoUpdateLog() {
   if (autoRefresh && currentLogName !== '') {
     try {
       // Add cache-busting timestamp to URL
-      const response = await fetch(`logs.php?log=${currentLogName}&_=${Date.now()}`);
+      const response = await fetch(`logs.php?log=${currentLogName}&since=0&_=${Date.now()}`);
       const json = await response.json();
       // Check for errors
       if (json.error) {
         logHtml.innerHTML = `<span style="color: #ff6b6b;">Error: ${json.error}</span>`;
         return;
       }
-      last_line = json["last_line"];
       logHtml.innerHTML = json["data"];
     } catch (error) {
       console.error(<?php echo json_encode(t('logs_error_fetching_auto_refresh')); ?>, error);
