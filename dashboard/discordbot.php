@@ -272,6 +272,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       $offlineText = !empty($live_channel_id) ? $_POST['offline_text'] : null;
       if (!empty($_POST['stream_channel_id'])) { $streamChannelID = $_POST['stream_channel_id']; } 
       else { $streamChannelID = null; }
+      $streamAlertEveryone = isset($_POST['stream_alert_everyone']) ? 1 : 0;
+      $streamAlertCustomRole = !empty($_POST['stream_alert_custom_role']) ? $_POST['stream_alert_custom_role'] : null;
       if (!empty($_POST['mod_channel_id'])) { $moderationChannelID = $_POST['mod_channel_id']; }
       else { $moderationChannelID = null; }
       if (!empty($_POST['alert_channel_id'])) { $alertChannelID = $_POST['alert_channel_id']; }
@@ -295,8 +297,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $errorMsg .= "Error updating Online and Offline Text: " . $stmt->error . "<br>";
         }
       }
-      $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, moderation_channel_id = ?, alert_channel_id = ?, member_streams_id = ? WHERE user_id = ?");
-      $stmt->bind_param("iiiii", $streamChannelID, $moderationChannelID, $alertChannelID, $memberStreamsID, $user_id);
+      $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, moderation_channel_id = ?, alert_channel_id = ?, member_streams_id = ?, stream_alert_everyone = ?, stream_alert_custom_role = ? WHERE user_id = ?");
+      $stmt->bind_param("iiiiisi", $streamChannelID, $moderationChannelID, $alertChannelID, $memberStreamsID, $streamAlertEveryone, $streamAlertCustomRole, $user_id);
       if ($stmt->execute()) {
         $buildStatus .= "Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID updated successfully<br>";
       } else {
@@ -408,6 +410,8 @@ $existingStreamAlertChannelID = $discordData['stream_alert_channel_id'] ?? "";
 $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
 $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
 $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
+$existingStreamAlertEveryone = $discordData['stream_alert_everyone'] ?? false;
+$existingStreamAlertCustomRole = $discordData['stream_alert_custom_role'] ?? "";
 // Initialize server management log channel IDs as empty (will be loaded from server_management table)
 $existingWelcomeChannelID = "";
 $existingWelcomeUseDefault = false;
@@ -554,7 +558,7 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$us
 function updateExistingDiscordValues() {
   global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
-  global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $hasGuildId;
+  global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
   global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
@@ -571,6 +575,8 @@ function updateExistingDiscordValues() {
   $existingModerationChannelID = $discordData['moderation_channel_id'] ?? "";
   $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
   $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
+  $existingStreamAlertEveryone = $discordData['stream_alert_everyone'] ?? false;
+  $existingStreamAlertCustomRole = $discordData['stream_alert_custom_role'] ?? "";
   // Initialize server management log channel IDs as empty (will be loaded from server_management table)
   $existingWelcomeChannelID = "";
   $existingWelcomeUseDefault = false;
@@ -778,9 +784,10 @@ function fetchGuildChannels($access_token, $guild_id) {
   if ($response !== false) {
     $channels = json_decode($response, true);
     if (is_array($channels)) {
-      // Filter for text channels (type 0) and sort by position
+      // Filter for text channels (type 0) and announcement channels (type 5) and sort by position
       $text_channels = array_filter($channels, function($channel) {
-        return ($channel['type'] ?? -1) === 0; // 0 = GUILD_TEXT
+        $type = $channel['type'] ?? -1;
+        return $type === 0 || $type === 5; // 0 = GUILD_TEXT, 5 = GUILD_NEWS (Announcement channels)
       });
       // Sort channels by position
       usort($text_channels, function($a, $b) {
@@ -909,7 +916,9 @@ function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder,
       $channelId = htmlspecialchars($channel['id']);
       $channelName = htmlspecialchars($channel['name']);
       $selected = ($currentValue === $channel['id']) ? ' selected' : '';
-      $options .= "<option value=\"$channelId\"$selected>#$channelName</option>\n";
+      $channelType = $channel['type'] ?? 0;
+      $prefix = $channelType === 5 ? '📢 ' : '#'; // Announcement channels get a megaphone emoji
+      $options .= "<option value=\"$channelId\"$selected>$prefix$channelName</option>\n";
     }
     return "
       <div class=\"select is-fullwidth\" style=\"width: 100%;\">
@@ -1418,6 +1427,36 @@ ob_start();
                     <p class="help has-text-grey-light mb-2">For stream online notifications of your channel</p>
                     <div class="control has-icons-left">
                       <?php echo generateChannelInput('stream_channel_id', 'stream_channel_id', $existingStreamAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                    </div>
+                  </div>
+                  <div class="field" id="stream_everyone_field" style="display: none;">
+                    <label class="label has-text-white" style="font-weight: 500;">
+                      <span class="icon mr-1 has-text-warning"><i class="fas fa-at"></i></span>
+                      @everyone Mention for Stream Alerts
+                    </label>
+                    <p class="help has-text-grey-light mb-2">Mention @everyone when posting stream online alerts</p>
+                    <div class="control">
+                      <input type="checkbox" id="stream_alert_everyone" name="stream_alert_everyone" class="switch is-rounded" value="1"<?php echo $existingStreamAlertEveryone ? ' checked' : ''; ?>>
+                      <label for="stream_alert_everyone" class="has-text-white">Enable @everyone mention</label>
+                    </div>
+                  </div>
+                  <div class="field" id="stream_custom_role_field" style="display: none;">
+                    <label class="label has-text-white" style="font-weight: 500;">
+                      <span class="icon mr-1 has-text-info"><i class="fas fa-user-tag"></i></span>
+                      Custom Role Mention for Stream Alerts
+                    </label>
+                    <p class="help has-text-grey-light mb-2">Select a custom role to mention instead of @everyone</p>
+                    <div class="control has-icons-left">
+                      <?php echo generateRoleInput(
+                        'stream_alert_custom_role', 
+                        'stream_alert_custom_role', 
+                        $existingStreamAlertCustomRole, 
+                        'e.g. 123456789123456789', 
+                        $useManualIds, 
+                        $guildRoles, 
+                        'fas fa-user-tag', 
+                        false
+                      ); ?>
                     </div>
                   </div>
                   <div class="field">
@@ -2134,6 +2173,50 @@ function removeStreamer(username) {
   }
   updateCharCounter('online_text', 'online_text_counter');
   updateCharCounter('offline_text', 'offline_text_counter');
+  // Toggle @everyone checkbox visibility based on stream channel selection
+  function toggleStreamEveryoneField() {
+    const streamChannelField = $('#stream_channel_id');
+    const everyoneField = $('#stream_everyone_field');
+    const selectedValue = streamChannelField.val();
+    let hasValue = false;
+    if (streamChannelField.is('select')) {
+      hasValue = selectedValue && selectedValue !== '' && !selectedValue.includes('Select');
+    } else if (streamChannelField.is('input[type="text"]')) {
+      hasValue = selectedValue && selectedValue.trim() !== '';
+    }
+    if (hasValue) {
+      everyoneField.show();
+      const hasSavedValue = <?php echo isset($discordData['stream_alert_everyone']) ? 'true' : 'false'; ?>;
+      if (!hasSavedValue) {
+        $('#stream_alert_everyone').prop('checked', true);
+      }
+      // Update custom role field visibility based on current @everyone state
+      toggleCustomRoleField();
+    } else {
+      everyoneField.hide();
+      // Also uncheck the checkbox when hiding
+      $('#stream_alert_everyone').prop('checked', false);
+      // Hide custom role field when channel is deselected
+      $('#stream_custom_role_field').hide();
+    }
+  }
+  // Toggle custom role field based on @everyone checkbox
+  function toggleCustomRoleField() {
+    const everyoneChecked = $('#stream_alert_everyone').is(':checked');
+    const customRoleField = $('#stream_custom_role_field');
+    if (!everyoneChecked) {
+      customRoleField.show();
+    } else {
+      customRoleField.hide();
+    }
+  }
+  // Check on page load
+  toggleStreamEveryoneField();
+  toggleCustomRoleField();
+  // Check when selection/input changes
+  $('#stream_channel_id').on('change input', toggleStreamEveryoneField);
+  // Check when @everyone checkbox changes
+  $('#stream_alert_everyone').on('change', toggleCustomRoleField);
   // Dropdown validation for form buttons
   function validateDropdownSelection(fieldId, buttonName) {
     var fieldElement = $('#' + fieldId);

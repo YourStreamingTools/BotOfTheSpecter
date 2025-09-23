@@ -38,7 +38,7 @@ class Config:
         self.discord_application_id = os.getenv('DISCORD_APPLICATION_ID')
         # Bot information
         self.bot_color = 0x001C1D
-        self.bot_version = "5.3.0"
+        self.bot_version = "5.4"
         # File paths
         self.discord_version_file = "/var/www/logs/version/discord_version_control.txt"
         self.logs_directory = "/home/botofthespecter/logs/"
@@ -1364,9 +1364,9 @@ class BotOfTheSpecter(commands.Bot):
                 description=f"**{twitch_username}** is now live!",
                 color=discord.Color.green()
             )
-            stream_thumbnail_url = await self.get_stream_thumbnail_url(account_username)
-            if stream_thumbnail_url is not None:
-                embed.set_thumbnail(url=data.get(f"{stream_thumbnail_url}"))
+            thumbnail_url, game_name = await self.get_stream_info(account_username)
+            if thumbnail_url is not None:
+                embed.set_thumbnail(url=thumbnail_url)
         elif event_type == "FOLLOW":
             embed = discord.Embed(
                 title="New Follower!",
@@ -1436,7 +1436,7 @@ class BotOfTheSpecter(commands.Bot):
         time_format = f"{time_format_date} at {time_format_time}"
         return time_format
 
-    async def get_stream_thumbnail_url(self, channel_name):
+    async def get_stream_info(self, channel_name):
         channel_name = channel_name.lower()
         mysql_helper = MySQLHelper(self.logger)
         twitch_user_id = await mysql_helper.fetchone(
@@ -1454,12 +1454,15 @@ class BotOfTheSpecter(commands.Bot):
             async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    thumbnail_url = data.get("data", [{}])[0].get("thumbnail_url")
-                    thumbnail_url = thumbnail_url.replace("{width}x{height}", "1280x720")
-                    return thumbnail_url
+                    stream_data = data.get("data", [{}])[0]
+                    thumbnail_url = stream_data.get("thumbnail_url")
+                    if thumbnail_url:
+                        thumbnail_url = thumbnail_url.replace("{width}x{height}", "1280x720")
+                    game_name = stream_data.get("game_name", "Unknown Game")
+                    return thumbnail_url, game_name
                 else:
-                    self.logger.error(f"Failed to fetch stream thumbnail: {resp.status}")
-                    return None
+                    self.logger.error(f"Failed to fetch stream info: {resp.status}")
+                    return None, "Unknown Game"
 
     async def handle_stream_event(self, event_type, data):
         code = data.get("channel_code", "unknown")
@@ -1492,14 +1495,45 @@ class BotOfTheSpecter(commands.Bot):
             message = offline_text
             channel_update = f"🔴 {message}"
         await channel.send(channel_update)
-        # Send @everyone notification to stream_channel_id for online events
+        # Send notification to stream_channel_id for online events
         if event_type == "ONLINE" and "stream_channel_id" in mapping and mapping["stream_channel_id"]:
             stream_channel = guild.get_channel(int(mapping["stream_channel_id"]))
             if stream_channel:
                 mysql_helper = MySQLHelper(self.logger)
                 user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (code,), database_name='website', dict_cursor=True)
                 account_username = user_row['username'] if user_row else "Unknown User"
-                await stream_channel.send(f"@everyone Stream is now LIVE! https://twitch.tv/{account_username}")
+                # Get stream alert settings from database
+                discord_info = await mysql_helper.fetchone(
+                    "SELECT stream_alert_everyone, stream_alert_custom_role FROM discord_users WHERE guild_id = %s",
+                    (guild.id,), database_name='website', dict_cursor=True)
+                mention_text = ""
+                if discord_info:
+                    if discord_info.get('stream_alert_everyone') == 1:
+                        mention_text = "@everyone "
+                    elif discord_info.get('stream_alert_custom_role'):
+                        try:
+                            role_id = int(discord_info['stream_alert_custom_role'])
+                            role = guild.get_role(role_id)
+                            if role:
+                                mention_text = f"{role.mention} "
+                        except (ValueError, TypeError):
+                            self.logger.warning(f"Invalid custom role ID for guild {guild.id}: {discord_info['stream_alert_custom_role']}")
+                # Get stream info (thumbnail and game)
+                thumbnail_url, game_name = await self.get_stream_info(account_username)
+                # Get current date for footer
+                current_date = await self.format_discord_embed_timestamp(code)
+                # Create embed
+                embed = discord.Embed(
+                    title=f"{account_username} is now live on Twitch!",
+                    url=f"https://twitch.tv/{account_username}",
+                    description=f"Stream is now online! Streaming: {game_name}",
+                    color=discord.Color.from_rgb(145, 70, 255)
+                )
+                # Set thumbnail if available
+                embed.set_thumbnail(url=thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg")
+                # Set footer
+                embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
+                await stream_channel.send(content=mention_text, embed=embed)
         # Attempt to update the channel name if it is different
         if channel.name != channel_update:
             try:
