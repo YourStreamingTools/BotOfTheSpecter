@@ -57,7 +57,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.4.1"
+VERSION = "5.4.2"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -842,6 +842,8 @@ async def process_twitch_eventsub_message(message):
                 # Moderation Event
                 elif event_type == 'channel.moderate':
                     moderator_user_name = event_data.get("moderator_user_name", "Unknown Moderator")
+                    if event_data.get("action") == "raid":
+                        return
                     # Handle timeout action
                     if event_data.get("action") == "timeout":
                         timeout_info = event_data.get("timeout", {})
@@ -8618,7 +8620,7 @@ async def track_watch_time(active_users):
                 await cursor.executemany("UPDATE watch_time SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s WHERE user_id = %s", updates)
             # Execute batch inserts
             if inserts:
-                await cursor.executemany("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s)", inserts)
+                await cursor.executemany("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE total_watch_time_live = total_watch_time_live + VALUES(total_watch_time_live), total_watch_time_offline = total_watch_time_offline + VALUES(total_watch_time_offline), last_active = VALUES(last_active), username = VALUES(username)", inserts)
             await connection.commit()
     except Exception as e:
         bot_logger.error(f"Error in track_watch_time: {e}", exc_info=True)
