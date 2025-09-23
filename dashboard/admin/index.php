@@ -45,6 +45,10 @@ ob_start();
             <span class="icon"><i class="fab fa-twitch"></i></span>
             <span>Twitch Tokens</span>
         </a>
+        <a href="admin_discord_tracking.php" class="button is-link is-light">
+            <span class="icon"><i class="fab fa-discord"></i></span>
+            <span>Discord Tracking</span>
+        </a>
         <!-- Add more quick links as needed -->
     </div>
 </div>

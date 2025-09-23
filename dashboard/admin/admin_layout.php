@@ -149,6 +149,10 @@ ob_start();
                     <span class="icon"><i class="fab fa-twitch"></i></span>
                     <span>Twitch Tokens</span>
                 </a>
+                <a class="navbar-item" href="admin_discord_tracking.php">
+                    <span class="icon"><i class="fab fa-discord"></i></span>
+                    <span>Discord Tracking</span>
+                </a>
             </div>
             <div class="navbar-end">
                 <div class="navbar-item has-dropdown is-hoverable">
