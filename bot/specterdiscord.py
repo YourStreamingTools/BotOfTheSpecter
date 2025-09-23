@@ -1492,6 +1492,14 @@ class BotOfTheSpecter(commands.Bot):
             message = offline_text
             channel_update = f"🔴 Not Live"
         await channel.send(message)
+        # Send @everyone notification to stream_channel_id for online events
+        if event_type == "ONLINE" and "stream_channel_id" in mapping and mapping["stream_channel_id"]:
+            stream_channel = guild.get_channel(int(mapping["stream_channel_id"]))
+            if stream_channel:
+                mysql_helper = MySQLHelper(self.logger)
+                user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (code,), database_name='website', dict_cursor=True)
+                account_username = user_row['username'] if user_row else "Unknown User"
+                await stream_channel.send(f"@everyone Stream is now LIVE! https://twitch.tv/{account_username}")
         # Attempt to update the channel name if it is different
         if channel.name != channel_update:
             try:
