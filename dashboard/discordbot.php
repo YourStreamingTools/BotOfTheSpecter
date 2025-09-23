@@ -329,7 +329,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       $deleteStmt->close();
     } elseif (isset($_POST['monitor_username'])) {
       // Add Twitch streamer monitoring (URL is auto-generated)
-      $monitor_username = trim($_POST['monitor_username']);
+      $monitor_username = trim(str_replace(' ', '', $_POST['monitor_username']));
       if (empty($monitor_username)) {
         $errorMsg = "Twitch Username cannot be empty.";
       } else {
