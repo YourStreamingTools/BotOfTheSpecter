@@ -58,6 +58,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_token'])) {
     exit;
 }
 
+// Handle AJAX request for token validation BEFORE any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
+    header('Content-Type: application/json');
+    $token = isset($_POST['access_token']) ? trim($_POST['access_token']) : '';
+    if (empty($token)) {
+        echo json_encode(['success' => false, 'error' => 'Access token is required.']);
+        exit;
+    }
+    $url = 'https://id.twitch.tv/oauth2/validate';
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: OAuth ' . $token
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($httpCode === 200) {
+        $result = json_decode($response, true);
+        echo json_encode([
+            'success' => true,
+            'validation' => $result
+        ]);
+    } else {
+        $error = json_decode($response, true);
+        $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to validate token.';
+        echo json_encode(['success' => false, 'error' => $errorMsg]);
+    }
+    exit;
+}
+
 ob_start();
 ?>
 
@@ -127,6 +158,29 @@ ob_start();
     </div>
 </div>
 
+<div class="box">
+    <h3 class="title is-5">Validate Access Token</h3>
+    <p class="mb-4">Enter an access token to validate its status and details.</p>
+    <div class="field">
+        <label class="label">Access Token</label>
+        <div class="control">
+            <input class="input" type="password" id="validate-token" placeholder="Enter access token to validate" required>
+        </div>
+        <p class="help">The token will be validated against Twitch's API</p>
+    </div>
+    <div class="field">
+        <div class="control">
+            <button class="button is-info" id="validate-token-btn">
+                <span class="icon"><i class="fas fa-check"></i></span>
+                <span>Validate Token</span>
+            </button>
+        </div>
+    </div>
+</div>
+<div id="validation-result" class="notification is-hidden">
+    <div id="validation-content"></div>
+</div>
+
 <?php
 $content = ob_get_clean();
 ob_start();
@@ -137,6 +191,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const generateBtn = document.getElementById('generate-token-btn');
     const tokenResult = document.getElementById('token-result');
     const tokenContent = document.getElementById('token-content');
+    const validateBtn = document.getElementById('validate-token-btn');
+    const validationResult = document.getElementById('validation-result');
+    const validationContent = document.getElementById('validation-content');
+
     generateBtn.addEventListener('click', async function() {
         const clientId = document.getElementById('client-id').value.trim();
         const clientSecret = document.getElementById('client-secret').value.trim();
@@ -204,6 +262,75 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         generateBtn.classList.remove('is-loading');
         generateBtn.disabled = false;
+    });
+
+    validateBtn.addEventListener('click', async function() {
+        const token = document.getElementById('validate-token').value.trim();
+        if (!token) {
+            Swal.fire({
+                title: 'Missing Token',
+                text: 'Please enter an access token to validate.',
+                icon: 'warning'
+            });
+            return;
+        }
+        validateBtn.classList.add('is-loading');
+        validateBtn.disabled = true;
+        try {
+            const formData = new FormData();
+            formData.append('validate_token', '1');
+            formData.append('access_token', token);
+            const response = await fetch('', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.success) {
+                const val = data.validation;
+                const expiresIn = val.expires_in || 0;
+                const now = new Date();
+                const expiryDate = new Date(now.getTime() + expiresIn * 1000);
+                // Calculate time components
+                let remaining = expiresIn;
+                const months = Math.floor(remaining / (30 * 24 * 3600));
+                remaining %= (30 * 24 * 3600);
+                const days = Math.floor(remaining / (24 * 3600));
+                remaining %= (24 * 3600);
+                const hours = Math.floor(remaining / 3600);
+                remaining %= 3600;
+                const minutes = Math.floor(remaining / 60);
+                const seconds = remaining % 60;
+                // Build time string, only including non-zero units
+                let timeParts = [];
+                if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
+                if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
+                if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+                if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+                if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
+                const timeString = timeParts.join(', ') || '0 seconds';
+                const dateOptions = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+                validationContent.innerHTML = `
+                    <h4 class="title is-5">Token Validated Successfully</h4>
+                    <p><strong>Expires In:</strong> ${timeString}</p>
+                    <p><strong>Expiration Date:</strong> ${expiryDate.toLocaleString('en-AU', dateOptions)}</p>
+                `;
+                validationResult.classList.remove('is-hidden');
+                validationResult.classList.add('is-success');
+                validationResult.classList.remove('is-danger');
+            } else {
+                validationContent.innerHTML = `<p class="has-text-danger">${data.error}</p>`;
+                validationResult.classList.remove('is-hidden');
+                validationResult.classList.remove('is-success');
+                validationResult.classList.add('is-danger');
+            }
+        } catch (error) {
+            validationContent.innerHTML = '<p class="has-text-danger">An error occurred while validating the token.</p>';
+            validationResult.classList.remove('is-hidden');
+            validationResult.classList.remove('is-success');
+            validationResult.classList.add('is-danger');
+        }
+        validateBtn.classList.remove('is-loading');
+        validateBtn.disabled = false;
     });
 });
 
