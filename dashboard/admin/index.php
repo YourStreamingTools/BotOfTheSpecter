@@ -100,14 +100,45 @@ ob_start();
             </div>
         </div>
         <div class="column is-one-third">
-            <h2 class="title is-4"><span class="icon"><i class="fab fa-discord"></i></span> Discord Bot Service Status</h2>
-            <p>Current Status: <span id="bot-status" class="tag <?php echo $bot_status == 'Running' ? 'is-success' : ($bot_status == 'Stopped' ? 'is-danger' : 'is-warning'); ?>"><?php echo $bot_status; ?></span></p>
-            <p>PID: <span id="bot-pid"><?php echo $bot_pid; ?></span></p>
-            <form method="post" style="display: inline;">
-                <button type="submit" name="action" value="start" class="button is-small is-success" <?php echo $bot_status == 'Running' ? 'disabled' : ''; ?>>Start</button>
-                <button type="submit" name="action" value="stop" class="button is-small is-danger" <?php echo $bot_status == 'Stopped' ? 'disabled' : ''; ?>>Stop</button>
-                <button type="submit" name="action" value="restart" class="button is-small is-warning">Restart</button>
-            </form>
+            <div class="box">
+                <div class="level">
+                    <div class="level-left">
+                        <div class="level-item">
+                            <span class="icon has-text-link">
+                                <i class="fab fa-discord fa-lg"></i>
+                            </span>
+                        </div>
+                        <div class="level-item">
+                            <div>
+                                <p class="heading">Discord Bot</p>
+                                <p class="title is-6 <?php echo $bot_status == 'Running' ? 'has-text-success' : ($bot_status == 'Stopped' ? 'has-text-danger' : 'has-text-warning'); ?>"><?php echo $bot_status; ?></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="level-right">
+                        <div class="level-item">
+                            <span class="tag is-light has-text-black">PID: <?php echo $bot_pid; ?></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="buttons are-small">
+                    <form method="post" style="display: inline;">
+                        <button type="submit" name="action" value="start" class="button is-success" <?php echo $bot_status == 'Running' ? 'disabled' : ''; ?>>
+                            <span class="icon"><i class="fas fa-play"></i></span>
+                        </button>
+                    </form>
+                    <form method="post" style="display: inline;">
+                        <button type="submit" name="action" value="stop" class="button is-danger" <?php echo $bot_status == 'Stopped' ? 'disabled' : ''; ?>>
+                            <span class="icon"><i class="fas fa-stop"></i></span>
+                        </button>
+                    </form>
+                    <form method="post" style="display: inline;">
+                        <button type="submit" name="action" value="restart" class="button is-warning">
+                            <span class="icon"><i class="fas fa-redo"></i></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>
