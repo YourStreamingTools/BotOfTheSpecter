@@ -131,7 +131,7 @@ function checkServiceStatus($serviceName, $serviceData) {
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: transparent; color: #ffffff; min-height: 100vh; padding: 20px; }
         .container { max-width: 1200px; margin: 0 auto; }
         h1 { text-align: center; margin-bottom: 30px; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .section { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 20px; margin-bottom: 20px; backdrop-filter: blur(10px); }
+        .section { background: #292929; border-radius: 10px; padding: 20px; margin-bottom: 20px; backdrop-filter: blur(10px); }
         .section h2 { margin-bottom: 15px; font-size: 1.5em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
         .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
         .status-item { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
@@ -139,7 +139,7 @@ function checkServiceStatus($serviceName, $serviceData) {
         .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.2em; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-        .info-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.2); }
+        .info-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #292929; }
         .info-item:last-child { border-bottom: none; }
         .error { color: #ff4d4d; }
         .last-updated { text-align: center; margin-top: 20px; font-size: 0.9em; opacity: 0.8; }
