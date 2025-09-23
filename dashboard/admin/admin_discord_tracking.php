@@ -42,7 +42,12 @@ foreach ($users as $username) {
             $stmt->close();
         }
         if (!empty($streams)) {
-            $trackingData[$username] = $streams;
+            // Remove duplicates based on username
+            $uniqueStreams = [];
+            foreach ($streams as $stream) {
+                $uniqueStreams[$stream['username']] = $stream;
+            }
+            $trackingData[$username] = array_values($uniqueStreams);
         }
         $userConn->close();
     } catch (mysqli_sql_exception $e) {
@@ -73,12 +78,14 @@ ob_start();
                 </thead>
                 <tbody>
                     <?php foreach ($trackingData as $username => $streams): ?>
-                        <?php foreach ($streams as $index => $stream): ?>
+                        <?php foreach ($streams as $stream): ?>
                             <tr>
-                                <?php if ($index === 0): ?>
-                                    <td rowspan="<?php echo count($streams); ?>"><strong><?php echo htmlspecialchars($username); ?></strong></td>
-                                <?php endif; ?>
-                                <td><strong><?php echo htmlspecialchars($stream['username']); ?></strong></td>
+                                <td>
+                                    <?php echo htmlspecialchars($username); ?>
+                                </td>
+                                <td>
+                                    <?php echo htmlspecialchars($stream['username']); ?>
+                                </td>
                                 <td>
                                     <?php if (!empty($stream['stream_url'])): ?>
                                         <a href="<?php echo htmlspecialchars($stream['stream_url']); ?>" target="_blank" rel="noopener noreferrer">
