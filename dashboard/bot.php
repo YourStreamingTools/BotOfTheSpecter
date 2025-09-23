@@ -5,10 +5,42 @@ include_once __DIR__ . '/lang/i18n.php';
 $today = new DateTime();
 $backup_system = false;
 
+function validateTwitchToken($token) {
+  $url = "https://id.twitch.tv/oauth2/validate";
+  $headers = ['Authorization: OAuth ' . $token];
+  $ch = curl_init($url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
+  $response = curl_exec($ch);
+  $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+  if ($httpCode === 200) {
+    $data = json_decode($response, true);
+    return $data; // Return the validation data including expires_in
+  } else {
+    return false; // Token is invalid or expired
+  }
+}
+
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
   header('Location: login.php');
   exit();
+}
+
+// Validate the Twitch token
+$tokenData = validateTwitchToken($_SESSION['access_token']);
+$consoleLog = '';
+if (!$tokenData) {
+  // Token is invalid, clear session and redirect to login
+  session_unset();
+  session_destroy();
+  header('Location: login.php');
+  exit();
+} else {
+  // Prepare console log for validation info (without exposing sensitive data)
+  $consoleLog = "<script>console.log('Token validated: " . addslashes($tokenData['login']) . " | " . addslashes($tokenData['user_id']) . " | " . addslashes($tokenData['expires_in']) . "');</script>";
 }
 
 // Page Title and Initial Variables
@@ -1906,6 +1938,7 @@ python /home/botofthespecter/beta.py -channel <?php echo htmlspecialchars($usern
 
 -->
 <?php
+echo $consoleLog;
 // Get the buffered content
 $scripts = ob_get_clean();
 // Include the layout template
