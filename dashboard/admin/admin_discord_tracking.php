@@ -18,32 +18,37 @@ $trackingData = [];
 
 foreach ($users as $username) {
     $userDbName = $username;
-    $userConn = new mysqli($db_servername, $db_username, $db_password, $userDbName);
-    if ($userConn->connect_error) {
-        // Skip if database doesn't exist
-        continue;
-    }
-    // Check if member_streams table exists
-    $tableCheck = $userConn->query("SHOW TABLES LIKE 'member_streams'");
-    if ($tableCheck->num_rows == 0) {
-        $userConn->close();
-        continue;
-    }
-    // Fetch tracked streams
-    $streams = [];
-    $stmt = $userConn->prepare("SELECT username, stream_url FROM member_streams ORDER BY username ASC");
-    if ($stmt) {
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            $streams[] = $row;
+    try {
+        $userConn = new mysqli($db_servername, $db_username, $db_password, $userDbName);
+        if ($userConn->connect_error) {
+            // Skip if database doesn't exist
+            continue;
         }
-        $stmt->close();
+        // Check if member_streams table exists
+        $tableCheck = $userConn->query("SHOW TABLES LIKE 'member_streams'");
+        if ($tableCheck->num_rows == 0) {
+            $userConn->close();
+            continue;
+        }
+        // Fetch tracked streams
+        $streams = [];
+        $stmt = $userConn->prepare("SELECT username, stream_url FROM member_streams ORDER BY username ASC");
+        if ($stmt) {
+            $stmt->execute();
+            $resultStreams = $stmt->get_result();
+            while ($row = $resultStreams->fetch_assoc()) {
+                $streams[] = $row;
+            }
+            $stmt->close();
+        }
+        if (!empty($streams)) {
+            $trackingData[$username] = $streams;
+        }
+        $userConn->close();
+    } catch (mysqli_sql_exception $e) {
+        // Skip users whose database doesn't exist
+        continue;
     }
-    if (!empty($streams)) {
-        $trackingData[$username] = $streams;
-    }
-    $userConn->close();
 }
 
 ob_start();
@@ -62,30 +67,29 @@ ob_start();
                 <thead>
                     <tr>
                         <th>User</th>
-                        <th>Number of Tracked Streams</th>
-                        <th>Tracked Streamers/Channels</th>
+                        <th>Streamer/Channel</th>
+                        <th>Stream URL</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($trackingData as $username => $streams): ?>
-                        <tr>
-                            <td><strong><?php echo htmlspecialchars($username); ?></strong></td>
-                            <td><?php echo count($streams); ?></td>
-                            <td>
-                                <ul style="margin: 0; padding-left: 1.5rem;">
-                                    <?php foreach ($streams as $stream): ?>
-                                        <li>
-                                            <strong><?php echo htmlspecialchars($stream['username']); ?></strong>
-                                            <?php if (!empty($stream['stream_url'])): ?>
-                                                - <a href="<?php echo htmlspecialchars($stream['stream_url']); ?>" target="_blank" rel="noopener noreferrer">
-                                                    <?php echo htmlspecialchars($stream['stream_url']); ?>
-                                                </a>
-                                            <?php endif; ?>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </td>
-                        </tr>
+                        <?php foreach ($streams as $index => $stream): ?>
+                            <tr>
+                                <?php if ($index === 0): ?>
+                                    <td rowspan="<?php echo count($streams); ?>"><strong><?php echo htmlspecialchars($username); ?></strong></td>
+                                <?php endif; ?>
+                                <td><strong><?php echo htmlspecialchars($stream['username']); ?></strong></td>
+                                <td>
+                                    <?php if (!empty($stream['stream_url'])): ?>
+                                        <a href="<?php echo htmlspecialchars($stream['stream_url']); ?>" target="_blank" rel="noopener noreferrer">
+                                            <?php echo htmlspecialchars($stream['stream_url']); ?>
+                                        </a>
+                                    <?php else: ?>
+                                        <em>No URL</em>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
                     <?php endforeach; ?>
                 </tbody>
             </table>
