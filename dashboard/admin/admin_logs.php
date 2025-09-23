@@ -8,7 +8,7 @@ include '/var/www/config/twitch.php';
 
 // Always use SSH config and log reading function for log retrieval
 include_once "/var/www/config/ssh.php";
-function read_bot_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
+function read_bot_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
     if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect($bots_ssh_host, 22);
@@ -28,7 +28,7 @@ function read_bot_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
     $linesTotal = (int)trim(stream_get_contents($stream));
     fclose($stream);
     if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
-    if ($startLine === null) { $startLine = max(0, $linesTotal - $lines); }
+    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
     $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
     $stream = ssh2_exec($connection, $cmd);
     stream_set_blocking($stream, true);
@@ -38,7 +38,7 @@ function read_bot_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
 }
 
 // Function to read Apache2 logs via SSH to localhost using server credentials
-function read_apache2_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
+function read_apache2_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
     global $server_username, $server_password;
     if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect('localhost', 22);
@@ -58,7 +58,7 @@ function read_apache2_log_over_ssh($remote_path, $lines = 200, $startLine = null
     $linesTotal = (int)trim(stream_get_contents($stream));
     fclose($stream);
     if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
-    if ($startLine === null) { $startLine = max(0, $linesTotal - $lines); }
+    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
     $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
     $stream = ssh2_exec($connection, $cmd);
     stream_set_blocking($stream, true);
@@ -501,6 +501,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const logTextarea = document.getElementById('admin-log-textarea');
     const categorySelect = document.getElementById('admin-log-category-select');
     const systemLogTypes = <?php echo json_encode($systemLogTypes); ?>;
+    let adminLogCategory = '';
+    let adminLogUser = '';
+    let adminLogType = '';
+    let adminLogLoaded = 0;
+    let adminLogLastLine = 0;
     categorySelect.addEventListener('change', function() {
         adminLogCategory = this.value;
         resetLogContent();
@@ -597,12 +602,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     function resetLogContent() {
         logTextarea.innerHTML = '';
+        adminLogLoaded = 0;
         adminLogLastLine = 0;
     }
     async function fetchAdminLog(loadMore = false) {
         if (!adminLogUser || !adminLogType) return;
-        if (loadMore && adminLogLastLine <= 0) return;
-        let since = loadMore ? Math.max(0, adminLogLastLine - 200) : 0;
+        let since = loadMore ? adminLogLoaded : 0;
+        if (loadMore && adminLogLoaded >= adminLogLastLine) return;
         try {
             const resp = await fetch(`admin_logs.php?admin_log_user=${encodeURIComponent(adminLogUser)}&admin_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
             const json = await resp.json();
@@ -626,6 +632,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 logTextarea.innerHTML = json.data;
             }
+            adminLogLoaded += 200;
         } catch (e) {
             logTextarea.innerHTML = "Unable to connect to the logging system.";
             console.error(e);
@@ -633,8 +640,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     async function fetchSystemLog(loadMore = false) {
         if (!adminLogType) return;
-        if (loadMore && adminLogLastLine <= 0) return;
-        let since = loadMore ? Math.max(0, adminLogLastLine - 200) : 0;
+        let since = loadMore ? adminLogLoaded : 0;
+        if (loadMore && adminLogLoaded >= adminLogLastLine) return;
         try {
             const resp = await fetch(`admin_logs.php?admin_system_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
             const json = await resp.json();
@@ -660,6 +667,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 logTextarea.innerHTML = json.data;
             }
+            adminLogLoaded += 200;
         } catch (e) {
             logTextarea.innerHTML = "Unable to connect to the logging system.";
             console.error(e);
