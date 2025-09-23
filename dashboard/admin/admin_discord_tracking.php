@@ -62,6 +62,11 @@ ob_start();
 <div class="box">
     <h1 class="title is-4"><span class="icon"><i class="fab fa-discord"></i></span> Discord Stream Tracking Overview</h1>
     <p class="mb-4">This page shows which users have Discord stream tracking enabled, how many streams they're tracking, and the details of each tracked stream.</p>
+    <div class="field mb-4">
+        <div class="control">
+            <input type="text" id="user-search" placeholder="Search user..." class="input">
+        </div>
+    </div>
     <?php if (empty($trackingData)): ?>
         <div class="notification is-info">
             <p>No users currently have Discord stream tracking configured.</p>
@@ -118,5 +123,34 @@ ob_start();
 
 <?php
 $content = ob_get_clean();
+
+ob_start();
+?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('user-search').addEventListener('keyup', function(e) {
+        filterUsers();
+    });
+});
+
+function filterUsers() {
+    const input = document.getElementById('user-search').value.toLowerCase();
+    const table = document.querySelector('.table tbody');
+    const rows = table.getElementsByTagName('tr');
+    for (let row of rows) {
+        const userCell = row.getElementsByTagName('td')[0];
+        if (userCell) {
+            const userText = userCell.textContent.toLowerCase();
+            if (userText.includes(input)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        }
+    }
+}
+</script>
+<?php
+$scripts = ob_get_clean();
 include "admin_layout.php";
 ?>
