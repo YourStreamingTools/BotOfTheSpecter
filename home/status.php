@@ -15,7 +15,6 @@ function pingServer($host, $port) {
     $file = @fsockopen($host, $port, $errno, $errstr, 2);
     $stoptime = microtime(true);
     $status = 0;
-
     if (!$file) {
         $status = -1;  // Site is down
     } else {
@@ -31,38 +30,38 @@ $versionData = fetchData('https://api.botofthespecter.com/versions');
 if ($versionData) {
     $betaVersion = $versionData['beta_version'];
     $stableVersion = $versionData['stable_version'];
+    $discordVersion = $versionData['discord_bot'] ?? null;
 } else {
-    $betaVersion = $stableVersion = null;
+    $betaVersion = $stableVersion = $discordVersion = null;
 }
 
 // Directly ping the servers
-$apiPingStatus = pingServer('172.105.189.43', 443);
-$apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF'];
+$apiPingStatus = pingServer('api.botofthespecter.com', 443);
+$apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $apiPingStatus];
 
-$websocketPingStatus = pingServer('172.105.180.8', 443);
-$notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OFF'];
+$websocketPingStatus = pingServer('websock.botofthespecter.com', 443);
+$notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $websocketPingStatus];
 
-$databasePingStatus = pingServer('194.195.122.234', 3306);
-$databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF'];
+$databasePingStatus = pingServer('sql.botofthespecter.com', 3306);
+$databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $databasePingStatus];
 
 // Additional server monitoring
-$botServerPingStatus = pingServer('172.105.191.96', 22);
-$botServerStatus = ['status' => $botServerPingStatus >= 0 ? 'OK' : 'OFF'];
+$botServerPingStatus = pingServer('bots.botofthespecter.com', 22);
+$botServerStatus = ['status' => $botServerPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $botServerPingStatus];
 
-$streamUsEast1PingStatus = pingServer('172.235.150.18', 1935);
-$streamUsEast1Status = ['status' => $streamUsEast1PingStatus >= 0 ? 'OK' : 'OFF'];
+$streamUsEast1PingStatus = pingServer('us-east-1.botofthespecter.video', 1935);
+$streamUsEast1Status = ['status' => $streamUsEast1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $streamUsEast1PingStatus];
+$streamUsEast1Status['status'] = 'DISABLED'; // Temporarily disabled
 
-$streamUsWest1PingStatus = pingServer('172.232.173.107', 1935);
-$streamUsWest1Status = ['status' => $streamUsWest1PingStatus >= 0 ? 'OK' : 'OFF'];
+$streamUsWest1PingStatus = pingServer('us-west-1.botofthespecter.video', 1935);
+$streamUsWest1Status = ['status' => $streamUsWest1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $streamUsWest1PingStatus];
+$streamUsWest1Status['status'] = 'DISABLED'; // Temporarily disabled
 
-$streamAuEast1PingStatus = pingServer('172.105.161.23', 1935);
-$streamAuEast1Status = ['status' => $streamAuEast1PingStatus >= 0 ? 'OK' : 'OFF'];
+$streamAuEast1PingStatus = pingServer('au-east-1.botofthespecter.video', 1935);
+$streamAuEast1Status = ['status' => $streamAuEast1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $streamAuEast1PingStatus];
 
-$web1PingStatus = pingServer('172.105.191.110', 443);
-$web1Status = ['status' => $web1PingStatus >= 0 ? 'OK' : 'OFF'];
-
-$billingPingStatus = pingServer('192.53.169.203', 443);
-$billingStatus = ['status' => $billingPingStatus >= 0 ? 'OK' : 'OFF'];
+$web1PingStatus = pingServer('web1.botofthespecter.com', 443);
+$web1Status = ['status' => $web1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $web1PingStatus];
 
 // Fetch song request data
 $songData = fetchData('https://api.botofthespecter.com/api/song');
@@ -100,9 +99,9 @@ if (isset($_GET['ajax'])) {
         'streamUsWest1Status' => $streamUsWest1Status,
         'streamAuEast1Status' => $streamAuEast1Status,
         'web1Status' => $web1Status,
-        'billingStatus' => $billingStatus,
         'betaVersion' => $betaVersion,
         'stableVersion' => $stableVersion,
+        'discordVersion' => $discordVersion,
         'songRequestsRemaining' => $songRequestsRemaining,
         'exchangeRateRequestsRemaining' => $exchangeRateRequestsRemaining,
         'weatherRequestsRemaining' => $weatherRequestsRemaining
@@ -112,9 +111,12 @@ if (isset($_GET['ajax'])) {
 
 function checkServiceStatus($serviceName, $serviceData) {
     if ($serviceData && $serviceData['status'] === 'OK') {
-        return "<p><strong>$serviceName:</strong> <span class='heartbeat beating'>❤️</span></p>";
+        $ping = $serviceData['ping'] . 'ms';
+        return "<div class='status-item'><strong>$serviceName:</strong> $ping <span class='heartbeat beating'>❤️</span></div>";
+    } elseif ($serviceData && $serviceData['status'] === 'DISABLED') {
+        return "<div class='status-item'><strong>$serviceName:</strong> Disabled <span>⏸️</span></div>";
     } else {
-        return "<p><strong>$serviceName:</strong> <span>💀</span></p>";
+        return "<div class='status-item'><strong>$serviceName:</strong> Down <span>💀</span></div>";
     }
 }
 ?>
@@ -126,58 +128,71 @@ function checkServiceStatus($serviceName, $serviceData) {
     <title>BotOfTheSpecter Status</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; font-size: 16px; color: #ffffff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 20px; }
-        .info, .heartbeat-container, .error { font-size: 26px; margin: 10px 0; }
-        .heartbeat-container { display: flex; align-items: center; margin-bottom: 20px; }
-        .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: transparent; color: #ffffff; min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .section { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 20px; margin-bottom: 20px; backdrop-filter: blur(10px); }
+        .section h2 { margin-bottom: 15px; font-size: 1.5em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .status-item { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .status-item strong { font-size: 1.1em; }
+        .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.2em; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        .info-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.2); }
+        .info-item:last-child { border-bottom: none; }
         .error { color: #ff4d4d; }
-        .countdown { margin-top: 10px; color: #ffffff; }
+        .last-updated { text-align: center; margin-top: 20px; font-size: 0.9em; opacity: 0.8; }
     </style>
 </head>
 <body>
-<!-- Display Additional Service Statuses -->
-<div class="info" id="service-status">
-    <?= checkServiceStatus('API Service', $apiServiceStatus); ?>
-    <?= checkServiceStatus('Database Service', $databaseServiceStatus); ?>
-    <?= checkServiceStatus('Notification Service', $notificationServiceStatus); ?>
-    <?= checkServiceStatus('Bot Server', $botServerStatus); ?>
-    <?= checkServiceStatus('Stream US-East-1', $streamUsEast1Status); ?>
-    <?= checkServiceStatus('Stream US-West-1', $streamUsWest1Status); ?>
-    <?= checkServiceStatus('Stream AU-East-1', $streamAuEast1Status); ?>
-    <?= checkServiceStatus('Web Server 1', $web1Status); ?>
-    <?= checkServiceStatus('Billing Service', $billingStatus); ?>
-</div>
-
-<!-- Display Versions -->
-<div class="info" id="version-info">
-    <p><strong>Beta Version:</strong> <span id="beta-version"><?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></span></p>
-    <p><strong>Stable Version:</strong> <span id="stable-version"><?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></span></p>
-</div>
-
-<!-- Display Song Request Info -->
-<div class="info" id="song-info">
-    <p><strong>Song Requests Remaining:</strong> <span id="song-requests"><?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></span></p>
-</div>
-
-<!-- Display Exchange Rate Request Info -->
-<div class="info" id="exchange-info">
-    <p><strong>Exchange Rate Requests Remaining:</strong> <span id="exchange-requests"><?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></span></p>
-</div>
-
-<!-- Display Weather Request Info -->
-<div class="info" id="weather-info">
-    <p><strong>Weather Requests Remaining Today:</strong> <span id="weather-requests"><?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></span></p>
+<div class="container">
+    <h1>BotOfTheSpecter System Status</h1>
+    <!-- Service Statuses -->
+    <div class="section">
+        <h2>Service Status</h2>
+        <div class="status-grid" id="service-status">
+            <?= checkServiceStatus('Web Server 1', $web1Status); ?>
+            <?= checkServiceStatus('Bot Server', $botServerStatus); ?>
+            <?= checkServiceStatus('Database Service', $databaseServiceStatus); ?>
+            <?= checkServiceStatus('API Service', $apiServiceStatus); ?>
+            <?= checkServiceStatus('Notification Service', $notificationServiceStatus); ?>
+            <?= checkServiceStatus('Stream US-East-1', $streamUsEast1Status); ?>
+            <?= checkServiceStatus('Stream US-West-1', $streamUsWest1Status); ?>
+            <?= checkServiceStatus('Stream AU-East-1', $streamAuEast1Status); ?>
+        </div>
+    </div>
+    <!-- Versions -->
+    <div class="section">
+        <h2>Versions</h2>
+        <div id="version-info">
+            <div class="info-item"><strong>Stable Version:</strong> <span id="stable-version"><?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></span></div>
+            <div class="info-item"><strong>Beta Version:</strong> <span id="beta-version"><?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></span></div>
+            <div class="info-item"><strong>Discord Bot Version:</strong> <span id="discord-version"><?= isset($discordVersion) ? $discordVersion : 'N/A'; ?></span></div>
+        </div>
+    </div>
+    <!-- API Limits -->
+    <div class="section">
+        <h2>API Request Limits</h2>
+        <div id="api-limits">
+            <div class="info-item"><strong>Song Requests Remaining:</strong> <span id="song-requests"><?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></span></div>
+            <div class="info-item"><strong>Exchange Rate Requests Remaining:</strong> <span id="exchange-requests"><?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></span></div>
+            <div class="info-item"><strong>Weather Requests Remaining Today:</strong> <span id="weather-requests"><?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></span></div>
+        </div>
+    </div>
+    <div class="last-updated" id="last-updated">Last updated: <span id="update-time">Just now</span></div>
 </div>
 
 <script>
 // Helper to update service status HTML
-function renderServiceStatus(name, status) {
-    if (status === 'OK') {
-        return `<p><strong>${name}:</strong> <span class='heartbeat beating'>❤️</span></p>`;
+function renderServiceStatus(name, statusData) {
+    if (statusData.status === 'OK') {
+        const ping = statusData.ping + 'ms';
+        return `<div class='status-item'><strong>${name}:</strong> ${ping} <span class='heartbeat beating'>❤️</span></div>`;
+    } else if (statusData.status === 'DISABLED') {
+        return `<div class='status-item'><strong>${name}:</strong> Disabled <span>⏸️</span></div>`;
     } else {
-        return `<p><strong>${name}:</strong> <span>💀</span></p>`;
+        return `<div class='status-item'><strong>${name}:</strong> Down <span>💀</span></div>`;
     }
 }
 
@@ -188,24 +203,26 @@ function fetchAndUpdateStatus() {
         .then(data => {
             // Update service statuses
             document.getElementById('service-status').innerHTML =
-                renderServiceStatus('API Service', data.apiServiceStatus.status) +
-                renderServiceStatus('Database Service', data.databaseServiceStatus.status) +
-                renderServiceStatus('Notification Service', data.notificationServiceStatus.status) +
-                renderServiceStatus('Bot Server', data.botServerStatus.status) +
-                renderServiceStatus('Stream US-East-1', data.streamUsEast1Status.status) +
-                renderServiceStatus('Stream US-West-1', data.streamUsWest1Status.status) +
-                renderServiceStatus('Stream AU-East-1', data.streamAuEast1Status.status) +
-                renderServiceStatus('Web Server 1', data.web1Status.status) +
-                renderServiceStatus('Billing Service', data.billingStatus.status);
+                renderServiceStatus('Web Server 1', data.web1Status) +
+                renderServiceStatus('Bot Server', data.botServerStatus) +
+                renderServiceStatus('Database Service', data.databaseServiceStatus) +
+                renderServiceStatus('API Service', data.apiServiceStatus) +
+                renderServiceStatus('Notification Service', data.notificationServiceStatus) +
+                renderServiceStatus('Stream US-East-1', data.streamUsEast1Status) +
+                renderServiceStatus('Stream US-West-1', data.streamUsWest1Status) +
+                renderServiceStatus('Stream AU-East-1', data.streamAuEast1Status);
             // Update versions
-            document.getElementById('beta-version').textContent = data.betaVersion ?? 'N/A';
             document.getElementById('stable-version').textContent = data.stableVersion ?? 'N/A';
+            document.getElementById('beta-version').textContent = data.betaVersion ?? 'N/A';
+            document.getElementById('discord-version').textContent = data.discordVersion ?? 'N/A';
             // Update song info
             document.getElementById('song-requests').textContent = data.songRequestsRemaining ?? 'N/A';
             // Update exchange info
             document.getElementById('exchange-requests').textContent = data.exchangeRateRequestsRemaining ?? 'N/A';
             // Update weather info
             document.getElementById('weather-requests').textContent = data.weatherRequestsRemaining ?? 'N/A';
+            // Update last updated time
+            document.getElementById('update-time').textContent = new Date().toLocaleTimeString();
         });
 }
 
