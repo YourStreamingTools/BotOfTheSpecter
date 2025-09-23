@@ -1487,11 +1487,11 @@ class BotOfTheSpecter(commands.Bot):
         # Set message and channel name based on event_type
         if event_type == "ONLINE":
             message = online_text
-            channel_update = f"🟢 Live"
+            channel_update = f"🟢 {message}"
         else:
             message = offline_text
-            channel_update = f"🔴 Not Live"
-        await channel.send(message)
+            channel_update = f"🔴 {message}"
+        await channel.send(channel_update)
         # Send @everyone notification to stream_channel_id for online events
         if event_type == "ONLINE" and "stream_channel_id" in mapping and mapping["stream_channel_id"]:
             stream_channel = guild.get_channel(int(mapping["stream_channel_id"]))
