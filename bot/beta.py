@@ -842,6 +842,9 @@ async def process_twitch_eventsub_message(message):
                 # Moderation Event
                 elif event_type == 'channel.moderate':
                     moderator_user_name = event_data.get("moderator_user_name", "Unknown Moderator")
+                    # Skip logging raid actions
+                    if event_data.get("action") == "raid":
+                        return
                     # Handle timeout action
                     if event_data.get("action") == "timeout":
                         timeout_info = event_data.get("timeout", {})
