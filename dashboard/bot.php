@@ -564,7 +564,7 @@ ob_start();
               <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
             </div>
             <div class="has-text-grey-light">
-              <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/7</span>
+              <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/--</span>
             </div>
           </div>
         </div>
@@ -1652,16 +1652,20 @@ document.addEventListener('DOMContentLoaded', function() {
     let servicesUp = 0;
     let latencyCount = 0;
     let servicesChecked = 0;
+    let totalEnabled = 0;
     services.forEach(service => {
       fetchWithTimeout(`api_status.php?service=${service}`, {}, 8000)
         .then(r => r.json())
         .then(data => {
           servicesChecked++;
-          if (data.status === 'OK') {
-            servicesUp++;
-            if (data.latency_ms) {
-              totalLatency += data.latency_ms;
-              latencyCount++;
+          if (data.status !== 'DISABLED') {
+            totalEnabled++;
+            if (data.status === 'OK') {
+              servicesUp++;
+              if (data.latency_ms) {
+                totalLatency += data.latency_ms;
+                latencyCount++;
+              }
             }
           }
           // Update overview after all services are checked
@@ -1675,8 +1679,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }            
             const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === 7 ? 'has-text-success' : servicesUp >= 5 ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/7</span>`;
+              const servicesColor = servicesUp === totalEnabled ? 'has-text-success' : servicesUp >= Math.floor(totalEnabled * 0.8) ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/${totalEnabled}</span>`;
             }
             const lastUpdateElem = document.getElementById('system-last-update');
             if (lastUpdateElem) {
@@ -1693,6 +1697,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(() => {
           servicesChecked++;
+          totalEnabled++; // Assume enabled if fetch fails
           // Service check failed, don't count as up
           if (servicesChecked === services.length) {
             // Still update the display even if some services failed
@@ -1703,8 +1708,8 @@ document.addEventListener('DOMContentLoaded', function() {
               avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;            }
               const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === 7 ? 'has-text-success' : servicesUp >= 5 ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/7</span>`;
+              const servicesColor = servicesUp === totalEnabled ? 'has-text-success' : servicesUp >= Math.floor(totalEnabled * 0.8) ? 'has-text-warning' : 'has-text-danger';
+              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/${totalEnabled}</span>`;
             }
           }
         });
