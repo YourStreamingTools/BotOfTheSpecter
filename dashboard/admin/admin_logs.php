@@ -475,6 +475,14 @@ ob_start();
                 <div class="control">
                     <button class="button is-primary" id="admin-log-load-more" disabled>Load More</button>
                 </div>
+                <div class="control">
+                    <button class="button is-light" id="admin-log-auto-refresh" disabled>
+                        <span class="icon">
+                            <i class="fas fa-play"></i>
+                        </span>
+                        <span>Auto Refresh</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -500,12 +508,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const loadMoreBtn = document.getElementById('admin-log-load-more');
     const logTextarea = document.getElementById('admin-log-textarea');
     const categorySelect = document.getElementById('admin-log-category-select');
+    const autoRefreshBtn = document.getElementById('admin-log-auto-refresh');
     const systemLogTypes = <?php echo json_encode($systemLogTypes); ?>;
     let adminLogCategory = '';
     let adminLogUser = '';
     let adminLogType = '';
     let adminLogLoaded = 0;
     let adminLogLastLine = 0;
+    let autoRefreshInterval = null;
+    let isAutoRefreshActive = false;
     categorySelect.addEventListener('change', function() {
         adminLogCategory = this.value;
         resetLogContent();
@@ -516,6 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
         typeSelect.disabled = true;
         reloadBtn.disabled = true;
         loadMoreBtn.disabled = true;
+        autoRefreshBtn.disabled = true; // Reset auto refresh button
         if (adminLogCategory === 'user') {
             userSelectControl.style.display = '';
             userSelect.disabled = false;
@@ -559,6 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 typeSelect.value = '';
                 reloadBtn.disabled = true;
                 loadMoreBtn.disabled = true;
+                autoRefreshBtn.disabled = true; // Disable auto refresh when no user selected
             }
         }
     });
@@ -569,9 +582,11 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchSystemLog();
             reloadBtn.disabled = false;
             loadMoreBtn.disabled = false;
+            autoRefreshBtn.disabled = false;
         } else {
             reloadBtn.disabled = true;
             loadMoreBtn.disabled = true;
+            autoRefreshBtn.disabled = true;
         }
     });
     typeSelect.addEventListener('change', function() {
@@ -580,10 +595,12 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchAdminLog();
             reloadBtn.disabled = false;
             loadMoreBtn.disabled = false;
+            autoRefreshBtn.disabled = false;
         } else {
             resetLogContent();
             reloadBtn.disabled = true;
             loadMoreBtn.disabled = true;
+            autoRefreshBtn.disabled = true;
         }
     });
     reloadBtn.addEventListener('click', function() {
@@ -600,10 +617,59 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchSystemLog(true);
         }
     });
+    autoRefreshBtn.addEventListener('click', function() {
+        if (isAutoRefreshActive) {
+            stopAutoRefresh();
+        } else {
+            startAutoRefresh();
+        }
+    });
     function resetLogContent() {
         logTextarea.innerHTML = '';
         adminLogLoaded = 0;
         adminLogLastLine = 0;
+        stopAutoRefresh(); // Stop auto refresh when resetting content
+    }
+    function startAutoRefresh() {
+        if (autoRefreshInterval) return; // Already running
+        // Only start if we have a valid log selection
+        if ((adminLogCategory === 'user' && adminLogUser && adminLogType) || 
+            (adminLogCategory === 'system' && adminLogType)) {
+            autoRefreshInterval = setInterval(function() {
+                if (adminLogCategory === 'user') {
+                    fetchAdminLog();
+                } else if (adminLogCategory === 'system') {
+                    fetchSystemLog();
+                }
+            }, 10000); // 10 seconds
+            // Update button state
+            isAutoRefreshActive = true;
+            updateAutoRefreshButton();
+        }
+    }
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+        // Update button state
+        isAutoRefreshActive = false;
+        updateAutoRefreshButton();
+    }
+    function updateAutoRefreshButton() {
+        const icon = autoRefreshBtn.querySelector('i');
+        const text = autoRefreshBtn.querySelector('span:last-child');
+        if (isAutoRefreshActive) {
+            // Active state - red stop button
+            autoRefreshBtn.className = 'button is-danger';
+            icon.className = 'fas fa-stop';
+            text.textContent = 'Stop Auto Refresh';
+        } else {
+            // Inactive state - light play button
+            autoRefreshBtn.className = 'button is-light';
+            icon.className = 'fas fa-play';
+            text.textContent = 'Auto Refresh';
+        }
     }
     async function fetchAdminLog(loadMore = false) {
         if (!adminLogUser || !adminLogType) return;
@@ -677,5 +743,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php
 $scripts = ob_get_clean();
+$customStyles = "";
 include "admin_layout.php";
+echo $customStyles;
 ?>
