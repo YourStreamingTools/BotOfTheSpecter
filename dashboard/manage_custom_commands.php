@@ -157,6 +157,17 @@ ob_start();
         </div>
     </div>
 </div>
+<div class="notification is-success mb-4">
+    <div class="columns is-vcentered">
+        <div class="column is-narrow">
+            <span class="icon is-large"><i class="fas fa-star fa-2x"></i></span>
+        </div>
+        <div class="column">
+            <p class="title is-6 mb-2"><strong>New in Version 5.5!</strong></p>
+            <p>Permission levels are now available for custom commands! You can now control who can use each custom command with 8 different permission levels: Everyone, VIPs, All Subscribers, Tier 1/2/3 Subscribers, Mods, and Broadcaster Only.</p>
+        </div>
+    </div>
+</div>
 <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
     <?php if (isset($_POST['command']) && isset($_POST['response']) && empty($status)): ?>
         <div class="notification is-success is-light mb-4">
