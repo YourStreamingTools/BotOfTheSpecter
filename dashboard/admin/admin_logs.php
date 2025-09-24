@@ -158,7 +158,8 @@ function read_mysql_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0)
 }
 
 function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
-    return;
+    // This function is not implemented - return an error
+    return ['error' => 'not_implemented'];
 }
 // Helper function to highlight log dates in a string, add <br> at end of each line, and reverse order
 function highlight_log_dates($text) {
@@ -493,6 +494,11 @@ if (isset($_GET['admin_system_log_type'])) {
             $result = read_log_over_ssh($logPath, 200, $since);
             break;
     }
+    // Check if result is null or invalid
+    if ($result === null || !is_array($result)) {
+        echo json_encode(['error' => 'invalid_log_type']);
+        exit();
+    }
     if (isset($result['error'])) {
         if ($result['error'] === 'not_found') { 
             echo json_encode(['error' => 'not_found']);
@@ -507,8 +513,9 @@ if (isset($_GET['admin_system_log_type'])) {
         echo json_encode(['last_line' => 0, 'data' => '', 'empty' => true]);
         exit();
     }
-    $logContent = $result['logContent'];
-    $linesTotal = $result['linesTotal'];
+    // Safely access array keys with default values
+    $logContent = isset($result['logContent']) ? $result['logContent'] : '';
+    $linesTotal = isset($result['linesTotal']) ? $result['linesTotal'] : 0;
     // Apply appropriate highlighting based on log type
     if (strpos($logType, 'apache2-') === 0 || strpos($logType, '_access') !== false || strpos($logType, '_error') !== false || $logType === 'other_vhosts_access') {
         // This is an Apache2 log, use specialized highlighting
