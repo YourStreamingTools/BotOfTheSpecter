@@ -662,6 +662,16 @@ class ChannelMapping:
         except Exception as e:
             self.logger.error(f"Error updating Discord info for {channel_code}: {e}")
 
+    async def get_fresh_channel_ids(self, guild_id):
+        try:
+            discord_info = await self.mysql.fetchone(
+                "SELECT stream_alert_channel_id, moderation_channel_id, alert_channel_id FROM discord_users WHERE guild_id = %s",
+                (guild_id,), database_name='website', dict_cursor=True)
+            return discord_info if discord_info else {}
+        except Exception as e:
+            self.logger.error(f"Error getting fresh channel IDs for guild {guild_id}: {e}")
+            return {}
+
     async def _check_table_exists(self):
         try:
             rows = await self.mysql.fetchall(
@@ -1293,25 +1303,29 @@ class BotOfTheSpecter(commands.Bot):
         if not guild:
             self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel {channel_code}")
             return
-        # Use cached data when available, fallback to database lookup
+        # Always check database first to ensure we have the latest channel settings
         guild_id = mapping["guild_id"]
-        stream_alert_channel_id = mapping.get("stream_alert_channel_id")
-        moderation_channel_id = mapping.get("moderation_channel_id") 
-        alert_channel_id = mapping.get("alert_channel_id")
-        # If not in cache, get from database
-        discord_info = None
-        if not stream_alert_channel_id:
-            mysql_helper = MySQLHelper(self.logger)
-            discord_info = await mysql_helper.fetchone(
-                "SELECT stream_alert_channel_id, moderation_channel_id, alert_channel_id FROM discord_users WHERE guild_id = %s",
-                (guild_id,), database_name='website', dict_cursor=True)
-            if discord_info:
-                stream_alert_channel_id = discord_info.get("stream_alert_channel_id")
-                moderation_channel_id = discord_info.get("moderation_channel_id")
-                alert_channel_id = discord_info.get("alert_channel_id")
-        if not discord_info and not stream_alert_channel_id:
+        # Check cache values first (for logging comparison)
+        cached_stream_alert_id = mapping.get("stream_alert_channel_id")
+        cached_moderation_id = mapping.get("moderation_channel_id")
+        cached_alert_id = mapping.get("alert_channel_id")
+        # Always get fresh channel IDs from website database
+        fresh_channel_ids = await self.channel_mapping.get_fresh_channel_ids(guild_id)
+        if not fresh_channel_ids:
             self.logger.warning(f"No Discord info found for guild {guild_id}")
             return
+        # Use database values as authoritative source
+        stream_alert_channel_id = fresh_channel_ids.get("stream_alert_channel_id")
+        moderation_channel_id = fresh_channel_ids.get("moderation_channel_id")
+        alert_channel_id = fresh_channel_ids.get("alert_channel_id")
+        # Log if cache differs from database
+        if (cached_stream_alert_id != stream_alert_channel_id or 
+            cached_moderation_id != moderation_channel_id or 
+            cached_alert_id != alert_channel_id):
+            self.logger.info(f"Cache mismatch for guild {guild_id}: "
+                           f"stream_alert_cache={cached_stream_alert_id} vs db={stream_alert_channel_id}, "
+                           f"moderation_cache={cached_moderation_id} vs db={moderation_channel_id}, "
+                           f"alert_cache={cached_alert_id} vs db={alert_channel_id}")
         # Determine which channel to send the message to based on event type
         channel_id = None
         mention_everyone = False
@@ -1502,12 +1516,9 @@ class BotOfTheSpecter(commands.Bot):
         cached_channel_id = mapping.get("stream_channel_id")
         self.logger.info(f"Mapping cache for {code}: stream_channel_id = {cached_channel_id}")
         databases_checked.append(f"specterdiscordbot_cache: {cached_channel_id}")
-        # Always query database for most current settings
-        mysql_helper = MySQLHelper(self.logger)
-        discord_info = await mysql_helper.fetchone(
-            "SELECT stream_alert_channel_id FROM discord_users WHERE guild_id = %s",
-            (guild.id,), database_name='website', dict_cursor=True)
-        website_channel_id = discord_info.get("stream_alert_channel_id") if discord_info else None
+        # Always get fresh channel IDs from website database
+        fresh_channel_ids = await self.channel_mapping.get_fresh_channel_ids(guild.id)
+        website_channel_id = fresh_channel_ids.get("stream_alert_channel_id")
         self.logger.info(f"Website database query for guild {guild.id}: stream_alert_channel_id = {website_channel_id}")
         databases_checked.append(f"website: {website_channel_id}")
         # Use database value as the authoritative source
