@@ -1,73 +1,214 @@
 {
 	"commands": {
-		"commands": "This command will list all available commands in the chat bot.",
-		"bot": "This command will display information about who the developer is and a website link.",
-		"roadmap": "This command will give a link in chat to the public Trello board.",
-		"quote": "This command will retrieve a random or specific quote for inspiration.",
-		"rps": "This command will let you play Rock-Paper-Scissors with Specter.",
-		"story": "This command will start a collaborative AI storytelling message.",
-		"roulette": "This command will kick off a playful game of roulette in chat.",
-		"songrequest": "This command will allow users to request songs for my Spotify queue (if your account is linked).",
-		"songqueue": "This command will show the current Spotify song request queue (if your account is linked).",
-		"skipsong": "This command allows users to skip the currently playing song in the queue.",
-		"watchtime": "This command will reveal how long you have been watching the stream.",
-		"stoptimer": "This command will stop a currently running timer.",
-		"checktimer": "This command will show the remaining time on an active timer.",
-		"version": "This command will display Specter's current running version.",
-		"convert": "This command will convert currencies or units as requested.",
-		"subathon": "This command will manage subathon events and countdown timers.",
-		"todo": "This command will handle the to-do list for stream tasks.",
-		"kill": "This command will simulate a fun 'kill' action for interactions.",
-		"points": "This command will show the current points balance of a user.",
-		"slots": "This command will run a slot machine game for chat fun.",
-		"timer": "This command will start a new countdown timer.",
-		"game": "This command will show the currently active game or status.",
-		"gamble": "This command will allow users to gamble their points for a chance to win more.",
-		"joke": "This command will tell a random joke for some laughs.",
-		"ping": "This command will check Specter's responsiveness to the internet.",
-		"weather": "This command will provide weather info for a specified location.",
-		"time": "This command will display the current time in a given timezone.",
-		"song": "This command will show details about the currently playing song: either via Spotify (if linked) or via Shazam (if you're a premium user).",
-		"translate": "This command will translate text into a specified language.",
-		"cheerleader": "This command will show the top user that has cheered the most in my channel.",
-		"steam": "This command will display information about the current playing game if it's on Steam.",
-		"schedule": "This command will show the stream's schedule and upcoming events.",
-		"mybits": "This command will display a user's bits statistics.",
-		"lurk": "This command will mark you as lurking.",
-		"unlurk": "This command will remove your lurking status.",
-		"lurking": "This command will notify that you are currently lurking.",
-		"lurklead": "This command will show the top most lurked user in your channel.",
-		"userslurking": "This command will show a count of users that are currently marked as lurking.",
-		"clip": "This command will create a clip of the current stream action.",
-		"subscription": "This command will display what subscription tier you are at.",
-		"hug": "This command will send a virtual hug to a mentioned user.",
-		"highfive": "This command will give a virtual high-five to a mentioned user.",
-		"kiss": "This command will send a playful virtual kiss to a mentioned user.",
-		"uptime": "This command will display how long the stream has been live.",
-		"typo": "This command will count how many typing errors a mentioned user has done.",
-		"typos": "This command will show a count of the number chat typos a mentioned user has made.",
-		"followage": "This command will show how long you have followed the channel.",
-		"deaths": "This command will display how many times you've died in-game.",
-		"heartrate": "This command will show your heart rate in chat. (if you have setup the hyperate code in your profile.)",
-		"addcommand": "This command will add a new custom command to the system.",
-		"removecommand": "This command will remove an existing custom command.",
-		"editcommand": "This command will edit an existing custom command.",
-		"removetypos": "This command will remove a type from a mentioned user.",
-		"addpoints": "This command will award points to a mentioned user.",
-		"removepoints": "This command will deduct points from a mentioned user.",
-		"permit": "This command will grant permission for special actions or commands.",
-		"removequote": "This command will delete a quote from the quote system.",
-		"quoteadd": "This command will add a new quote to the quote system.",
-		"settitle": "This command will update the stream's title.",
-		"setgame": "This command will update the stream's game category.",
-		"edittypos": "This command will edit the recorded typos for the mentioned user.",
-		"deathadd": "This command will increase the death count when you die in-game.",
-		"deathremove": "This command will decrease the death count to correct errors.",
-		"shoutout": "This command will give a shoutout to a notable user.",
-		"marker": "This command will set a marker in the stream for highlights.",
-		"checkupdate": "This command will check if Specter has a new update available.",
-		"startlotto": "This command will initiate a lottery among chat participants.",
-		"drawlotto": "This command will draw and announce the lottery winner(s).",
-		"wsstatus": "This command will check and display the WebSocket server connection status for the channel instance."
+		"commands": {
+			"description": "This command will list all available commands in the chat bot."
+		},
+		"bot": {
+			"description": "This command will display information about who the developer is and a website link."
+		},
+		"roadmap": {
+			"description": "This command will give a link in chat to the public Trello board."
+		},
+		"quote": {
+			"description": "This command will retrieve a random or specific quote for inspiration."
+		},
+		"rps": {
+			"description": "This command will let you play Rock-Paper-Scissors with Specter."
+		},
+		"story": {
+			"description": "This command will start a collaborative AI storytelling message."
+		},
+		"roulette": {
+			"description": "This command will kick off a playful game of roulette in chat."
+		},
+		"songrequest": {
+			"description": "This command will allow users to request songs for my Spotify queue (if your account is linked)."
+		},
+		"songqueue": {
+			"description": "This command will show the current Spotify song request queue (if your account is linked)."
+		},
+		"skipsong": {
+			"description": "This command allows users to skip the currently playing song in the queue."
+		},
+		"watchtime": {
+			"description": "This command will reveal how long you have been watching the stream."
+		},
+		"stoptimer": {
+			"description": "This command will stop a currently running timer."
+		},
+		"checktimer": {
+			"description": "This command will show the remaining time on an active timer."
+		},
+		"version": {
+			"description": "This command will display Specter's current running version."
+		},
+		"convert": {
+			"description": "This command will convert currencies or units as requested."
+		},
+		"subathon": {
+			"description": "This command will manage subathon events and countdown timers.",
+			"force_level": "mod"
+		},
+		"todo": {
+			"description": "This command will handle the to-do list for stream tasks."
+		},
+		"kill": {
+			"description": "This command will simulate a fun 'kill' action for interactions."
+		},
+		"points": {
+			"description": "This command will show the current points balance of a user."
+		},
+		"slots": {
+			"description": "This command will run a slot machine game for chat fun."
+		},
+		"timer": {
+			"description": "This command will start a new countdown timer."
+		},
+		"game": {
+			"description": "This command will show the currently active game or status."
+		},
+		"gamble": {
+			"description": "This command will allow users to gamble their points for a chance to win more."
+		},
+		"joke": {
+			"description": "This command will tell a random joke for some laughs."
+		},
+		"ping": {
+			"description": "This command will check Specter's responsiveness to the internet."
+		},
+		"weather": {
+			"description": "This command will provide weather info for a specified location."
+		},
+		"time": {
+			"description": "This command will display the current time in a given timezone."
+		},
+		"song": {
+			"description": "This command will show details about the currently playing song: either via Spotify (if linked) or via Shazam (if you're a premium user)."
+		},
+		"translate": {
+			"description": "This command will translate text into a specified language."
+		},
+		"cheerleader": {
+			"description": "This command will show the top user that has cheered the most in my channel."
+		},
+		"steam": {
+			"description": "This command will display information about the current playing game if it's on Steam."
+		},
+		"schedule": {
+			"description": "This command will show the stream's schedule and upcoming events."
+		},
+		"mybits": {
+			"description": "This command will display a user's bits statistics."
+		},
+		"lurk": {
+			"description": "This command will mark you as lurking."
+		},
+		"unlurk": {
+			"description": "This command will remove your lurking status."
+		},
+		"lurking": {
+			"description": "This command will notify that you are currently lurking."
+		},
+		"lurklead": {
+			"description": "This command will show the top most lurked user in your channel."
+		},
+		"userslurking": {
+			"description": "This command will show a count of users that are currently marked as lurking."
+		},
+		"clip": {
+			"description": "This command will create a clip of the current stream action."
+		},
+		"subscription": {
+			"description": "This command will display what subscription tier you are at."
+		},
+		"hug": {
+			"description": "This command will send a virtual hug to a mentioned user."
+		},
+		"highfive": {
+			"description": "This command will give a virtual high-five to a mentioned user."
+		},
+		"kiss": {
+			"description": "This command will send a playful virtual kiss to a mentioned user."
+		},
+		"uptime": {
+			"description": "This command will display how long the stream has been live."
+		},
+		"typo": {
+			"description": "This command will count how many typing errors a mentioned user has done."
+		},
+		"typos": {
+			"description": "This command will show a count of the number chat typos a mentioned user has made."
+		},
+		"followage": {
+			"description": "This command will show how long you have followed the channel."
+		},
+		"deaths": {
+			"description": "This command will display how many times you've died in-game."
+		},
+		"heartrate": {
+			"description": "This command will show your heart rate in chat. (if you have setup the hyperate code in your profile.)"
+		},
+		"addcommand": {
+			"description": "This command will add a new custom command to the system."
+		},
+		"removecommand": {
+			"description": "This command will remove an existing custom command."
+		},
+		"editcommand": {
+			"description": "This command will edit an existing custom command."
+		},
+		"removetypos": {
+			"description": "This command will remove a type from a mentioned user."
+		},
+		"addpoints": {
+			"description": "This command will award points to a mentioned user."
+		},
+		"removepoints": {
+			"description": "This command will deduct points from a mentioned user."
+		},
+		"permit": {
+			"description": "This command will grant permission for special actions or commands."
+		},
+		"removequote": {
+			"description": "This command will delete a quote from the quote system."
+		},
+		"quoteadd": {
+			"description": "This command will add a new quote to the quote system."
+		},
+		"settitle": {
+			"description": "This command will update the stream's title."
+		},
+		"setgame": {
+			"description": "This command will update the stream's game category."
+		},
+		"edittypos": {
+			"description": "This command will edit the recorded typos for the mentioned user."
+		},
+		"deathadd": {
+			"description": "This command will increase the death count when you die in-game."
+		},
+		"deathremove": {
+			"description": "This command will decrease the death count to correct errors."
+		},
+		"shoutout": {
+			"description": "This command will give a shoutout to a notable user."
+		},
+		"marker": {
+			"description": "This command will set a marker in the stream for highlights."
+		},
+		"checkupdate": {
+			"description": "This command will check if Specter has a new update available.",
+			"force_level": "mod"
+		},
+		"startlotto": {
+			"description": "This command will initiate a lottery among chat participants."
+		},
+		"drawlotto": {
+			"description": "This command will draw and announce the lottery winner(s)."
+		},
+		"wsstatus": {
+			"description": "This command will check and display the WebSocket server connection status for the channel instance.",
+			"force_level": "mod"
+		}
 	}
 }

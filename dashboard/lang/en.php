@@ -617,6 +617,7 @@ return [
     'builtin_commands_disable' => 'Disable',
     'builtin_commands_enable' => 'Enable',
     'builtin_commands_status_disabled' => 'Disabled',
+    'builtin_commands_locked_permission' => 'Permission level is locked for this command',
     'custom_commands_page_title' => 'Custom Commands',
     'custom_commands_header' => 'Custom Commands',
     'custom_commands_remove' => 'Remove',
