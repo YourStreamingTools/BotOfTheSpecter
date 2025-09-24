@@ -28,6 +28,18 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+// Permission mapping
+$permissionsMap = [
+    "everyone" => "Everyone",
+    "vip" => "VIPs",
+    "all-subs" => "All Subscribers", 
+    "t1-sub" => "Tier 1 Subscriber",
+    "t2-sub" => "Tier 2 Subscriber",
+    "t3-sub" => "Tier 3 Subscriber",
+    "mod" => "Mods",
+    "broadcaster" => "Broadcaster"
+];
+
 // Handle POST requests for status toggle and remove
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $dataUpdated = false;
@@ -80,6 +92,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
+// Load commands if not already loaded
+if (!isset($commands)) {
+    $commands = $db->query("SELECT * FROM custom_commands")->fetch_all(MYSQLI_ASSOC);
+}
+
 // Start output buffering for layout template
 ob_start();
 ?>
@@ -122,7 +139,8 @@ ob_start();
                                     <tr>
                                         <td class="is-narrow" style="vertical-align: middle;">!<?php echo htmlspecialchars($command['command']); ?></td>
                                         <td style="vertical-align: middle;"><?php echo htmlspecialchars($command['response']); ?></td>
-                                        <td class="has-text-centered" style="vertical-align: middle;"><?php echo t('builtin_commands_permission_everyone'); ?></td>
+                                        <td class="has-text-centered" style="vertical-align: middle;"><?php echo $permissionsMap[$command['permission']] ?? 'Everyone'; ?>
+                                        </td>
                                         <td class="has-text-centered" style="vertical-align: middle;"><?php echo (int)$command['cooldown']; ?><?php echo t('custom_commands_cooldown_seconds'); ?></td>
                                         <td class="has-text-centered" style="vertical-align: middle;">
                                             <span class="tag is-medium <?php echo ($command['status'] == 'Enabled') ? 'is-success' : 'is-danger'; ?>">

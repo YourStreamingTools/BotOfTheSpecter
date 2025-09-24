@@ -32,6 +32,18 @@ date_default_timezone_set($timezone);
 $status = "";
 $notification_status = "";
 
+// Permission mapping
+$permissionsMap = [
+    "Everyone" => "everyone",
+    "VIPs" => "vip",
+    "All Subscribers" => "all-subs",
+    "Tier 1 Subscriber" => "t1-sub",
+    "Tier 2 Subscriber" => "t2-sub",
+    "Tier 3 Subscriber" => "t3-sub",
+    "Mods" => "mod",
+    "Broadcaster" => "broadcaster"
+];
+
 // Check if form data has been submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Editing a Custom Command
@@ -44,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $command_to_edit = $_POST['command_to_edit'];
         $command_response = $_POST['command_response'];
         $cooldown = $_POST['cooldown_response'];
+        $permission = isset($_POST['permission_response']) ? $_POST['permission_response'] : 'Everyone';
         // Remove all non-alphanumeric characters
         $new_command_name = strtolower(str_replace(' ', '', $_POST['new_command_name']));
         $new_command_name = preg_replace('/[^a-z0-9]/', '', $new_command_name);
@@ -54,8 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } else {
             try {
                 // If the command name is changed, update it as well
-                $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ? WHERE command = ?");
-                $updateSTMT->bind_param("ssis", $new_command_name, $command_response, $cooldown, $command_to_edit);
+                $dbPermission = $permissionsMap[$permission];
+                $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ?, permission = ? WHERE command = ?");
+                $updateSTMT->bind_param("ssiss", $new_command_name, $command_response, $cooldown, $dbPermission, $command_to_edit);
                 $updateSTMT->execute();
                 if ($updateSTMT->affected_rows > 0) {
                     $status = "Command ". $command_to_edit . " updated successfully!";
@@ -82,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $newCommand = preg_replace('/[^a-z0-9]/', '', $newCommand);
         $newResponse = $_POST['response'];
         $cooldown = $_POST['cooldown'];
+        $permission = isset($_POST['permission']) ? $_POST['permission'] : 'Everyone';
         // Check if command is built-in
         if (array_key_exists($newCommand, $builtinCommands['commands'])) {
             $status = "Failed to add: The custom command name matches a built-in command.";
@@ -89,8 +104,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } else {
             // Insert new command into MySQL database
             try {
-                $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown) VALUES (?, ?, 'Enabled', ?)");
-                $insertSTMT->bind_param("ssi", $newCommand, $newResponse, $cooldown);
+                $dbPermission = $permissionsMap[$permission];
+                $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, permission) VALUES (?, ?, 'Enabled', ?, ?)");
+                $insertSTMT->bind_param("ssiss", $newCommand, $newResponse, $cooldown, $dbPermission);
                 $insertSTMT->execute();
                 $insertSTMT->close();
                 $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
@@ -194,6 +210,21 @@ ob_start();
                         <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
                     </div>
                 </div>
+                <div class="field mb-4">
+                    <label class="label" for="permission">Permission Level</label>
+                    <div class="control has-icons-left">
+                        <div class="select is-fullwidth">
+                            <select id="permission" name="permission" required style="padding-left: 35px;">
+                                <?php foreach ($permissionsMap as $displayName => $dbValue): ?>
+                                    <option value="<?php echo htmlspecialchars($displayName); ?>" <?php echo $displayName === 'Everyone' ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($displayName); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <span class="icon is-small is-left"><i class="fas fa-users"></i></span>
+                    </div>
+                </div>
                 <div class="field is-grouped is-grouped-right">
                     <div class="control">
                         <button class="button is-primary" type="submit">
@@ -249,6 +280,21 @@ ob_start();
                         <div class="control has-icons-left">
                             <input class="input" type="number" min="1" name="cooldown_response" id="cooldown_response" value="" required>
                             <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
+                        </div>
+                    </div>
+                    <div class="field mb-4">
+                        <label class="label" for="permission_response">Permission Level</label>
+                        <div class="control has-icons-left">
+                            <div class="select is-fullwidth">
+                                <select id="permission_response" name="permission_response" required style="padding-left: 35px;">
+                                    <?php foreach ($permissionsMap as $displayName => $dbValue): ?>
+                                        <option value="<?php echo htmlspecialchars($displayName); ?>">
+                                            <?php echo htmlspecialchars($displayName); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <span class="icon is-small is-left"><i class="fas fa-users"></i></span>
                         </div>
                     </div>
                     <div class="field is-grouped is-grouped-right">
@@ -401,14 +447,25 @@ document.getElementById("closeModalButton").addEventListener("click", function()
 function showResponse() {
     var command = document.getElementById('command_to_edit').value;
     var commands = <?php echo json_encode($commands); ?>;
+    var permissionsMap = <?php echo json_encode(array_flip($permissionsMap)); ?>;
     var responseInput = document.getElementById('command_response');
     var cooldownInput = document.getElementById('cooldown_response');
     var newCommandInput = document.getElementById('new_command_name');
+    var permissionInput = document.getElementById('permission_response');
     // Find the response for the selected command and display it in the text box
     var commandData = commands.find(c => c.command === command);
     responseInput.value = commandData ? commandData.response : '';
     cooldownInput.value = commandData ? commandData.cooldown : 15;
     newCommandInput.value = commandData ? commandData.command : '';
+    
+    // Set permission dropdown
+    if (commandData && commandData.permission) {
+        var displayPermission = permissionsMap[commandData.permission] || 'Everyone';
+        permissionInput.value = displayPermission;
+    } else {
+        permissionInput.value = 'Everyone';
+    }
+    
     // Update character count for the edit response field
     updateCharCount('command_response', 'editResponseCharCount');
 }
