@@ -104,7 +104,7 @@ builtin_commands = {
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong"
+    "skipsong", "wsstatus"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip"
@@ -1208,6 +1208,24 @@ async def SYSTEM_UPDATE(data):
     except Exception as e:
         websocket_logger.error(f"Failed to process system update event: {e}")
 
+# Helper function for manual websocket reconnection (can be called from commands)
+async def force_websocket_reconnect():
+    global websocket_connected
+    try:
+        if specterSocket and specterSocket.connected:
+            websocket_logger.info("Forcing websocket disconnection for reconnection")
+            await specterSocket.disconnect()
+        websocket_connected = False
+        return True
+    except Exception as e:
+        websocket_logger.error(f"Error during forced reconnection: {e}")
+        return False
+
+# Helper function to check websocket connection status
+def is_websocket_connected():
+    global websocket_connected
+    return websocket_connected
+
 # Helper to safely redact sensitive values
 def redact(s: str) -> str:
     return str(s).replace(HYPERATE_API_KEY, "[REDACTED]")
@@ -2242,6 +2260,36 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
+    @commands.cooldown(rate=1, per=30, bucket=commands.Bucket.default)
+    @commands.command(name='wsstatus')
+    async def websocket_status_command(self, ctx):
+        global bot_owner
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("wsstatus",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        websocket_status = "Connected" if is_websocket_connected() else "Disconnected"
+                        chat_logger.info(f"{ctx.author.name} checked WebSocket status: {websocket_status}")
+                        await send_chat_message(f"Internal system WebSocket status: {websocket_status}")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to check WebSocket status but lacked permissions.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"Error in websocket_status_command: {e}")
+            await send_chat_message("An error occurred while checking WebSocket status.")
+        finally:
+            await connection.ensure_closed()
+
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
@@ -2411,7 +2459,7 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if websocket is connected - weather data comes via websocket
-                    if not websocket_connected:
+                    if not is_websocket_connected():
                         await send_chat_message(f"The bot is not connected to the weather data service. @{CHANNEL_NAME} please restart me to reconnect to the service.")
                         return
                     # Check if the user has the correct permissions
@@ -7672,6 +7720,10 @@ async def websocket_notice(
     sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
     video=None, additional_data=None, rewards_data=None
 ):
+    # Check if websocket is connected before sending notifications
+    if not is_websocket_connected():
+        websocket_logger.warning(f"Cannot send event '{event}' - websocket is not connected to internal system")
+        return
     connection = None
     try:
         connection = await mysql_connection()
