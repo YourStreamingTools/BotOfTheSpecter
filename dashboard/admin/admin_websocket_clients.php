@@ -193,11 +193,11 @@ ob_start();
     <?php if ($apiError): ?>
         <div class="notification is-warning">
             <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-            <strong>Warning:</strong> Unable to connect to the websocket server API. Displaying cached or empty data.
+            Warning: Unable to connect to the websocket server API. Displaying cached or empty data.
         </div>
     <?php else: ?>
         <div class="notification is-info is-light" id="last-updated">
-            <small><strong>Last Updated:</strong> <?php echo htmlspecialchars($lastUpdated); ?></small>
+            <small>Last Updated: <?php echo htmlspecialchars($lastUpdated); ?></small>
         </div>
     <?php endif; ?>
     <!-- Statistics Cards -->
@@ -272,7 +272,7 @@ ob_start();
                         <div class="level-item">
                             <div>
                                 <p class="title is-4 has-text-white" id="stat-global"><?php echo $totalGlobalListeners; ?></p>
-                                <p class="subtitle is-6 has-text-white">Global Listeners</p>
+                                <p class="subtitle is-6 has-text-white">Listeners</p>
                             </div>
                         </div>
                     </div>
@@ -304,19 +304,19 @@ ob_start();
     <?php else: ?>
         <div class="table-container">
             <table class="table is-fullwidth is-striped" id="clients-table">
-                <thead>
+                <thead class="has-background-dark has-text-white">
                     <tr>
-                        <th>Display Name</th>
-                        <th>API Key</th>
-                        <th>Connected Clients</th>
-                        <th>Actions</th>
+                        <th class="has-text-white">Display Name</th>
+                        <th class="has-text-white">API Key</th>
+                        <th class="has-text-white">Connected Clients</th>
+                        <th class="has-text-white">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($websocketData['registered_clients'] as $apiKey => $userData): ?>
                         <tr>
                             <td>
-                                <strong><?php echo htmlspecialchars($userData['twitch_display_name']); ?></strong>
+                                <?php echo htmlspecialchars($userData['twitch_display_name']); ?>
                             </td>
                             <td>
                                 <code><?php echo htmlspecialchars($apiKey); ?></code>
@@ -340,32 +340,32 @@ ob_start();
     <?php endif; ?>
 </div>
 
-<!-- Global Listeners Section -->
+<!-- Listeners Section -->
 <?php if (!empty($websocketData['global_listeners'])): ?>
 <div class="box">
-    <h2 class="title is-5"><span class="icon"><i class="fas fa-globe"></i></span> Global Listeners</h2>
+    <h2 class="title is-5"><span class="icon"><i class="fas fa-globe"></i></span> Listeners</h2>
     <p class="mb-4">Admin-authenticated clients that receive events from all channels.</p>
     
     <div class="table-container">
-        <table class="table is-fullwidth is-striped">
-            <thead>
+        <table class="table is-fullwidth is-striped" id="global-listeners-table">
+            <thead class="has-text-white">
                 <tr>
-                    <th>Listener Name</th>
-                    <th>Socket ID</th>
-                    <th>Admin Auth</th>
-                    <th>Connected At</th>
-                    <th>Last Activity</th>
-                    <th>Actions</th>
+                    <th class="has-text-white">Listener Name</th>
+                    <th class="has-text-white">Socket ID</th>
+                    <th class="has-text-white">Admin Auth</th>
+                    <th class="has-text-white">Connected At</th>
+                    <th class="has-text-white">Last Activity</th>
+                    <th class="has-text-white">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($websocketData['global_listeners'] as $listener): ?>
                     <tr>
                         <td>
-                            <strong><?php echo htmlspecialchars($listener['name']); ?></strong>
+                            <?php echo htmlspecialchars($listener['name']); ?>
                         </td>
                         <td>
-                            <span class="tag is-dark"><?php echo htmlspecialchars(substr($listener['sid'], 0, 12) . '...'); ?></span>
+                            <code><?php echo htmlspecialchars($listener['sid']); ?></code>
                         </td>
                         <td>
                             <span class="tag is-success">Authenticated</span>
@@ -378,11 +378,13 @@ ob_start();
                         </td>
                         <td>
                             <div class="buttons are-small">
-                                <button class="button is-info is-small" onclick="showClientDetails('<?php echo htmlspecialchars($listener['sid']); ?>')">
+                                <button class="button is-info is-small" onclick="showListenerDetails('<?php echo htmlspecialchars($listener['sid']); ?>', '<?php echo htmlspecialchars($listener['name']); ?>')">
                                     <span class="icon"><i class="fas fa-info"></i></span>
+                                    <span>Details</span>
                                 </button>
                                 <button class="button is-danger is-small" onclick="disconnectClient('<?php echo htmlspecialchars($listener['sid']); ?>')">
                                     <span class="icon"><i class="fas fa-times"></i></span>
+                                    <span>Disconnect</span>
                                 </button>
                             </div>
                         </td>
@@ -450,7 +452,7 @@ async function refreshData(silent = false) {
         updateGlobalListenersTable(data.global_listeners);
         // Update last updated timestamp
         document.getElementById('last-updated').innerHTML = 
-            `<small><strong>Last Updated:</strong> ${new Date().toLocaleString()}</small>`;
+            `<small>Last Updated: ${new Date().toLocaleString()}</small>`;
         if (!silent) {
             const refreshBtn = document.querySelector('button[onclick="refreshData()"]');
             if (refreshBtn) {
@@ -504,7 +506,7 @@ function updateClientsTable(registeredClients) {
     for (const [apiKey, userData] of sortedClients) {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td><strong>${escapeHtml(userData.twitch_display_name)}</strong></td>
+            <td>${escapeHtml(userData.twitch_display_name)}</td>
             <td><code>${escapeHtml(apiKey)}</code></td>
             <td><span class="tag is-info">${userData.client_count} clients</span></td>
             <td>
@@ -521,22 +523,22 @@ function updateClientsTable(registeredClients) {
 }
 
 function updateGlobalListenersTable(globalListeners) {
-    // Find the global listeners section by looking for the specific heading text
+    // Find the listeners section by looking for the specific heading text
     const headings = document.querySelectorAll('h2.title');
     let globalSection = null;
     for (const heading of headings) {
-        if (heading.textContent.includes('Global Listeners')) {
+        if (heading.textContent.includes('Listeners') && !heading.textContent.includes('Global Listeners')) {
             globalSection = heading.closest('.box');
             break;
         }
     }
     if (!globalSection && globalListeners.length > 0) {
-        // Create global listeners section if it doesn't exist but we have data
+        // Create listeners section if it doesn't exist but we have data
         location.reload(); // For now, just reload the page
         return;
     }
     if (globalListeners.length === 0) {
-        // Hide global listeners section if no data
+        // Hide listeners section if no data
         if (globalSection) {
             globalSection.style.display = 'none';
         }
@@ -552,18 +554,20 @@ function updateGlobalListenersTable(globalListeners) {
     globalListeners.forEach(listener => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td><strong>${escapeHtml(listener.name)}</strong></td>
-            <td><span class="tag is-light">${escapeHtml(listener.sid.substring(0, 12) + '...')}</span></td>
+            <td>${escapeHtml(listener.name)}</td>
+            <td><code>${escapeHtml(listener.sid)}</code></td>
             <td><span class="tag is-success">Authenticated</span></td>
             <td>${listener.connected_at || 'N/A'}</td>
             <td>${listener.last_activity || 'N/A'}</td>
             <td>
                 <div class="buttons are-small">
-                    <button class="button is-info is-small" onclick="showClientDetails('${escapeHtml(listener.sid)}')">
+                    <button class="button is-info is-small" onclick="showListenerDetails('${escapeHtml(listener.sid)}', '${escapeHtml(listener.name)}')">
                         <span class="icon"><i class="fas fa-info"></i></span>
+                        <span>Details</span>
                     </button>
                     <button class="button is-danger is-small" onclick="disconnectClient('${escapeHtml(listener.sid)}')">
                         <span class="icon"><i class="fas fa-times"></i></span>
+                        <span>Disconnect</span>
                     </button>
                 </div>
             </td>
@@ -622,14 +626,14 @@ async function showUserClients(apiKey, displayName) {
             </div>
             <div class="table-container">
                 <table class="table is-fullwidth is-striped">
-                    <thead>
+                    <thead class="has-background-dark has-text-white">
                         <tr>
-                            <th>Client Name</th>
-                            <th>Socket ID</th>
-                            <th>Admin</th>
-                            <th>Connected At</th>
-                            <th>Last Activity</th>
-                            <th>Actions</th>
+                            <th class="has-text-white has-text-weight-bold">Client Name</th>
+                            <th class="has-text-white has-text-weight-bold">Socket ID</th>
+                            <th class="has-text-white has-text-weight-bold">Admin</th>
+                            <th class="has-text-white has-text-weight-bold">Connected At</th>
+                            <th class="has-text-white has-text-weight-bold">Last Activity</th>
+                            <th class="has-text-white has-text-weight-bold">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -637,7 +641,7 @@ async function showUserClients(apiKey, displayName) {
         data.clients.forEach(client => {
             content += `
                 <tr>
-                    <td><strong>${escapeHtml(client.name)}</strong></td>
+                    <td>${escapeHtml(client.name)}</td>
                     <td><code>${escapeHtml(client.sid)}</code></td>
                     <td>
                         ${client.is_admin ? '<span class="tag is-danger">Admin</span>' : '<span class="tag is-info">User</span>'}
@@ -672,6 +676,26 @@ async function showUserClients(apiKey, displayName) {
 
 function closeUserClientsModal() {
     document.getElementById('user-clients-modal').classList.remove('is-active');
+}
+
+function showListenerDetails(sid, name) {
+    Swal.fire({
+        title: 'Listener Details',
+        html: `
+            <div class="content">
+                <p><span class="has-text-weight-bold">Listener Name:</span> ${escapeHtml(name)}</p>
+                <p><span class="has-text-weight-bold">Socket ID:</span> <code>${escapeHtml(sid)}</code></p>
+                <p><span class="has-text-weight-bold">Type:</span> Admin-authenticated listener</p>
+                <p><span class="has-text-weight-bold">Permissions:</span> Receives events from all channels</p>
+            </div>
+        `,
+        icon: 'info',
+        confirmButtonText: 'Close',
+        width: 600,
+        customClass: {
+            htmlContainer: 'text-left'
+        }
+    });
 }
 
 function disconnectClient(sid) {
