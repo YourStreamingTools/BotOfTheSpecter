@@ -1696,13 +1696,18 @@ class TwitchBot(commands.Bot):
                     else:
                         tz = set_timezone.UTC
                         chat_logger.info("Timezone not set, defaulting to UTC")
-                    await cursor.execute('SELECT response, status, cooldown FROM custom_commands WHERE command = %s', (command,))
+                    await cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,))
                     cc_result = await cursor.fetchone()
                     if cc_result:
                         response = cc_result.get("response")
                         cc_status = cc_result.get("status")
                         cooldown = cc_result.get("cooldown")
+                        cc_permission = cc_result.get("permission")
                         if cc_status == 'Enabled':
+                            # Check if user has permission to use the command
+                            if not await command_permissions(cc_permission, message.author):
+                                chat_logger.info(f"{messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
+                                return
                             cooldown = int(cooldown)
                             # Checking if the command is on cooldown
                             last_used = command_last_used.get(command, None)
