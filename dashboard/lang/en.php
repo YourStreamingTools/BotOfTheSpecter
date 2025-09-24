@@ -1287,6 +1287,7 @@ return [
     'admin_dashboard_title' => 'Admin Dashboard',
     'admin_user_management_title' => 'User Management',
     'admin_user_bot_logs_title' => 'User Bot Logs',
+    'admin_websocket_clients_title' => 'Websocket Clients Overview',
     // TodoList Page Titles
     'todolist_add_category_title' => 'YourListOnline - Add Category',
     'todolist_categories_title' => 'YourListOnline - View Categories', 

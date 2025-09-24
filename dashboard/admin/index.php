@@ -97,6 +97,10 @@ ob_start();
                     <span class="icon"><i class="fab fa-discord"></i></span>
                     <span>Discord Tracking</span>
                 </a>
+                <a href="admin_websocket_clients.php" class="button is-success is-light">
+                    <span class="icon"><i class="fas fa-plug"></i></span>
+                    <span>Websocket Clients</span>
+                </a>
             </div>
         </div>
         <div class="column is-one-third">

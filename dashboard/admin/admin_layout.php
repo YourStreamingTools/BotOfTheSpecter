@@ -153,6 +153,10 @@ ob_start();
                     <span class="icon"><i class="fab fa-discord"></i></span>
                     <span>Discord Tracking</span>
                 </a>
+                <a class="navbar-item" href="admin_websocket_clients.php">
+                    <span class="icon"><i class="fas fa-plug"></i></span>
+                    <span>Websocket Clients</span>
+                </a>
             </div>
             <div class="navbar-end">
                 <div class="navbar-item has-dropdown is-hoverable">
