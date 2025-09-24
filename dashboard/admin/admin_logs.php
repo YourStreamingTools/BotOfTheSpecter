@@ -67,6 +67,96 @@ function read_apache2_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 
     return ['linesTotal' => $linesTotal,'logContent' => $logContent];
 }
 
+// Function to read API server logs via SSH
+function read_api_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
+    global $api_server_host, $api_server_username, $api_server_password;
+    if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
+    $connection = ssh2_connect($api_server_host, 22);
+    if (!$connection) return ['error' => 'Could not connect to API server'];
+    if (!ssh2_auth_password($connection, $api_server_username, $api_server_password)) { return ['error' => 'SSH authentication failed']; }
+    // Check if file exists
+    $cmd_exists = "test -f " . escapeshellarg($remote_path) . " && echo 1 || echo 0";
+    $stream = ssh2_exec($connection, $cmd_exists);
+    stream_set_blocking($stream, true);
+    $exists = trim(stream_get_contents($stream));
+    fclose($stream);
+    if ($exists !== "1") { return ['error' => 'not_found']; }
+    // Count total lines
+    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
+    $stream = ssh2_exec($connection, $cmd_count);
+    stream_set_blocking($stream, true);
+    $linesTotal = (int)trim(stream_get_contents($stream));
+    fclose($stream);
+    if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
+    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
+    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
+    $stream = ssh2_exec($connection, $cmd);
+    stream_set_blocking($stream, true);
+    $logContent = stream_get_contents($stream);
+    fclose($stream);
+    return ['linesTotal' => $linesTotal,'logContent' => $logContent];
+}
+
+// Function to read WebSocket server logs via SSH
+function read_websocket_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
+    global $websocket_server_host, $websocket_server_username, $websocket_server_password;
+    if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
+    $connection = ssh2_connect($websocket_server_host, 22);
+    if (!$connection) return ['error' => 'Could not connect to WebSocket server'];
+    if (!ssh2_auth_password($connection, $websocket_server_username, $websocket_server_password)) { return ['error' => 'SSH authentication failed']; }
+    // Check if file exists
+    $cmd_exists = "test -f " . escapeshellarg($remote_path) . " && echo 1 || echo 0";
+    $stream = ssh2_exec($connection, $cmd_exists);
+    stream_set_blocking($stream, true);
+    $exists = trim(stream_get_contents($stream));
+    fclose($stream);
+    if ($exists !== "1") { return ['error' => 'not_found']; }
+    // Count total lines
+    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
+    $stream = ssh2_exec($connection, $cmd_count);
+    stream_set_blocking($stream, true);
+    $linesTotal = (int)trim(stream_get_contents($stream));
+    fclose($stream);
+    if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
+    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
+    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
+    $stream = ssh2_exec($connection, $cmd);
+    stream_set_blocking($stream, true);
+    $logContent = stream_get_contents($stream);
+    fclose($stream);
+    return ['linesTotal' => $linesTotal,'logContent' => $logContent];
+}
+
+// Function to read MySQL server logs via SSH to database server
+function read_mysql_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
+    global $sql_server_host, $sql_server_username, $sql_server_password;
+    if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
+    $connection = ssh2_connect($sql_server_host, 22);
+    if (!$connection) return ['error' => 'Could not connect to database server'];
+    if (!ssh2_auth_password($connection, $sql_server_username, $sql_server_password)) { return ['error' => 'SSH authentication failed']; }
+    // Check if file exists
+    $cmd_exists = "test -f " . escapeshellarg($remote_path) . " && echo 1 || echo 0";
+    $stream = ssh2_exec($connection, $cmd_exists);
+    stream_set_blocking($stream, true);
+    $exists = trim(stream_get_contents($stream));
+    fclose($stream);
+    if ($exists !== "1") { return ['error' => 'not_found']; }
+    // Count total lines
+    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
+    $stream = ssh2_exec($connection, $cmd_count);
+    stream_set_blocking($stream, true);
+    $linesTotal = (int)trim(stream_get_contents($stream));
+    fclose($stream);
+    if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
+    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
+    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
+    $stream = ssh2_exec($connection, $cmd);
+    stream_set_blocking($stream, true);
+    $logContent = stream_get_contents($stream);
+    fclose($stream);
+    return ['linesTotal' => $linesTotal,'logContent' => $logContent];
+}
+
 function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
     return;
 }
@@ -80,6 +170,65 @@ function highlight_log_dates($text) {
         $line = preg_replace(
             '/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/',
             '<span ' . $style . '>$1</span>',
+            $line
+        );
+    }
+    return implode("<br>", $lines);
+}
+
+// Helper function to highlight MySQL logs with proper formatting
+function highlight_mysql_logs($text) {
+    $escaped = htmlspecialchars($text);
+    $lines = explode("\n", $escaped);
+    $lines = array_reverse($lines);
+    // Define styles
+    $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
+    $warningStyle = 'style="color: #f39c12; font-weight: bold;"';
+    $systemStyle = 'style="color: #3498db; font-weight: bold;"';
+    $errorStyle = 'style="color: #e74c3c; font-weight: bold;"';
+    $noteStyle = 'style="color: #27ae60; font-weight: bold;"';
+    foreach ($lines as &$line) {
+        // Highlight MySQL timestamps (2025-09-24T08:44:00.275216Z) and convert to readable format
+        $line = preg_replace_callback(
+            '/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.\d{6}Z/',
+            function($matches) use ($dateStyle) {
+                $year = $matches[1];
+                $month = $matches[2];
+                $day = $matches[3];
+                $hour = intval($matches[4]);
+                $minute = $matches[5];
+                $second = $matches[6];
+                // Convert to 12-hour format with AM/PM
+                $ampm = ($hour >= 12) ? 'PM' : 'AM';
+                $displayHour = ($hour == 0) ? 12 : (($hour > 12) ? $hour - 12 : $hour);
+                // Format as dd/mm/yyyy h:mm:ss AM/PM
+                $readableTime = sprintf('%s/%s/%s %d:%s:%s %s', $day, $month, $year, $displayHour, $minute, $second, $ampm);
+                return '<span ' . $dateStyle . '>' . $readableTime . '</span>';
+            },
+            $line
+        );
+        // Highlight [Warning] tags
+        $line = preg_replace(
+            '/(\[Warning\])/i',
+            '<span ' . $warningStyle . '>$1</span>',
+            $line
+        );
+        // Highlight [System] tags
+        $line = preg_replace(
+            '/(\[System\])/i',
+            '<span ' . $systemStyle . '>$1</span>',
+            $line
+        );
+        // Highlight [Error] tags
+        $line = preg_replace(
+            '/(\[Error\])/i',
+            '<span ' . $errorStyle . '>$1</span>',
+            $line
+        );
+        // Highlight [Note] tags
+        $line = preg_replace(
+            '/(\[Note\])/i',
+            '<span ' . $noteStyle . '>$1</span>',
             $line
         );
     }
@@ -323,6 +472,21 @@ if (isset($_GET['admin_system_log_type'])) {
             $logPath = "/home/botofthespecter/logs/specterdiscord/discordbot.txt";
             $result = read_bot_log_over_ssh($logPath, 200, $since);
             break;
+        case 'api':
+            // API server log (use API server SSH)
+            $logPath = "/home/botofthespecter/log.txt";
+            $result = read_api_log_over_ssh($logPath, 200, $since);
+            break;
+        case 'websocket':
+            // WebSocket server log (use WebSocket server SSH)
+            $logPath = "/home/botofthespecter/noti_server.log";
+            $result = read_websocket_log_over_ssh($logPath, 200, $since);
+            break;
+        case 'mysql-error':
+            // MySQL error log (use database server SSH)
+            $logPath = "/var/log/mysql/error.log";
+            $result = read_mysql_log_over_ssh($logPath, 200, $since);
+            break;
         default:
             // Other system logs in custom directory (use SSH)
             $logPath = "/home/botofthespecter/logs/system/$logType.txt";
@@ -349,6 +513,9 @@ if (isset($_GET['admin_system_log_type'])) {
     if (strpos($logType, 'apache2-') === 0 || strpos($logType, '_access') !== false || strpos($logType, '_error') !== false || $logType === 'other_vhosts_access') {
         // This is an Apache2 log, use specialized highlighting
         $logContent = highlight_apache2_logs($logContent, $logType);
+    } elseif ($logType === 'mysql-error') {
+        // This is a MySQL log, use MySQL-specific highlighting
+        $logContent = highlight_mysql_logs($logContent);
     } else { $logContent = highlight_log_dates($logContent); }
     echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
     exit();
@@ -399,10 +566,11 @@ $systemLogTypes = [
     [
         'label' => 'Other System Logs',
         'options' => [
+            ['value' => 'api', 'label' => 'API Server Log'],
+            ['value' => 'websocket', 'label' => 'WebSocket Server Log'],
+            ['value' => 'mysql-error', 'label' => 'MySQL Error Log'],
+            ['value' => 'discordbot', 'label' => 'Discord Bot Log'],
             ['value' => 'database', 'label' => 'Database Log'],
-            ['value' => 'websocket', 'label' => 'Websocket Log'],
-            ['value' => 'api', 'label' => 'API Log'],
-            ['value' => 'discordbot', 'label' => 'Discord Bot Log']
         ]
     ],
 ];
