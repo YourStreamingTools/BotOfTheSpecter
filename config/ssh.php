@@ -13,6 +13,11 @@ $api_server_host = '';
 $api_server_username = $server_username;
 $api_server_password = $server_password;
 
+// WebSocket Server Information
+$websocket_server_host = '';
+$websocket_server_username = $server_username;
+$websocket_server_password = $server_password;
+
 // Stream Server Information
 // AU East 1
 $stream_au_east_1_host = '';
