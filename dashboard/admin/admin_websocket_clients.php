@@ -4,6 +4,7 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/../lang/i18n.php';
 $pageTitle = t('admin_websocket_clients_title');
 require_once "/var/www/config/db_connect.php";
+require_once "/var/www/config/admin_actions.php";
 
 // Fetch user display name from database by API key
 function getUserDisplayName($apiKey, $conn) {
@@ -126,9 +127,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_user_clients'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['disconnect_client'])) {
     header('Content-Type: application/json');
     $sid = $_POST['sid'] ?? '';
-    // In a real implementation, this would send a disconnect command to the websocket server
-    $response = ['success' => true, 'message' => 'Client disconnected successfully'];
-    echo json_encode($response);
+    if (empty($sid)) {
+        echo json_encode(['success' => false, 'message' => 'Socket ID is required']);
+        exit;
+    }
+    // Send disconnect command to the websocket server
+    $disconnectUrl = 'https://websocket.botofthespecter.com/admin/disconnect?admin_key=' . urlencode($admin_key);
+    $postData = json_encode(['sid' => $sid]);
+    $context = stream_context_create([
+        'http' => [
+            'timeout' => 10,
+            'method' => 'POST',
+            'header' => [
+                'Content-Type: application/json',
+                'User-Agent: BotOfTheSpecter Admin Panel'
+            ],
+            'content' => $postData
+        ]
+    ]);
+    $response = @file_get_contents($disconnectUrl, false, $context);
+    if ($response === false) {
+        echo json_encode(['success' => false, 'message' => 'Failed to connect to websocket server']);
+        exit;
+    }
+    $result = json_decode($response, true);
+    if ($result && isset($result['success']) && $result['success']) {
+        echo json_encode(['success' => true, 'message' => 'Client disconnected successfully']);
+    } else {
+        $errorMsg = $result['message'] ?? 'Unknown error occurred';
+        echo json_encode(['success' => false, 'message' => $errorMsg]);
+    }
     exit;
 }
 
