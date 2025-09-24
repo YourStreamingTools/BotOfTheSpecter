@@ -1231,6 +1231,7 @@ return [
     'admin_dashboard_title' => 'Tableau de Bord Admin',
     'admin_user_management_title' => 'Gestion des Utilisateurs',
     'admin_user_bot_logs_title' => 'Journaux Bot Utilisateur',
+    'admin_websocket_clients_title' => 'Aperçu des Clients Websocket',
     // TodoList Page Titles
     'todolist_add_category_title' => 'VotreListeEnLigne - Ajouter Catégorie',
     'todolist_categories_title' => 'VotreListeEnLigne - Voir Catégories', 

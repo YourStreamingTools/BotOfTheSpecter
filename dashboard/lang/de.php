@@ -1228,6 +1228,7 @@ return [
     'admin_dashboard_title' => 'Admin-Dashboard',
     'admin_user_management_title' => 'Benutzerverwaltung',
     'admin_user_bot_logs_title' => 'Benutzer-Bot-Protokolle',
+    'admin_websocket_clients_title' => 'Websocket-Clients Übersicht',
     // TodoList Page Titles
     'todolist_add_category_title' => 'IhrListOnline - Kategorie hinzufügen',
     'todolist_categories_title' => 'IhrListOnline - Kategorien anzeigen', 
