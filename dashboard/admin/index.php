@@ -74,10 +74,10 @@ function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password
     return ['status' => $status, 'pid' => $pid];
 }
 
-// Fetch service statuses
-$discord_status = getServiceStatus('discordbot', $bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-$api_status = getServiceStatus('fastapi.service', $api_server_host, $api_server_username, $api_server_password);
-$websocket_status = getServiceStatus('websocket.service', $websocket_server_host, $websocket_server_username, $websocket_server_password);
+// Service statuses will be loaded asynchronously via JavaScript
+$discord_status = ['status' => 'Loading...', 'pid' => '...'];
+$api_status = ['status' => 'Loading...', 'pid' => '...'];
+$websocket_status = ['status' => 'Loading...', 'pid' => '...'];
 
 // Fetch user statistics for pie chart
 $total_users = 0;
@@ -146,32 +146,32 @@ ob_start();
                         <div class="level-item">
                             <div>
                                 <p class="heading">Discord Bot</p>
-                                <p class="title is-6 <?php echo $discord_status['status'] == 'Running' ? 'has-text-success' : ($discord_status['status'] == 'Stopped' ? 'has-text-danger' : ($discord_status['status'] == 'Failed' ? 'has-text-danger' : 'has-text-warning')); ?>"><?php echo $discord_status['status']; ?></p>
+                                <p class="title is-6 has-text-info" id="discord-status">Loading...</p>
                             </div>
                         </div>
                     </div>
                     <div class="level-right">
                         <div class="level-item">
-                            <span class="tag is-light has-text-black">PID: <?php echo $discord_status['pid']; ?></span>
+                            <span class="tag is-light has-text-black" id="discord-pid">PID: ...</span>
                         </div>
                     </div>
                 </div>
-                <div class="buttons are-small">
+                <div class="buttons are-small" id="discord-buttons">
                     <form method="post" style="display: inline;">
                         <input type="hidden" name="service" value="discordbot">
-                        <button type="submit" name="action" value="start" class="button is-success" <?php echo $discord_status['status'] == 'Running' ? 'disabled' : ''; ?>>
+                        <button type="submit" name="action" value="start" class="button is-success" disabled>
                             <span class="icon"><i class="fas fa-play"></i></span>
                         </button>
                     </form>
                     <form method="post" style="display: inline;">
                         <input type="hidden" name="service" value="discordbot">
-                        <button type="submit" name="action" value="stop" class="button is-danger" <?php echo ($discord_status['status'] == 'Stopped' || $discord_status['status'] == 'Failed') ? 'disabled' : ''; ?>>
+                        <button type="submit" name="action" value="stop" class="button is-danger" disabled>
                             <span class="icon"><i class="fas fa-stop"></i></span>
                         </button>
                     </form>
                     <form method="post" style="display: inline;">
                         <input type="hidden" name="service" value="discordbot">
-                        <button type="submit" name="action" value="restart" class="button is-warning">
+                        <button type="submit" name="action" value="restart" class="button is-warning" disabled>
                             <span class="icon"><i class="fas fa-redo"></i></span>
                         </button>
                     </form>
@@ -191,32 +191,32 @@ ob_start();
                         <div class="level-item">
                             <div>
                                 <p class="heading">API Server</p>
-                                <p class="title is-6 <?php echo $api_status['status'] == 'Running' ? 'has-text-success' : ($api_status['status'] == 'Stopped' ? 'has-text-danger' : ($api_status['status'] == 'Failed' ? 'has-text-danger' : 'has-text-warning')); ?>"><?php echo $api_status['status']; ?></p>
+                                <p class="title is-6 has-text-info" id="api-status">Loading...</p>
                             </div>
                         </div>
                     </div>
                     <div class="level-right">
                         <div class="level-item">
-                            <span class="tag is-light has-text-black">PID: <?php echo $api_status['pid']; ?></span>
+                            <span class="tag is-light has-text-black" id="api-pid">PID: ...</span>
                         </div>
                     </div>
                 </div>
-                <div class="buttons are-small">
+                <div class="buttons are-small" id="api-buttons">
                     <form method="post" style="display: inline;">
                         <input type="hidden" name="service" value="fastapi.service">
-                        <button type="submit" name="action" value="start" class="button is-success" <?php echo $api_status['status'] == 'Running' ? 'disabled' : ''; ?>>
+                        <button type="submit" name="action" value="start" class="button is-success" disabled>
                             <span class="icon"><i class="fas fa-play"></i></span>
                         </button>
                     </form>
                     <form method="post" style="display: inline;">
                         <input type="hidden" name="service" value="fastapi.service">
-                        <button type="submit" name="action" value="stop" class="button is-danger" <?php echo ($api_status['status'] == 'Stopped' || $api_status['status'] == 'Failed') ? 'disabled' : ''; ?>>
+                        <button type="submit" name="action" value="stop" class="button is-danger" disabled>
                             <span class="icon"><i class="fas fa-stop"></i></span>
                         </button>
                     </form>
                     <form method="post" style="display: inline;">
                         <input type="hidden" name="service" value="fastapi.service">
-                        <button type="submit" name="action" value="restart" class="button is-warning">
+                        <button type="submit" name="action" value="restart" class="button is-warning" disabled>
                             <span class="icon"><i class="fas fa-redo"></i></span>
                         </button>
                     </form>
@@ -236,32 +236,32 @@ ob_start();
                         <div class="level-item">
                             <div>
                                 <p class="heading">WebSocket Server</p>
-                                <p class="title is-6 <?php echo $websocket_status['status'] == 'Running' ? 'has-text-success' : ($websocket_status['status'] == 'Stopped' ? 'has-text-danger' : ($websocket_status['status'] == 'Failed' ? 'has-text-danger' : 'has-text-warning')); ?>"><?php echo $websocket_status['status']; ?></p>
+                                <p class="title is-6 has-text-info" id="websocket-status">Loading...</p>
                             </div>
                         </div>
                     </div>
                     <div class="level-right">
                         <div class="level-item">
-                            <span class="tag is-light has-text-black">PID: <?php echo $websocket_status['pid']; ?></span>
+                            <span class="tag is-light has-text-black" id="websocket-pid">PID: ...</span>
                         </div>
                     </div>
                 </div>
-                <div class="buttons are-small">
+                <div class="buttons are-small" id="websocket-buttons">
                     <form method="post" style="display: inline;">
                         <input type="hidden" name="service" value="websocket.service">
-                        <button type="submit" name="action" value="start" class="button is-success" <?php echo $websocket_status['status'] == 'Running' ? 'disabled' : ''; ?>>
+                        <button type="submit" name="action" value="start" class="button is-success" disabled>
                             <span class="icon"><i class="fas fa-play"></i></span>
                         </button>
                     </form>
                     <form method="post" style="display: inline;">
                         <input type="hidden" name="service" value="websocket.service">
-                        <button type="submit" name="action" value="stop" class="button is-danger" <?php echo ($websocket_status['status'] == 'Stopped' || $websocket_status['status'] == 'Failed') ? 'disabled' : ''; ?>>
+                        <button type="submit" name="action" value="stop" class="button is-danger" disabled>
                             <span class="icon"><i class="fas fa-stop"></i></span>
                         </button>
                     </form>
                     <form method="post" style="display: inline;">
                         <input type="hidden" name="service" value="websocket.service">
-                        <button type="submit" name="action" value="restart" class="button is-warning">
+                        <button type="submit" name="action" value="restart" class="button is-warning" disabled>
                             <span class="icon"><i class="fas fa-redo"></i></span>
                         </button>
                     </form>
@@ -299,6 +299,7 @@ $content = ob_get_clean();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize user chart
     const ctx = document.getElementById('userChart');
     if (ctx) {
         const chartCtx = ctx.getContext('2d');
@@ -335,6 +336,57 @@ document.addEventListener('DOMContentLoaded', function() {
             ctx.parentNode.appendChild(noDataMsg);
         }
     }
+    // Function to update service status
+    function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
+        fetch(`admin_service_status.php?service=${service}`)
+            .then(response => response.json())
+            .then(data => {
+                const statusElement = document.getElementById(statusElementId);
+                const pidElement = document.getElementById(pidElementId);
+                const buttonsElement = document.getElementById(buttonsElementId);
+                // Update status with appropriate color
+                statusElement.textContent = data.status;
+                statusElement.className = 'title is-6';
+                if (data.status === 'Running') {
+                    statusElement.classList.add('has-text-success');
+                } else if (data.status === 'Stopped' || data.status === 'Failed') {
+                    statusElement.classList.add('has-text-danger');
+                } else {
+                    statusElement.classList.add('has-text-warning');
+                }
+                // Update PID
+                pidElement.textContent = `PID: ${data.pid}`;
+                // Enable/disable buttons based on status
+                const startBtn = buttonsElement.querySelector('button[value="start"]');
+                const stopBtn = buttonsElement.querySelector('button[value="stop"]');
+                const restartBtn = buttonsElement.querySelector('button[value="restart"]');
+                if (data.status === 'Running') {
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    restartBtn.disabled = false;
+                } else if (data.status === 'Stopped' || data.status === 'Failed') {
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    restartBtn.disabled = false;
+                } else {
+                    startBtn.disabled = false;
+                    stopBtn.disabled = false;
+                    restartBtn.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error(`Error fetching ${service} status:`, error);
+                const statusElement = document.getElementById(statusElementId);
+                statusElement.textContent = 'Error';
+                statusElement.className = 'title is-6 has-text-danger';
+            });
+    }
+    // Load service statuses after page load
+    setTimeout(() => {
+        updateServiceStatus('discordbot', 'discord-status', 'discord-pid', 'discord-buttons');
+        updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
+        updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
+    }, 100);
 });
 </script>
 <?php
