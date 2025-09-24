@@ -560,6 +560,7 @@ return [
     'builtin_commands_permission_t1-sub' => 'Abonné Tier 1',
     'builtin_commands_permission_t2-sub' => 'Abonné Tier 2',
     'builtin_commands_permission_t3-sub' => 'Abonné Tier 3',
+    'builtin_commands_permission_broadcaster' => 'Diffuseur',
     'builtin_commands_status_enabled' => 'Activé',
     'builtin_commands_disable' => 'Désactiver',
     'builtin_commands_enable' => 'Activer',

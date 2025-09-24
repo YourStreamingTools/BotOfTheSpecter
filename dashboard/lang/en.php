@@ -613,6 +613,7 @@ return [
     'builtin_commands_permission_t1-sub' => 'Tier 1 Subscriber',
     'builtin_commands_permission_t2-sub' => 'Tier 2 Subscriber',
     'builtin_commands_permission_t3-sub' => 'Tier 3 Subscriber',
+    'builtin_commands_permission_broadcaster' => 'Broadcaster',
     'builtin_commands_status_enabled' => 'Enabled',
     'builtin_commands_disable' => 'Disable',
     'builtin_commands_enable' => 'Enable',

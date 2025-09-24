@@ -51,12 +51,13 @@ if ($cookieConsent) {
 
 $permissionsMap = [
     "Everyone" => "everyone",
-    "Mods" => "mod",
     "VIPs" => "vip",
     "All Subscribers" => "all-subs",
     "Tier 1 Subscriber" => "t1-sub",
     "Tier 2 Subscriber" => "t2-sub",
-    "Tier 3 Subscriber" => "t3-sub"
+    "Tier 3 Subscriber" => "t3-sub",
+    "Mods" => "mod",
+    "Broadcaster" => "broadcaster"
 ];
 
 // Load command descriptions from JSON file
@@ -160,6 +161,12 @@ ob_start();
         </p>
     </header>
     <div class="card-content">
+        <div class="notification is-info is-light mb-4">
+            <span class="icon">
+                <i class="fas fa-info-circle"></i>
+            </span>
+            <strong>New in Version 5.5:</strong> You can now use the "Broadcaster" permission level to restrict commands so that only you (the broadcaster) can use them. This is perfect for commands you want to keep exclusive to yourself.
+        </div>
         <div class="columns is-vcentered is-mobile mb-3">
             <div class="column is-narrow">
                 <label class="checkbox mr-3">
@@ -230,9 +237,9 @@ ob_start();
                                     <form method="post">
                                         <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
                                         <div class="select is-fullwidth">
-                                            <select name="usage_level" onchange="this.form.submit()">
+                                            <select name="usage_level" class="permission-select" onchange="this.form.submit()">
                                                 <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
-                                                    <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
+                                                    <option value="<?php echo $displayValue; ?>" class="permission-<?php echo $dbValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
                                                         <?php echo t('builtin_commands_permission_' . $dbValue); ?>
                                                     </option>
                                                 <?php endforeach; ?>
