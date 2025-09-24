@@ -570,7 +570,6 @@ $systemLogTypes = [
             ['value' => 'websocket', 'label' => 'WebSocket Server Log'],
             ['value' => 'mysql-error', 'label' => 'MySQL Error Log'],
             ['value' => 'discordbot', 'label' => 'Discord Bot Log'],
-            ['value' => 'database', 'label' => 'Database Log'],
         ]
     ],
 ];
