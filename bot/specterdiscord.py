@@ -3893,7 +3893,9 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         went_offline = previously_live - current_live_usernames
         for username in went_offline:
             await self.mysql.delete_live_notification(guild_id, username)
-            self.logger.info(f"User {username} went offline for guild {guild_id} (removed from DB)")
+            guild = self.bot.get_guild(guild_id)
+            guild_name = guild.name if guild else f"Unknown Guild ({guild_id})"
+            self.logger.info(f"User {username} went offline for guild {guild_name} (ID: {guild_id}, removed from DB)")
 
     async def start_monitoring(self):
         await self.bot.wait_until_ready()
