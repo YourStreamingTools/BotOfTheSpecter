@@ -1496,9 +1496,28 @@ class BotOfTheSpecter(commands.Bot):
             channel_update = f"🔴 {message}"
         await channel.send(channel_update)
         # Send notification to stream_channel_id for online events
-        if event_type == "ONLINE" and "stream_channel_id" in mapping and mapping["stream_channel_id"]:
-            self.logger.info(f"Sending live notification for {code} to stream_channel_id {mapping['stream_channel_id']}")
-            stream_channel = guild.get_channel(int(mapping["stream_channel_id"]))
+        # Always check database first to ensure we have the latest channel settings
+        databases_checked = []
+        # Check cache value first (for logging comparison)
+        cached_channel_id = mapping.get("stream_channel_id")
+        self.logger.info(f"Mapping cache for {code}: stream_channel_id = {cached_channel_id}")
+        databases_checked.append(f"specterdiscordbot_cache: {cached_channel_id}")
+        # Always query database for most current settings
+        mysql_helper = MySQLHelper(self.logger)
+        discord_info = await mysql_helper.fetchone(
+            "SELECT stream_alert_channel_id FROM discord_users WHERE guild_id = %s",
+            (guild.id,), database_name='website', dict_cursor=True)
+        website_channel_id = discord_info.get("stream_alert_channel_id") if discord_info else None
+        self.logger.info(f"Website database query for guild {guild.id}: stream_alert_channel_id = {website_channel_id}")
+        databases_checked.append(f"website: {website_channel_id}")
+        # Use database value as the authoritative source
+        stream_channel_id = website_channel_id
+        # Log if cache differs from database
+        if cached_channel_id != website_channel_id:
+            self.logger.info(f"Cache mismatch detected for {code}: cache={cached_channel_id}, database={website_channel_id}")
+        if event_type == "ONLINE" and stream_channel_id:
+            self.logger.info(f"Sending live notification for {code} to stream_channel_id {stream_channel_id}")
+            stream_channel = guild.get_channel(int(stream_channel_id))
             if stream_channel:
                 self.logger.info(f"Stream channel found: {stream_channel.name}")
                 mysql_helper = MySQLHelper(self.logger)
@@ -1539,7 +1558,11 @@ class BotOfTheSpecter(commands.Bot):
                 await stream_channel.send(content=mention_text, embed=embed)
                 self.logger.info(f"Sent live notification with mention for {account_username} in guild {guild.id}")
             else:
-                self.logger.warning(f"Stream channel not found for id {mapping['stream_channel_id']} in guild {guild.id}")
+                self.logger.warning(f"Stream channel not found for id {stream_channel_id} in guild {guild.id}")
+        else:
+            # Log exactly what was checked and found
+            databases_info = " | ".join(databases_checked)
+            self.logger.info(f"No live notification sent for {code} - event_type: {event_type}, final_stream_channel_id: {stream_channel_id}, databases_checked: [{databases_info}]")
         # Attempt to update the channel name if it is different
         if channel.name != channel_update:
             try:
