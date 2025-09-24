@@ -1035,7 +1035,7 @@ async def process_twitch_eventsub_message(message):
 # Connect and manage reconnection for Internal Socket Server
 async def specter_websocket():
     global websocket_connected, specterSocket
-    specter_websocket_uri = "wss://websocket.botofthespecter.com"
+    specter_websocket_uri = "https://websocket.botofthespecter.com"
     # Reconnection parameters
     reconnect_delay = 60  # Fixed 60 second delay for each reconnection attempt
     consecutive_failures = 0
@@ -1057,9 +1057,9 @@ async def specter_websocket():
                 total_delay = reconnect_delay + jitter
                 websocket_logger.info(f"Reconnection attempt {consecutive_failures}, waiting {total_delay:.1f} seconds (server reboot consideration)")
                 await sleep(total_delay)
-            # Attempt to connect to the WebSocket server
+            # Attempt to connect to the WebSocket server using websocket transport directly
             bot_logger.info(f"Attempting to connect to Internal WebSocket Server (attempt {consecutive_failures + 1})")
-            await specterSocket.connect(specter_websocket_uri)
+            await specterSocket.connect(specter_websocket_uri, transports=['websocket'])
             # Wait for connection to be established and registered
             connection_timeout = 30  # 30 second timeout for connection + registration
             start_time = time_right_now()
@@ -1070,6 +1070,8 @@ async def specter_websocket():
             # Reset failure counter on successful connection
             consecutive_failures = 0
             websocket_logger.info("Successfully connected and registered with Internal WebSocket Server")
+            websocket_logger.info(f"Connected with session ID: {specterSocket.sid}")
+            websocket_logger.info(f"Transport method: {specterSocket.transport()}")
             # Keep the connection alive and handle messages
             await specterSocket.wait()
         except ConnectionExecptionError as e:
@@ -1094,6 +1096,8 @@ async def specter_websocket():
 async def connect():
     global websocket_connected
     websocket_logger.info("WebSocket connection established, attempting registration...")
+    websocket_logger.info(f"Session ID: {specterSocket.sid}")
+    websocket_logger.info(f"Transport: {specterSocket.transport()}")
     registration_data = {
         'code': API_TOKEN,
         'channel': CHANNEL_NAME,
