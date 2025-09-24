@@ -61,7 +61,22 @@ $permissionsMap = [
 
 // Load command descriptions from JSON file
 $jsonText = file_get_contents(__DIR__ . '../../api/builtin_commands.json');
-$cmdDescriptions = json_decode($jsonText, true)['commands'];
+$cmdData = json_decode($jsonText, true)['commands'];
+
+// Parse command data for descriptions and force levels
+$cmdDescriptions = [];
+$cmdForceLevels = [];
+foreach ($cmdData as $cmdKey => $cmdInfo) {
+    if (is_array($cmdInfo)) {
+        $cmdDescriptions[$cmdKey] = $cmdInfo['description'] ?? t('builtin_commands_no_description');
+        if (isset($cmdInfo['force_level'])) {
+            $cmdForceLevels[$cmdKey] = $cmdInfo['force_level'];
+        }
+    } else {
+        // Backwards compatibility for old string format
+        $cmdDescriptions[$cmdKey] = $cmdInfo;
+    }
+}
 
 // Update command status or permission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -108,11 +123,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['command_name']) && isset($_POST['usage_level'])) {
         $command_name = $_POST['command_name'];
         $usage_level = $_POST['usage_level'];
-        $dbPermission = $permissionsMap[$usage_level];
-        $updateQuery = $db->prepare("UPDATE builtin_commands SET permission = ? WHERE command = ?");
-        $updateQuery->bind_param('ss', $dbPermission, $command_name);
-        $updateQuery->execute();
-        $updateQuery->close();
+        
+        // Check if this command has a forced level
+        if (!isset($cmdForceLevels[$command_name])) {
+            $dbPermission = $permissionsMap[$usage_level];
+            $updateQuery = $db->prepare("UPDATE builtin_commands SET permission = ? WHERE command = ?");
+            $updateQuery->bind_param('ss', $dbPermission, $command_name);
+            $updateQuery->execute();
+            $updateQuery->close();
+        }
+        
         header("Location: builtin.php");
         exit();
     }
@@ -183,6 +203,8 @@ ob_start();
                         <?php foreach ($builtinCommands as $command): 
                             $cmdKey = $command['command'];
                             $desc = isset($cmdDescriptions[$cmdKey]) ? $cmdDescriptions[$cmdKey] : t('builtin_commands_no_description');
+                            $hasForceLevel = isset($cmdForceLevels[$cmdKey]);
+                            $forceLevel = $hasForceLevel ? $cmdForceLevels[$cmdKey] : null;
                         ?>
                         <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
                             <td class="has-text-centered has-text-weight-semibold has-text-info" style="vertical-align: middle;">
@@ -190,18 +212,34 @@ ob_start();
                             </td>
                             <td style="vertical-align: middle;"><?php echo htmlspecialchars($desc); ?></td>
                             <td>
-                                <form method="post">
-                                    <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
-                                    <div class="select is-fullwidth">
-                                        <select name="usage_level" onchange="this.form.submit()">
-                                            <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
-                                                <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
-                                                    <?php echo t('builtin_commands_permission_' . $dbValue); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
+                                <?php if ($hasForceLevel): ?>
+                                    <div class="field">
+                                        <div class="control">
+                                            <span class="tag is-medium is-warning">
+                                                <span class="icon is-small">
+                                                    <i class="fas fa-lock"></i>
+                                                </span>
+                                                <span><?php echo t('builtin_commands_permission_' . $forceLevel); ?></span>
+                                            </span>
+                                        </div>
+                                        <p class="help is-size-7 has-text-grey">
+                                            <?php echo t('builtin_commands_locked_permission'); ?>
+                                        </p>
                                     </div>
-                                </form>
+                                <?php else: ?>
+                                    <form method="post">
+                                        <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
+                                        <div class="select is-fullwidth">
+                                            <select name="usage_level" onchange="this.form.submit()">
+                                                <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
+                                                    <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
+                                                        <?php echo t('builtin_commands_permission_' . $dbValue); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                    </form>
+                                <?php endif; ?>
                             </td>
                             <td class="has-text-centered" style="vertical-align: middle;">
                                 <span class="tag is-medium <?php echo ($command['status'] == 'Enabled') ? 'is-success' : 'is-danger'; ?>">

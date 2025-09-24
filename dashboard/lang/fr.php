@@ -564,6 +564,7 @@ return [
     'builtin_commands_disable' => 'Désactiver',
     'builtin_commands_enable' => 'Activer',
     'builtin_commands_status_disabled' => 'Désactivé',
+    'builtin_commands_locked_permission' => 'Le niveau de permission est verrouillé pour cette commande',
     'custom_commands_page_title' => 'Commandes personnalisées',
     'custom_commands_header' => 'Commandes personnalisées',
     'custom_commands_remove' => 'Supprimer',

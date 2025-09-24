@@ -561,6 +561,7 @@ return [
     'builtin_commands_disable' => 'Deaktivieren',
     'builtin_commands_enable' => 'Aktivieren',
     'builtin_commands_status_disabled' => 'Deaktiviert',
+    'builtin_commands_locked_permission' => 'Die Berechtigungsebene ist für diesen Befehl gesperrt',
     'custom_commands_page_title' => 'Benutzerdefinierte Befehle',
     'custom_commands_header' => 'Benutzerdefinierte Befehle',
     'custom_commands_remove' => 'Entfernen',
