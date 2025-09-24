@@ -18,6 +18,11 @@ $websocket_server_host = '';
 $websocket_server_username = $server_username;
 $websocket_server_password = $server_password;
 
+// Database Server Information
+$sql_server_host = '';
+$sql_server_username = $server_username;
+$sql_server_password = $server_password;
+
 // Stream Server Information
 // AU East 1
 $stream_au_east_1_host = '';
