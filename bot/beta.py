@@ -6004,10 +6004,18 @@ async def command_permissions(setting, user):
     if user.name == bot_owner:
         chat_logger.info(f"Command Permission checked, {user.name}. (Bot owner)")
         return True
-    # Check if the user is the broadcaster
+    # Check if the user is the broadcaster (general broadcaster access)
     elif user.name == CHANNEL_NAME:
         chat_logger.info(f"Command Permission checked, {user.name} is the Broadcaster")
         return True
+    # Check if the setting specifically requires broadcaster permission
+    elif setting == "broadcaster":
+        if user.name == CHANNEL_NAME:
+            chat_logger.info(f"Command Permission checked, {user.name} is the Broadcaster (broadcaster-only command)")
+            return True
+        else:
+            chat_logger.info(f"Command Permission denied to {user.name}. Command requires broadcaster permission.")
+            return False
     # Check if the user is a moderator and the setting is "mod"
     elif setting == "mod" and user.is_mod:
         chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
