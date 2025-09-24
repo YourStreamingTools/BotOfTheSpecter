@@ -1497,8 +1497,10 @@ class BotOfTheSpecter(commands.Bot):
         await channel.send(channel_update)
         # Send notification to stream_channel_id for online events
         if event_type == "ONLINE" and "stream_channel_id" in mapping and mapping["stream_channel_id"]:
+            self.logger.info(f"Sending live notification for {code} to stream_channel_id {mapping['stream_channel_id']}")
             stream_channel = guild.get_channel(int(mapping["stream_channel_id"]))
             if stream_channel:
+                self.logger.info(f"Stream channel found: {stream_channel.name}")
                 mysql_helper = MySQLHelper(self.logger)
                 user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (code,), database_name='website', dict_cursor=True)
                 account_username = user_row['username'] if user_row else "Unknown User"
@@ -1518,6 +1520,7 @@ class BotOfTheSpecter(commands.Bot):
                                 mention_text = f"{role.mention} "
                         except (ValueError, TypeError):
                             self.logger.warning(f"Invalid custom role ID for guild {guild.id}: {discord_info['stream_alert_custom_role']}")
+                self.logger.info(f"Mention text for {account_username}: '{mention_text}'")
                 # Get stream info (thumbnail and game)
                 thumbnail_url, game_name = await self.get_stream_info(account_username)
                 # Get current date for footer
@@ -1534,6 +1537,9 @@ class BotOfTheSpecter(commands.Bot):
                 # Set footer
                 embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
                 await stream_channel.send(content=mention_text, embed=embed)
+                self.logger.info(f"Sent live notification with mention for {account_username} in guild {guild.id}")
+            else:
+                self.logger.warning(f"Stream channel not found for id {mapping['stream_channel_id']} in guild {guild.id}")
         # Attempt to update the channel name if it is different
         if channel.name != channel_update:
             try:
