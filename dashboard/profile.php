@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Handle API key regeneration
         $newApiKey = bin2hex(random_bytes(16));
         $updateQuery = "UPDATE users SET api_key = ? WHERE id = ?";
-        $stmt = mysqli_prepare($db, $updateQuery);
+        $stmt = mysqli_prepare($conn, $updateQuery);
         mysqli_stmt_bind_param($stmt, 'si', $newApiKey, $userId);
         if (mysqli_stmt_execute($stmt)) {
             $_SESSION['api_key'] = $newApiKey;
@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = t('api_key_regenerated_success');
             $alertClass = 'is-success';
         } else {
-            $message = t('api_key_regenerate_error') . ': ' . mysqli_error($db);
+            $message = t('api_key_regenerate_error') . ': ' . mysqli_error($conn);
             $alertClass = 'is-danger';
         }
     } elseif ($action === 'update_heartrate_code') {
