@@ -557,6 +557,7 @@ return [
     'builtin_commands_permission_t1-sub' => 'Tier 1 Abonnent',
     'builtin_commands_permission_t2-sub' => 'Tier 2 Abonnent',
     'builtin_commands_permission_t3-sub' => 'Tier 3 Abonnent',
+    'builtin_commands_permission_broadcaster' => 'Streamer',
     'builtin_commands_status_enabled' => 'Aktiviert',
     'builtin_commands_disable' => 'Deaktivieren',
     'builtin_commands_enable' => 'Aktivieren',
