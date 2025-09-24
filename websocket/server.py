@@ -184,6 +184,7 @@ class BotOfTheSpecter_WebsocketServer:
             web.get("/system-update", self.system_update_http),
             web.get("/heartbeat", self.heartbeat),
             web.get("/clients", self.list_clients),
+            web.post("/admin/disconnect", self.admin_disconnect_client),
             web.get("/favicon.ico", self.favicon_redirect)
         ])
 
@@ -500,6 +501,72 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info(f"System update triggered, broadcasted to {count} clients")
         
         return web.json_response({"success": 1, "count": count, "msg": f"System update notification sent to {count} clients"})
+
+    async def admin_disconnect_client(self, request):
+        # Handle admin disconnect requests with proper authentication
+        try:
+            # Check for admin authentication using query parameter (matching system_update_http pattern)
+            admin_key = request.query.get("admin_key")
+            if not admin_key or admin_key != self.admin_code:
+                return web.json_response({'success': False, 'message': 'Unauthorized - Invalid or missing admin key'}, status=401)
+            # Get request data
+            try:
+                data = await request.json()
+            except Exception as e:
+                return web.json_response({'success': False, 'message': 'Invalid JSON data'}, status=400)
+            if not data or 'sid' not in data:
+                return web.json_response({'success': False, 'message': 'Socket ID (sid) is required'}, status=400)
+            sid = data['sid']
+            self.logger.info(f"Admin disconnect request for SID: {sid}")
+            # Check if the SID exists in registered clients or global listeners
+            client_found = False
+            client_info = None
+            # Check in registered clients
+            for code, clients in self.registered_clients.items():
+                for client in clients:
+                    if client.get('sid') == sid:
+                        client_found = True
+                        client_info = f"Registered client in code '{code}': {client.get('name', 'Unknown')}"
+                        break
+                if client_found:
+                    break
+            # Check in global listeners if not found in registered clients
+            if not client_found:
+                for listener in self.global_listeners:
+                    if listener.get('sid') == sid:
+                        client_found = True
+                        client_info = f"Global listener: {listener.get('name', 'Unknown')}"
+                        break
+            if not client_found:
+                return web.json_response({'success': False, 'message': f'Client with SID {sid} not found'}, status=404)
+            # Attempt to disconnect the client
+            try:
+                # Send a notification to the client before disconnecting (optional)
+                await self.sio.emit('admin_disconnect', {
+                    'message': 'You have been disconnected by an administrator',
+                    'reason': 'Admin action'
+                }, room=sid)
+                # Wait a moment for the message to be sent
+                await asyncio.sleep(0.1)
+                # Disconnect the client
+                await self.sio.disconnect(sid)
+                self.logger.info(f"Successfully disconnected client: {client_info}")
+                return web.json_response({
+                    'success': True, 
+                    'message': f'Client disconnected successfully: {client_info}'
+                })
+            except Exception as e:
+                self.logger.error(f"Failed to disconnect client {sid}: {str(e)}")
+                return web.json_response({
+                    'success': False, 
+                    'message': f'Failed to disconnect client: {str(e)}'
+                }, status=500)
+        except Exception as e:
+            self.logger.error(f"Error in admin_disconnect_client: {str(e)}")
+            return web.json_response({
+                'success': False, 
+                'message': f'Internal server error: {str(e)}'
+            }, status=500)
 
     async def notify(self, sid, data):
         self.logger.info(f"Notify event from SID [{sid}]: {data}")
