@@ -127,7 +127,7 @@ ob_start();
                                     <span class="icon is-small" style="display: flex; align-items: center;">
                                         <i class="fas fa-redo"></i>
                                     </span>
-                                    <span style="margin-left: 0.25em; display: flex; align-items: center;"><?php echo t('music_repeat'); ?></span>
+                                    <span style="margin-left: 0.25em; display: flex; align-items: center;">Repeat 1</span>
                                 </button>
                             </div>
                             <div class="control" style="display: flex; align-items: center;">

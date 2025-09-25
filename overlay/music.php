@@ -30,7 +30,7 @@ $musicFiles = getLocalMusicFiles();
         let socket;
         let currentSong = null;
         let currentSongData = null; // Store song data for replay
-        let volume = 80;
+        let volume = 10;
         let playlist = <?php
             echo json_encode(array_map(function($f) {
                 return [
@@ -49,7 +49,7 @@ $musicFiles = getLocalMusicFiles();
             if (!url) return;
             currentSong = url;
             audioPlayer.src = url;
-            audioPlayer.volume = volume / 100;
+            audioPlayer.volume = (volume / 100) * 0.1;
             audioPlayer.play().then(() => {
                 if (songData && songData.file) {
                     currentSongData = {
@@ -181,7 +181,7 @@ $musicFiles = getLocalMusicFiles();
             socket.on('MUSIC_SETTINGS', (settings) => {
                 if (typeof settings.volume !== 'undefined') {
                     volume = settings.volume;
-                    audioPlayer.volume = volume / 100;
+                    audioPlayer.volume = (volume / 100) * 0.1;
                 }
                 if (typeof settings.repeat !== 'undefined') {
                     repeat = !!settings.repeat;
@@ -217,7 +217,7 @@ $musicFiles = getLocalMusicFiles();
                     case 'MUSIC_SETTINGS':
                         if (typeof data.volume !== 'undefined') {
                             volume = data.volume;
-                            audioPlayer.volume = volume / 100;
+                            audioPlayer.volume = (volume / 100) * 0.1;
                         }
                         if (typeof data.repeat !== 'undefined') repeat = !!data.repeat;
                         if (typeof data.shuffle !== 'undefined') shuffle = !!data.shuffle;
