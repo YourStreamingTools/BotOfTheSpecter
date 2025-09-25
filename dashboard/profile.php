@@ -538,7 +538,7 @@ ob_start();
                 <div class="control">
                     <div class="is-flex">
                         <input class="input" type="text" value="<?php echo $user['api_key'] ?? ''; ?>" id="api-key-field" readonly>
-                        <button class="button ml-2" onclick="copyApiKey()" title="<?php echo t('copy_api_key'); ?>" id="copy-api-key-btn" disabled style="height: 2.5em; width: 2.5em; display: flex; align-items: center; justify-content: center;">
+                        <button class="button ml-2" onclick="copyApiKey()" title="<?php echo t('copy_api_key'); ?>" id="copy-api-key-btn" style="height: 2.5em; width: 2.5em; display: flex; align-items: center; justify-content: center;">
                             <span class="icon is-medium"><i class="fas fa-copy" id="copy-icon"></i></span>
                         </button>
                         <button class="button ml-2" onclick="toggleApiKeyVisibility()" title="<?php echo t('show_hide_api_key'); ?>" style="height: 2.5em; width: 2.5em; display: flex; align-items: center; justify-content: center;">
@@ -798,9 +798,6 @@ ob_start();
 function copyApiKey() {
     const apiKeyField = document.getElementById('api-key-field');
     const copyBtn = document.getElementById('copy-api-key-btn');
-    if (apiKeyField.type === 'password') {
-        return; // Don't copy if key is hidden
-    }
     // Try modern clipboard API first, fall back to older method
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(apiKeyField.value).then(() => {
@@ -890,14 +887,12 @@ function toggleApiKeyVisibility() {
                 apiKeyField.type = 'text';
                 visibilityIcon.classList.remove('fa-eye');
                 visibilityIcon.classList.add('fa-eye-slash');
-                copyBtn.disabled = false; // Enable copy button
             }
         });
     } else {
         apiKeyField.type = 'password';
         visibilityIcon.classList.remove('fa-eye-slash');
         visibilityIcon.classList.add('fa-eye');
-        copyBtn.disabled = true; // Disable copy button
     }
 }
 
