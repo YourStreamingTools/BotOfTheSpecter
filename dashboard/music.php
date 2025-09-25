@@ -150,7 +150,7 @@ ob_start();
                                     style="width: 100%;">
                             </div>
                             <div class="control ml-3" style="display: flex; align-items: center;">
-                                <span id="volume-percentage" class="tag is-white is-rounded" style="display: flex; align-items: center;"><?php echo t('music_loading'); ?></span>
+                                <input id="volume-percentage" type="number" min="0" max="100" class="input is-small is-rounded" value="0" style="width: 60px; text-align: center;">
                             </div>
                         </div>
                     </div>
@@ -290,7 +290,7 @@ ob_start();
             const volumeRange = document.getElementById('volume-range');
             const volumePercentage = document.getElementById('volume-percentage');
             volumeRange.value = settings.volume;
-            volumePercentage.textContent = `${settings.volume}%`;
+            volumePercentage.value = settings.volume;
             volumeInitialized = true;
         }
         // Update now playing if present
@@ -436,7 +436,22 @@ ob_start();
         // Volume
         document.getElementById('volume-range').addEventListener('input', function() {
             const volumePercentage = document.getElementById('volume-percentage');
-            volumePercentage.textContent = `${this.value}%`;
+            volumePercentage.value = this.value;
+            if (localPlayback) {
+                audioPlayer.volume = this.value / 100;
+            } else {
+                const newVolume = this.value / 100;
+                if (lastEmittedVolume !== newVolume) {
+                    lastEmittedVolume = newVolume;
+                    socket.emit('MUSIC_COMMAND', { command: 'volume', value: this.value });
+                }
+            }
+        });
+
+        // Volume input field
+        document.getElementById('volume-percentage').addEventListener('input', function() {
+            const volumeRange = document.getElementById('volume-range');
+            volumeRange.value = this.value;
             if (localPlayback) {
                 audioPlayer.volume = this.value / 100;
             } else {
@@ -508,7 +523,7 @@ ob_start();
                     const volumeRange = document.getElementById('volume-range');
                     const volumePercentage = document.getElementById('volume-percentage');
                     volumeRange.value = 10;
-                    volumePercentage.textContent = '10%';
+                    volumePercentage.value = 10;
                     socket.emit('MUSIC_COMMAND', { command: 'volume', value: 10 });
                     console.log('No MUSIC_SETTINGS received, defaulting volume to 10% and emitting to server.');
                     volumeInitialized = true;
