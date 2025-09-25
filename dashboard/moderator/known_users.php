@@ -53,14 +53,20 @@ if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration
 }
 
 // Handle POST requests for updates
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_GET['ajax'])) {
+  header('Content-Type: application/json');
   if (isset($_POST['username']) && isset($_POST['status'])) {
     $dbusername = $_POST['username'];
     $status = $_POST['status'];
     $updateQuery = $db->prepare("UPDATE seen_users SET status = ? WHERE username = ?");
     $updateQuery->bind_param('ss', $status, $dbusername);
-    $updateQuery->execute();
+    if ($updateQuery->execute()) {
+      echo json_encode(['success' => true]);
+    } else {
+      echo json_encode(['success' => false, 'error' => $updateQuery->error]);
+    }
     $updateQuery->close();
+    exit();
   }
 
   if (isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
@@ -68,9 +74,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $newWelcomeMessage = $_POST['newWelcomeMessage'];
     $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = ? WHERE id = ?");
     $messageQuery->bind_param('si', $newWelcomeMessage, $userId);
-    $messageQuery->execute();
+    if ($messageQuery->execute()) {
+      echo json_encode(['success' => true]);
+    } else {
+      echo json_encode(['success' => false, 'error' => $messageQuery->error]);
+    }
     $messageQuery->close();
-    header("Location: known_users.php");
     exit();
   }
 
@@ -78,9 +87,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $deleteUserId = $_POST['deleteUserId'];
     $deleteQuery = $db->prepare("DELETE FROM seen_users WHERE id = ?");
     $deleteQuery->bind_param('i', $deleteUserId);
-    $deleteQuery->execute();
+    if ($deleteQuery->execute()) {
+      echo json_encode(['success' => true]);
+    } else {
+      echo json_encode(['success' => false, 'error' => $deleteQuery->error]);
+    }
     $deleteQuery->close();
-    header("Location: known_users.php");
     exit();
   }
 }
@@ -253,7 +265,25 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmButtonText: 'Yes, delete user'
       }).then((result) => {
         if (result.isConfirmed) {
-          form.submit();
+          const formData = new FormData(form);
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "?ajax=1", true);
+          xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+              if (xhr.status === 200) {
+                const response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                  location.reload();
+                } else {
+                  console.log('Error deleting user:', response.error);
+                  alert('Error deleting user: ' + response.error);
+                }
+              } else {
+                console.log('HTTP Error:', xhr.status);
+              }
+            }
+          };
+          xhr.send(formData);
         }
       });
     });
@@ -322,12 +352,21 @@ function fetchBannedStatuses() {
 function updateWelcomeMessage(userId, newWelcomeMessage, button) {
   console.log(`Updating welcome message for user ID ${userId} to "${newWelcomeMessage}"`);
   var xhr = new XMLHttpRequest();
-  xhr.open("POST", "", true);
+  xhr.open("POST", "?ajax=1", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
-      console.log(`Response received for updating welcome message of user ID ${userId}`);
-      location.reload();
+      if (xhr.status === 200) {
+        const response = JSON.parse(xhr.responseText);
+        if (response.success) {
+          location.reload();
+        } else {
+          console.log('Error updating welcome message:', response.error);
+          alert('Error updating welcome message: ' + response.error);
+        }
+      } else {
+        console.log('HTTP Error:', xhr.status);
+      }
     }
   };
   xhr.send("userId=" + encodeURIComponent(userId) + "&newWelcomeMessage=" + encodeURIComponent(newWelcomeMessage));
@@ -337,13 +376,21 @@ function toggleStatus(username, isChecked) {
   console.log(`Toggling status for ${username} to ${isChecked ? 'True' : 'False'}`);
   var status = isChecked ? 'True' : 'False';
   var xhr = new XMLHttpRequest();
-  xhr.open("POST", "", true);
+  xhr.open("POST", "?ajax=1", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
-      console.log(`Response received for toggling status of ${username}`);
-      console.log(xhr.responseText);
-      location.reload();
+      if (xhr.status === 200) {
+        const response = JSON.parse(xhr.responseText);
+        if (response.success) {
+          location.reload();
+        } else {
+          console.log('Error updating status:', response.error);
+          alert('Error updating status: ' + response.error);
+        }
+      } else {
+        console.log('HTTP Error:', xhr.status);
+      }
     }
   };
   xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
