@@ -9005,6 +9005,10 @@ async def get_ad_settings():
                     'ad_snoozed_message': "Ads have been snoozed.",
                     'enable_ad_notice': True
                 }
+            # Ensure messages are distinct to avoid confusion
+            if ad_settings_cache['ad_upcoming_message'] == ad_settings_cache['ad_snoozed_message']:
+                ad_settings_cache['ad_upcoming_message'] = "Heads up! An ad break is coming up in (minutes) minutes and will last (duration)."
+                ad_settings_cache['ad_snoozed_message'] = "Ads have been snoozed."
             ad_settings_cache_time = current_time
             return ad_settings_cache
     finally:
@@ -9033,7 +9037,7 @@ async def handle_upcoming_ads():
     global stream_online
     last_notification_time = None
     last_ad_time = None
-    last_snooze_count = None
+    last_snooze_count = 0
     while stream_online:
         try:
             last_notification_time, last_ad_time, last_snooze_count = await check_and_handle_ads(
@@ -9069,7 +9073,7 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                 last_ad_at = ad_info.get("last_ad_at")
                 api_logger.debug(f"Ad info - next_ad_at: {next_ad_at}, duration: {duration}, preroll_free_time: {preroll_free_time}")
                 skip_upcoming_check = False
-                if last_snooze_count is not None and snooze_count > last_snooze_count:
+                if snooze_count > last_snooze_count:
                     settings = await get_ad_settings()
                     snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
                     await send_chat_message(snooze_message)
