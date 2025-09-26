@@ -118,11 +118,9 @@ $serverDisplayNames = [
     'stream-us-west-1' => 'Stream US-West-1',
     'stream-us-east-1' => 'Stream US-East-1'
 ];
-if (isset($_GET['metrics'])) {
-    $result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
-    while ($row = $result->fetch_assoc()) {
-        $metrics[] = $row;
-    }
+$result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
+while ($row = $result->fetch_assoc()) {
+    $metrics[] = $row;
 }
 
 // AJAX endpoint for JS polling
@@ -144,14 +142,12 @@ if (isset($_GET['ajax'])) {
         'exchangeRateRequestsRemaining' => $exchangeRateRequestsRemaining,
         'weatherRequestsRemaining' => $weatherRequestsRemaining
     ];
-    if (isset($_GET['metrics'])) {
-        $metricsAjax = [];
-        $result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
-        while ($row = $result->fetch_assoc()) {
-            $metricsAjax[] = $row;
-        }
-        $data['metrics'] = $metricsAjax;
+    $metricsAjax = [];
+    $result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
+    while ($row = $result->fetch_assoc()) {
+        $metricsAjax[] = $row;
     }
+    $data['metrics'] = $metricsAjax;
     echo json_encode($data);
     exit;
 }
@@ -178,13 +174,14 @@ function checkServiceStatus($serviceName, $serviceData) {
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 10px; }
         .container { max-width: 1200px; margin: 0 auto; }
-        h1 { text-align: center; margin-bottom: 30px; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .section { background: #292929; border-radius: 10px; padding: 20px; backdrop-filter: blur(10px); }
-        .section h2 { margin-bottom: 15px; font-size: 1.5em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
-        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
-        .status-item { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .columns { margin-bottom: 0; }
+        h1 { text-align: center; margin-bottom: 0px; font-size: 2em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .section { background: #292929; border-radius: 10px; padding: 15px; backdrop-filter: blur(10px); }
+        .section h2 { margin-bottom: 10px; font-size: 1.3em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+        .status-item { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
         .status-item strong { font-size: 1.1em; }
         .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.2em; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
@@ -192,7 +189,9 @@ function checkServiceStatus($serviceName, $serviceData) {
         .info-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #292929; }
         .info-item:last-child { border-bottom: none; }
         .error { color: #ff4d4d; }
-        .last-updated { text-align: center; margin-top: 20px; font-size: 0.9em; opacity: 0.8; }
+        .last-updated { text-align: center; margin-top: 10px; font-size: 0.9em; opacity: 0.8; }
+        #system-metrics .status-item { background: transparent; align-items: flex-start; }
+        #system-metrics .status-item > div:last-child { text-align: right; }
     </style>
 </head>
 <body>
@@ -236,7 +235,6 @@ function checkServiceStatus($serviceName, $serviceData) {
             </div>
         </div>
     </div>
-    <?php if (isset($_GET['metrics'])): ?>
     <!-- System Metrics -->
     <div class="section">
         <h2>System Metrics</h2>
@@ -255,7 +253,6 @@ function checkServiceStatus($serviceName, $serviceData) {
             <?php endforeach; ?>
         </div>
     </div>
-    <?php endif; ?>
     <div class="last-updated" id="last-updated">Last updated: <span id="update-time">Just now</span></div>
 </div>
 
@@ -284,10 +281,7 @@ function renderServiceStatus(name, statusData) {
 
 // Fetch and update data every 60 seconds
 function fetchAndUpdateStatus() {
-    let url = window.location.pathname + '?ajax=1';
-    if (window.location.search.includes('metrics')) {
-        url += '&metrics=1';
-    }
+    let url = window.location.pathname + '?ajax=1&metrics=1';
     fetch(url)
         .then(res => res.json())
         .then(data => {
