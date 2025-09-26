@@ -1,7 +1,7 @@
 <?php
 $heartbeatStatus = '';
 
-include 'config/db_connect.php';
+include '/var/www/config/db_connect.php';
 
 // Create system_metrics table if it doesn't exist
 $conn->query("CREATE TABLE IF NOT EXISTS system_metrics (
