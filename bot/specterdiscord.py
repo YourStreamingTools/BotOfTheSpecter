@@ -1387,8 +1387,8 @@ class BotOfTheSpecter(commands.Bot):
             )
             embed.set_thumbnail(url=(f"{thumbnail_url}/follow.png"))
         elif event_type == "SUB":
-            months = data.get("months", 1)
-            tier = data.get("tier")
+            months = data.get("twitch-sub-months", 1)
+            tier = data.get("twitch-tier")
             desc = f"**{twitch_username}** just subscribed"
             if months > 1:
                 desc += f" for {months} months"
