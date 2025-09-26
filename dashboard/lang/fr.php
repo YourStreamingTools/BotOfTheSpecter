@@ -137,6 +137,7 @@ return [
     'bot_discord_version_info' => 'Infos version Discord',
     'bot_last_updated' => 'Dernière mise à jour :',
     'bot_last_run' => 'Dernière exécution :',
+    'bot_running_version' => 'Version en cours :',
     'bot_last_run_hint' => 'Assurez-vous que "Dernière exécution" est égale ou postérieure à "Dernière mise à jour" pour appliquer les dernières améliorations.',
     'bot_api_limits' => 'Limites API',
     'bot_song_id_requests' => 'Requêtes ID chanson :',

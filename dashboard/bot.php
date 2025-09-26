@@ -408,6 +408,10 @@ ob_start();
               <span class="has-text-grey-light"><?php echo t('bot_last_run'); ?></span>
               <span id="last-run" class="has-text-info">Loading...</span>
             </p>
+            <p>
+              <span class="has-text-grey-light"><?php echo t('bot_running_version'); ?></span>
+              <span id="running-version" class="has-text-info"><?php echo $selectedBot === 'beta' ? ($betaVersionRunning ?: $betaNewVersion) : ($versionRunning ?: $newVersion); ?></span>
+            </p>
             <div id="version-update-indicator" class="mt-2" style="display: none;">
               <span class="tag is-warning is-light is-small">Update Available</span>
             </div>
@@ -775,6 +779,8 @@ ob_start();
 <script>
 const latestStableVersion = <?php echo json_encode($newVersion); ?>;
 const latestBetaVersion = <?php echo json_encode($betaNewVersion); ?>;
+const serverStableVersion = <?php echo json_encode($versionRunning); ?>;
+const serverBetaVersion = <?php echo json_encode($betaVersionRunning); ?>;
 // Technical UI Enhancements
 const technicalCSS = `
   .technical-info-grid {
@@ -1346,6 +1352,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update version info card
             const lastUpdatedElement = document.getElementById('last-updated');
             const lastRunElement = document.getElementById('last-run');
+            const runningVersionElement = document.getElementById('running-version');
             if (lastUpdatedElement) {
               lastUpdatedElement.textContent = data.lastModified || 'Unknown';
               console.log('Updated last-updated to:', data.lastModified || 'Unknown');
@@ -1353,6 +1360,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (lastRunElement) {
               lastRunElement.textContent = data.lastRun || 'Never';
               console.log('Updated last-run to:', data.lastRun || 'Never');
+            }
+            if (runningVersionElement) {
+              runningVersionElement.textContent = data.version || 'Unknown';
+              console.log('Updated running-version to:', data.version || 'Unknown');
             }
             // Update technical info if available
             const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
@@ -1367,11 +1378,16 @@ document.addEventListener('DOMContentLoaded', function() {
             // Set fallback values if API fails
             const lastUpdatedElement = document.getElementById('last-updated');
             const lastRunElement = document.getElementById('last-run');
+            const runningVersionElement = document.getElementById('running-version');
             if (lastUpdatedElement) {
               lastUpdatedElement.textContent = 'Error loading';
             }
             if (lastRunElement) {
               lastRunElement.textContent = 'Error loading';
+            }
+            if (runningVersionElement) {
+              const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || latestBetaVersion) : (serverStableVersion || latestStableVersion);
+              runningVersionElement.textContent = fallbackVersion;
             }
             return null;
           }
@@ -1380,11 +1396,16 @@ document.addEventListener('DOMContentLoaded', function() {
           // Set fallback values if JSON parsing fails
           const lastUpdatedElement = document.getElementById('last-updated');
           const lastRunElement = document.getElementById('last-run');
+          const runningVersionElement = document.getElementById('running-version');
           if (lastUpdatedElement) {
             lastUpdatedElement.textContent = 'Error loading';
           }
           if (lastRunElement) {
             lastRunElement.textContent = 'Error loading';
+          }
+          if (runningVersionElement) {
+            const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || latestBetaVersion) : (serverStableVersion || latestStableVersion);
+            runningVersionElement.textContent = fallbackVersion;
           }
           return null;
         }
@@ -1394,11 +1415,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // Set fallback values if fetch fails
         const lastUpdatedElement = document.getElementById('last-updated');
         const lastRunElement = document.getElementById('last-run');
+        const runningVersionElement = document.getElementById('running-version');
         if (lastUpdatedElement) {
           lastUpdatedElement.textContent = 'Error loading';
         }
         if (lastRunElement) {
           lastRunElement.textContent = 'Error loading';
+        }
+        if (runningVersionElement) {
+          const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || latestBetaVersion) : (serverStableVersion || latestStableVersion);
+          runningVersionElement.textContent = fallbackVersion;
         }
         return null;
       });
