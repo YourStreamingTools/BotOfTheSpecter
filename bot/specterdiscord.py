@@ -1400,7 +1400,7 @@ class BotOfTheSpecter(commands.Bot):
             )
             embed.set_thumbnail(url=(f"{thumbnail_url}/sub.png"))
         elif event_type == "CHEER":
-            bits = data.get("bits", 0)
+            bits = data.get("twitch-cheer-amount", 0)
             embed = discord.Embed(
                 title="New Cheer!",
                 description=f"**{twitch_username}** cheered {bits} bits!",
