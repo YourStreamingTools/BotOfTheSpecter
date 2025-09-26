@@ -158,13 +158,13 @@ ob_start();
                     </div>
                 </div>
                 <div class="buttons are-small" id="discord-buttons">
-                    <button type="button" class="button is-success" onclick="controlService('discordbot', 'start')" disabled>
+                    <button type="button" class="button is-success" onclick="controlService('discordbot.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
-                    <button type="button" class="button is-danger" onclick="controlService('discordbot', 'stop')" disabled>
+                    <button type="button" class="button is-danger" onclick="controlService('discordbot.service', 'stop')" disabled>
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
-                    <button type="button" class="button is-warning" onclick="controlService('discordbot', 'restart')" disabled>
+                    <button type="button" class="button is-warning" onclick="controlService('discordbot.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
@@ -312,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Function to control service
     window.controlService = function(service, action) {
-        const buttonsElementId = service === 'discordbot' ? 'discord-buttons' : service === 'fastapi.service' ? 'api-buttons' : 'websocket-buttons';
+        const buttonsElementId = service === 'discordbot.service' ? 'discord-buttons' : service === 'fastapi.service' ? 'api-buttons' : 'websocket-buttons';
         const buttonsElement = document.getElementById(buttonsElementId);
         const buttons = buttonsElement.querySelectorAll('button');
         buttons.forEach(btn => btn.disabled = true);
@@ -330,8 +330,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 // Update status after a short delay to allow service to change state
                 setTimeout(() => {
-                    const statusService = service === 'fastapi.service' ? 'fastapi' : service === 'websocket.service' ? 'websocket' : service;
-                    updateServiceStatus(statusService, `${statusService}-status`, `${statusService}-pid`, `${statusService}-buttons`);
+                    const statusService = service === 'fastapi.service' ? 'fastapi' : service === 'websocket.service' ? 'websocket' : 'discordbot';
+                    const statusElementId = service === 'fastapi.service' ? 'api-status' : service === 'websocket.service' ? 'websocket-status' : 'discord-status';
+                    const pidElementId = service === 'fastapi.service' ? 'api-pid' : service === 'websocket.service' ? 'websocket-pid' : 'discord-pid';
+                    const buttonsElementId = service === 'fastapi.service' ? 'api-buttons' : service === 'websocket.service' ? 'websocket-buttons' : 'discord-buttons';
+                    updateServiceStatus(statusService, statusElementId, pidElementId, buttonsElementId);
                 }, 2000);
             } else {
                 buttons.forEach(btn => btn.disabled = false);
