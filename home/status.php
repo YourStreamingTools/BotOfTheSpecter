@@ -174,23 +174,23 @@ function checkServiceStatus($serviceName, $serviceData) {
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 10px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 5px; }
         .container { max-width: 1200px; margin: 0 auto; }
         .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0px; }
         .columns { margin-bottom: 0; }
-        h1 { text-align: center; margin-bottom: 0px; font-size: 2em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .section { background: #292929; border-radius: 10px; padding: 15px; backdrop-filter: blur(10px); margin: 0; }
-        .section h2 { margin-bottom: 10px; font-size: 1.3em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
-        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
-        .status-item { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        h1 { text-align: center; margin-bottom: 0px; font-size: 1.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .section { background: #292929; border-radius: 10px; padding: 10px; backdrop-filter: blur(10px); margin: 0; }
+        .section h2 { margin-bottom: 5px; font-size: 1.1em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 5px; }
+        .status-item { background: rgba(255,255,255,0.05); padding: 5px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
         .status-item strong { font-size: 1.1em; }
         .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.2em; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-        .info-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #292929; }
+        .info-item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #292929; }
         .info-item:last-child { border-bottom: none; }
         .error { color: #ff4d4d; }
-        .last-updated { text-align: center; margin-top: 10px; font-size: 0.9em; opacity: 0.8; }
+        .last-updated { text-align: center; margin-top: 5px; font-size: 0.9em; opacity: 0.8; }
         #system-metrics .status-item { background: transparent; align-items: flex-start; flex-direction: column; position: relative; }
         #system-metrics .status-item > div:last-child { text-align: left; }
         #system-metrics .status-item small { position: absolute; top: 0; right: 0; }
