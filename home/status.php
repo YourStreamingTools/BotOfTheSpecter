@@ -228,6 +228,10 @@ function checkServiceStatus($serviceName, $serviceData) {
         .metric-header { display: flex; justify-content: space-between; align-items: center; }
         .beta-users { }
         .user-list { max-height: 500px; overflow-y: auto; }
+        #signups-section h2 { margin-bottom: 0; font-size: 1em; }
+        #signups-section .info-item { padding: 1px 0; }
+        #signups-section .columns { margin-bottom: 0; }
+        .bottom-row .section { padding-top: 0; }
     </style>
 </head>
 <body>
@@ -272,9 +276,9 @@ function checkServiceStatus($serviceName, $serviceData) {
                 </div>
             </div>
         </div>
-        <div class="column is-one-quarter">
+        <div class="column is-one-quarter" id="signups-column">
             <!-- Extra Column 1 -->
-            <div class="section">
+            <div class="section" id="signups-section">
                 <h2>Number of Signups:</h2>
                 <div>
                     <div class="info-item"><span class="has-text-weight-bold">Total:</span> <span><?php echo $totalUsers; ?></span></div>
@@ -316,7 +320,7 @@ function checkServiceStatus($serviceName, $serviceData) {
             </div>
         </div>
     </div>
-    <div class="columns">
+    <div class="columns bottom-row">
         <div class="column is-half">
             <!-- System Metrics -->
             <div class="section">
