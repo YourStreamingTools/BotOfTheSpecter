@@ -9031,10 +9031,11 @@ async def handle_ad_break_start(duration_seconds):
 
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
-    global stream_online
+    global CHANNEL_NAME, stream_online
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     last_notification_time = None
     last_ad_time = None
-    last_snooze_count = 0
+    last_snooze_count = None
     while stream_online:
         try:
             last_notification_time, last_ad_time, last_snooze_count = await check_and_handle_ads(
@@ -9070,7 +9071,7 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                 last_ad_at = ad_info.get("last_ad_at")
                 api_logger.debug(f"Ad info - next_ad_at: {next_ad_at}, duration: {duration}, preroll_free_time: {preroll_free_time}")
                 skip_upcoming_check = False
-                if snooze_count > last_snooze_count:
+                if last_snooze_count is not None and snooze_count > last_snooze_count:
                     settings = await get_ad_settings()
                     snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
                     await send_chat_message(snooze_message)
