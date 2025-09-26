@@ -108,7 +108,7 @@ function isOnline($user_id, $client_id, $bearer) {
 // Fetch online channels
 $online_channels = [];
 if ($conn && isset($_SESSION['access_token'])) {
-    $result = $conn->query("SELECT id, twitch_user_id, display_name FROM users");
+    $result = $conn->query("SELECT id, twitch_user_id, twitch_display_name FROM users");
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             if (isOnline($row['twitch_user_id'], $clientID, $_SESSION['access_token'])) {
@@ -355,7 +355,7 @@ ob_start();
                     <select name="channel_id" required>
                         <option value="">Choose a channel...</option>
                         <?php foreach ($online_channels as $channel): ?>
-                            <option value="<?php echo htmlspecialchars($channel['twitch_user_id']); ?>"><?php echo htmlspecialchars($channel['display_name']); ?></option>
+                            <option value="<?php echo htmlspecialchars($channel['twitch_user_id']); ?>"><?php echo htmlspecialchars($channel['twitch_display_name']); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
