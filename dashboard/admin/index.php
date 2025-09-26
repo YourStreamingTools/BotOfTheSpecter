@@ -41,8 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
             }
         } catch (Exception $e) {}
     }
-    // Redirect to refresh the page
-    header('Location: ' . $_SERVER['PHP_SELF']);
+    // Return JSON response instead of redirect
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true]);
     exit;
 }
 
@@ -157,24 +158,15 @@ ob_start();
                     </div>
                 </div>
                 <div class="buttons are-small" id="discord-buttons">
-                    <form method="post" style="display: inline;">
-                        <input type="hidden" name="service" value="discordbot">
-                        <button type="submit" name="action" value="start" class="button is-success" disabled>
-                            <span class="icon"><i class="fas fa-play"></i></span>
-                        </button>
-                    </form>
-                    <form method="post" style="display: inline;">
-                        <input type="hidden" name="service" value="discordbot">
-                        <button type="submit" name="action" value="stop" class="button is-danger" disabled>
-                            <span class="icon"><i class="fas fa-stop"></i></span>
-                        </button>
-                    </form>
-                    <form method="post" style="display: inline;">
-                        <input type="hidden" name="service" value="discordbot">
-                        <button type="submit" name="action" value="restart" class="button is-warning" disabled>
-                            <span class="icon"><i class="fas fa-redo"></i></span>
-                        </button>
-                    </form>
+                    <button type="button" class="button is-success" onclick="controlService('discordbot', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="button is-danger" onclick="controlService('discordbot', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="button is-warning" onclick="controlService('discordbot', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -202,24 +194,15 @@ ob_start();
                     </div>
                 </div>
                 <div class="buttons are-small" id="api-buttons">
-                    <form method="post" style="display: inline;">
-                        <input type="hidden" name="service" value="fastapi.service">
-                        <button type="submit" name="action" value="start" class="button is-success" disabled>
-                            <span class="icon"><i class="fas fa-play"></i></span>
-                        </button>
-                    </form>
-                    <form method="post" style="display: inline;">
-                        <input type="hidden" name="service" value="fastapi.service">
-                        <button type="submit" name="action" value="stop" class="button is-danger" disabled>
-                            <span class="icon"><i class="fas fa-stop"></i></span>
-                        </button>
-                    </form>
-                    <form method="post" style="display: inline;">
-                        <input type="hidden" name="service" value="fastapi.service">
-                        <button type="submit" name="action" value="restart" class="button is-warning" disabled>
-                            <span class="icon"><i class="fas fa-redo"></i></span>
-                        </button>
-                    </form>
+                    <button type="button" class="button is-success" onclick="controlService('fastapi.service', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="button is-danger" onclick="controlService('fastapi.service', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="button is-warning" onclick="controlService('fastapi.service', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -247,24 +230,15 @@ ob_start();
                     </div>
                 </div>
                 <div class="buttons are-small" id="websocket-buttons">
-                    <form method="post" style="display: inline;">
-                        <input type="hidden" name="service" value="websocket.service">
-                        <button type="submit" name="action" value="start" class="button is-success" disabled>
-                            <span class="icon"><i class="fas fa-play"></i></span>
-                        </button>
-                    </form>
-                    <form method="post" style="display: inline;">
-                        <input type="hidden" name="service" value="websocket.service">
-                        <button type="submit" name="action" value="stop" class="button is-danger" disabled>
-                            <span class="icon"><i class="fas fa-stop"></i></span>
-                        </button>
-                    </form>
-                    <form method="post" style="display: inline;">
-                        <input type="hidden" name="service" value="websocket.service">
-                        <button type="submit" name="action" value="restart" class="button is-warning" disabled>
-                            <span class="icon"><i class="fas fa-redo"></i></span>
-                        </button>
-                    </form>
+                    <button type="button" class="button is-success" onclick="controlService('websocket.service', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="button is-danger" onclick="controlService('websocket.service', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="button is-warning" onclick="controlService('websocket.service', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -336,6 +310,38 @@ document.addEventListener('DOMContentLoaded', function() {
             ctx.parentNode.appendChild(noDataMsg);
         }
     }
+    // Function to control service
+    window.controlService = function(service, action) {
+        const buttonsElementId = service === 'discordbot' ? 'discord-buttons' : service === 'fastapi.service' ? 'api-buttons' : 'websocket-buttons';
+        const buttonsElement = document.getElementById(buttonsElementId);
+        const buttons = buttonsElement.querySelectorAll('button');
+        buttons.forEach(btn => btn.disabled = true);
+        
+        const formData = new FormData();
+        formData.append('service', service);
+        formData.append('action', action);
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update status after a short delay to allow service to change state
+                setTimeout(() => {
+                    const statusService = service === 'fastapi.service' ? 'fastapi' : service === 'websocket.service' ? 'websocket' : service;
+                    updateServiceStatus(statusService, `${statusService}-status`, `${statusService}-pid`, `${statusService}-buttons`);
+                }, 2000);
+            } else {
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        })
+        .catch(error => {
+            console.error('Error controlling service:', error);
+            buttons.forEach(btn => btn.disabled = false);
+        });
+    };
     // Function to update service status
     function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
         fetch(`admin_service_status.php?service=${service}`)
@@ -357,9 +363,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update PID
                 pidElement.textContent = `PID: ${data.pid}`;
                 // Enable/disable buttons based on status
-                const startBtn = buttonsElement.querySelector('button[value="start"]');
-                const stopBtn = buttonsElement.querySelector('button[value="stop"]');
-                const restartBtn = buttonsElement.querySelector('button[value="restart"]');
+                const startBtn = buttonsElement.querySelector('button[onclick*="start"]');
+                const stopBtn = buttonsElement.querySelector('button[onclick*="stop"]');
+                const restartBtn = buttonsElement.querySelector('button[onclick*="restart"]');
                 if (data.status === 'Running') {
                     startBtn.disabled = true;
                     stopBtn.disabled = false;
