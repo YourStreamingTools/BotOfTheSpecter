@@ -1967,6 +1967,9 @@ class TwitchBot(commands.Bot):
         if messageAuthor in [bannedUser, None, ""]:
             chat_logger.info(f"Blocked message from {messageAuthor} - banned or invalid.")
             return
+        if messageAuthor.lower() == BOT_USERNAME.lower():
+            # Skip message counting and welcome message for the bot itself
+            return
         connection = None
         try:
             connection = await mysql_connection()
