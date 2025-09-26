@@ -1372,14 +1372,7 @@ class BotOfTheSpecter(commands.Bot):
         twitch_username = data.get("twitch-username", "Unknown User")
         message_text = data.get("message", "")
         embed = None
-        if event_type == "ONLINE":
-            embed = discord.Embed(
-                title="🟢 Stream is LIVE!",
-                description=f"**{twitch_username}** is now live!",
-                color=discord.Color.green()
-            )
-            game_name = await self.get_stream_info(account_username)
-        elif event_type == "FOLLOW":
+        if event_type == "FOLLOW":
             embed = discord.Embed(
                 title="New Follower!",
                 description=f"**{twitch_username}** just followed the stream!",
