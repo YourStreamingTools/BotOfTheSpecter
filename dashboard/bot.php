@@ -779,6 +779,9 @@ ob_start();
 <script>
 const latestStableVersion = <?php echo json_encode($newVersion); ?>;
 const latestBetaVersion = <?php echo json_encode($betaNewVersion); ?>;
+// Make versions accessible globally for updates
+window.latestStableVersion = latestStableVersion;
+window.latestBetaVersion = latestBetaVersion;
 const serverStableVersion = <?php echo json_encode($versionRunning); ?>;
 const serverBetaVersion = <?php echo json_encode($betaVersionRunning); ?>;
 // Technical UI Enhancements
@@ -1260,13 +1263,37 @@ document.addEventListener('DOMContentLoaded', function() {
       showNotification(`${botType} bot stopped - verifying status...`, 'info');
     }
   }
+  // Function to check for latest version updates
+  function checkForUpdates() {
+    return fetchWithTimeout('https://api.botofthespecter.com/versions?_t=' + Date.now(), {}, 5000)
+      .then(response => response.json())
+      .then(data => {
+        if (data.stable_version && data.stable_version !== latestStableVersion) {
+          console.log('Stable version updated from', latestStableVersion, 'to', data.stable_version);
+          // Update the global variable
+          window.latestStableVersion = data.stable_version;
+        }
+        if (data.beta_version && data.beta_version !== latestBetaVersion) {
+          console.log('Beta version updated from', latestBetaVersion, 'to', data.beta_version);
+          // Update the global variable
+          window.latestBetaVersion = data.beta_version;
+        }
+        return data;
+      })
+      .catch(error => {
+        console.error('Error checking for updates:', error);
+        return null;
+      });
+  }
   // Function to update bot status
   function updateBotStatus(silentUpdate = false) {
     const urlParams = new URLSearchParams(window.location.search);
     let selectedBot = urlParams.get('bot');
     if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
     if (!selectedBot) { selectedBot = 'stable'; }
-    return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 5000) // Reduced from 8000 to 5000
+    // Check for version updates first
+    return checkForUpdates().then(() => {
+      return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 5000) // Reduced from 8000 to 5000
       .then(async response => {
         const text = await response.text();
         try {
@@ -1281,7 +1308,7 @@ document.addEventListener('DOMContentLoaded', function() {
               lastRun: data.lastRun
             });
             // Check for version updates
-            const latestVersion = selectedBot === 'beta' ? latestBetaVersion : latestStableVersion;
+            const latestVersion = selectedBot === 'beta' ? window.latestBetaVersion : window.latestStableVersion;
             if (data.version && data.version !== latestVersion && latestVersion !== 'N/A') {
               // Always show update notification when there's an update available
               showNotification(`A new ${selectedBot} bot version is available! Current: ${data.version}, Latest: ${latestVersion}`, 'update');
@@ -1362,8 +1389,8 @@ document.addEventListener('DOMContentLoaded', function() {
               console.log('Updated last-run to:', data.lastRun || 'Never');
             }
             if (runningVersionElement) {
-              runningVersionElement.textContent = data.version || 'Unknown';
-              console.log('Updated running-version to:', data.version || 'Unknown');
+              runningVersionElement.textContent = data.version || 'Offline';
+              console.log('Updated running-version to:', data.version || 'Offline');
             }
             // Update technical info if available
             const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
@@ -1386,7 +1413,7 @@ document.addEventListener('DOMContentLoaded', function() {
               lastRunElement.textContent = 'Error loading';
             }
             if (runningVersionElement) {
-              const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || latestBetaVersion) : (serverStableVersion || latestStableVersion);
+              const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
               runningVersionElement.textContent = fallbackVersion;
             }
             return null;
@@ -1404,7 +1431,7 @@ document.addEventListener('DOMContentLoaded', function() {
             lastRunElement.textContent = 'Error loading';
           }
           if (runningVersionElement) {
-            const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || latestBetaVersion) : (serverStableVersion || latestStableVersion);
+            const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
             runningVersionElement.textContent = fallbackVersion;
           }
           return null;
@@ -1423,11 +1450,12 @@ document.addEventListener('DOMContentLoaded', function() {
           lastRunElement.textContent = 'Error loading';
         }
         if (runningVersionElement) {
-          const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || latestBetaVersion) : (serverStableVersion || latestStableVersion);
+          const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
           runningVersionElement.textContent = fallbackVersion;
         }
         return null;
       });
+    });
   }
   // Function to update API limits from api_limits.php
   function updateApiLimits() {
