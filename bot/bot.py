@@ -57,7 +57,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.4.4"
+VERSION = "5.4.5"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -8756,7 +8756,7 @@ async def handle_upcoming_ads():
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     last_notification_time = None
     last_ad_time = None
-    last_snooze_count = 0
+    last_snooze_count = None
     while stream_online:
         try:
             last_notification_time, last_ad_time, last_snooze_count = await check_and_handle_ads(
@@ -8792,7 +8792,7 @@ async def check_and_handle_ads(channel, last_notification_time, last_ad_time, la
                 last_ad_at = ad_info.get("last_ad_at")
                 api_logger.debug(f"Ad info - next_ad_at: {next_ad_at}, duration: {duration}, preroll_free_time: {preroll_free_time}")
                 skip_upcoming_check = False
-                if snooze_count > last_snooze_count:
+                if last_snooze_count is not None and snooze_count > last_snooze_count:
                     settings = await get_ad_settings()
                     snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
                     await channel.send(snooze_message)
