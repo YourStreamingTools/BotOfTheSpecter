@@ -5,6 +5,8 @@ include_once __DIR__ . '/../lang/i18n.php';
 $pageTitle = t('admin_dashboard_title');
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
+require_once "/var/www/config/admin_actions.php";
+require_once "/var/www/config/twitch.php";
 
 // Handle service control actions
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_POST['service'])) {
@@ -18,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
             $ssh_host = $bots_ssh_host;
             $ssh_username = $bots_ssh_username;
             $ssh_password = $bots_ssh_password;
-            
             if ($service == 'fastapi.service') {
                 $ssh_host = $api_server_host;
                 $ssh_username = $api_server_username;
@@ -28,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_username = $websocket_server_username;
                 $ssh_password = $websocket_server_password;
             }
-            
             $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
             if ($connection) {
                 if ($action == 'start') {
@@ -45,6 +45,77 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     header('Content-Type: application/json');
     echo json_encode(['success' => true]);
     exit;
+}
+
+// Handle send message action
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
+    $message = trim($_POST['message']);
+    $channel_id = $_POST['channel_id'];
+    if (!empty($message) && !empty($channel_id)) {
+        // Send message using Twitch API
+        $url = "https://api.twitch.tv/helix/chat/messages";
+        $headers = [
+            "Authorization: Bearer " . $twitch_bot_oauth,
+            "Client-Id: " . $clientID,
+            "Content-Type: application/json"
+        ];
+        $data = [
+            "broadcaster_id" => $channel_id,
+            "sender_id" => "971436498",
+            "message" => $message
+        ];
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($http_code == 200) {
+            $response_data = json_decode($response, true);
+            if (isset($response_data['data'][0]['is_sent']) && $response_data['data'][0]['is_sent']) {
+                $success_message = "Message sent successfully.";
+            } else {
+                $error_message = "Message not sent: " . ($response_data['data'][0]['drop_reason'] ?? 'Unknown reason');
+            }
+        } else {
+            $error_message = "Failed to send message: HTTP $http_code - $response";
+        }
+    } else {
+        $error_message = "Message and channel are required.";
+    }
+}
+
+// Function to check if a channel is online
+function isOnline($user_id, $client_id, $bearer) {
+    $url = "https://api.twitch.tv/helix/streams?user_id=" . urlencode($user_id);
+    $headers = [
+        "Authorization: Bearer " . $bearer,
+        "Client-Id: " . $client_id
+    ];
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    $data = json_decode($response, true);
+    return isset($data['data']) && !empty($data['data']);
+}
+
+// Fetch online channels
+$online_channels = [];
+if ($conn && isset($_SESSION['access_token'])) {
+    $result = $conn->query("SELECT id, twitch_user_id, display_name FROM users");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            if (isOnline($row['twitch_user_id'], $clientID, $_SESSION['access_token'])) {
+                $online_channels[] = $row;
+            }
+        }
+    }
 }
 
 // Function to get service status
@@ -268,6 +339,41 @@ ob_start();
         </div>
     </div>
 </div>
+<div class="box">
+    <h2 class="title is-4"><span class="icon"><i class="fas fa-paper-plane"></i></span> Send Bot Message</h2>
+    <?php if (isset($success_message)): ?>
+        <div class="notification is-success"><?php echo htmlspecialchars($success_message); ?></div>
+    <?php endif; ?>
+    <?php if (isset($error_message)): ?>
+        <div class="notification is-danger"><?php echo htmlspecialchars($error_message); ?></div>
+    <?php endif; ?>
+    <form method="post">
+        <div class="field">
+            <label class="label">Select Channel (Online Only)</label>
+            <div class="control">
+                <div class="select">
+                    <select name="channel_id" required>
+                        <option value="">Choose a channel...</option>
+                        <?php foreach ($online_channels as $channel): ?>
+                            <option value="<?php echo htmlspecialchars($channel['twitch_user_id']); ?>"><?php echo htmlspecialchars($channel['display_name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="field">
+            <label class="label">Message</label>
+            <div class="control">
+                <textarea class="textarea" name="message" id="message" placeholder="Enter your message..." required></textarea>
+            </div>
+        </div>
+        <div class="field">
+            <div class="control">
+                <button class="button is-primary" type="submit" name="send_message" id="send" disabled>Send Message</button>
+            </div>
+        </div>
+    </form>
+</div>
 <?php
 $content = ob_get_clean();
 ?>
@@ -316,11 +422,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const buttonsElement = document.getElementById(buttonsElementId);
         const buttons = buttonsElement.querySelectorAll('button');
         buttons.forEach(btn => btn.disabled = true);
-        
         const formData = new FormData();
         formData.append('service', service);
         formData.append('action', action);
-        
         fetch(window.location.href, {
             method: 'POST',
             body: formData
@@ -396,6 +500,14 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
     }, 100);
+    // Enable send button when message is typed
+    const messageTextarea = document.getElementById('message');
+    const sendButton = document.getElementById('send');
+    if (messageTextarea && sendButton) {
+        messageTextarea.addEventListener('input', function() {
+            sendButton.disabled = this.value.trim() === '';
+        });
+    }
 });
 </script>
 <?php

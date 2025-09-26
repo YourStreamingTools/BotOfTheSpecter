@@ -39,6 +39,7 @@ $_SESSION['user_id'] = $user_id;
 $_SESSION['username'] = $username;
 $_SESSION['twitchUserId'] = $twitchUserId;
 $_SESSION['api_key'] = $api_key;
+$_SESSION['access_token'] = $authToken;
 $_SESSION['refresh_token'] = $refreshToken;
 $_SESSION['user_data'] = $user;
 ?>
