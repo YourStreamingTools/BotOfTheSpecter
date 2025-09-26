@@ -135,6 +135,16 @@ $leftUsers = array_slice($betaUsers, 0, 16);
 $rightUsers = array_slice($betaUsers, 16, 16);
 $userColumns = [$leftUsers, $rightUsers];
 
+// Fetch total users
+$totalUsers = $conn->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
+
+// Fetch users by signup year (last 4 years)
+$usersByYear = [];
+$result = $conn->query("SELECT YEAR(signup_date) as year, COUNT(*) as count FROM users GROUP BY YEAR(signup_date) ORDER BY year DESC LIMIT 4");
+while ($row = $result->fetch_assoc()) {
+    $usersByYear[] = $row;
+}
+
 // AJAX endpoint for JS polling
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
@@ -265,9 +275,34 @@ function checkServiceStatus($serviceName, $serviceData) {
         <div class="column is-one-quarter">
             <!-- Extra Column 1 -->
             <div class="section">
-                <!--<h2></h2>-->
+                <h2>Number of Signups:</h2>
                 <div>
-                    <div class="info-item"></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Total:</span> <span><?php echo $totalUsers; ?></span></div>
+                    <h2>Signups by Year:</h2>
+                    <div class="columns is-mobile">
+                        <div class="column is-half">
+                            <?php if (isset($usersByYear[0])): ?>
+                            <div class="info-item"><span class="has-text-weight-bold"><?php echo $usersByYear[0]['year']; ?>:</span> <span><?php echo $usersByYear[0]['count']; ?></span></div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="column is-half">
+                            <?php if (isset($usersByYear[1])): ?>
+                            <div class="info-item"><span class="has-text-weight-bold"><?php echo $usersByYear[1]['year']; ?>:</span> <span><?php echo $usersByYear[1]['count']; ?></span></div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="columns is-mobile">
+                        <div class="column is-half">
+                            <?php if (isset($usersByYear[2])): ?>
+                            <div class="info-item"><span class="has-text-weight-bold"><?php echo $usersByYear[2]['year']; ?>:</span> <span><?php echo $usersByYear[2]['count']; ?></span></div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="column is-half">
+                            <?php if (isset($usersByYear[3])): ?>
+                            <div class="info-item"><span class="has-text-weight-bold"><?php echo $usersByYear[3]['year']; ?>:</span> <span><?php echo $usersByYear[3]['count']; ?></span></div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
