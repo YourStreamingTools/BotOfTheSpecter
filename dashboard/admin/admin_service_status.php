@@ -68,7 +68,7 @@ $service = $_GET['service'] ?? '';
 // Define service mappings
 $serviceMap = [
     'discordbot' => [
-        'service_name' => 'discordbot',
+        'service_name' => 'discordbot.service',
         'ssh_host' => $bots_ssh_host,
         'ssh_username' => $bots_ssh_username,
         'ssh_password' => $bots_ssh_password
