@@ -123,6 +123,18 @@ while ($row = $result->fetch_assoc()) {
     $metrics[] = $row;
 }
 
+// Fetch beta users
+$betaUsers = [];
+$result = $conn->query("SELECT twitch_display_name FROM users WHERE beta_access = '1' AND twitch_display_name NOT IN ('BotOfTheSpecter', 'GamingForAustralia') ORDER BY id");
+while ($row = $result->fetch_assoc()) {
+    $betaUsers[] = $row['twitch_display_name'];
+}
+
+// Split users into two columns, each with up to 16 users
+$leftUsers = array_slice($betaUsers, 0, 16);
+$rightUsers = array_slice($betaUsers, 16, 16);
+$userColumns = [$leftUsers, $rightUsers];
+
 // AJAX endpoint for JS polling
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
@@ -148,6 +160,15 @@ if (isset($_GET['ajax'])) {
         $metricsAjax[] = $row;
     }
     $data['metrics'] = $metricsAjax;
+    $betaUsersAjax = [];
+    $result = $conn->query("SELECT twitch_display_name FROM users WHERE beta_access = '1' AND twitch_display_name NOT IN ('BotOfTheSpecter', 'GamingForAustralia') ORDER BY id");
+    while ($row = $result->fetch_assoc()) {
+        $betaUsersAjax[] = $row['twitch_display_name'];
+    }
+    $leftUsersAjax = array_slice($betaUsersAjax, 0, 16);
+    $rightUsersAjax = array_slice($betaUsersAjax, 16, 16);
+    $data['betaUsersLeft'] = $leftUsersAjax;
+    $data['betaUsersRight'] = $rightUsersAjax;
     echo json_encode($data);
     exit;
 }
@@ -195,6 +216,8 @@ function checkServiceStatus($serviceName, $serviceData) {
         #system-metrics .status-item > div:last-child { text-align: left; }
         #system-metrics .status-item small { position: absolute; top: 0; right: 0; }
         .metric-header { display: flex; justify-content: space-between; align-items: center; }
+        .beta-users { }
+        .user-list { max-height: 500px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -205,7 +228,6 @@ function checkServiceStatus($serviceName, $serviceData) {
     </div>
     <!-- Service Statuses -->
     <div class="section">
-        <h2>Service Status</h2>
         <div class="status-grid" id="service-status">
             <?= checkServiceStatus('Web Server 1', $web1Status); ?>
             <?= checkServiceStatus('Bot Server', $botServerStatus); ?>
@@ -257,6 +279,21 @@ function checkServiceStatus($serviceName, $serviceData) {
                     <div class="info-item"><span class="has-text-weight-bold">Song Requests Remaining:</span> <span id="song-requests"><?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></span></div>
                     <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Requests Remaining:</span> <span id="exchange-requests"><?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></span></div>
                     <div class="info-item"><span class="has-text-weight-bold">Weather Requests Remaining Today:</span> <span id="weather-requests"><?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></span></div>
+                </div>
+            </div>
+            <!-- Beta Users -->
+            <div class="section">
+                <h2>Friends that use BotOfTheSpecter</h2>
+                <div class="beta-users columns">
+                    <?php foreach ($userColumns as $column): ?>
+                    <div class="column is-half">
+                        <div class="user-list">
+                            <?php foreach ($column as $user): ?>
+                            <div class="info-item"><span><?= htmlspecialchars($user); ?></span></div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </div>
@@ -330,6 +367,19 @@ function fetchAndUpdateStatus() {
                     </div>`;
                 });
                 document.getElementById('system-metrics').innerHTML = metricsHtml;
+            }
+            // Update beta users if present
+            if (data.betaUsersLeft && data.betaUsersRight) {
+                const userColumns = [data.betaUsersLeft, data.betaUsersRight];
+                let usersHtml = '';
+                userColumns.forEach(column => {
+                    usersHtml += `<div class="column is-half"><div class="user-list">`;
+                    column.forEach(user => {
+                        usersHtml += `<div class="info-item"><span>${user}</span></div>`;
+                    });
+                    usersHtml += `</div></div>`;
+                });
+                document.querySelector('.beta-users').innerHTML = usersHtml;
             }
             // Update last updated time
             document.getElementById('update-time').textContent = new Date().toLocaleTimeString();
