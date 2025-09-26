@@ -149,11 +149,11 @@ if (isset($_GET['ajax'])) {
 function checkServiceStatus($serviceName, $serviceData) {
     if ($serviceData && $serviceData['status'] === 'OK') {
         $ping = $serviceData['ping'] . 'ms';
-        return "<div class='status-item'><strong>$serviceName:</strong> $ping <span class='heartbeat beating'>❤️</span></div>";
+        return "<div class='status-item'><span class=\"has-text-weight-bold\">$serviceName:</span> $ping <span class='heartbeat beating'>❤️</span></div>";
     } elseif ($serviceData && $serviceData['status'] === 'DISABLED') {
-        return "<div class='status-item'><strong>$serviceName:</strong> Disabled <span>⏸️</span></div>";
+        return "<div class='status-item'><span class=\"has-text-weight-bold\">$serviceName:</span> Disabled <span>⏸️</span></div>";
     } else {
-        return "<div class='status-item'><strong>$serviceName:</strong> Down <span>💀</span></div>";
+        return "<div class='status-item'><span class=\"has-text-weight-bold\">$serviceName:</span> Down <span>💀</span></div>";
     }
 }
 ?>
@@ -163,6 +163,7 @@ function checkServiceStatus($serviceName, $serviceData) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter Status</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 20px; }
@@ -199,22 +200,28 @@ function checkServiceStatus($serviceName, $serviceData) {
             <?= checkServiceStatus('Stream AU-East-1', $streamAuEast1Status); ?>
         </div>
     </div>
-    <!-- Versions -->
-    <div class="section">
-        <h2>Versions</h2>
-        <div id="version-info">
-            <div class="info-item"><strong>Stable Version:</strong> <span id="stable-version"><?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></span></div>
-            <div class="info-item"><strong>Beta Version:</strong> <span id="beta-version"><?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></span></div>
-            <div class="info-item"><strong>Discord Bot Version:</strong> <span id="discord-version"><?= isset($discordVersion) ? $discordVersion : 'N/A'; ?></span></div>
+    <div class="columns">
+        <div class="column">
+            <!-- Versions -->
+            <div class="section">
+                <h2>Versions</h2>
+                <div id="version-info">
+                    <div class="info-item"><span class="has-text-weight-bold">Stable Version:</span> <span id="stable-version"><?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Beta Version:</span> <span id="beta-version"><?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot Version:</span> <span id="discord-version"><?= isset($discordVersion) ? $discordVersion : 'N/A'; ?></span></div>
+                </div>
+            </div>
         </div>
-    </div>
-    <!-- API Limits -->
-    <div class="section">
-        <h2>API Request Limits</h2>
-        <div id="api-limits">
-            <div class="info-item"><strong>Song Requests Remaining:</strong> <span id="song-requests"><?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></span></div>
-            <div class="info-item"><strong>Exchange Rate Requests Remaining:</strong> <span id="exchange-requests"><?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></span></div>
-            <div class="info-item"><strong>Weather Requests Remaining Today:</strong> <span id="weather-requests"><?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></span></div>
+        <div class="column">
+            <!-- API Limits -->
+            <div class="section">
+                <h2>API Request Limits</h2>
+                <div id="api-limits">
+                    <div class="info-item"><span class="has-text-weight-bold">Song Requests Remaining:</span> <span id="song-requests"><?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Requests Remaining:</span> <span id="exchange-requests"><?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Weather Requests Remaining Today:</span> <span id="weather-requests"><?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></span></div>
+                </div>
+            </div>
         </div>
     </div>
     <?php if (isset($_GET['metrics'])): ?>
@@ -224,7 +231,7 @@ function checkServiceStatus($serviceName, $serviceData) {
         <div id="system-metrics">
             <?php foreach ($metrics as $metric): ?>
             <div class="status-item">
-                <strong>Server: <?= htmlspecialchars($metric['server_name']); ?></strong>
+                <span class="has-text-weight-bold">Server: <?= htmlspecialchars($metric['server_name']); ?></span>
                 <div>
                     CPU: <?= number_format($metric['cpu_percent'], 1); ?>% |
                     RAM: <?= number_format($metric['ram_percent'], 1); ?>% (<?= number_format($metric['ram_used'], 1); ?>GB / <?= number_format($metric['ram_total'], 1); ?>GB) |
@@ -244,11 +251,11 @@ function checkServiceStatus($serviceName, $serviceData) {
 function renderServiceStatus(name, statusData) {
     if (statusData.status === 'OK') {
         const ping = statusData.ping + 'ms';
-        return `<div class='status-item'><strong>${name}:</strong> ${ping} <span class='heartbeat beating'>❤️</span></div>`;
+        return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> ${ping} <span class='heartbeat beating'>❤️</span></div>`;
     } else if (statusData.status === 'DISABLED') {
-        return `<div class='status-item'><strong>${name}:</strong> Disabled <span>⏸️</span></div>`;
+        return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> Disabled <span>⏸️</span></div>`;
     } else {
-        return `<div class='status-item'><strong>${name}:</strong> Down <span>💀</span></div>`;
+        return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> Down <span>💀</span></div>`;
     }
 }
 
@@ -286,7 +293,7 @@ function fetchAndUpdateStatus() {
                 let metricsHtml = '';
                 data.metrics.forEach(metric => {
                     metricsHtml += `<div class="status-item">
-                        <strong>Server: ${metric.server_name}</strong>
+                        <span class="has-text-weight-bold">Server: ${metric.server_name}</span>
                         <div>
                             CPU: ${parseFloat(metric.cpu_percent).toFixed(1)}% |
                             RAM: ${parseFloat(metric.ram_percent).toFixed(1)}% (${parseFloat(metric.ram_used).toFixed(1)}GB / ${parseFloat(metric.ram_total).toFixed(1)}GB) |
