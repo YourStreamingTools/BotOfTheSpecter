@@ -164,12 +164,14 @@ function checkServiceStatus($serviceName, $serviceData) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter Status</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 20px; }
         .container { max-width: 1200px; margin: 0 auto; }
         h1 { text-align: center; margin-bottom: 30px; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .section { background: #292929; border-radius: 10px; padding: 20px; margin-bottom: 20px; backdrop-filter: blur(10px); }
+        .section { background: #292929; border-radius: 10px; padding: 20px; backdrop-filter: blur(10px); }
         .section h2 { margin-bottom: 15px; font-size: 1.5em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
         .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
         .status-item { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
@@ -177,7 +179,7 @@ function checkServiceStatus($serviceName, $serviceData) {
         .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.2em; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-        .info-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #292929; }
+        .info-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #292929; }
         .info-item:last-child { border-bottom: none; }
         .error { color: #ff4d4d; }
         .last-updated { text-align: center; margin-top: 20px; font-size: 0.9em; opacity: 0.8; }
@@ -195,9 +197,9 @@ function checkServiceStatus($serviceName, $serviceData) {
             <?= checkServiceStatus('Database Service', $databaseServiceStatus); ?>
             <?= checkServiceStatus('API Service', $apiServiceStatus); ?>
             <?= checkServiceStatus('Notification Service', $notificationServiceStatus); ?>
-            <?= checkServiceStatus('Stream US-East-1', $streamUsEast1Status); ?>
-            <?= checkServiceStatus('Stream US-West-1', $streamUsWest1Status); ?>
             <?= checkServiceStatus('Stream AU-East-1', $streamAuEast1Status); ?>
+            <?= checkServiceStatus('Stream US-West-1', $streamUsWest1Status); ?>
+            <?= checkServiceStatus('Stream US-East-1', $streamUsEast1Status); ?>
         </div>
     </div>
     <div class="columns">
@@ -275,9 +277,9 @@ function fetchAndUpdateStatus() {
                 renderServiceStatus('Database Service', data.databaseServiceStatus) +
                 renderServiceStatus('API Service', data.apiServiceStatus) +
                 renderServiceStatus('Notification Service', data.notificationServiceStatus) +
-                renderServiceStatus('Stream US-East-1', data.streamUsEast1Status) +
+                renderServiceStatus('Stream AU-East-1', data.streamAuEast1Status) +
                 renderServiceStatus('Stream US-West-1', data.streamUsWest1Status) +
-                renderServiceStatus('Stream AU-East-1', data.streamAuEast1Status);
+                renderServiceStatus('Stream US-East-1', data.streamUsEast1Status);
             // Update versions
             document.getElementById('stable-version').textContent = data.stableVersion ?? 'N/A';
             document.getElementById('beta-version').textContent = data.betaVersion ?? 'N/A';
