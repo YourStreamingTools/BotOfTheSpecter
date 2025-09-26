@@ -135,6 +135,7 @@ return [
     'bot_discord_version_info' => 'Discord-Versionsinfo',
     'bot_last_updated' => 'Zuletzt aktualisiert:',
     'bot_last_run' => 'Letzter Lauf:',
+    'bot_running_version' => 'Laufende Version:',
     'bot_last_run_hint' => 'Stellen Sie sicher, dass die "Letzter Lauf"-Zeit gleich oder später als die "Zuletzt aktualisiert"-Zeit ist, um die neuesten Verbesserungen anzuwenden.',
     'bot_api_limits' => 'API-Limits',
     'bot_song_id_requests' => 'Song-ID-Anfragen:',

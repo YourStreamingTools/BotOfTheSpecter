@@ -160,6 +160,7 @@ return [
     'bot_discord_version_info' => 'Discord Version Info',
     'bot_last_updated' => 'Last Updated:',
     'bot_last_run' => 'Last Run:',
+    'bot_running_version' => 'Running Version:',
     'bot_last_run_hint' => 'Ensure the "Last Run" time is equal to or later than the "Last Updated" time to apply the latest improvements.',
     'bot_api_limits' => 'API Limits',
     'bot_song_id_requests' => 'Song ID Requests:',
