@@ -1,6 +1,25 @@
 <?php
 $heartbeatStatus = '';
 
+include 'config/db_connect.php';
+
+// Create system_metrics table if it doesn't exist
+$conn->query("CREATE TABLE IF NOT EXISTS system_metrics (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    server_name VARCHAR(255) NOT NULL,
+    cpu_percent FLOAT,
+    ram_percent FLOAT,
+    ram_used FLOAT,
+    ram_total FLOAT,
+    disk_percent FLOAT,
+    disk_used FLOAT,
+    disk_total FLOAT,
+    net_sent FLOAT,
+    net_recv FLOAT,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_server (server_name)
+)");
+
 function fetchData($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -87,10 +106,19 @@ if ($weatherData) {
     $weatherRequestsRemaining = null;
 }
 
+// Fetch system metrics if requested
+$metrics = [];
+if (isset($_GET['metrics'])) {
+    $result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
+    while ($row = $result->fetch_assoc()) {
+        $metrics[] = $row;
+    }
+}
+
 // AJAX endpoint for JS polling
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
-    echo json_encode([
+    $data = [
         'apiServiceStatus' => $apiServiceStatus,
         'databaseServiceStatus' => $databaseServiceStatus,
         'notificationServiceStatus' => $notificationServiceStatus,
@@ -105,7 +133,16 @@ if (isset($_GET['ajax'])) {
         'songRequestsRemaining' => $songRequestsRemaining,
         'exchangeRateRequestsRemaining' => $exchangeRateRequestsRemaining,
         'weatherRequestsRemaining' => $weatherRequestsRemaining
-    ]);
+    ];
+    if (isset($_GET['metrics'])) {
+        $metricsAjax = [];
+        $result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
+        while ($row = $result->fetch_assoc()) {
+            $metricsAjax[] = $row;
+        }
+        $data['metrics'] = $metricsAjax;
+    }
+    echo json_encode($data);
     exit;
 }
 
@@ -180,6 +217,25 @@ function checkServiceStatus($serviceName, $serviceData) {
             <div class="info-item"><strong>Weather Requests Remaining Today:</strong> <span id="weather-requests"><?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></span></div>
         </div>
     </div>
+    <?php if (isset($_GET['metrics'])): ?>
+    <!-- System Metrics -->
+    <div class="section">
+        <h2>System Metrics</h2>
+        <div id="system-metrics">
+            <?php foreach ($metrics as $metric): ?>
+            <div class="status-item">
+                <strong>Server: <?= htmlspecialchars($metric['server_name']); ?></strong>
+                <div>
+                    CPU: <?= number_format($metric['cpu_percent'], 1); ?>% |
+                    RAM: <?= number_format($metric['ram_percent'], 1); ?>% (<?= number_format($metric['ram_used'], 1); ?>GB / <?= number_format($metric['ram_total'], 1); ?>GB) |
+                    Disk: <?= number_format($metric['disk_percent'], 1); ?>% (<?= number_format($metric['disk_used'], 1); ?>GB / <?= number_format($metric['disk_total'], 1); ?>GB) |
+                    Net: ↑<?= number_format($metric['net_sent'], 1); ?>MB ↓<?= number_format($metric['net_recv'], 1); ?>MB
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
     <div class="last-updated" id="last-updated">Last updated: <span id="update-time">Just now</span></div>
 </div>
 
@@ -198,7 +254,11 @@ function renderServiceStatus(name, statusData) {
 
 // Fetch and update data every 60 seconds
 function fetchAndUpdateStatus() {
-    fetch(window.location.pathname + '?ajax=1')
+    let url = window.location.pathname + '?ajax=1';
+    if (window.location.search.includes('metrics')) {
+        url += '&metrics=1';
+    }
+    fetch(url)
         .then(res => res.json())
         .then(data => {
             // Update service statuses
@@ -221,6 +281,22 @@ function fetchAndUpdateStatus() {
             document.getElementById('exchange-requests').textContent = data.exchangeRateRequestsRemaining ?? 'N/A';
             // Update weather info
             document.getElementById('weather-requests').textContent = data.weatherRequestsRemaining ?? 'N/A';
+            // Update metrics if present
+            if (data.metrics) {
+                let metricsHtml = '';
+                data.metrics.forEach(metric => {
+                    metricsHtml += `<div class="status-item">
+                        <strong>Server: ${metric.server_name}</strong>
+                        <div>
+                            CPU: ${parseFloat(metric.cpu_percent).toFixed(1)}% |
+                            RAM: ${parseFloat(metric.ram_percent).toFixed(1)}% (${parseFloat(metric.ram_used).toFixed(1)}GB / ${parseFloat(metric.ram_total).toFixed(1)}GB) |
+                            Disk: ${parseFloat(metric.disk_percent).toFixed(1)}% (${parseFloat(metric.disk_used).toFixed(1)}GB / ${parseFloat(metric.disk_total).toFixed(1)}GB) |
+                            Net: ↑${parseFloat(metric.net_sent).toFixed(1)}MB ↓${parseFloat(metric.net_recv).toFixed(1)}MB
+                        </div>
+                    </div>`;
+                });
+                document.getElementById('system-metrics').innerHTML = metricsHtml;
+            }
             // Update last updated time
             document.getElementById('update-time').textContent = new Date().toLocaleTimeString();
         });
