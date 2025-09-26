@@ -44,6 +44,17 @@ function pingServer($host, $port) {
     return $status;
 }
 
+function format_speed($mb_per_sec) {
+    $bytes_per_sec = $mb_per_sec * 1000000; // Convert MB/s to bytes/s
+    if ($bytes_per_sec >= 1000000) {
+        return number_format($mb_per_sec, 2) . ' MB/s';
+    } elseif ($bytes_per_sec >= 1000) {
+        return number_format($bytes_per_sec / 1000, 2) . ' KB/s';
+    } else {
+        return number_format($bytes_per_sec, 2) . ' B/s';
+    }
+}
+
 // Fetch version data
 $versionData = fetchData('https://api.botofthespecter.com/versions');
 if ($versionData) {
@@ -336,7 +347,7 @@ function checkServiceStatus($serviceName, $serviceData) {
                             RAM: <?= number_format($metric['ram_percent'], 1); ?>% (<?= number_format($metric['ram_used'], 1); ?>GB / <?= number_format($metric['ram_total'], 1); ?>GB)
                             <br>
                             Disk: <?= number_format($metric['disk_percent'], 1); ?>% (<?= number_format($metric['disk_used'], 1); ?>GB / <?= number_format($metric['disk_total'], 1); ?>GB) |
-                            Net: ↑<?= number_format($metric['net_sent'], 1); ?> MB/s ↓<?= number_format($metric['net_recv'], 1); ?> MB/s
+                            Net: ↑ <?= format_speed($metric['net_sent']); ?> ↓ <?= format_speed($metric['net_recv']); ?>
                         </div>
                     </div>
                     <?php endforeach; ?>
@@ -364,6 +375,18 @@ function checkServiceStatus($serviceName, $serviceData) {
 </div>
 
 <script>
+// Helper function to format speed
+function formatSpeed(mbPerSec) {
+    const bytesPerSec = mbPerSec * 1000000; // Convert MB/s to bytes/s
+    if (bytesPerSec >= 1000000) {
+        return parseFloat(mbPerSec).toFixed(2) + ' MB/s';
+    } else if (bytesPerSec >= 1000) {
+        return (bytesPerSec / 1000).toFixed(2) + ' KB/s';
+    } else {
+        return bytesPerSec.toFixed(2) + ' B/s';
+    }
+}
+
 // Helper to update service status HTML
 const serverDisplayNames = {
     'web1': 'Web Server 1',
@@ -425,7 +448,7 @@ function fetchAndUpdateStatus() {
                             RAM: ${parseFloat(metric.ram_percent).toFixed(1)}% (${parseFloat(metric.ram_used).toFixed(1)}GB / ${parseFloat(metric.ram_total).toFixed(1)}GB)
                             <br>
                             Disk: ${parseFloat(metric.disk_percent).toFixed(1)}% (${parseFloat(metric.disk_used).toFixed(1)}GB / ${parseFloat(metric.disk_total).toFixed(1)}GB) |
-                            Net: ↑${parseFloat(metric.net_sent).toFixed(1)} MB/s ↓${parseFloat(metric.net_recv).toFixed(1)} MB/s
+                            Net: ↑ ${formatSpeed(metric.net_sent)} ↓ ${formatSpeed(metric.net_recv)}
                         </div>
                     </div>`;
                 });
