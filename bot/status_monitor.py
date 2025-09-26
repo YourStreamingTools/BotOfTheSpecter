@@ -32,10 +32,12 @@ async def get_system_metrics():
     disk_percent = disk.percent
     disk_used = disk.used / (1024**3)  # GB
     disk_total = disk.total / (1024**3)  # GB
-    # Network usage (bytes sent/received in last second)
-    net_io = psutil.net_io_counters()
-    net_sent = net_io.bytes_sent / (1024**2)  # MB
-    net_recv = net_io.bytes_recv / (1024**2)  # MB
+    # Network usage (speed over 1 second)
+    net_io1 = psutil.net_io_counters()
+    await asyncio.sleep(1)
+    net_io2 = psutil.net_io_counters()
+    net_sent = (net_io2.bytes_sent - net_io1.bytes_sent) / (1024**2)  # MB/s
+    net_recv = (net_io2.bytes_recv - net_io1.bytes_recv) / (1024**2)  # MB/s
     return {
         'cpu_percent': cpu_percent,
         'ram_percent': ram_percent,

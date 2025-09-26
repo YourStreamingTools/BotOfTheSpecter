@@ -58,8 +58,8 @@ if ($versionData) {
 $apiPingStatus = pingServer('api.botofthespecter.com', 443);
 $apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $apiPingStatus];
 
-$websocketPingStatus = pingServer('websock.botofthespecter.com', 443);
-$notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $websocketPingStatus];
+$websocketetPingStatus = pingServer('websocket.botofthespecter.com', 443);
+$notificationServiceStatus = ['status' => $websocketetPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $websocketetPingStatus];
 
 $databasePingStatus = pingServer('sql.botofthespecter.com', 3306);
 $databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $databasePingStatus];
@@ -108,6 +108,16 @@ if ($weatherData) {
 
 // Fetch system metrics if requested
 $metrics = [];
+$serverDisplayNames = [
+    'web1' => 'Web Server 1',
+    'bots' => 'Bot Server',
+    'sql' => 'Database Service',
+    'api' => 'API Service',
+    'websocket' => 'WebSocket Service',
+    'stream-au-east-1' => 'Stream AU-East-1',
+    'stream-us-west-1' => 'Stream US-West-1',
+    'stream-us-east-1' => 'Stream US-East-1'
+];
 if (isset($_GET['metrics'])) {
     $result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
     while ($row = $result->fetch_assoc()) {
@@ -196,7 +206,7 @@ function checkServiceStatus($serviceName, $serviceData) {
             <?= checkServiceStatus('Bot Server', $botServerStatus); ?>
             <?= checkServiceStatus('Database Service', $databaseServiceStatus); ?>
             <?= checkServiceStatus('API Service', $apiServiceStatus); ?>
-            <?= checkServiceStatus('Notification Service', $notificationServiceStatus); ?>
+            <?= checkServiceStatus('WebSocket Service', $notificationServiceStatus); ?>
             <?= checkServiceStatus('Stream AU-East-1', $streamAuEast1Status); ?>
             <?= checkServiceStatus('Stream US-West-1', $streamUsWest1Status); ?>
             <?= checkServiceStatus('Stream US-East-1', $streamUsEast1Status); ?>
@@ -233,12 +243,13 @@ function checkServiceStatus($serviceName, $serviceData) {
         <div id="system-metrics">
             <?php foreach ($metrics as $metric): ?>
             <div class="status-item">
-                <span class="has-text-weight-bold">Server: <?= htmlspecialchars($metric['server_name']); ?></span>
+                <span class="has-text-weight-bold">Server: <?= htmlspecialchars($serverDisplayNames[$metric['server_name']] ?? $metric['server_name']); ?></span>
                 <div>
                     CPU: <?= number_format($metric['cpu_percent'], 1); ?>% |
                     RAM: <?= number_format($metric['ram_percent'], 1); ?>% (<?= number_format($metric['ram_used'], 1); ?>GB / <?= number_format($metric['ram_total'], 1); ?>GB) |
                     Disk: <?= number_format($metric['disk_percent'], 1); ?>% (<?= number_format($metric['disk_used'], 1); ?>GB / <?= number_format($metric['disk_total'], 1); ?>GB) |
-                    Net: ↑<?= number_format($metric['net_sent'], 1); ?>MB ↓<?= number_format($metric['net_recv'], 1); ?>MB
+                    Net: ↑<?= number_format($metric['net_sent'], 1); ?> MB/s ↓<?= number_format($metric['net_recv'], 1); ?> MB/s
+                    <br><small>Last updated: <?= date('M j, Y g:i A', strtotime($metric['last_updated'])); ?></small>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -250,6 +261,16 @@ function checkServiceStatus($serviceName, $serviceData) {
 
 <script>
 // Helper to update service status HTML
+const serverDisplayNames = {
+    'web1': 'Web Server 1',
+    'bots': 'Bot Server',
+    'sql': 'Database Service',
+    'api': 'API Service',
+    'websocket': 'WebSocket Service',
+    'stream-au-east-1': 'Stream AU-East-1',
+    'stream-us-west-1': 'Stream US-West-1',
+    'stream-us-east-1': 'Stream US-East-1'
+};
 function renderServiceStatus(name, statusData) {
     if (statusData.status === 'OK') {
         const ping = statusData.ping + 'ms';
@@ -276,7 +297,7 @@ function fetchAndUpdateStatus() {
                 renderServiceStatus('Bot Server', data.botServerStatus) +
                 renderServiceStatus('Database Service', data.databaseServiceStatus) +
                 renderServiceStatus('API Service', data.apiServiceStatus) +
-                renderServiceStatus('Notification Service', data.notificationServiceStatus) +
+                renderServiceStatus('WebSocket Service', data.notificationServiceStatus) +
                 renderServiceStatus('Stream AU-East-1', data.streamAuEast1Status) +
                 renderServiceStatus('Stream US-West-1', data.streamUsWest1Status) +
                 renderServiceStatus('Stream US-East-1', data.streamUsEast1Status);
@@ -294,13 +315,15 @@ function fetchAndUpdateStatus() {
             if (data.metrics) {
                 let metricsHtml = '';
                 data.metrics.forEach(metric => {
+                    const lastUpdated = new Date(metric.last_updated).toLocaleString();
                     metricsHtml += `<div class="status-item">
-                        <span class="has-text-weight-bold">Server: ${metric.server_name}</span>
+                        <span class="has-text-weight-bold">Server: ${serverDisplayNames[metric.server_name] || metric.server_name}</span>
                         <div>
                             CPU: ${parseFloat(metric.cpu_percent).toFixed(1)}% |
                             RAM: ${parseFloat(metric.ram_percent).toFixed(1)}% (${parseFloat(metric.ram_used).toFixed(1)}GB / ${parseFloat(metric.ram_total).toFixed(1)}GB) |
                             Disk: ${parseFloat(metric.disk_percent).toFixed(1)}% (${parseFloat(metric.disk_used).toFixed(1)}GB / ${parseFloat(metric.disk_total).toFixed(1)}GB) |
-                            Net: ↑${parseFloat(metric.net_sent).toFixed(1)}MB ↓${parseFloat(metric.net_recv).toFixed(1)}MB
+                            Net: ↑${parseFloat(metric.net_sent).toFixed(1)} MB/s ↓${parseFloat(metric.net_recv).toFixed(1)} MB/s
+                            <br><small>Last updated: ${lastUpdated}</small>
                         </div>
                     </div>`;
                 });
