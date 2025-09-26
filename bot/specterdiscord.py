@@ -1414,7 +1414,7 @@ class BotOfTheSpecter(commands.Bot):
                 image = "cheer1000.png"
             embed.set_thumbnail(url=(f"{thumbnail_url}/{image}"))
         elif event_type == "RAID":
-            viewers = data.get("viewers", 0)
+            viewers = data.get("twitch-raid", 0)
             embed = discord.Embed(
                 title="New Raid!",
                 description=f"**{twitch_username}** raided with {viewers} viewers!",
