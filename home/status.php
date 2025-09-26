@@ -176,9 +176,10 @@ function checkServiceStatus($serviceName, $serviceData) {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 10px; }
         .container { max-width: 1200px; margin: 0 auto; }
+        .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0px; }
         .columns { margin-bottom: 0; }
         h1 { text-align: center; margin-bottom: 0px; font-size: 2em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .section { background: #292929; border-radius: 10px; padding: 15px; backdrop-filter: blur(10px); }
+        .section { background: #292929; border-radius: 10px; padding: 15px; backdrop-filter: blur(10px); margin: 0; }
         .section h2 { margin-bottom: 10px; font-size: 1.3em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
         .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
         .status-item { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
@@ -190,13 +191,18 @@ function checkServiceStatus($serviceName, $serviceData) {
         .info-item:last-child { border-bottom: none; }
         .error { color: #ff4d4d; }
         .last-updated { text-align: center; margin-top: 10px; font-size: 0.9em; opacity: 0.8; }
-        #system-metrics .status-item { background: transparent; align-items: flex-start; }
-        #system-metrics .status-item > div:last-child { text-align: right; }
+        #system-metrics .status-item { background: transparent; align-items: flex-start; flex-direction: column; position: relative; }
+        #system-metrics .status-item > div:last-child { text-align: left; }
+        #system-metrics .status-item small { position: absolute; top: 0; right: 0; }
+        .metric-header { display: flex; justify-content: space-between; align-items: center; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>BotOfTheSpecter System Status</h1>
+    <div class="title-row">
+        <h1>BotOfTheSpecter System Status</h1>
+        <div class="last-updated" id="last-updated">Last updated: <span id="update-time">Just now</span></div>
+    </div>
     <!-- Service Statuses -->
     <div class="section">
         <h2>Service Status</h2>
@@ -222,6 +228,26 @@ function checkServiceStatus($serviceName, $serviceData) {
                     <div class="info-item"><span class="has-text-weight-bold">Discord Bot Version:</span> <span id="discord-version"><?= isset($discordVersion) ? $discordVersion : 'N/A'; ?></span></div>
                 </div>
             </div>
+            <!-- System Metrics -->
+            <div class="section">
+                <h2>System Metrics</h2>
+                <div id="system-metrics">
+                    <?php foreach ($metrics as $metric): ?>
+                    <div class="status-item">
+                        <div class="metric-header">
+                            <span class="has-text-weight-bold">Server: <?= htmlspecialchars($serverDisplayNames[$metric['server_name']] ?? $metric['server_name']); ?></span>
+                        </div>
+                        <div>
+                            CPU: <?= number_format($metric['cpu_percent'], 1); ?>% |
+                            RAM: <?= number_format($metric['ram_percent'], 1); ?>% (<?= number_format($metric['ram_used'], 1); ?>GB / <?= number_format($metric['ram_total'], 1); ?>GB)
+                            <br>
+                            Disk: <?= number_format($metric['disk_percent'], 1); ?>% (<?= number_format($metric['disk_used'], 1); ?>GB / <?= number_format($metric['disk_total'], 1); ?>GB) |
+                            Net: ↑<?= number_format($metric['net_sent'], 1); ?> MB/s ↓<?= number_format($metric['net_recv'], 1); ?> MB/s
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
         </div>
         <div class="column">
             <!-- API Limits -->
@@ -235,25 +261,6 @@ function checkServiceStatus($serviceName, $serviceData) {
             </div>
         </div>
     </div>
-    <!-- System Metrics -->
-    <div class="section">
-        <h2>System Metrics</h2>
-        <div id="system-metrics">
-            <?php foreach ($metrics as $metric): ?>
-            <div class="status-item">
-                <span class="has-text-weight-bold">Server: <?= htmlspecialchars($serverDisplayNames[$metric['server_name']] ?? $metric['server_name']); ?></span>
-                <div>
-                    CPU: <?= number_format($metric['cpu_percent'], 1); ?>% |
-                    RAM: <?= number_format($metric['ram_percent'], 1); ?>% (<?= number_format($metric['ram_used'], 1); ?>GB / <?= number_format($metric['ram_total'], 1); ?>GB) |
-                    Disk: <?= number_format($metric['disk_percent'], 1); ?>% (<?= number_format($metric['disk_used'], 1); ?>GB / <?= number_format($metric['disk_total'], 1); ?>GB) |
-                    Net: ↑<?= number_format($metric['net_sent'], 1); ?> MB/s ↓<?= number_format($metric['net_recv'], 1); ?> MB/s
-                    <br><small>Last updated: <?= date('M j, Y g:i A', strtotime($metric['last_updated'])); ?></small>
-                </div>
-            </div>
-            <?php endforeach; ?>
-        </div>
-    </div>
-    <div class="last-updated" id="last-updated">Last updated: <span id="update-time">Just now</span></div>
 </div>
 
 <script>
@@ -309,15 +316,16 @@ function fetchAndUpdateStatus() {
             if (data.metrics) {
                 let metricsHtml = '';
                 data.metrics.forEach(metric => {
-                    const lastUpdated = new Date(metric.last_updated).toLocaleString();
                     metricsHtml += `<div class="status-item">
-                        <span class="has-text-weight-bold">Server: ${serverDisplayNames[metric.server_name] || metric.server_name}</span>
+                        <div class="metric-header">
+                            <span class="has-text-weight-bold">Server: ${serverDisplayNames[metric.server_name] || metric.server_name}</span>
+                        </div>
                         <div>
                             CPU: ${parseFloat(metric.cpu_percent).toFixed(1)}% |
-                            RAM: ${parseFloat(metric.ram_percent).toFixed(1)}% (${parseFloat(metric.ram_used).toFixed(1)}GB / ${parseFloat(metric.ram_total).toFixed(1)}GB) |
+                            RAM: ${parseFloat(metric.ram_percent).toFixed(1)}% (${parseFloat(metric.ram_used).toFixed(1)}GB / ${parseFloat(metric.ram_total).toFixed(1)}GB)
+                            <br>
                             Disk: ${parseFloat(metric.disk_percent).toFixed(1)}% (${parseFloat(metric.disk_used).toFixed(1)}GB / ${parseFloat(metric.disk_total).toFixed(1)}GB) |
                             Net: ↑${parseFloat(metric.net_sent).toFixed(1)} MB/s ↓${parseFloat(metric.net_recv).toFixed(1)} MB/s
-                            <br><small>Last updated: ${lastUpdated}</small>
                         </div>
                     </div>`;
                 });
