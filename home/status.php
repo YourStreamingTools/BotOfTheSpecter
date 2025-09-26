@@ -240,16 +240,49 @@ function checkServiceStatus($serviceName, $serviceData) {
         </div>
     </div>
     <div class="columns">
-        <div class="column">
-            <!-- Versions -->
+        <div class="column is-one-quarter">
+            <!-- System Versions -->
             <div class="section">
-                <h2>Versions</h2>
+                <h2>System Versions</h2>
                 <div id="version-info">
-                    <div class="info-item"><span class="has-text-weight-bold">Stable Version:</span> <span id="stable-version"><?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Beta Version:</span> <span id="beta-version"><?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot Version:</span> <span id="discord-version"><?= isset($discordVersion) ? $discordVersion : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-version"><?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-version"><?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-version"><?= isset($discordVersion) ? $discordVersion : 'N/A'; ?></span></div>
                 </div>
             </div>
+        </div>
+        <div class="column is-one-quarter">
+            <!-- Public API Requests -->
+            <div class="section">
+                <h2>Public API Requests</h2>
+                <div id="api-limits">
+                    <div class="info-item"><span class="has-text-weight-bold">Song Identification Remaing:</span> <span id="song-requests"><?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Remaing:</span> <span id="exchange-requests"><?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Weather Remaing:</span> <span id="weather-requests"><?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></span></div>
+                </div>
+            </div>
+        </div>
+        <div class="column is-one-quarter">
+            <!-- Extra Column 1 -->
+            <div class="section">
+                <!--<h2></h2>-->
+                <div>
+                    <div class="info-item"></div>
+                </div>
+            </div>
+        </div>
+        <div class="column is-one-quarter">
+            <!-- Extra Column 2 -->
+            <div class="section">
+                <!--<h2></h2>-->
+                <div>
+                    <div class="info-item"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="columns">
+        <div class="column is-half">
             <!-- System Metrics -->
             <div class="section">
                 <h2>System Metrics</h2>
@@ -271,16 +304,7 @@ function checkServiceStatus($serviceName, $serviceData) {
                 </div>
             </div>
         </div>
-        <div class="column">
-            <!-- API Limits -->
-            <div class="section">
-                <h2>API Request Limits</h2>
-                <div id="api-limits">
-                    <div class="info-item"><span class="has-text-weight-bold">Song Requests Remaining:</span> <span id="song-requests"><?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Requests Remaining:</span> <span id="exchange-requests"><?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Weather Requests Remaining Today:</span> <span id="weather-requests"><?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></span></div>
-                </div>
-            </div>
+        <div class="column is-half">
             <!-- Beta Users -->
             <div class="section">
                 <h2>Friends that use BotOfTheSpecter</h2>
