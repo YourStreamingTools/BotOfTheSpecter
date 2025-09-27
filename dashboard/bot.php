@@ -1285,6 +1285,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return null;
       });
   }
+  // Function to remove update notifications
+  function removeUpdateNotifications() {
+    // Remove all update notifications
+    document.querySelectorAll('.notification.bot-operation-persistent').forEach(notification => {
+      if (notification.textContent.includes('version is available') || notification.textContent.includes('Update Available')) {
+        notification.parentNode.removeChild(notification);
+      }
+    });
+  }
   // Function to update bot status
   function updateBotStatus(silentUpdate = false) {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1323,6 +1332,8 @@ document.addEventListener('DOMContentLoaded', function() {
               if (updateIndicator) {
                 updateIndicator.style.display = 'none';
               }
+              // Remove update notifications
+              removeUpdateNotifications();
             }
             const statusText = data.running ? 'ONLINE' : 'OFFLINE';
             const statusClass = data.running ? 'success' : 'danger';
