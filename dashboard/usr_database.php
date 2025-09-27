@@ -260,6 +260,7 @@ try {
                 reward_title VARCHAR(255),
                 reward_cost VARCHAR(255),
                 custom_message TEXT,
+                usage_count INT DEFAULT 0,
                 PRIMARY KEY (reward_id)
             ) ENGINE=InnoDB",
         'active_timers' => "
@@ -524,7 +525,7 @@ try {
         'message_counts' => ['username' => "VARCHAR(255)",'message_count' => "INT NOT NULL",'user_level' => "VARCHAR(255) NOT NULL"],
         'bot_points' => ['user_id' => "VARCHAR(50)",'user_name' => "VARCHAR(50)",'points' => "INT DEFAULT 0"],
         'bot_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'point_name' => "TEXT",'point_amount_chat' => "VARCHAR(50)",'point_amount_follower' => "VARCHAR(50)",'point_amount_subscriber' => "VARCHAR(50)",'point_amount_cheer' => "VARCHAR(50)",'point_amount_raid' => "VARCHAR(50)",'subscriber_multiplier' => "VARCHAR(50)",'excluded_users' => "TEXT"],
-        'channel_point_rewards' => ['reward_id' => "VARCHAR(255)",'reward_title' => "VARCHAR(255)",'reward_cost' => "VARCHAR(255)",'custom_message' => "TEXT"],
+        'channel_point_rewards' => ['reward_id' => "VARCHAR(255)",'reward_title' => "VARCHAR(255)",'reward_cost' => "VARCHAR(255)",'custom_message' => "TEXT",'usage_count' => "INT DEFAULT 0"],
         'active_timers' => ['user_id' => "BIGINT NOT NULL",'end_time' => "DATETIME NOT NULL"],
         'poll_results' => ['poll_id' => "VARCHAR(255)",'poll_name' => "VARCHAR(255)",'poll_option_one' => "VARCHAR(255)",'poll_option_two' => "VARCHAR(255)",'poll_option_three' => "VARCHAR(255)",'poll_option_four' => "VARCHAR(255)",'poll_option_five' => "VARCHAR(255)",'poll_option_one_results' => "INT",'poll_option_two_results' => "INT",'poll_option_three_results' => "INT",'poll_option_four_results' => "INT",'poll_option_five_results' => "INT",'bits_used' => "INT",'channel_points_used' => "INT",'started_at' => "DATETIME",'ended_at' => "DATETIME"],
         'tipping_settings' => ['StreamElements' => "TEXT DEFAULT NULL",'StreamLabs' => "TEXT DEFAULT NULL"],
