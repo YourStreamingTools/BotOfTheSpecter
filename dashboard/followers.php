@@ -144,25 +144,50 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
     if ($follower['followed_at'] >= $thisMonthStart) $newThisMonth++;
     if ($follower['followed_at'] >= $thisYearStart) $newThisYear++;
   }
-  // Calculate chart data for follower growth
-  $followersAsc = array_reverse($updatedFollowers); // Sort by oldest first
+  // Calculate chart data for follower growth - cumulative over time
+  $currentYear = date('Y');
   $chartData = [];
-  $cumulative = 0;
-  $lastDate = null;
-  foreach ($followersAsc as $follower) {
-    $date = date('Y-m-d', strtotime($follower['followed_at']));
-    $cumulative++;
-    if ($date != $lastDate) {
-      $chartData[] = ['x' => $date, 'y' => $cumulative];
-      $lastDate = $date;
+  $yearlyData = [];
+  $monthlyData = [];
+  // Group followers by year and month
+  foreach ($updatedFollowers as $follower) {
+    $year = date('Y', strtotime($follower['followed_at']));
+    $month = date('m', strtotime($follower['followed_at']));
+    if ($year == $currentYear) {
+      // For current year, track by month
+      $monthKey = $year . '-' . $month;
+      if (!isset($monthlyData[$monthKey])) {
+        $monthlyData[$monthKey] = 0;
+      }
+      $monthlyData[$monthKey]++;
     } else {
-      $chartData[count($chartData) - 1]['y'] = $cumulative;
+      // For past years, track by year
+      if (!isset($yearlyData[$year])) {
+        $yearlyData[$year] = 0;
+      }
+      $yearlyData[$year]++;
     }
+  }
+  // Build chart data points - cumulative growth
+  $cumulative = 0;
+  // Add yearly points for past years
+  ksort($yearlyData);
+  foreach ($yearlyData as $year => $count) {
+    $cumulative += $count;
+    $chartData[] = ['x' => $year . '-12-31', 'y' => $cumulative]; // Cumulative at end of year
+  }
+  // Add monthly points for current year
+  ksort($monthlyData);
+  foreach ($monthlyData as $monthKey => $count) {
+    $cumulative += $count;
+    // Get the last day of the month
+    $date = DateTime::createFromFormat('Y-m', $monthKey);
+    $lastDay = $date->format('Y-m-t');
+    $chartData[] = ['x' => $lastDay, 'y' => $cumulative]; // Cumulative at end of month
   }
   echo json_encode(["status" => "success", "data" => $updatedFollowers, "metrics" => ["total" => $totalFollowers, "today" => $newToday, "week" => $newThisWeek, "month" => $newThisMonth, "year" => $newThisYear], "chartData" => $chartData]);
   exit();
 }
-
 // Function to fetch followers with error handling
 function fetchFollowers($url, $authToken, $clientID) {
   $curl = curl_init($url);
@@ -298,7 +323,7 @@ $(document).ready(function() {
           x: {
             type: 'time',
             time: {
-              unit: 'day'
+              unit: 'month'
             }
           },
           y: {
@@ -312,7 +337,14 @@ $(document).ready(function() {
   function updateChart(chartData) {
     if (followerChart) {
       followerChart.data.datasets[0].data = chartData;
-      followerChart.update('none'); // Update without animation for speed
+      followerChart.update(); // Use default animation
+    }
+  }
+  // Add a single point to the chart
+  function addChartPoint(point) {
+    if (followerChart) {
+      followerChart.data.datasets[0].data.push(point);
+      followerChart.update();
     }
   }
   // Initialize chart immediately
@@ -328,8 +360,17 @@ $(document).ready(function() {
       dataType: 'json',
       success: function(response) {
         if (response.status === 'success') {
-          // Update chart immediately with the data
-          updateChart(response.chartData);
+          // Update metrics
+          $('#total-followers').text(response.metrics.total);
+          $('#new-today').text(response.metrics.today);
+          $('#new-week').text(response.metrics.week);
+          $('#new-month').text(response.metrics.month);
+          $('#new-year').text(response.metrics.year);
+          // Clear chart data and start fresh
+          if (followerChart) {
+            followerChart.data.datasets[0].data = [];
+            followerChart.update('none');
+          }
           const totalFollowers = response.data.length;
           let loadedFollowers = 0;
           if (totalFollowers === 0) {
@@ -338,8 +379,13 @@ $(document).ready(function() {
           }
           // Update loading text with total count
           $('#live-data').text(`Loading 0/${totalFollowers} followers`);
+          // Process followers in original order (newest first for display)
           response.data.forEach(function(follower, index) {
             setTimeout(function() {
+              // Add chart point progressively (chartData is already sorted chronologically)
+              if (index < response.chartData.length) {
+                addChartPoint(response.chartData[index]);
+              }
               // Use profile image if available, otherwise fallback to initials
               var profileImg = follower.profile_image_url 
                 ? `<img src="${follower.profile_image_url}" alt="${follower.user_name}" class="is-rounded" style="width:64px;height:64px;">`
