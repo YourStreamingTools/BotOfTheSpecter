@@ -8133,7 +8133,9 @@ async def process_channel_point_rewards(event_data, event_type):
                     # Apply all replacements
                     for var, value in replacements.items():
                         custom_message = custom_message.replace(var, value)
-                await send_chat_message(custom_message)
+                    # Only send message if it's not empty after replacements
+                    if custom_message.strip():
+                        await send_chat_message(custom_message)
             # Check for TTS reward
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
