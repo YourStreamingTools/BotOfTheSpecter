@@ -469,6 +469,8 @@ return [
     'counters_watch_time' => 'Temps de visionnage',
     'counters_quotes' => 'Citations',
     'counters_reward_streaks' => 'Séquences de récompenses',
+    'counters_reward_usage' => 'Utilisation des récompenses',
+    'counters_usage_count_column' => 'Nombre d\'utilisations',
     // Counters Table Column Headers
     'counters_time_column' => 'Temps',
     'counters_username_column' => "Nom d'utilisateur",

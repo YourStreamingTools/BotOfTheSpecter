@@ -522,6 +522,8 @@ return [
     'counters_watch_time' => 'Watch Time',
     'counters_quotes' => 'Quotes',
     'counters_reward_streaks' => 'Reward Streaks',
+    'counters_reward_usage' => 'Reward Usage',
+    'counters_usage_count_column' => 'Usage Count',
     // Counters Table Column Headers
     'counters_time_column' => 'Time',
     'counters_username_column' => 'Username',
