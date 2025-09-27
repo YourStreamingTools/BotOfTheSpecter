@@ -1837,12 +1837,14 @@ document.addEventListener('DOMContentLoaded', function() {
   setInterval(updateServiceStatus, 30000); // Increased from 10s to 30s
   setInterval(updateApiLimits, 60000);     // Increased from 30s to 60s
   setInterval(() => updateBotStatus(true), 120000); // Increased from 60s to 120s
+  setInterval(fetchAndUpdateChannelStatus, 60000); // Update channel status every 60 seconds
   if (isTechnical) {
     setInterval(updateTechnicalOverview, 60000); // Increased from 15s to 60s
   }
   updateServiceStatus();
   updateApiLimits();
   updateBotStatus(false);
+  fetchAndUpdateChannelStatus(); // Initial channel status update
   if (isTechnical) {
     updateTechnicalOverview();
   }
