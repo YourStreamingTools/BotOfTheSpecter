@@ -27,6 +27,7 @@ CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 
 async def channel_point_rewards():
+    print("Starting channel point rewards sync...")
     # Check the broadcaster's type
     user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
     headers = {
@@ -49,15 +50,20 @@ async def channel_point_rewards():
                         user_data = await user_response.json()
                         broadcaster_type = user_data["data"][0].get("broadcaster_type", "")
                         if broadcaster_type not in ["affiliate", "partner"]:
+                            print("Broadcaster is not an affiliate or partner. Skipping sync.")
                             return
                     else:
+                        print(f"Failed to fetch broadcaster info. Status: {user_response.status}")
                         return
                 # If the broadcaster is an affiliate or partner, proceed with fetching rewards
+                print("Fetching channel point rewards from Twitch...")
                 api_url = f"https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id={CHANNEL_ID}"
                 async with session.get(api_url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
                         rewards = data.get("data", [])
+                        added = 0
+                        updated = 0
                         for reward in rewards:
                             reward_id = reward.get("id")
                             reward_title = reward.get("title")
@@ -72,6 +78,8 @@ async def channel_point_rewards():
                                     "VALUES (%s, %s, %s)",
                                     (reward_id, reward_title, reward_cost)
                                 )
+                                print(f"Added reward: {reward_title} (Cost: {reward_cost})")
+                                added += 1
                             else:
                                 # Update existing reward
                                 await cursor.execute(
@@ -79,9 +87,14 @@ async def channel_point_rewards():
                                     "WHERE reward_id = %s",
                                     (reward_title, reward_cost, reward_id)
                                 )
-        await conn.commit()
+                                print(f"Updated reward: {reward_title} (Cost: {reward_cost})")
+                                updated += 1
+                        await conn.commit()
+                        print(f"Sync completed. Added: {added}, Updated: {updated}")
+                    else:
+                        print(f"Failed to fetch rewards. Status: {response.status}")
     except Exception as e:
-        pass
+        print(f"Error during sync: {str(e)}")
     finally:
         if conn:
             conn.close()
