@@ -56,14 +56,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['deleteRewardId'])) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
+    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest';
     $escapedUsername = escapeshellarg($username);
     $escapedTwitchUserId = escapeshellarg($twitchUserId);
     $escapedAuthToken = escapeshellarg($authToken);
-    shell_exec("python3 /home/botofthespecter/sync-channel-rewards.py -channel $escapedUsername -channelid $escapedTwitchUserId -token $escapedAuthToken 2>&1");
-    $syncMessage = "<p>" . t('channel_rewards_syncing') . "</p>";
-    sleep(3);
-    header('Location: channel_rewards.php');
-    exit();
+    $output = shell_exec("python3 /home/botofthespecter/sync-channel-rewards.py -channel $escapedUsername -channelid $escapedTwitchUserId -token $escapedAuthToken 2>&1");
+    if ($output === false) {
+        $output = "Error: Script execution failed.";
+    } elseif (empty($output)) {
+        $output = "Script ran but produced no output.";
+    }
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['output' => nl2br(htmlspecialchars($output))]);
+        exit();
+    } else {
+        $_SESSION['sync_output'] = nl2br(htmlspecialchars($output));
+        header('Location: channel_rewards.php');
+        exit();
+    }
 }
 
 // Fetch channel point rewards
@@ -86,6 +97,10 @@ ob_start();
                 </span>
             </header>
             <div class="card-content">
+                <div class="notification is-success mb-4" id="sync-result" style="display: none;">
+                    <strong>Sync Result:</strong><br>
+                    <span id="sync-output"></span>
+                </div>
                 <div class="notification is-info mb-4">
                     <form method="POST" id="sync-form" style="display: flex; align-items: flex-start; justify-content: space-between;">
                         <div style="flex: 1;">
@@ -96,7 +111,7 @@ ob_start();
                             <strong><?php echo t('channel_rewards_sync_important'); ?></strong> <?php echo t('channel_rewards_sync_important_desc'); ?>
                         </div>
                         <div style="margin-left: 24px;">
-                            <button class="button is-primary" name="syncRewards" type="submit" id="sync-btn" style="margin-top: 0;" disabled>
+                            <button class="button is-primary" id="sync-btn" style="margin-top: 0;" onclick="syncRewards()">
                                 <span id="sync-btn-spinner" class="icon is-small" style="display:none;">
                                     <i class="fas fa-spinner fa-spin"></i>
                                 </span>
@@ -279,13 +294,41 @@ function deleteReward(rewardid) {
 }
 
 document.getElementById('sync-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+});
+
+function syncRewards() {
     var btn = document.getElementById('sync-btn');
     var spinner = document.getElementById('sync-btn-spinner');
     var text = document.getElementById('sync-btn-text');
     btn.disabled = true;
     spinner.style.display = '';
     text.textContent = <?php echo json_encode(t('channel_rewards_syncing')); ?>;
-});
+    var formData = new FormData();
+    formData.append('syncRewards', '1');
+    fetch('', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('sync-output').innerHTML = data.output;
+        document.getElementById('sync-result').style.display = 'block';
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        text.innerHTML = '<i class="fas fa-sync-alt"></i> ' + <?php echo json_encode(t('channel_rewards_sync_btn')); ?>;
+    })
+    .catch(error => {
+        document.getElementById('sync-output').innerHTML = 'Error: ' + error.message;
+        document.getElementById('sync-result').style.display = 'block';
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        text.innerHTML = '<i class="fas fa-sync-alt"></i> ' + <?php echo json_encode(t('channel_rewards_sync_btn')); ?>;
+    });
+}
 
 document.querySelectorAll('.cancel-btn').forEach(btn => {
     btn.addEventListener('click', function() {
