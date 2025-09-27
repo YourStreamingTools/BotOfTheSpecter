@@ -357,6 +357,11 @@ function dbTimeToUserTime($dbDatetime, $userTimezone = 'UTC') {
     }
 }
 
+// Get the version for changelog link
+$version = $versionRunning ?: $newVersion;
+$parts = explode('.', $version);
+$changelogVersion = isset($parts[1]) ? $parts[0] . '.' . $parts[1] : $parts[0];
+
 // Start output buffering for layout template
 ob_start();
 ?>
@@ -412,6 +417,12 @@ ob_start();
               <span class="has-text-grey-light"><?php echo t('bot_running_version'); ?></span>
               <span id="running-version" class="has-text-info"><?php echo $selectedBot === 'beta' ? ($betaVersionRunning ?: $betaNewVersion) : ($versionRunning ?: $newVersion); ?></span>
             </p>
+            <?php if ($selectedBot === 'stable'): ?>
+            <p>
+              <span class="has-text-grey-light">Update Notes:</span>
+              <a href="https://changelog.botofthespecter.com/<?php echo htmlspecialchars($changelogVersion); ?>.html" target="_blank" class="has-text-info">View Changelog</a>
+            </p>
+            <?php endif; ?>
             <div id="version-update-indicator" class="mt-2" style="display: none;">
               <span class="tag is-warning is-light is-small">Update Available</span>
             </div>
