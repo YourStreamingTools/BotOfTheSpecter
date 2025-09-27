@@ -8118,6 +8118,16 @@ async def process_channel_point_rewards(event_data, event_type):
                         except Exception as e:
                             chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
                             custom_message = custom_message.replace('(userstreak)', "Error")
+                    # Handle (track)
+                    if '(track)' in custom_message:
+                        try:
+                            # Increment usage_count
+                            await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (reward_id,))
+                            await connection.commit()
+                            custom_message = custom_message.replace('(track)', '')
+                        except Exception as e:
+                            chat_logger.error(f"Error while handling (track): {e}")
+                            custom_message = custom_message.replace('(track)', '')
                 await send_chat_message(custom_message)
             # Check for TTS reward
             if "tts" in reward_title.lower():
