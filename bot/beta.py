@@ -8069,8 +8069,10 @@ async def process_channel_point_rewards(event_data, event_type):
             if custom_message_result and custom_message_result["custom_message"]:
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
+                    replacements = {}
+                    # Handle (user)
                     if '(user)' in custom_message:
-                        custom_message = custom_message.replace('(user)', user_name)
+                        replacements['(user)'] = user_name
                     # Handle (usercount)
                     if '(usercount)' in custom_message:
                         try:
@@ -8088,10 +8090,10 @@ async def process_channel_point_rewards(event_data, event_type):
                             user_count += 1
                             await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
                             await connection.commit()
-                            custom_message = custom_message.replace('(usercount)', str(user_count))
+                            replacements['(usercount)'] = str(user_count)
                         except Exception as e:
                             chat_logger.error(f"Error while handling (usercount): {e}")
-                            custom_message = custom_message.replace('(usercount)', "Error")
+                            replacements['(usercount)'] = "Error"
                     # Handle (userstreak)
                     if '(userstreak)' in custom_message:
                         try:
@@ -8114,20 +8116,23 @@ async def process_channel_point_rewards(event_data, event_type):
                                 await cursor.execute("INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
                             await connection.commit()
                             # Use the calculated current_streak value directly
-                            custom_message = custom_message.replace('(userstreak)', str(current_streak))
+                            replacements['(userstreak)'] = str(current_streak)
                         except Exception as e:
                             chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
-                            custom_message = custom_message.replace('(userstreak)', "Error")
+                            replacements['(userstreak)'] = "Error"
                     # Handle (track)
                     if '(track)' in custom_message:
                         try:
                             # Increment usage_count
                             await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (reward_id,))
                             await connection.commit()
-                            custom_message = custom_message.replace('(track)', '')
+                            replacements['(track)'] = ''
                         except Exception as e:
                             chat_logger.error(f"Error while handling (track): {e}")
-                            custom_message = custom_message.replace('(track)', '')
+                            replacements['(track)'] = ''
+                    # Apply all replacements
+                    for var, value in replacements.items():
+                        custom_message = custom_message.replace(var, value)
                 await send_chat_message(custom_message)
             # Check for TTS reward
             if "tts" in reward_title.lower():
