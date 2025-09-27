@@ -74,6 +74,12 @@ try {
   echo 'Error: ' . $e->getMessage();
 }
 
+// Fetch reward streaks data
+$stmt = $db->prepare("SELECT rs.reward_id, rs.current_user, rs.streak, cpr.reward_title FROM reward_streaks rs LEFT JOIN channel_point_rewards cpr ON rs.reward_id COLLATE utf8mb4_unicode_ci = cpr.reward_id COLLATE utf8mb4_unicode_ci");
+$stmt->execute();
+$rewardStreaks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
 // Prepare the Twitch API request for user data
 $userIds = array_column($lurkers, 'user_id');
 $userIdParams = implode('&id=', $userIds);
@@ -142,6 +148,7 @@ ob_start();
           <button class="button is-info" data-type="customCounts" onclick="loadData('customCounts')"><?php echo t('counters_custom_counts'); ?></button>
           <button class="button is-info" data-type="userCounts" onclick="loadData('userCounts')"><?php echo t('counters_user_counts'); ?></button>
           <button class="button is-info" data-type="rewardCounts" onclick="loadData('rewardCounts')"><?php echo t('counters_reward_counts'); ?></button>
+          <button class="button is-info" data-type="rewardStreaks" onclick="loadData('rewardStreaks')"><?php echo t('counters_reward_streaks'); ?></button>
           <button class="button is-info" data-type="watchTime" onclick="loadData('watchTime')"><?php echo t('counters_watch_time'); ?></button>
           <button class="button is-info" data-type="quotes" onclick="loadData('quotes')"><?php echo t('counters_quotes'); ?></button>
         </div>
@@ -283,6 +290,14 @@ function loadData(type) {
       dataColumn = <?php echo json_encode(t('counters_username_column')); ?>;
       additionalColumnName = <?php echo json_encode(t('counters_count_column')); ?>;
       break;
+    case 'rewardStreaks':
+      data = <?php echo json_encode($rewardStreaks); ?>;
+      countColumnVisible = true;
+      title = <?php echo json_encode(t('counters_reward_streaks')); ?>;
+      infoColumn = <?php echo json_encode(t('counters_reward_column')); ?>;
+      dataColumn = <?php echo json_encode(t('counters_username_column')); ?>;
+      additionalColumnName = <?php echo json_encode(t('counters_streak_column')); ?>;
+      break;
     case 'watchTime':
       data = <?php echo json_encode($watchTimeData); ?>;
       title = <?php echo json_encode(t('counters_watch_time')); ?>;
@@ -339,6 +354,8 @@ function loadData(type) {
       output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'rewardCounts') {
       output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='has-text-success'>${item.count}</span></td>`;
+    } else if (type === 'rewardStreaks') {
+      output += `<td>${item.reward_title}</td><td>${item.current_user}</td><td><span class='has-text-success'>${item.streak}</span></td>`;
     } else if (type === 'watchTime') { 
       output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     } else if (type === 'quotes') {

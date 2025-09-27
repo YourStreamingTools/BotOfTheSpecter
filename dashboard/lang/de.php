@@ -465,6 +465,7 @@ return [
     'counters_user_counts' => 'Benutzerzähler',
     'counters_watch_time' => 'Watch Time',
     'counters_quotes' => 'Zitate',
+    'counters_reward_streaks' => 'Belohnungs-Serien',
     // Counters Table Column Headers
     'counters_time_column' => 'Zeit',
     'counters_username_column' => 'Benutzername',
@@ -472,6 +473,8 @@ return [
     'counters_used_column' => 'Verwendet',
     'counters_command_column' => 'Befehl',
     'counters_reward_name_column' => 'Belohnungsname',
+    'counters_reward_column' => 'Belohnung',
+    'counters_streak_column' => 'Serie',
     'counters_id_column' => 'ID',
     'counters_what_was_said_column' => 'Zitat',
     'counters_online_watch_time_column' => 'Online-Watchtime',

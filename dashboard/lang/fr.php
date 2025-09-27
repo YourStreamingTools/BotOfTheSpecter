@@ -468,6 +468,7 @@ return [
     'counters_user_counts' => 'Comptes utilisateur',
     'counters_watch_time' => 'Temps de visionnage',
     'counters_quotes' => 'Citations',
+    'counters_reward_streaks' => 'Séquences de récompenses',
     // Counters Table Column Headers
     'counters_time_column' => 'Temps',
     'counters_username_column' => "Nom d'utilisateur",
@@ -475,6 +476,8 @@ return [
     'counters_used_column' => 'Utilisé',
     'counters_command_column' => 'Commande',
     'counters_reward_name_column' => 'Nom de la récompense',
+    'counters_reward_column' => 'Récompense',
+    'counters_streak_column' => 'Série',
     'counters_id_column' => 'ID',
     'counters_what_was_said_column' => 'Citation',
     'counters_online_watch_time_column' => 'Temps de visionnage en ligne',
