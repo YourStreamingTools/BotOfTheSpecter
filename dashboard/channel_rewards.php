@@ -320,6 +320,9 @@ function syncRewards() {
         btn.disabled = false;
         spinner.style.display = 'none';
         text.innerHTML = '<i class="fas fa-sync-alt"></i> ' + <?php echo json_encode(t('channel_rewards_sync_btn')); ?>;
+        setTimeout(() => {
+            document.getElementById('sync-result').style.display = 'none';
+        }, 60000);
     })
     .catch(error => {
         document.getElementById('sync-output').innerHTML = 'Error: ' + error.message;
@@ -327,7 +330,10 @@ function syncRewards() {
         btn.disabled = false;
         spinner.style.display = 'none';
         text.innerHTML = '<i class="fas fa-sync-alt"></i> ' + <?php echo json_encode(t('channel_rewards_sync_btn')); ?>;
-    });
+        setTimeout(() => {
+            document.getElementById('sync-result').style.display = 'none';
+        }, 60000);
+    });;
 }
 
 document.querySelectorAll('.cancel-btn').forEach(btn => {
