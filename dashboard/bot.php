@@ -1899,19 +1899,37 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update the status tag and buttons in the Channel Status card
     const contentDiv = document.querySelector('.card-content .content.has-text-centered');
     if (!contentDiv) return;
-    let statusHtml = '';
-    if (newStatus === 'True') {
-      statusHtml = '<span class="<?php echo $tagClass; ?> bot-status-tag is-success" style="width:100%;">' + <?php echo json_encode(t('bot_status_online')); ?> + '</span>' +
-                   '<div class="mt-3"><button id="force-offline-btn" class="button is-warning is-medium is-fullwidth has-text-black has-text-weight-bold mt-2"><?php echo t('bot_force_offline'); ?></button></div>';
-    } else if (newStatus === 'False') {
-      statusHtml = '<span class="<?php echo $tagClass; ?> bot-status-tag is-warning" style="width:100%;">' + <?php echo json_encode(t('bot_status_offline')); ?> + '</span>' +
-                   '<div class="mt-3"><button id="force-online-btn" class="button is-success is-medium is-fullwidth has-text-black has-text-weight-bold mt-2"><?php echo t('bot_force_online'); ?></button></div>';
-    } else if (newStatus === null || newStatus === 'N/A') {
-      statusHtml = '<span class="<?php echo $tagClass; ?> bot-status-tag is-warning" style="width:100%;">' + <?php echo json_encode(t('bot_status_na')); ?> + '</span>';
-    } else {
-      statusHtml = '<span class="<?php echo $tagClass; ?> bot-status-tag is-warning" style="width:100%;">' + <?php echo json_encode(t('bot_status_unknown')); ?> + '</span>';
+    
+    // Update the status tag
+    const statusTag = contentDiv.querySelector('.bot-status-tag');
+    if (statusTag) {
+      if (newStatus === 'True') {
+        statusTag.textContent = <?php echo json_encode(t('bot_status_online')); ?>;
+        statusTag.className = '<?php echo $tagClass; ?> bot-status-tag is-success';
+      } else if (newStatus === 'False') {
+        statusTag.textContent = <?php echo json_encode(t('bot_status_offline')); ?>;
+        statusTag.className = '<?php echo $tagClass; ?> bot-status-tag is-warning';
+      } else if (newStatus === null || newStatus === 'N/A') {
+        statusTag.textContent = <?php echo json_encode(t('bot_status_na')); ?>;
+        statusTag.className = '<?php echo $tagClass; ?> bot-status-tag is-warning';
+      } else {
+        statusTag.textContent = <?php echo json_encode(t('bot_status_unknown')); ?>;
+        statusTag.className = '<?php echo $tagClass; ?> bot-status-tag is-warning';
+      }
     }
-    contentDiv.innerHTML = statusHtml;
+    
+    // Update the button
+    const buttonDiv = contentDiv.querySelector('.mt-3');
+    if (buttonDiv) {
+      if (newStatus === 'True') {
+        buttonDiv.innerHTML = '<button id="force-offline-btn" class="button is-warning is-medium is-fullwidth has-text-black has-text-weight-bold mt-2"><?php echo t('bot_force_offline'); ?></button>';
+      } else if (newStatus === 'False') {
+        buttonDiv.innerHTML = '<button id="force-online-btn" class="button is-success is-medium is-fullwidth has-text-black has-text-weight-bold mt-2"><?php echo t('bot_force_online'); ?></button>';
+      } else {
+        buttonDiv.innerHTML = ''; // No button for unknown/NA status
+      }
+    }
+    
     // Re-attach event listeners
     attachForceButtons();
   }
