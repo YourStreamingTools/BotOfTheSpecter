@@ -188,6 +188,7 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
   echo json_encode(["status" => "success", "data" => $updatedFollowers, "metrics" => ["total" => $totalFollowers, "today" => $newToday, "week" => $newThisWeek, "month" => $newThisMonth, "year" => $newThisYear], "chartData" => $chartData]);
   exit();
 }
+
 // Function to fetch followers with error handling
 function fetchFollowers($url, $authToken, $clientID) {
   $curl = curl_init($url);
@@ -208,6 +209,7 @@ function fetchFollowers($url, $authToken, $clientID) {
   curl_close($curl);
   return $response;
 }
+
 ob_start();
 ?>
 <div class="columns is-centered">
