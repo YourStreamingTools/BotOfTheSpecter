@@ -256,12 +256,15 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
     });
 });
 
-function updateCustomMessage(rewardid, newCustomMessage) {
+function updateCustomMessage(rewardid, newCustomMessage, button, originalIcon) {
     var xhr = new XMLHttpRequest();
     xhr.open("POST", "", true);
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     xhr.onreadystatechange = function() {
         if (xhr.readyState === XMLHttpRequest.DONE) {
+            // Restore button state
+            button.innerHTML = originalIcon;
+            button.disabled = false;
             if (xhr.status === 200) {
                 // Update the display
                 const customMessage = document.getElementById(rewardid);
@@ -358,7 +361,11 @@ document.querySelectorAll('.save-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const rewardid = this.getAttribute('data-reward-id');
         const newCustomMessage = document.querySelector(`.custom-message[data-reward-id="${rewardid}"]`).value;
-        updateCustomMessage(rewardid, newCustomMessage);
+        // Show loading state
+        const originalIcon = this.innerHTML;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        this.disabled = true;
+        updateCustomMessage(rewardid, newCustomMessage, this, originalIcon);
     });
 });
 
