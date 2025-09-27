@@ -558,6 +558,11 @@ return [
     'followers_heading' => 'Your Followers:',
     'followers_loading' => 'Loading followers...',
     'followers_failed' => 'Failed to load followers.',
+    'total_followers' => 'Total Followers',
+    'new_followers_today' => 'New Followers Today',
+    'new_followers_week' => 'New Followers This Week',
+    'new_followers_month' => 'New Followers This Month',
+    'new_followers_year' => 'New Followers This Year',
     // Subscribers Page
     'subscribers_page_title' => 'Twitch Data - Subscribers',
     'subscribers_heading' => 'Your Subscribers:',

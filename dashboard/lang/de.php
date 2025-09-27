@@ -502,6 +502,11 @@ return [
     'followers_heading' => 'Deine Follower:',
     'followers_loading' => 'Follower werden geladen...',
     'followers_failed' => "Follower konnten nicht geladen werden.",
+    'total_followers' => 'Gesamt Follower',
+    'new_followers_today' => 'Neue Follower heute',
+    'new_followers_week' => 'Neue Follower diese Woche',
+    'new_followers_month' => 'Neue Follower diesen Monat',
+    'new_followers_year' => 'Neue Follower dieses Jahr',
     // Subscribers Page
     'subscribers_page_title' => 'Twitch-Daten - Abonnenten',
     'subscribers_heading' => 'Deine Abonnenten:',

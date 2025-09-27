@@ -126,7 +126,25 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
     $follower['profile_image_url'] = $profileImages[$follower['user_id']] ?? null;
   }
   unset($follower);
-  echo json_encode(["status" => "success", "data" => $updatedFollowers]);
+  // Calculate metrics
+  $totalFollowers = count($updatedFollowers);
+  $newToday = 0;
+  $newThisWeek = 0;
+  $newThisMonth = 0;
+  $newThisYear = 0;
+  $now = new DateTime();
+  $today = $now->format('Y-m-d');
+  $thisWeekStart = (new DateTime())->modify('-7 days')->format('Y-m-d H:i:s');
+  $thisMonthStart = (new DateTime())->modify('-30 days')->format('Y-m-d H:i:s');
+  $thisYearStart = date('Y-01-01 00:00:00');
+  foreach ($updatedFollowers as $follower) {
+    $followedDate = new DateTime($follower['followed_at']);
+    if ($followedDate->format('Y-m-d') == $today) $newToday++;
+    if ($follower['followed_at'] >= $thisWeekStart) $newThisWeek++;
+    if ($follower['followed_at'] >= $thisMonthStart) $newThisMonth++;
+    if ($follower['followed_at'] >= $thisYearStart) $newThisYear++;
+  }
+  echo json_encode(["status" => "success", "data" => $updatedFollowers, "metrics" => ["total" => $totalFollowers, "today" => $newToday, "week" => $newThisWeek, "month" => $newThisMonth, "year" => $newThisYear]]);
   exit();
 }
 
@@ -163,6 +181,48 @@ ob_start();
       </header>
       <div class="card-content">
         <div class="content">
+          <div class="columns is-multiline mb-4">
+            <div class="column is-6-mobile" style="width: 20%;">
+              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
+                <div class="card-content has-text-centered">
+                  <p class="title is-4" id="total-followers">0</p>
+                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('total_followers'); ?></p>
+                </div>
+              </div>
+            </div>
+            <div class="column is-6-mobile" style="width: 20%;">
+              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
+                <div class="card-content has-text-centered">
+                  <p class="title is-4" id="new-today">0</p>
+                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('new_followers_today'); ?></p>
+                </div>
+              </div>
+            </div>
+            <div class="column is-6-mobile" style="width: 20%;">
+              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
+                <div class="card-content has-text-centered">
+                  <p class="title is-4" id="new-week">0</p>
+                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('new_followers_week'); ?></p>
+                </div>
+              </div>
+            </div>
+            <div class="column is-6-mobile" style="width: 20%;">
+              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
+                <div class="card-content has-text-centered">
+                  <p class="title is-4" id="new-month">0</p>
+                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('new_followers_month'); ?></p>
+                </div>
+              </div>
+            </div>
+            <div class="column is-6-mobile" style="width: 20%;">
+              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
+                <div class="card-content has-text-centered">
+                  <p class="title is-4" id="new-year">0</p>
+                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('new_followers_year'); ?></p>
+                </div>
+              </div>
+            </div>
+          </div>
           <h3 id="live-data" class="subtitle is-6 has-text-grey mb-4"><?php echo t('followers_loading'); ?></h3>
           <div id="followers-list" class="columns is-multiline is-centered">
             <!-- AJAX appended followers -->
@@ -207,6 +267,12 @@ $(document).ready(function() {
       dataType: 'json',
       success: function(response) {
         if (response.status === 'success') {
+          // Update metrics
+          $('#total-followers').text(response.metrics.total);
+          $('#new-today').text(response.metrics.today);
+          $('#new-week').text(response.metrics.week);
+          $('#new-month').text(response.metrics.month);
+          $('#new-year').text(response.metrics.year);
           const totalFollowers = response.data.length;
           let loadedFollowers = 0;
           if (totalFollowers === 0) {
