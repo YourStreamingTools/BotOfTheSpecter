@@ -262,7 +262,7 @@ async def get_spam_patterns():
         await cursor.execute("SELECT spam_pattern FROM spam_patterns")
         results = await cursor.fetchall()
     connection.close()
-    compiled_patterns = [re.compile(row["spam_pattern"], re.IGNORECASE) for row in results if row["spam_pattern"]]
+    compiled_patterns = [re.compile(re.escape(row["spam_pattern"]), re.IGNORECASE) for row in results if row["spam_pattern"]]
     return compiled_patterns
 
 # Setup Token Refresh
