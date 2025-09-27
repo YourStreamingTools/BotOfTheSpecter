@@ -1899,7 +1899,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update the status tag and buttons in the Channel Status card
     const contentDiv = document.querySelector('.card-content .content.has-text-centered');
     if (!contentDiv) return;
-    
     // Update the status tag
     const statusTag = contentDiv.querySelector('.bot-status-tag');
     if (statusTag) {
@@ -1917,7 +1916,6 @@ document.addEventListener('DOMContentLoaded', function() {
         statusTag.className = '<?php echo $tagClass; ?> bot-status-tag is-warning';
       }
     }
-    
     // Update the button
     const buttonDiv = contentDiv.querySelector('.mt-3');
     if (buttonDiv) {
@@ -1929,7 +1927,6 @@ document.addEventListener('DOMContentLoaded', function() {
         buttonDiv.innerHTML = ''; // No button for unknown/NA status
       }
     }
-    
     // Re-attach event listeners
     attachForceButtons();
   }
