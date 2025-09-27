@@ -307,6 +307,12 @@ $(document).ready(function() {
       },
       options: {
         responsive: true,
+        layout: {
+          padding: {
+            left: 20,
+            right: 20
+          }
+        },
         scales: {
           x: {
             type: 'time',
