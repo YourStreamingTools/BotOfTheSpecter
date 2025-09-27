@@ -78,7 +78,6 @@ async def channel_point_rewards():
                                     "VALUES (%s, %s, %s)",
                                     (reward_id, reward_title, reward_cost)
                                 )
-                                print(f"Added reward: {reward_title} (Cost: {reward_cost})")
                                 added += 1
                             else:
                                 # Check current values
@@ -92,7 +91,6 @@ async def channel_point_rewards():
                                         "WHERE reward_id = %s",
                                         (reward_title, reward_cost, reward_id)
                                     )
-                                    print(f"Updated reward: {reward_title} (Cost: {reward_cost})")
                                     updated += 1
                         await conn.commit()
                         print(f"Sync completed. Added: {added}, Updated: {updated}")
