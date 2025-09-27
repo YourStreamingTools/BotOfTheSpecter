@@ -505,6 +505,11 @@ return [
     'followers_heading' => 'Vos abonnés :',
     'followers_loading' => 'Chargement des abonnés...',
     'followers_failed' => "Échec du chargement des abonnés.",
+    'total_followers' => 'Followers totaux',
+    'new_followers_today' => 'Nouveaux followers aujourd\'hui',
+    'new_followers_week' => 'Nouveaux followers cette semaine',
+    'new_followers_month' => 'Nouveaux followers ce mois',
+    'new_followers_year' => 'Nouveaux followers cette année',
     // Subscribers Page
     'subscribers_page_title' => 'Données Twitch - Abonnés',
     'subscribers_heading' => 'Vos abonnés :',
