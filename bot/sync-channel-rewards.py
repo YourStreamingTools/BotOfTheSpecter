@@ -81,14 +81,19 @@ async def channel_point_rewards():
                                 print(f"Added reward: {reward_title} (Cost: {reward_cost})")
                                 added += 1
                             else:
-                                # Update existing reward
-                                await cursor.execute(
-                                    "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s "
-                                    "WHERE reward_id = %s",
-                                    (reward_title, reward_cost, reward_id)
-                                )
-                                print(f"Updated reward: {reward_title} (Cost: {reward_cost})")
-                                updated += 1
+                                # Check current values
+                                await cursor.execute("SELECT reward_title, reward_cost FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+                                current = await cursor.fetchone()
+                                current_title, current_cost = current
+                                if current_title != reward_title or current_cost != reward_cost:
+                                    # Update existing reward
+                                    await cursor.execute(
+                                        "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s "
+                                        "WHERE reward_id = %s",
+                                        (reward_title, reward_cost, reward_id)
+                                    )
+                                    print(f"Updated reward: {reward_title} (Cost: {reward_cost})")
+                                    updated += 1
                         await conn.commit()
                         print(f"Sync completed. Added: {added}, Updated: {updated}")
                     else:
