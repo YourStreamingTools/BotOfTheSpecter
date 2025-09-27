@@ -144,7 +144,22 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
     if ($follower['followed_at'] >= $thisMonthStart) $newThisMonth++;
     if ($follower['followed_at'] >= $thisYearStart) $newThisYear++;
   }
-  echo json_encode(["status" => "success", "data" => $updatedFollowers, "metrics" => ["total" => $totalFollowers, "today" => $newToday, "week" => $newThisWeek, "month" => $newThisMonth, "year" => $newThisYear]]);
+  // Calculate chart data for follower growth
+  $followersAsc = array_reverse($updatedFollowers); // Sort by oldest first
+  $chartData = [];
+  $cumulative = 0;
+  $lastDate = null;
+  foreach ($followersAsc as $follower) {
+    $date = date('Y-m-d', strtotime($follower['followed_at']));
+    $cumulative++;
+    if ($date != $lastDate) {
+      $chartData[] = ['x' => $date, 'y' => $cumulative];
+      $lastDate = $date;
+    } else {
+      $chartData[count($chartData) - 1]['y'] = $cumulative;
+    }
+  }
+  echo json_encode(["status" => "success", "data" => $updatedFollowers, "metrics" => ["total" => $totalFollowers, "today" => $newToday, "week" => $newThisWeek, "month" => $newThisMonth, "year" => $newThisYear], "chartData" => $chartData]);
   exit();
 }
 
@@ -179,6 +194,9 @@ ob_start();
           <?php echo t('followers_page_title'); ?>
         </span>
       </header>
+      <div class="mb-4">
+        <canvas id="followerChart" width="400" height="200"></canvas>
+      </div>
       <div class="card-content">
         <div class="content">
           <div class="columns is-multiline mb-4">
@@ -237,6 +255,9 @@ $content = ob_get_clean();
 
 ob_start();
 ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
 function getOrdinal(n) {
   var s=["th","st","nd","rd"],
@@ -256,6 +277,46 @@ function getInitials(name) {
   return name.charAt(0).toUpperCase();
 }
 $(document).ready(function() {
+  let followerChart = null; // To hold the chart instance
+  // Initialize empty chart on page load
+  function initializeChart() {
+    const ctx = document.getElementById('followerChart').getContext('2d');
+    followerChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: 'Follower Growth',
+          data: [],
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          tension: 0.1
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              unit: 'day'
+            }
+          },
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  }
+  // Update chart with data
+  function updateChart(chartData) {
+    if (followerChart) {
+      followerChart.data.datasets[0].data = chartData;
+      followerChart.update('none'); // Update without animation for speed
+    }
+  }
+  // Initialize chart immediately
+  initializeChart();
   // Automatically fetch followers when the page loads
   function fetchNewFollowers() {
     $('#live-data').text("<?php echo t('followers_loading'); ?>");
@@ -267,12 +328,8 @@ $(document).ready(function() {
       dataType: 'json',
       success: function(response) {
         if (response.status === 'success') {
-          // Update metrics
-          $('#total-followers').text(response.metrics.total);
-          $('#new-today').text(response.metrics.today);
-          $('#new-week').text(response.metrics.week);
-          $('#new-month').text(response.metrics.month);
-          $('#new-year').text(response.metrics.year);
+          // Update chart immediately with the data
+          updateChart(response.chartData);
           const totalFollowers = response.data.length;
           let loadedFollowers = 0;
           if (totalFollowers === 0) {
