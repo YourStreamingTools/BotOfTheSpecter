@@ -521,6 +521,7 @@ return [
     'counters_user_counts' => 'User Counts',
     'counters_watch_time' => 'Watch Time',
     'counters_quotes' => 'Quotes',
+    'counters_reward_streaks' => 'Reward Streaks',
     // Counters Table Column Headers
     'counters_time_column' => 'Time',
     'counters_username_column' => 'Username',
@@ -534,6 +535,8 @@ return [
     'counters_offline_watch_time_column' => 'Offline Watch Time',
     'counters_game_column' => 'Game',
     'counters_watch_time_not_recorded' => 'Not Recorded',
+    'counters_reward_column' => 'Reward',
+    'counters_streak_column' => 'Streak',
     // Known Users Page
     'known_users_title' => 'Known Users & Welcome Messages',
     'known_users_loading' => 'Please wait while we load the users and their status... (0/{total})',
