@@ -26,6 +26,7 @@ $musicFiles = getLocalMusicFiles();
 </head>
 <body>
     <audio id="audio-player" preload="auto"></audio>
+    <div id="now-playing"></div>
     <script>
         let socket;
         let currentSong = null;
@@ -44,6 +45,33 @@ $musicFiles = getLocalMusicFiles();
         let shuffle = false;
         let playedHistory = new Set();
         const audioPlayer = document.getElementById('audio-player');
+        const nowPlayingDiv = document.getElementById('now-playing');
+        const urlParams = new URLSearchParams(window.location.search);
+        const showNowPlaying = urlParams.has('nowplaying');
+        const color = urlParams.get('color') || 'white';
+
+        if (showNowPlaying) {
+            nowPlayingDiv.style.display = 'block';
+            nowPlayingDiv.style.position = 'absolute';
+            nowPlayingDiv.style.zIndex = '10000';
+            nowPlayingDiv.style.fontSize = '24px';
+            nowPlayingDiv.style.fontWeight = 'bold';
+            let processedColor = color;
+            if (!color.startsWith('#') && /^[0-9a-fA-F]{3,6}$/.test(color)) {
+                processedColor = '#' + color;
+            }
+            nowPlayingDiv.style.color = processedColor;
+            let textShadow = '2px 2px 4px rgba(0,0,0,0.8)';
+            if (processedColor.toLowerCase() === 'black' || processedColor === '#000000' || processedColor === '#000000') {
+                textShadow = '2px 2px 4px rgba(255,255,255,0.8)';
+            }
+            nowPlayingDiv.style.textShadow = textShadow;
+            nowPlayingDiv.style.top = '50%';
+            nowPlayingDiv.style.left = '50%';
+            nowPlayingDiv.style.transform = 'translate(-50%, -50%)';
+        } else {
+            nowPlayingDiv.style.display = 'none';
+        }
 
         function playSong(url, songData = null) {
             if (!url) return;
@@ -57,6 +85,9 @@ $musicFiles = getLocalMusicFiles();
                         title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' ')
                     };
                     playedHistory.add(songData.file);
+                if (showNowPlaying) {
+                    nowPlayingDiv.innerText = currentSongData.title;
+                }
                 }
                 if (socket && currentSongData && currentSongData.file) {
                     socket.emit('MUSIC_COMMAND', {
@@ -73,6 +104,9 @@ $musicFiles = getLocalMusicFiles();
         function stopSong() {
             audioPlayer.pause();
             audioPlayer.currentTime = 0;
+            if (showNowPlaying) {
+                nowPlayingDiv.innerText = '';
+            }
         }
 
         function playSongByIndex(idx) {
@@ -198,6 +232,9 @@ $musicFiles = getLocalMusicFiles();
                 } else {
                     stopSong();
                     currentSongData = null;
+                    if (showNowPlaying) {
+                        nowPlayingDiv.innerText = '';
+                    }
                 }
             });
 

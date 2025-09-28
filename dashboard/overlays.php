@@ -303,6 +303,10 @@ ob_start();
                     <div class="notification is-family-monospace is-link is-light mt-3 mb-0 has-text-black">
                         https://overlay.botofthespecter.com/music.php?code=API_KEY_HERE
                     </div>
+                    <p class="is-size-7 mt-2 has-text-grey-light">
+                        Add <code>&nowplaying</code> to the URL to display now playing text.<br>
+                        Example: <code>music.php?code=API_KEY_HERE&nowplaying&color=white</code>.<br>
+                        Customize color with <code>&color=white</code>.</p>
                 </div>
             </div>
         </div>
