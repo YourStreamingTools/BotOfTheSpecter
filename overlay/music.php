@@ -86,7 +86,7 @@ $musicFiles = getLocalMusicFiles();
                     };
                     playedHistory.add(songData.file);
                 if (showNowPlaying) {
-                    nowPlayingDiv.innerText = currentSongData.title;
+                    nowPlayingDiv.innerText = 'Now Playing: ' + currentSongData.title;
                 }
                 }
                 if (socket && currentSongData && currentSongData.file) {
