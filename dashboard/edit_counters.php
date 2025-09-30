@@ -1,7 +1,18 @@
 <?php
 session_start();
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
+
+// Check for session-based status messages (e.g., after redirect)
+if (isset($_SESSION['status'])) {
+    $status = $_SESSION['status'];
+    $notification_status = $_SESSION['notification_status'];
+    unset($_SESSION['status']);
+    unset($_SESSION['notification_status']);
+}
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -72,12 +83,6 @@ if ($result = $db->query("SELECT game_name FROM game_deaths")) {
 
 // Fetch total deaths
 $totalDeaths = 0;
-if ($result = $db->query("SELECT death_count FROM total_deaths LIMIT 1")) {
-    if ($row = $result->fetch_assoc()) {
-        $totalDeaths = $row['death_count'];
-    }
-    $result->free();
-}
 
 // Fetch hugs from the hug_counts table
 $hugUsers = [];
@@ -504,6 +509,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     if ($stmt->execute()) {
                         $status = "Death counter for game '{$formGameRemove}' has been removed and total deaths updated.";
                         $notification_status = "is-success";
+                        $_SESSION['status'] = $status;
+                        $_SESSION['notification_status'] = $notification_status;
+                        header('Location: ' . $_SERVER['REQUEST_URI'] . '?t=' . time());
+                        exit;
                     } else {
                         $status = 'Error: ' . $stmt->error;
                         $notification_status = "is-danger";
@@ -609,6 +618,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $notification_status = "is-danger";
             }
             break;
+        case 'remove_quote':
+            $quoteId = $_POST['quote-id-remove'] ?? '';
+            if ($quoteId) {
+                $stmt = $db->prepare("DELETE FROM quotes WHERE id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('i', $quoteId);
+                    if ($stmt->execute()) {
+                        $status = "Quote removed successfully.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = "Error: " . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
+        case 'update_quote':
+            $quoteId = $_POST['quote-id'] ?? '';
+            $quoteText = $_POST['quote-text'] ?? '';
+            $quoteAdded = $_POST['quote-added'] ?? '';
+            if ($quoteId && $quoteText !== '' && $quoteAdded !== '') {
+                $stmt = $db->prepare("UPDATE quotes SET quote = ?, added = ? WHERE id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('ssi', $quoteText, $quoteAdded, $quoteId);
+                    if ($stmt->execute()) {
+                        $status = "Quote updated successfully.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = "Error: " . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
         default:
             $status = "Invalid action.";
             $notification_status = "is-danger";
@@ -712,242 +763,6 @@ if ($result = $db->query("SELECT id, quote, added FROM quotes ORDER BY added DES
     $notification_status = "is-danger";
 }
 
-// Handling form submissions
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $action = $_POST['action'] ?? '';
-    switch ($action) {
-        case 'update': 
-            $formUsername = $_POST['typo-username'] ?? '';
-            $typoCount = $_POST['typo_count'] ?? '';
-            $formCommand = $_POST['command'] ?? '';
-            $commandCount = $_POST['command_count'] ?? '';
-            $formGame = $_POST['death-game'] ?? '';
-            $deathCount = $_POST['death_count'] ?? '';
-            $formHugUser = $_POST['hug-username'] ?? '';
-            $hugCount = $_POST['hug_count'] ?? '';
-            $formKissUser = $_POST['kiss-username'] ?? '';
-            $kissCount = $_POST['kiss_count'] ?? '';
-            $formHighfiveUser = $_POST['highfive-username'] ?? '';
-            $highfiveCount = $_POST['highfive_count'] ?? '';
-            $formUserCountCommand = $_POST['usercount-command'] ?? '';
-            $formUserCountUser = $_POST['usercount-user'] ?? '';
-            $userCountValue = $_POST['usercount_count'] ?? '';
-            // Update typo count
-            if ($formUsername && is_numeric($typoCount)) {
-                $stmt = $db->prepare("UPDATE user_typos SET typo_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $typoCount, $formUsername);
-                    if ($stmt->execute()) {
-                        $status = "Typo count updated successfully for user {$formUsername}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update command count
-            if ($formCommand && is_numeric($commandCount)) {
-                $stmt = $db->prepare("UPDATE custom_counts SET count = ? WHERE command = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $commandCount, $formCommand);
-                    if ($stmt->execute()) {
-                        $status = "Count updated successfully for the command {$formCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update death count and total deaths
-            if ($formGame && is_numeric($deathCount)) {
-                // Get the old count for this game
-                $oldDeathCount = 0;
-                $stmt = $db->prepare("SELECT death_count FROM game_deaths WHERE game_name = ?");
-                if ($stmt) {
-                    $stmt->bind_param('s', $formGame);
-                    $stmt->execute();
-                    $stmt->bind_result($oldDeathCount);
-                    $stmt->fetch();
-                    $stmt->close();
-                }
-                $diff = $deathCount - $oldDeathCount;
-                if ($diff !== 0) {
-                    $stmt = $db->prepare("UPDATE game_deaths SET death_count = ? WHERE game_name = ?");
-                    if ($stmt) {
-                        $stmt->bind_param('is', $deathCount, $formGame);
-                        if ($stmt->execute()) {
-                            $stmt2 = $db->prepare("UPDATE total_deaths SET death_count = death_count + ? LIMIT 1");
-                            if ($stmt2) {
-                                $stmt2->bind_param('i', $diff);
-                                $stmt2->execute();
-                                $stmt2->close();
-                            }
-                            $status = "Death count updated successfully for game {$formGame}.";
-                            $notification_status = "is-success";
-                        } else {
-                            $status = "Error: " . $stmt->error;
-                            $notification_status = "is-danger";
-                        }
-                        $stmt->close();
-                    } else {
-                        $status = "Error: " . $db->error;
-                        $notification_status = "is-danger";
-                    }
-                } else {
-                    $status = "No change in death count for game {$formGame}.";
-                    $notification_status = "is-info";
-                }
-            }
-            // Update hug count
-            if ($formHugUser && is_numeric($hugCount)) {
-                $stmt = $db->prepare("UPDATE hug_counts SET hug_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $hugCount, $formHugUser);
-                    if ($stmt->execute()) {
-                        $status = "Hug count updated successfully for user {$formHugUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update kiss count
-            if ($formKissUser && is_numeric($kissCount)) {
-                $stmt = $db->prepare("UPDATE kiss_counts SET kiss_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $kissCount, $formKissUser);
-                    if ($stmt->execute()) {
-                        $status = "Kiss count updated successfully for user {$formKissUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update high-five count
-            if ($formHighfiveUser && is_numeric($highfiveCount)) {
-                $stmt = $db->prepare("UPDATE highfive_counts SET highfive_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $highfiveCount, $formHighfiveUser);
-                    if ($stmt->execute()) {
-                        $status = "High-five count updated successfully for user {$formHighfiveUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update user count
-            if ($formUserCountCommand && $formUserCountUser && is_numeric($userCountValue)) {
-                $stmt = $db->prepare("UPDATE user_counts SET count = ? WHERE command = ? AND user = ?");
-                if ($stmt) {
-                    $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
-                    if ($stmt->execute()) {
-                        $status = "User count updated successfully for user {$formUserCountUser} and command {$formUserCountCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update reward count
-            if ($formUserCountCommand && $formUserCountUser && is_numeric($userCountValue)) {
-                $stmt = $db->prepare("UPDATE reward_counts SET count = ? WHERE reward_id = ? AND user = ?");
-                if ($stmt) {
-                    $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
-                    if ($stmt->execute()) {
-                        $status = "Reward count updated successfully for user {$formUserCountUser} and reward {$formUserCountCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        case 'remove_quote':
-            $quoteId = $_POST['quote-id-remove'] ?? '';
-            if ($quoteId) {
-                $stmt = $db->prepare("DELETE FROM quotes WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('i', $quoteId);
-                    if ($stmt->execute()) {
-                        $status = "Quote removed successfully.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        case 'update_quote':
-            $quoteId = $_POST['quote-id'] ?? '';
-            $quoteText = $_POST['quote-text'] ?? '';
-            $quoteAdded = $_POST['quote-added'] ?? '';
-            if ($quoteId && $quoteText !== '' && $quoteAdded !== '') {
-                $stmt = $db->prepare("UPDATE quotes SET quote = ?, added = ? WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('ssi', $quoteText, $quoteAdded, $quoteId);
-                    if ($stmt->execute()) {
-                        $status = "Quote updated successfully.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        default:
-            $status = "Invalid action.";
-            $notification_status = "is-danger";
-            break;
-    }
-}
-
 // Fetch usernames and their current typo counts
 $typoData = [];
 if ($result = $db->query("SELECT username, typo_count FROM user_typos")) {
@@ -1042,242 +857,6 @@ if ($result = $db->query("SELECT id, quote, added FROM quotes ORDER BY added DES
 } else {
     $status = "Error fetching quotes: " . $db->error;
     $notification_status = "is-danger";
-}
-
-// Handling form submissions
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $action = $_POST['action'] ?? '';
-    switch ($action) {
-        case 'update': 
-            $formUsername = $_POST['typo-username'] ?? '';
-            $typoCount = $_POST['typo_count'] ?? '';
-            $formCommand = $_POST['command'] ?? '';
-            $commandCount = $_POST['command_count'] ?? '';
-            $formGame = $_POST['death-game'] ?? '';
-            $deathCount = $_POST['death_count'] ?? '';
-            $formHugUser = $_POST['hug-username'] ?? '';
-            $hugCount = $_POST['hug_count'] ?? '';
-            $formKissUser = $_POST['kiss-username'] ?? '';
-            $kissCount = $_POST['kiss_count'] ?? '';
-            $formHighfiveUser = $_POST['highfive-username'] ?? '';
-            $highfiveCount = $_POST['highfive_count'] ?? '';
-            $formUserCountCommand = $_POST['usercount-command'] ?? '';
-            $formUserCountUser = $_POST['usercount-user'] ?? '';
-            $userCountValue = $_POST['usercount_count'] ?? '';
-            // Update typo count
-            if ($formUsername && is_numeric($typoCount)) {
-                $stmt = $db->prepare("UPDATE user_typos SET typo_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $typoCount, $formUsername);
-                    if ($stmt->execute()) {
-                        $status = "Typo count updated successfully for user {$formUsername}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update command count
-            if ($formCommand && is_numeric($commandCount)) {
-                $stmt = $db->prepare("UPDATE custom_counts SET count = ? WHERE command = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $commandCount, $formCommand);
-                    if ($stmt->execute()) {
-                        $status = "Count updated successfully for the command {$formCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update death count and total deaths
-            if ($formGame && is_numeric($deathCount)) {
-                // Get the old count for this game
-                $oldDeathCount = 0;
-                $stmt = $db->prepare("SELECT death_count FROM game_deaths WHERE game_name = ?");
-                if ($stmt) {
-                    $stmt->bind_param('s', $formGame);
-                    $stmt->execute();
-                    $stmt->bind_result($oldDeathCount);
-                    $stmt->fetch();
-                    $stmt->close();
-                }
-                $diff = $deathCount - $oldDeathCount;
-                if ($diff !== 0) {
-                    $stmt = $db->prepare("UPDATE game_deaths SET death_count = ? WHERE game_name = ?");
-                    if ($stmt) {
-                        $stmt->bind_param('is', $deathCount, $formGame);
-                        if ($stmt->execute()) {
-                            $stmt2 = $db->prepare("UPDATE total_deaths SET death_count = death_count + ? LIMIT 1");
-                            if ($stmt2) {
-                                $stmt2->bind_param('i', $diff);
-                                $stmt2->execute();
-                                $stmt2->close();
-                            }
-                            $status = "Death count updated successfully for game {$formGame}.";
-                            $notification_status = "is-success";
-                        } else {
-                            $status = "Error: " . $stmt->error;
-                            $notification_status = "is-danger";
-                        }
-                        $stmt->close();
-                    } else {
-                        $status = "Error: " . $db->error;
-                        $notification_status = "is-danger";
-                    }
-                } else {
-                    $status = "No change in death count for game {$formGame}.";
-                    $notification_status = "is-info";
-                }
-            }
-            // Update hug count
-            if ($formHugUser && is_numeric($hugCount)) {
-                $stmt = $db->prepare("UPDATE hug_counts SET hug_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $hugCount, $formHugUser);
-                    if ($stmt->execute()) {
-                        $status = "Hug count updated successfully for user {$formHugUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update kiss count
-            if ($formKissUser && is_numeric($kissCount)) {
-                $stmt = $db->prepare("UPDATE kiss_counts SET kiss_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $kissCount, $formKissUser);
-                    if ($stmt->execute()) {
-                        $status = "Kiss count updated successfully for user {$formKissUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update high-five count
-            if ($formHighfiveUser && is_numeric($highfiveCount)) {
-                $stmt = $db->prepare("UPDATE highfive_counts SET highfive_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $highfiveCount, $formHighfiveUser);
-                    if ($stmt->execute()) {
-                        $status = "High-five count updated successfully for user {$formHighfiveUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update user count
-            if ($formUserCountCommand && $formUserCountUser && is_numeric($userCountValue)) {
-                $stmt = $db->prepare("UPDATE user_counts SET count = ? WHERE command = ? AND user = ?");
-                if ($stmt) {
-                    $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
-                    if ($stmt->execute()) {
-                        $status = "User count updated successfully for user {$formUserCountUser} and command {$formUserCountCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update reward count
-            if ($formUserCountCommand && $formUserCountUser && is_numeric($userCountValue)) {
-                $stmt = $db->prepare("UPDATE reward_counts SET count = ? WHERE reward_id = ? AND user = ?");
-                if ($stmt) {
-                    $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
-                    if ($stmt->execute()) {
-                        $status = "Reward count updated successfully for user {$formUserCountUser} and reward {$formUserCountCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        case 'remove_quote':
-            $quoteId = $_POST['quote-id-remove'] ?? '';
-            if ($quoteId) {
-                $stmt = $db->prepare("DELETE FROM quotes WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('i', $quoteId);
-                    if ($stmt->execute()) {
-                        $status = "Quote removed successfully.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        case 'update_quote':
-            $quoteId = $_POST['quote-id'] ?? '';
-            $quoteText = $_POST['quote-text'] ?? '';
-            $quoteAdded = $_POST['quote-added'] ?? '';
-            if ($quoteId && $quoteText !== '' && $quoteAdded !== '') {
-                $stmt = $db->prepare("UPDATE quotes SET quote = ?, added = ? WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('ssi', $quoteText, $quoteAdded, $quoteId);
-                    if ($stmt->execute()) {
-                        $status = "Quote updated successfully.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        default:
-            $status = "Invalid action.";
-            $notification_status = "is-danger";
-            break;
-    }
 }
 
 // Fetch usernames and their current typo counts
@@ -1534,7 +1113,7 @@ ob_start();
                 </span>
             </header>
             <div class="card-content">
-                <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+                <?php if (isset($status) && !empty($status)): ?>
                     <div class="notification <?php echo $notification_status; ?>"><?php echo $status; ?></div>
                 <?php endif; ?>
                 <!-- Tab Buttons -->
@@ -1689,7 +1268,7 @@ ob_start();
                     <div class="mb-4">
                         <div class="notification is-info has-text-centered" style="font-size:1.2em;">
                             <strong><?php echo t('edit_counters_total_deaths'); ?>:</strong>
-                            <span class="has-text-weight-bold has-text-danger"><?php echo (int)$totalDeaths; ?></span>
+                            <span class="has-text-weight-bold has-text-danger" id="total-deaths"><?php echo (int)$totalDeaths; ?></span>
                         </div>
                     </div>
                     <div class="columns is-desktop is-multiline">
@@ -1703,7 +1282,7 @@ ob_start();
                                         <label class="label" for="death-game"><?php echo t('edit_counters_game_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="death-game" name="death-game" required onchange="updateCurrentCount('death', this.value); enableButton('death-game','death-edit-btn');">
+                                                <select id="death-game" name="death-game" required>
                                                     <option value=""><?php echo t('edit_counters_select_game'); ?></option>
                                                     <?php foreach ($games as $game): ?>
                                                         <option title="<?php echo htmlspecialchars($game); ?>" value="<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($game); ?></option>
@@ -1971,7 +1550,7 @@ ob_start();
                                         <label class="label" for="usercount-command"><?php echo t('edit_counters_command_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="usercount-command" name="usercount-command" required onchange="populateUserCountUsers(); enableUserCountEditBtn();">
+                                                <select id="usercount-command" name="usercount-command" required>
                                                     <option value=""><?php echo t('edit_counters_select_command'); ?></option>
                                                     <?php foreach ($userCountCommands as $command): ?>
                                                         <option title="<?php echo htmlspecialchars($command); ?>" value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
@@ -1984,7 +1563,7 @@ ob_start();
                                         <label class="label" for="usercount-user"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="usercount-user" name="usercount-user" required onchange="enableUserCountEditBtn();">
+                                                <select id="usercount-user" name="usercount-user" required>
                                                     <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <!-- Options will be populated by JS -->
                                                 </select>
@@ -1994,7 +1573,7 @@ ob_start();
                                     <div class="field">
                                         <label class="label" for="usercount_count"><?php echo t('edit_counters_new_usercount_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="usercount_count" name="usercount_count" value="" required min="0" oninput="enableUserCountEditBtn();">
+                                            <input class="input" type="number" id="usercount_count" name="usercount_count" value="" required min="0">
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
@@ -2059,7 +1638,7 @@ ob_start();
                                         <label class="label" for="rewardcount-reward"><?php echo t('edit_counters_reward_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="rewardcount-reward" name="rewardcount-reward" required onchange="populateRewardCountUsers(); enableRewardCountEditBtn();">
+                                                <select id="rewardcount-reward" name="rewardcount-reward" required>
                                                     <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
                                                     <?php foreach ($rewardIds as $rid): ?>
                                                         <option value="<?php echo htmlspecialchars($rid); ?>" title="<?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>">
@@ -2074,7 +1653,7 @@ ob_start();
                                         <label class="label" for="rewardcount-user"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="rewardcount-user" name="rewardcount-user" required onchange="enableRewardCountEditBtn();">
+                                                <select id="rewardcount-user" name="rewardcount-user" required>
                                                     <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                 </select>
                                             </div>
@@ -2247,6 +1826,18 @@ function populateQuotePreview() {
     textarea.value = selectedOption.dataset.quote || '';
 }
 
+// Enable/disable button based on select value
+function enableButton(selectId, buttonId) {
+    var select = document.getElementById(selectId);
+    var button = document.getElementById(buttonId);
+    if (select && button) {
+        button.disabled = !select.value;
+        select.addEventListener('change', function() {
+            button.disabled = !select.value;
+        });
+    }
+}
+
 // Tab system like counters.php
 function showTab(type) {
     // Hide all tab contents
@@ -2278,7 +1869,7 @@ document.addEventListener('DOMContentLoaded', function() {
     enableButton('typo-username-remove', 'typo-remove-btn');
     enableButton('command', 'command-edit-btn');
     enableButton('command-remove', 'command-remove-btn');
-    enableButton('death-game', 'death-edit-btn');
+    enableDeathEditBtn();
     enableButton('death-game-remove', 'death-remove-btn');
     enableButton('hug-username', 'hug-edit-btn');
     enableButton('hug-username-remove', 'hug-remove-btn');
@@ -2384,6 +1975,10 @@ const userCountCounts = <?php
 const rewardCounts = <?php echo json_encode($rewardCountsJs); ?>;
 const rewardTitles = <?php echo json_encode($rewardTitlesJs); ?>;
 
+// Calculate and display total deaths
+const totalDeaths = Object.values(deathCounts).reduce((sum, count) => sum + parseInt(count || 0), 0);
+document.getElementById('total-deaths').textContent = totalDeaths;
+
 // Populate user dropdown for reward counts (edit)
 function populateRewardCountUsers() {
     var rid = document.getElementById('rewardcount-reward').value;
@@ -2421,8 +2016,11 @@ function populateRewardCountUsersRemove() {
 function enableRewardCountEditBtn() {
     var rid = document.getElementById('rewardcount-reward').value;
     var user = document.getElementById('rewardcount-user').value;
+    var countInput = document.getElementById('rewardcount_count');
+    var currentCount = parseInt(countInput.value) || 0;
+    var originalCount = (rewardCounts[rid] && rewardCounts[rid][user]) ? rewardCounts[rid][user] : 0;
     var btn = document.getElementById('rewardcount-edit-btn');
-    btn.disabled = !(rid && user);
+    btn.disabled = !(rid && user && currentCount !== originalCount);
     updateCurrentCount('rewardcount');
 }
 
@@ -2432,6 +2030,35 @@ function enableRewardCountRemoveBtn() {
     var user = document.getElementById('rewardcount-user-remove').value;
     var btn = document.getElementById('rewardcount-remove-btn');
     btn.disabled = !(rid && user);
+}
+
+// Enable/disable edit button for death counts
+function enableDeathEditBtn() {
+    var game = document.getElementById('death-game').value;
+    var countInput = document.getElementById('death_count');
+    var currentCount = parseInt(countInput.value) || 0;
+    var originalCount = deathCounts[game] || 0;
+    var btn = document.getElementById('death-edit-btn');
+    btn.disabled = !(game && currentCount !== originalCount);
+}
+
+// Enable/disable edit button for user counts
+function enableUserCountEditBtn() {
+    var cmd = document.getElementById('usercount-command').value;
+    var user = document.getElementById('usercount-user').value;
+    var countInput = document.getElementById('usercount_count');
+    var currentCount = parseInt(countInput.value) || 0;
+    var originalCount = (userCountCounts[cmd] && userCountCounts[cmd][user]) ? userCountCounts[cmd][user] : 0;
+    var btn = document.getElementById('usercount-edit-btn');
+    btn.disabled = !(cmd && user && currentCount !== originalCount);
+}
+
+// Enable/disable remove button for user counts
+function enableUserCountRemoveBtn() {
+    var cmd = document.getElementById('usercount-command-remove').value;
+    var user = document.getElementById('usercount-user-remove').value;
+    var btn = document.getElementById('usercount-remove-btn');
+    btn.disabled = !(cmd && user);
 }
 
 // Update input field for reward count
@@ -2482,6 +2109,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (usercountCmd) {
         usercountCmd.addEventListener('change', function() {
             populateUserCountUsers();
+            enableUserCountEditBtn();
         });
     }
     var usercountCmdRemove = document.getElementById('usercount-command-remove');
@@ -2508,6 +2136,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (rewardcountReward) {
         rewardcountReward.addEventListener('change', function() {
             populateRewardCountUsers();
+            enableRewardCountEditBtn();
         });
     }
     var rewardcountRewardRemove = document.getElementById('rewardcount-reward-remove');
@@ -2528,6 +2157,19 @@ document.addEventListener('DOMContentLoaded', function() {
             enableRewardCountRemoveBtn();
         });
     }
+    // Wire up input listeners for count changes
+    var usercountCountInput = document.getElementById('usercount_count');
+    if (usercountCountInput) {
+        usercountCountInput.addEventListener('input', function() {
+            enableUserCountEditBtn();
+        });
+    }
+    var rewardcountCountInput = document.getElementById('rewardcount_count');
+    if (rewardcountCountInput) {
+        rewardcountCountInput.addEventListener('input', function() {
+            enableRewardCountEditBtn();
+        });
+    }
     // Wire up quote edit form
     var quoteEditSelect = document.getElementById('quote-id');
     if (quoteEditSelect) {
@@ -2541,6 +2183,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (quoteRemoveSelect && quoteRemoveBtn) {
         quoteRemoveSelect.addEventListener('change', function() {
             quoteRemoveBtn.disabled = !quoteRemoveSelect.value;
+        });
+    }
+    // Wire up death count form
+    var deathGameSelect = document.getElementById('death-game');
+    if (deathGameSelect) {
+        deathGameSelect.addEventListener('change', function() {
+            updateCurrentCount('death', this.value);
+            enableDeathEditBtn();
+        });
+    }
+    var deathCountInput = document.getElementById('death_count');
+    if (deathCountInput) {
+        deathCountInput.addEventListener('input', function() {
+            enableDeathEditBtn();
         });
     }
 });
