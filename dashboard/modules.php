@@ -30,8 +30,11 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+// Check for cookie consent
+$cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
+
 // Get active tab from URL parameter or default to first tab
-$activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
+$activeTab = isset($_GET['tab']) ? $_GET['tab'] : ($cookieConsent && isset($_COOKIE['preferred_tab']) ? $_COOKIE['preferred_tab'] : 'joke-blacklist');
 
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
 if ($db->connect_error) {
@@ -75,82 +78,74 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['toggle_joke_command'])
 }
 
 // Load welcome message settings from the database before rendering the form
-if ($activeTab == 'welcome-messages') {
-    // Use explicit column selection and correct order for binding
-    $stmt = $db->prepare("SELECT 
-        new_default_welcome_message,
-        default_welcome_message,
-        new_default_vip_welcome_message,
-        default_vip_welcome_message,
-        new_default_mod_welcome_message,
-        default_mod_welcome_message,
-        send_welcome_messages
-        FROM streamer_preferences
-        LIMIT 1");
-    $stmt->execute();
-    $stmt->bind_result(
-        $new_default_welcome_message,
-        $default_welcome_message,
-        $new_default_vip_welcome_message,
-        $default_vip_welcome_message,
-        $new_default_mod_welcome_message,
-        $default_mod_welcome_message,
-        $send_welcome_messages
-    );
-    $stmt->fetch();
-    $stmt->close();
-}
+// Use explicit column selection and correct order for binding
+$stmt = $db->prepare("SELECT 
+    new_default_welcome_message,
+    default_welcome_message,
+    new_default_vip_welcome_message,
+    default_vip_welcome_message,
+    new_default_mod_welcome_message,
+    default_mod_welcome_message,
+    send_welcome_messages
+    FROM streamer_preferences
+    LIMIT 1");
+$stmt->execute();
+$stmt->bind_result(
+    $new_default_welcome_message,
+    $default_welcome_message,
+    $new_default_vip_welcome_message,
+    $default_vip_welcome_message,
+    $new_default_mod_welcome_message,
+    $default_mod_welcome_message,
+    $send_welcome_messages
+);
+$stmt->fetch();
+$stmt->close();
 
 // Load ad notice settings from the database before rendering the form
-if ($activeTab == 'ad-notices') {
-    $stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice FROM ad_notice_settings LIMIT 1");
-    $stmt->execute();
-    $stmt->bind_result(
-        $ad_upcoming_message,
-        $ad_start_message,
-        $ad_end_message,
-        $ad_snoozed_message,
-        $enable_ad_notice
-    );
-    $stmt->fetch();
-    $stmt->close();
-}
+$stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice FROM ad_notice_settings LIMIT 1");
+$stmt->execute();
+$stmt->bind_result(
+    $ad_upcoming_message,
+    $ad_start_message,
+    $ad_end_message,
+    $ad_snoozed_message,
+    $enable_ad_notice
+);
+$stmt->fetch();
+$stmt->close();
 
 // Load Twitch audio alerts settings from the database before rendering the form
-if ($activeTab == 'twitch-audio-alerts') {
-    $twitchSoundAlertMappings = [];
-    // Use the correct upload path for Twitch sound alerts
-    $twitch_sound_alert_path = "/var/www/soundalerts/$username/twitch";
-    // Load mappings: file => event
-    $stmt = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
-    $stmt->execute();
-    $stmt->bind_result($file_name, $twitch_event);
-    while ($stmt->fetch()) {
-        $twitchSoundAlertMappings[$file_name] = $twitch_event;
-    }
-    $stmt->close();
+$twitchSoundAlertMappings = [];
+// Use the correct upload path for Twitch sound alerts
+$twitch_sound_alert_path = "/var/www/soundalerts/$username/twitch";
+// Load mappings: file => event
+$stmt = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
+$stmt->execute();
+$stmt->bind_result($file_name, $twitch_event);
+while ($stmt->fetch()) {
+    $twitchSoundAlertMappings[$file_name] = $twitch_event;
 }
+$stmt->close();
 
 // Load Twitch chat alerts settings from the database before rendering the form
-if ($activeTab == 'twitch-chat-alerts') {
-    $chat_alerts = [];
-    $default_chat_alerts = [
-        'follower_alert' => '',
-        'cheer_alert' => '',
-        'raid_alert' => '',
-        'subscription_alert' => '',
-        'gift_subscription_alert' => '',
-        'hype_train_start' => '',
-        'hype_train_end' => ''
-    ];
-    $stmt = $db->prepare("SELECT alert_type, alert_message FROM twitch_chat_alerts");
-    $stmt->execute();
-    $stmt->bind_result($alert_type, $alert_message);
-    while ($stmt->fetch()) {
-        $chat_alerts[$alert_type] = $alert_message;
-    }
-    $stmt->close();
+$chat_alerts = [];
+$default_chat_alerts = [
+    'follower_alert' => '',
+    'cheer_alert' => '',
+    'raid_alert' => '',
+    'subscription_alert' => '',
+    'gift_subscription_alert' => '',
+    'hype_train_start' => '',
+    'hype_train_end' => ''
+];
+$stmt = $db->prepare("SELECT alert_type, alert_message FROM twitch_chat_alerts");
+$stmt->execute();
+$stmt->bind_result($alert_type, $alert_message);
+while ($stmt->fetch()) {
+    $chat_alerts[$alert_type] = $alert_message;
 }
+$stmt->close();
 
 // Start output buffering for layout
 ob_start();
@@ -169,50 +164,40 @@ ob_start();
                     <div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div>
                 <?php endif; ?>
                 <!-- Tabs Navigation -->
-                <div class="tabs is-boxed is-medium is-centered mb-4" style="overflow-x: auto;">
-                    <ul>
-                        <li class="tab <?php echo $activeTab == 'joke-blacklist' ? 'is-active' : ''; ?>">
-                            <a href="?tab=joke-blacklist">
-                                <span class="icon"><i class="fas fa-ban"></i></span>
-                                <span><?php echo t('modules_tab_joke_blacklist'); ?></span>
-                            </a>
-                        </li>
-                        <li class="tab <?php echo $activeTab == 'welcome-messages' ? 'is-active' : ''; ?>">
-                            <a href="?tab=welcome-messages">
-                                <span class="icon"><i class="fas fa-hand-sparkles"></i></span>
-                                <span><?php echo t('modules_tab_welcome_messages'); ?></span>
-                            </a>
-                        </li>
-                        <li class="tab <?php echo $activeTab == 'chat-protection' ? 'is-active' : ''; ?>">
-                            <a href="?tab=chat-protection">
-                                <span class="icon"><i class="fas fa-shield-alt"></i></span>
-                                <span><?php echo t('modules_tab_chat_protection'); ?></span>
-                            </a>
-                        </li>
-                        <li class="tab <?php echo $activeTab == 'ad-notices' ? 'is-active' : ''; ?>">
-                            <a href="?tab=ad-notices">
-                                <span class="icon"><i class="fas fa-bullhorn"></i></span>
-                                <span><?php echo t('modules_tab_ad_notices'); ?></span>
-                            </a>
-                        </li>
-                        <li class="tab <?php echo $activeTab == 'twitch-audio-alerts' ? 'is-active' : ''; ?>">
-                            <a href="?tab=twitch-audio-alerts">
-                                <span class="icon"><i class="fas fa-volume-up"></i></span>
-                                <span><?php echo t('modules_tab_twitch_event_alerts'); ?></span>
-                            </a>
-                        </li>
-                        <li class="tab <?php echo $activeTab == 'twitch-chat-alerts' ? 'is-active' : ''; ?>">
-                            <a href="?tab=twitch-chat-alerts">
-                                <span class="icon"><i class="fas fa-comment-dots"></i></span>
-                                <span><?php echo t('modules_tab_twitch_chat_alerts'); ?></span>
-                            </a>
-                        </li>
-                    </ul>
+                <div class="buttons is-centered mb-4 pb-4">
+                    <button class="button is-info" onclick="loadTab('joke-blacklist')">
+                        <span class="icon"><i class="fas fa-ban"></i></span>
+                        <span><?php echo t('modules_tab_joke_blacklist'); ?></span>
+                    </button>
+                    <button class="button is-info" onclick="loadTab('welcome-messages')">
+                        <span class="icon"><i class="fas fa-hand-sparkles"></i></span>
+                        <span><?php echo t('modules_tab_welcome_messages'); ?></span>
+                    </button>
+                    <button class="button is-info" onclick="loadTab('chat-protection')">
+                        <span class="icon"><i class="fas fa-shield-alt"></i></span>
+                        <span><?php echo t('modules_tab_chat_protection'); ?></span>
+                    </button>
+                    <button class="button is-info" onclick="loadTab('game-deaths')">
+                        <span class="icon"><i class="fas fa-skull-crossbones"></i></span>
+                        <span>Game Deaths</span>
+                    </button>
+                    <button class="button is-info" onclick="loadTab('ad-notices')">
+                        <span class="icon"><i class="fas fa-bullhorn"></i></span>
+                        <span><?php echo t('modules_tab_ad_notices'); ?></span>
+                    </button>
+                    <button class="button is-info" onclick="loadTab('twitch-audio-alerts')">
+                        <span class="icon"><i class="fas fa-volume-up"></i></span>
+                        <span><?php echo t('modules_tab_twitch_event_alerts'); ?></span>
+                    </button>
+                    <button class="button is-info" onclick="loadTab('twitch-chat-alerts')">
+                        <span class="icon"><i class="fas fa-comment-dots"></i></span>
+                        <span><?php echo t('modules_tab_twitch_chat_alerts'); ?></span>
+                    </button>
                 </div>
+                <style>.tab-content { display: none; }</style>
                 <!-- Tab Contents -->
                 <div class="content">
-                    <?php if ($activeTab == 'joke-blacklist' || empty($activeTab)): ?>
-                        <div class="tab-content is-active" id="joke-blacklist">
+                    <div class="tab-content" id="joke-blacklist">
                             <div class="module-container">
                                 <div class="columns is-vcentered mb-4">
                                     <div class="column">
@@ -296,8 +281,7 @@ ob_start();
                             </form>
                         </div>
                     </div>
-<?php elseif ($activeTab == 'welcome-messages'): ?>
-    <div class="tab-content is-active" id="welcome-messages">
+    <div class="tab-content" id="welcome-messages">
         <div class="module-container">
             <!-- Variables Information Card -->
             <div class="columns is-desktop is-multiline is-centered mb-5">
@@ -526,8 +510,7 @@ ob_start();
             </div>
         </div>
     </div>
-<?php elseif ($activeTab == 'chat-protection'): ?>
-    <div class="tab-content is-active" id="chat-protection">
+    <div class="tab-content" id="chat-protection">
         <div class="module-container">
             <!-- Chat Protection Configuration -->
             <div class="columns is-desktop is-multiline is-centered">
@@ -538,9 +521,28 @@ ob_start();
         </div>
     <br>
     </div>
-<!-- Ad Notices -->
-<?php elseif ($activeTab == 'ad-notices'): ?>
-    <div class="tab-content is-active" id="ad-notices">
+    <div class="tab-content" id="game-deaths">
+        <div class="module-container">
+            <!-- Game Deaths Configuration -->
+            <div class="columns is-desktop is-multiline is-centered">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                            <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                                <span class="icon mr-2"><i class="fas fa-skull-crossbones"></i></span>
+                                Game Deaths Module
+                            </span>
+                        </header>
+                        <div class="card-content">
+                            <p>Game Deaths configuration will be added here.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Ad Notices -->
+    <div class="tab-content" id="ad-notices">
         <div class="module-container">
             <div class="columns is-desktop is-multiline is-centered">
                 <div class="column is-fullwidth" style="max-width: 1200px;">
@@ -726,9 +728,8 @@ ob_start();
             </div>
         </div>
     </div>
-<!-- Twitch Event Alerts -->
-<?php elseif ($activeTab == 'twitch-audio-alerts'): ?>
-    <div class="tab-content is-active" id="twitch-audio-alerts">
+    <!-- Twitch Event Alerts -->
+    <div class="tab-content" id="twitch-audio-alerts">
         <div class="module-container">
             <div class="columns is-desktop is-multiline is-centered">
                 <div class="column is-fullwidth" style="max-width: 1200px;">
@@ -905,9 +906,8 @@ ob_start();
             </footer>
         </div>
     </div>
-<!-- Twitch Chat Alerts -->
-<?php elseif ($activeTab == 'twitch-chat-alerts'): ?>
-    <div class="tab-content is-active" id="twitch-chat-alerts">
+    <!-- Twitch Chat Alerts -->
+    <div class="tab-content" id="twitch-chat-alerts">
         <div class="module-container">
             <div class="columns is-desktop is-multiline is-centered">
                 <div class="column is-fullwidth" style="max-width: 1200px;">
@@ -1221,7 +1221,6 @@ ob_start();
             </div>
         </div>
     </div>
-<?php endif; ?>
 </div>
 <?php
 $content = ob_get_clean();
@@ -1230,12 +1229,6 @@ ob_start();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Handle tab navigation
-    document.querySelectorAll('.tab a').forEach(function(tabLink) {
-        tabLink.addEventListener('click', function(e) {
-            // Let the default link behavior handle navigation
-        });
-    });
     // File upload handling
     let dropArea = document.getElementById('drag-area');
     let fileInput = document.getElementById('filesToUpload');
@@ -1636,6 +1629,49 @@ function sendStreamEvent(eventType, fileName) {
     };
     xhr.send(params);
 }
+
+// Function to set a cookie
+function setCookie(name, value, days) {
+    const d = new Date();
+    d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+    const expires = "expires=" + d.toUTCString();
+    document.cookie = name + "=" + value + ";" + expires + ";path=/";
+}
+
+// Function to load a tab
+function loadTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(function(tab) {
+        tab.style.display = 'none';
+    });
+    // Show the selected tab
+    const activeTab = document.getElementById(tabName);
+    if (activeTab) {
+        activeTab.style.display = 'block';
+    }
+    // Update button states
+    document.querySelectorAll('.buttons .button').forEach(function(button) {
+        if (button.getAttribute('onclick') === "loadTab('" + tabName + "')") {
+            button.classList.remove('is-info');
+            button.classList.add('is-primary');
+        } else {
+            button.classList.remove('is-primary');
+            button.classList.add('is-info');
+        }
+    });
+    // Set cookie if consent given
+    if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
+        setCookie('preferred_tab', tabName, 30);
+    }
+}
+
+// Initialize tabs on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set initial active tab
+    const initialTab = '<?php echo $activeTab; ?>';
+    loadTab(initialTab);
+    // ... existing code ...
+});
 </script>
 <?php
 $scripts = ob_get_clean();
