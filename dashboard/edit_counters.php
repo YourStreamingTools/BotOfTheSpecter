@@ -127,10 +127,12 @@ if ($result = $db->query("SELECT username FROM highfive_counts")) {
 // Fetch user counts from the user_counts table
 $userCountCommands = [];
 $userCountUsersByCommand = [];
-if ($result = $db->query("SELECT command, user FROM user_counts")) {
+$userCountArr = [];
+if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
     while ($row = $result->fetch_assoc()) {
         $cmd = $row['command'];
         $user = $row['user'];
+        $count = $row['count'];
         if (!in_array($cmd, $userCountCommands, true)) {
             $userCountCommands[] = $cmd;
         }
@@ -138,6 +140,10 @@ if ($result = $db->query("SELECT command, user FROM user_counts")) {
             $userCountUsersByCommand[$cmd] = [];
         }
         $userCountUsersByCommand[$cmd][] = $user;
+        if (!isset($userCountArr[$cmd])) {
+            $userCountArr[$cmd] = [];
+        }
+        $userCountArr[$cmd][$user] = $count;
     }
     $result->free();
 }
@@ -267,16 +273,6 @@ if ($result = $db->query("SELECT username, highfive_count FROM highfive_counts")
     $result->free();
 } else {
     $status = "Error fetching high-five data: " . $db->error;
-    $notification_status = "is-danger";
-}
-
-if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $userCountData[] = $row;
-    }
-    $result->free();
-} else {
-    $status = "Error fetching user count data: " . $db->error;
     $notification_status = "is-danger";
 }
 
@@ -886,18 +882,6 @@ if ($result = $db->query("SELECT username, highfive_count FROM highfive_counts")
     $notification_status = "is-danger";
 }
 
-// Fetch user counts and their current values
-$userCountData = [];
-if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $userCountData[] = $row;
-    }
-    $result->free();
-} else {
-    $status = "Error fetching user count data: " . $db->error;
-    $notification_status = "is-danger";
-}
-
 // Fetch quotes from the quotes table (with id for edit/remove)
 $quotesData = [];
 if ($result = $db->query("SELECT id, quote, added FROM quotes ORDER BY added DESC")) {
@@ -982,18 +966,6 @@ if ($result = $db->query("SELECT username, highfive_count FROM highfive_counts")
     $notification_status = "is-danger";
 }
 
-// Fetch user counts and their current values
-$userCountData = [];
-if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $userCountData[] = $row;
-    }
-    $result->free();
-} else {
-    $status = "Error fetching user count data: " . $db->error;
-    $notification_status = "is-danger";
-}
-
 // Fetch quotes from the quotes table
 $quotesData = [];
 if ($result = $db->query("SELECT id, quote, added FROM quotes ORDER BY added DESC")) {
@@ -1075,18 +1047,6 @@ if ($result = $db->query("SELECT username, highfive_count FROM highfive_counts")
     $result->free();
 } else {
     $status = "Error fetching high-five data: " . $db->error;
-    $notification_status = "is-danger";
-}
-
-// Fetch user counts and their current values
-$userCountData = [];
-if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $userCountData[] = $row;
-    }
-    $result->free();
-} else {
-    $status = "Error fetching user count data: " . $db->error;
     $notification_status = "is-danger";
 }
 
@@ -1726,7 +1686,7 @@ ob_start();
                                         <label class="label" for="usercount-command"><?php echo t('edit_counters_command_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="usercount-command" name="usercount-command" required>
+                                                <select id="usercount-command" name="usercount-command" required onchange="populateUserCountUsers(); enableUserCountEditBtn();">
                                                     <option value=""><?php echo t('edit_counters_select_command'); ?></option>
                                                     <?php foreach ($userCountCommands as $command): ?>
                                                         <option title="<?php echo htmlspecialchars($command); ?>" value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
@@ -1739,7 +1699,7 @@ ob_start();
                                         <label class="label" for="usercount-user"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="usercount-user" name="usercount-user" required>
+                                                <select id="usercount-user" name="usercount-user" required onchange="enableUserCountEditBtn();">
                                                     <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <!-- Options will be populated by JS -->
                                                 </select>
@@ -1749,7 +1709,7 @@ ob_start();
                                     <div class="field">
                                         <label class="label" for="usercount_count"><?php echo t('edit_counters_new_usercount_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="usercount_count" name="usercount_count" value="" required min="0">
+                                            <input class="input" type="number" id="usercount_count" name="usercount_count" value="" required min="0" oninput="enableUserCountEditBtn();">
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
@@ -2294,13 +2254,7 @@ const deathCounts = <?php echo json_encode(array_column($deathData, 'death_count
 const hugCounts = <?php echo json_encode(array_column($hugData, 'hug_count', 'username')); ?>;
 const kissCounts = <?php echo json_encode(array_column($kissData, 'kiss_count', 'username')); ?>;
 const highfiveCounts = <?php echo json_encode(array_column($highfiveData, 'highfive_count', 'username')); ?>;
-const userCountCounts = <?php
-    $userCountArr = [];
-    foreach ($userCountData as $row) {
-        $userCountArr[$row['command']][$row['user']] = $row['count'];
-    }
-    echo json_encode($userCountArr);
-?>;
+const userCountCounts = <?php echo json_encode($userCountArr); ?>;
 const rewardCounts = <?php echo json_encode($rewardCountsJs); ?>;
 const rewardTitles = <?php echo json_encode($rewardTitlesJs); ?>;
 
@@ -2311,6 +2265,50 @@ const rewardUsage = <?php echo json_encode($rewardUsageJs); ?>;
 // Calculate and display total deaths
 const totalDeaths = Object.values(deathCounts).reduce((sum, count) => sum + parseInt(count || 0), 0);
 document.getElementById('total-deaths').textContent = totalDeaths;
+
+// Populate user dropdown for user counts (edit)
+function populateUserCountUsers() {
+    var cmd = document.getElementById('usercount-command').value;
+    var userSelect = document.getElementById('usercount-user');
+    userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
+    if (cmd && userCountCounts[cmd]) {
+        Object.keys(userCountCounts[cmd]).forEach(function(user) {
+            var opt = document.createElement('option');
+            opt.value = user;
+            opt.textContent = user;
+            userSelect.appendChild(opt);
+        });
+    }
+    document.getElementById('usercount_count').value = '';
+    enableUserCountEditBtn();
+}
+
+// Populate user dropdown for user counts (remove)
+function populateUserCountUsersRemove() {
+    var cmd = document.getElementById('usercount-command-remove').value;
+    var userSelect = document.getElementById('usercount-user-remove');
+    userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
+    if (cmd && userCountCounts[cmd]) {
+        Object.keys(userCountCounts[cmd]).forEach(function(user) {
+            var opt = document.createElement('option');
+            opt.value = user;
+            opt.textContent = user;
+            userSelect.appendChild(opt);
+        });
+    }
+    enableUserCountRemoveBtn();
+}
+
+// Enable/disable edit button for user counts
+function enableUserCountEditBtn() {
+    var cmd = document.getElementById('usercount-command').value;
+    var user = document.getElementById('usercount-user').value;
+    var countInput = document.getElementById('usercount_count');
+    var currentCount = parseInt(countInput.value) || 0;
+    var originalCount = (userCountCounts[cmd] && userCountCounts[cmd][user]) ? userCountCounts[cmd][user] : 0;
+    var btn = document.getElementById('usercount-edit-btn');
+    btn.disabled = !(cmd && user && currentCount !== originalCount);
+}
 
 // Populate user dropdown for reward counts (edit)
 function populateRewardCountUsers() {
@@ -2503,6 +2501,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (usercountUser) {
         usercountUser.addEventListener('change', function() {
             enableUserCountEditBtn();
+            updateCurrentCount('usercount');
         });
     }
     var usercountUserRemove = document.getElementById('usercount-user-remove');
