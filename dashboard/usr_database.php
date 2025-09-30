@@ -117,6 +117,10 @@ try {
                 death_count INT DEFAULT 0,
                 PRIMARY KEY (game_name)
             ) ENGINE=InnoDB",
+        'game_deaths_settings' => "
+            CREATE TABLE IF NOT EXISTS game_deaths_settings (
+                game_name VARCHAR(255) PRIMARY KEY
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'custom_counts' => "
             CREATE TABLE IF NOT EXISTS custom_counts (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -506,6 +510,7 @@ try {
         'total_deaths' => ['death_count' => "INT DEFAULT 0"],
         'per_stream_deaths' => ['game_name' => "VARCHAR(255)",'death_count' => "INT DEFAULT 0"],
         'game_deaths' => ['game_name' => "VARCHAR(255)",'death_count' => "INT DEFAULT 0"],
+        'game_deaths_settings' => ['game_name' => "VARCHAR(255) PRIMARY KEY"],
         'custom_counts' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'command' => "VARCHAR(255) NOT NULL",'count' => "INT NOT NULL"],
         'user_counts' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'command' => "VARCHAR(255) NOT NULL",'user' => "VARCHAR(255) NOT NULL",'count' => "INT DEFAULT 0"],
         'reward_counts' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'reward_id' => "VARCHAR(255) NOT NULL",'user' => "VARCHAR(255) NOT NULL",'count' => "INT DEFAULT 0"],
