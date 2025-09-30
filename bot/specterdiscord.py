@@ -1379,7 +1379,7 @@ class BotOfTheSpecter(commands.Bot):
                 color=discord.Color.blue()
             )
             embed.set_thumbnail(url=(f"{thumbnail_url}/follow.png"))
-        elif event_type == "SUB":
+        elif event_type == "SUBSCRIPTION":
             months = data.get("twitch-sub-months", 1)
             tier = data.get("twitch-tier")
             desc = f"**{twitch_username}** just subscribed"
