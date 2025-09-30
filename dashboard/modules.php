@@ -751,6 +751,9 @@ ob_start();
                                                     </div>
                                                 </div>
                                             </div>
+                                            <div class="notification is-warning mb-4">
+                                                <p><strong>Ad Snoozed Message Issue:</strong> We are aware of an issue with the ad notices system. The snoozed message may not function as expected.</p>
+                                            </div>
                                             <div class="columns is-multiline">
                                                 <div class="column is-12">
                                                     <div class="field">
