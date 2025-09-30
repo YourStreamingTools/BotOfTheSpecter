@@ -4547,9 +4547,9 @@ class TwitchBot(commands.Bot):
                 await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = await cursor.fetchone()
                 game_death_count = game_death_count_result.get("death_count") if game_death_count_result else 0
-                await cursor.execute('SELECT death_count FROM total_deaths')
+                await cursor.execute('SELECT SUM(death_count) as total FROM game_deaths')
                 total_death_count_result = await cursor.fetchone()
-                total_death_count = total_death_count_result.get("death_count") if total_death_count_result else 0
+                total_death_count = total_death_count_result.get("total") if total_death_count_result and total_death_count_result.get("total") else 0
                 await cursor.execute('SELECT death_count FROM per_stream_deaths WHERE game_name = %s', (current_game,))
                 stream_death_count_result = await cursor.fetchone()
                 stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
@@ -4566,7 +4566,7 @@ class TwitchBot(commands.Bot):
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deathadd', aliases=['death+'])
-    async def deathadd_command(self, ctx):
+    async def deathadd_command(self, ctx, deaths: int = 1):
         global current_game, bot_owner
         connection = await mysql_connection()
         try:
@@ -4584,34 +4584,30 @@ class TwitchBot(commands.Bot):
                 if current_game is None:
                     await send_chat_message("Current game is not set. Cannot add death to nothing.")
                     return
+                if deaths < 1:
+                    deaths = 1  # Ensure at least 1 death is added
                 try:
-                    chat_logger.info("Death Add Command ran by a mod or broadcaster.")
-                    await cursor.execute("SELECT COUNT(*) FROM total_deaths")
-                    count_result = await cursor.fetchone()
-                    if count_result is not None and count_result.get("count") == 0:
-                        await cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
-                        await connection.commit()
-                        chat_logger.info("Initialized total_deaths table.")
+                    chat_logger.info(f"Death Add Command ran by a mod or broadcaster, adding {deaths} deaths.")
                     await cursor.execute(
-                        'INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1',
-                        (current_game,))
-                    await cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
+                        'INSERT INTO game_deaths (game_name, death_count) VALUES (%s, %s) ON DUPLICATE KEY UPDATE death_count = death_count + %s',
+                        (current_game, deaths, deaths))
                     # Update per_stream_deaths
                     await cursor.execute(
-                        'INSERT INTO per_stream_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1',
-                        (current_game,))
+                        'INSERT INTO per_stream_deaths (game_name, death_count) VALUES (%s, %s) ON DUPLICATE KEY UPDATE death_count = death_count + %s',
+                        (current_game, deaths, deaths))
                     await connection.commit()
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
                     game_death_count = game_death_count_result.get("death_count") if game_death_count_result else 0
-                    await cursor.execute('SELECT death_count FROM total_deaths')
+                    # Calculate total death count by summing all game deaths
+                    await cursor.execute('SELECT SUM(death_count) AS total FROM game_deaths')
                     total_death_count_result = await cursor.fetchone()
-                    total_death_count = total_death_count_result.get("death_count") if total_death_count_result else 0
+                    total_death_count = total_death_count_result.get("total") if total_death_count_result and total_death_count_result.get("total") else 0
                     await cursor.execute('SELECT death_count FROM per_stream_deaths WHERE game_name = %s', (current_game,))
                     stream_death_count_result = await cursor.fetchone()
                     stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
                     chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
-                    chat_logger.info(f"Total death count has been updated to: {total_death_count}")
+                    chat_logger.info(f"Total death count has been calculated as: {total_death_count}")
                     chat_logger.info(f"Stream death count for {current_game} is now: {stream_death_count}")
                     await send_chat_message(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
@@ -4626,7 +4622,7 @@ class TwitchBot(commands.Bot):
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deathremove', aliases=['death-'])
-    async def deathremove_command(self, ctx):
+    async def deathremove_command(self, ctx, deaths: int = 1):
         global current_game, bot_owner
         connection = await mysql_connection()
         try:
@@ -4644,27 +4640,29 @@ class TwitchBot(commands.Bot):
                 if current_game is None:
                     await send_chat_message("Current game is not set. Can't remove from nothing.")
                     return
+                if deaths < 1:
+                    deaths = 1  # Ensure at least 1 death is removed
                 try:
-                    chat_logger.info("Death Remove Command Ran")
+                    chat_logger.info(f"Death Remove Command Ran, removing {deaths} deaths")
                     await cursor.execute(
-                        'UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s',
-                        (current_game,))
-                    await cursor.execute('UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END')
+                        'UPDATE game_deaths SET death_count = CASE WHEN death_count >= %s THEN death_count - %s ELSE 0 END WHERE game_name = %s',
+                        (deaths, deaths, current_game))
                     await cursor.execute(
-                        'UPDATE per_stream_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s',
-                        (current_game,))
+                        'UPDATE per_stream_deaths SET death_count = CASE WHEN death_count >= %s THEN death_count - %s ELSE 0 END WHERE game_name = %s',
+                        (deaths, deaths, current_game))
                     await connection.commit()
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
                     game_death_count = game_death_count_result.get("death_count") if game_death_count_result else 0
-                    await cursor.execute('SELECT death_count FROM total_deaths')
+                    # Calculate total death count by summing all game deaths
+                    await cursor.execute('SELECT SUM(death_count) AS total FROM game_deaths')
                     total_death_count_result = await cursor.fetchone()
-                    total_death_count = total_death_count_result.get("death_count") if total_death_count_result else 0
+                    total_death_count = total_death_count_result.get("total") if total_death_count_result and total_death_count_result.get("total") else 0
                     await cursor.execute('SELECT death_count FROM per_stream_deaths WHERE game_name = %s', (current_game,))
                     stream_death_count_result = await cursor.fetchone()
                     stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
                     chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
-                    chat_logger.info(f"Total death count has been updated to: {total_death_count} to reflect the removal.")
+                    chat_logger.info(f"Total death count has been calculated as: {total_death_count}")
                     await send_chat_message(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except Exception as e:
