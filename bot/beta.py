@@ -4543,6 +4543,10 @@ class TwitchBot(commands.Bot):
                 if current_game is None:
                     await send_chat_message("Current game is not set. Can't see death count.")
                     return
+                await cursor.execute("SELECT 1 FROM game_deaths_settings WHERE game_name = %s LIMIT 1", (current_game,))
+                ignored_result = await cursor.fetchone()
+                if ignored_result:
+                    await send_chat_message("Deaths are not counted for this game.")
                 chat_logger.info("Deaths command ran.")
                 await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = await cursor.fetchone()
@@ -4583,6 +4587,11 @@ class TwitchBot(commands.Bot):
                         return
                 if current_game is None:
                     await send_chat_message("Current game is not set. Cannot add death to nothing.")
+                    return
+                await cursor.execute("SELECT 1 FROM game_deaths_settings WHERE game_name = %s LIMIT 1", (current_game,))
+                ignored_result = await cursor.fetchone()
+                if ignored_result:
+                    await send_chat_message("Deaths are not counted for this game.")
                     return
                 if deaths < 1:
                     deaths = 1  # Ensure at least 1 death is added
