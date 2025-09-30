@@ -638,26 +638,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             }
             break;
-        case 'update_quote':
-            $quoteId = $_POST['quote-id'] ?? '';
-            $quoteText = $_POST['quote-text'] ?? '';
-            $quoteAdded = $_POST['quote-added'] ?? '';
-            if ($quoteId && $quoteText !== '' && $quoteAdded !== '') {
-                $stmt = $db->prepare("UPDATE quotes SET quote = ?, added = ? WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('ssi', $quoteText, $quoteAdded, $quoteId);
+        case 'add_death':
+            $formGameAdd = trim($_POST['death-game-add'] ?? '');
+            $deathCountAdd = $_POST['death_count_add'] ?? '';
+            if ($formGameAdd && is_numeric($deathCountAdd) && $deathCountAdd >= 0) {
+                // Check if game already exists
+                $stmt = $db->prepare("SELECT COUNT(*) FROM game_deaths WHERE game_name = ?");
+                $stmt->bind_param('s', $formGameAdd);
+                $stmt->execute();
+                $stmt->bind_result($count);
+                $stmt->fetch();
+                $stmt->close();
+                if ($count > 0) {
+                    $status = "Game '$formGameAdd' already exists.";
+                    $notification_status = "is-danger";
+                } else {
+                    // Insert
+                    $stmt = $db->prepare("INSERT INTO game_deaths (game_name, death_count) VALUES (?, ?)");
+                    $stmt->bind_param('si', $formGameAdd, $deathCountAdd);
                     if ($stmt->execute()) {
-                        $status = "Quote updated successfully.";
+                        // Update total deaths
+                        $stmt2 = $db->prepare("UPDATE total_deaths SET death_count = death_count + ? LIMIT 1");
+                        $stmt2->bind_param('i', $deathCountAdd);
+                        $stmt2->execute();
+                        $stmt2->close();
+                        $status = "Death counter for game '$formGameAdd' has been added.";
                         $notification_status = "is-success";
+                        $_SESSION['status'] = $status;
+                        $_SESSION['notification_status'] = $notification_status;
+                        header('Location: ' . $_SERVER['REQUEST_URI'] . '?t=' . time());
+                        exit;
                     } else {
                         $status = "Error: " . $stmt->error;
                         $notification_status = "is-danger";
                     }
                     $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
                 }
+            } else {
+                $status = "Invalid input for adding game death.";
+                $notification_status = "is-danger";
             }
             break;
         default:
@@ -1272,8 +1291,35 @@ ob_start();
                         </div>
                     </div>
                     <div class="columns is-desktop is-multiline">
+                        <!-- Add Game Death Counter -->
+                        <div class="column is-4 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5">Add Game Death Counter</h4>
+                                <form action="" method="post" id="death-add-form" class="is-flex is-flex-direction-column is-flex-grow-1">
+                                    <input type="hidden" name="action" value="add_death">
+                                    <div class="field">
+                                        <label class="label" for="death-game-add">Game Name</label>
+                                        <div class="control">
+                                            <input class="input" type="text" id="death-game-add" name="death-game-add" required>
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="label" for="death_count_add">Death Count</label>
+                                        <div class="control">
+                                            <input class="input" type="number" id="death_count_add" name="death_count_add" required min="0">
+                                        </div>
+                                    </div>
+                                    <div class="is-flex-grow-1"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-success is-fullwidth" id="death-add-btn" disabled>Add Game Death</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                         <!-- Edit Game Death Count -->
-                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                        <div class="column is-4 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_game_deaths'); ?></h4>
                                 <form action="" method="post" id="death-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
@@ -1307,7 +1353,7 @@ ob_start();
                             </div>
                         </div>
                         <!-- Remove Game Death Counter -->
-                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                        <div class="column is-4 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_game_death_counter'); ?></h4>
                                 <form action="" method="post" id="death-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="death">
@@ -1871,6 +1917,7 @@ document.addEventListener('DOMContentLoaded', function() {
     enableButton('command-remove', 'command-remove-btn');
     enableDeathEditBtn();
     enableButton('death-game-remove', 'death-remove-btn');
+    enableDeathAddBtn();
     enableButton('hug-username', 'hug-edit-btn');
     enableButton('hug-username-remove', 'hug-remove-btn');
     enableButton('kiss-username', 'kiss-edit-btn');
@@ -2042,15 +2089,14 @@ function enableDeathEditBtn() {
     btn.disabled = !(game && currentCount !== originalCount);
 }
 
-// Enable/disable edit button for user counts
-function enableUserCountEditBtn() {
-    var cmd = document.getElementById('usercount-command').value;
-    var user = document.getElementById('usercount-user').value;
-    var countInput = document.getElementById('usercount_count');
-    var currentCount = parseInt(countInput.value) || 0;
-    var originalCount = (userCountCounts[cmd] && userCountCounts[cmd][user]) ? userCountCounts[cmd][user] : 0;
-    var btn = document.getElementById('usercount-edit-btn');
-    btn.disabled = !(cmd && user && currentCount !== originalCount);
+// Enable/disable add button for death counts
+function enableDeathAddBtn() {
+    var gameInput = document.getElementById('death-game-add');
+    var countInput = document.getElementById('death_count_add');
+    var btn = document.getElementById('death-add-btn');
+    var game = gameInput ? gameInput.value.trim() : '';
+    var count = countInput ? parseInt(countInput.value) || 0 : 0;
+    btn.disabled = !(game && count >= 0);
 }
 
 // Enable/disable remove button for user counts
@@ -2198,6 +2244,15 @@ document.addEventListener('DOMContentLoaded', function() {
         deathCountInput.addEventListener('input', function() {
             enableDeathEditBtn();
         });
+    }
+    // Wire up death add form
+    var deathGameAddInput = document.getElementById('death-game-add');
+    if (deathGameAddInput) {
+        deathGameAddInput.addEventListener('input', enableDeathAddBtn);
+    }
+    var deathCountAddInput = document.getElementById('death_count_add');
+    if (deathCountAddInput) {
+        deathCountAddInput.addEventListener('input', enableDeathAddBtn);
     }
 });
 
