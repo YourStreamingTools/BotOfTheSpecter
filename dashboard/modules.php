@@ -147,6 +147,16 @@ while ($stmt->fetch()) {
 }
 $stmt->close();
 
+// Load ignored games from the database before rendering the form
+$ignored_games = [];
+$stmt = $db->prepare("SELECT game_name FROM game_deaths_settings");
+$stmt->execute();
+$stmt->bind_result($game_name);
+while ($stmt->fetch()) {
+    $ignored_games[] = $game_name;
+}
+$stmt->close();
+
 // Start output buffering for layout
 ob_start();
 ?>
@@ -530,11 +540,71 @@ ob_start();
                         <header class="card-header" style="border-bottom: 1px solid #23272f;">
                             <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
                                 <span class="icon mr-2"><i class="fas fa-skull-crossbones"></i></span>
-                                Game Deaths Module
+                                Game Deaths Configuration
                             </span>
                         </header>
                         <div class="card-content">
-                            <p>Game Deaths configuration will be added here.</p>
+                            <!-- Beta Warning -->
+                            <div class="notification is-warning mb-4">
+                                <div class="columns is-vcentered">
+                                    <div class="column is-narrow">
+                                        <span class="icon is-large">
+                                            <i class="fas fa-exclamation-triangle fa-2x"></i>
+                                        </span>
+                                    </div>
+                                    <div class="column">
+                                        <p class="mb-2"><strong>Version 5.5 Beta Feature</strong></p>
+                                        <p>This feature is for Version 5.5 and is currently in the beta bot for testing.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Configuration Note -->
+                            <div class="notification is-info mb-4">
+                                <p class="has-text-dark">
+                                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                    <strong>Game Deaths Configuration:</strong><br>
+                                    Configure games to ignore when counting deaths.<br>
+                                    Deaths in these games will not be added to the total death counter for the !deathadd command.
+                                </p>
+                            </div>
+                            <!-- Add Game Form -->
+                            <form method="POST" action="module_data_post.php" class="mb-4">
+                                <div class="field has-addons">
+                                    <div class="control is-expanded">
+                                        <input class="input" type="text" name="ignore_game_name" placeholder="Enter game name to ignore (e.g., Minecraft, Fortnite)" maxlength="100" required>
+                                    </div>
+                                    <div class="control">
+                                        <button class="button is-primary" type="submit" name="add_ignored_game">
+                                            <span class="icon"><i class="fas fa-plus"></i></span>
+                                            <span>Add Game</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                            <!-- Current Ignored Games -->
+                            <div class="box has-background-grey-darker">
+                                <h4 class="title is-5 has-text-white mb-3">
+                                    <span class="icon mr-2"><i class="fas fa-list"></i></span>
+                                    Currently Ignored Games
+                                </h4>
+                                <div class="content">
+                                    <?php
+                                    // Load ignored games from database (placeholder - will need backend implementation)
+                                    if (!empty($ignored_games)) {
+                                        echo '<div class="tags">';
+                                        foreach ($ignored_games as $game) {
+                                            echo '<span class="tag is-danger is-medium">';
+                                            echo htmlspecialchars($game);
+                                            echo '<button class="delete is-small ml-1" onclick="removeIgnoredGame(\'' . htmlspecialchars(addslashes($game)) . '\')"></button>';
+                                            echo '</span>';
+                                        }
+                                        echo '</div>';
+                                    } else {
+                                        echo '<p class="has-text-grey-light">No games are currently being ignored.</p>';
+                                    }
+                                    ?>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1628,6 +1698,25 @@ function sendStreamEvent(eventType, fileName) {
         }
     };
     xhr.send(params);
+}
+
+// Function to remove an ignored game
+function removeIgnoredGame(gameName) {
+    if (confirm('Are you sure you want to remove "' + gameName + '" from the ignored games list?')) {
+        // Create a form to submit the removal request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = 'module_data_post.php';
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'remove_ignored_game';
+        input.value = gameName;
+        
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    }
 }
 
 // Function to set a cookie

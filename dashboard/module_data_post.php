@@ -179,6 +179,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $update_stmt->close();
         $_SESSION['update_message'] = "Ad notice settings updated successfully.";
     }
+    // Handle Game Deaths Settings
+    elseif (isset($_POST['add_ignored_game'])) {
+        $activeTab = "game-deaths";
+        $game_name = trim($_POST['ignore_game_name']);
+        if (!empty($game_name)) {
+            $insert_stmt = $db->prepare("INSERT INTO game_deaths_settings (game_name) VALUES (?)");
+            $insert_stmt->bind_param("s", $game_name);
+            $insert_stmt->execute();
+            $insert_stmt->close();
+            $_SESSION['update_message'] = "Game '" . htmlspecialchars($game_name) . "' added to ignored list.";
+        }
+    }
+    elseif (isset($_POST['remove_ignored_game'])) {
+        $activeTab = "game-deaths";
+        $game_name = $_POST['remove_ignored_game'];
+        $delete_stmt = $db->prepare("DELETE FROM game_deaths_settings WHERE game_name = ?");
+        $delete_stmt->bind_param("s", $game_name);
+        $delete_stmt->execute();
+        $delete_stmt->close();
+        $_SESSION['update_message'] = "Game '" . htmlspecialchars($game_name) . "' removed from ignored list.";
+    }
     // Handle chat alerts settings update
     elseif (
             isset($_POST['follower_alert']) || isset($_POST['cheer_alert']) || isset($_POST['raid_alert']) || isset($_POST['subscription_alert'])
