@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
@@ -165,6 +169,38 @@ if ($result = $db->query("SELECT rc.reward_id, rc.user, rc.count, cpr.reward_tit
     $notification_status = "is-danger";
 }
 
+// Fetch reward streaks data
+$rewardStreaksData = [];
+$rewardStreaksIds = [];
+if ($result = $db->query("SELECT rs.reward_id, rs.current_user, rs.streak, cpr.reward_title FROM reward_streaks rs LEFT JOIN channel_point_rewards cpr ON rs.reward_id COLLATE utf8mb4_unicode_ci = cpr.reward_id COLLATE utf8mb4_unicode_ci")) {
+    while ($row = $result->fetch_assoc()) {
+        $rewardStreaksData[] = $row;
+        $rid = $row['reward_id'];
+        $rewardTitles[$rid] = $row['reward_title'];
+        if (!in_array($rid, $rewardStreaksIds, true)) {
+            $rewardStreaksIds[] = $rid;
+        }
+    }
+    $result->free();
+} else {
+    $status = "Error fetching reward streaks: " . $db->error;
+    $notification_status = "is-danger";
+}
+
+// Fetch reward usage data
+$rewardUsageData = [];
+$rewardUsageTitles = [];
+if ($result = $db->query("SELECT reward_title, usage_count FROM channel_point_rewards WHERE usage_count > 0")) {
+    while ($row = $result->fetch_assoc()) {
+        $rewardUsageData[] = $row;
+        $rewardUsageTitles[] = $row['reward_title'];
+    }
+    $result->free();
+} else {
+    $status = "Error fetching reward usage: " . $db->error;
+    $notification_status = "is-danger";
+}
+
 // Fetch initial data for all counters
 $typoData = [];
 $commandData = [];
@@ -250,6 +286,15 @@ foreach ($rewardCountsData as $row) {
     $rewardCountsJs[$row['reward_id']][$row['user']] = $row['count'];
 }
 $rewardTitlesJs = $rewardTitles;
+
+// Prepare JS objects for reward streaks
+$rewardStreaksJs = [];
+foreach ($rewardStreaksData as $row) {
+    $rewardStreaksJs[$row['reward_id']] = ['user' => $row['current_user'], 'streak' => $row['streak']];
+}
+
+// Prepare JS objects for reward usage
+$rewardUsageJs = array_column($rewardUsageData, 'usage_count', 'reward_title');
 
 // Handling form submissions
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -426,6 +471,49 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
                     if ($stmt->execute()) {
                         $status = "Reward count updated successfully for user {$formUserCountUser} and reward {$formUserCountCommand}.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = "Error: " . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
+        case 'update_reward_streak':
+            $formRewardStreakReward = $_POST['rewardstreak-reward'] ?? '';
+            $formRewardStreakUser = $_POST['rewardstreak-user'] ?? '';
+            $formRewardStreakStreak = $_POST['rewardstreak-streak'] ?? '';
+            if ($formRewardStreakReward && $formRewardStreakUser && is_numeric($formRewardStreakStreak)) {
+                $stmt = $db->prepare("UPDATE reward_streaks SET current_user = ?, streak = ? WHERE reward_id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('sis', $formRewardStreakUser, $formRewardStreakStreak, $formRewardStreakReward);
+                    if ($stmt->execute()) {
+                        $status = "Reward streak updated successfully for reward {$formRewardStreakReward}.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = "Error: " . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
+        case 'update_reward_usage':
+            $formRewardUsageReward = $_POST['rewardusage-reward'] ?? '';
+            $formRewardUsageCount = $_POST['rewardusage-count'] ?? '';
+            if ($formRewardUsageReward && is_numeric($formRewardUsageCount)) {
+                $stmt = $db->prepare("UPDATE channel_point_rewards SET usage_count = ? WHERE reward_title = ?");
+                if ($stmt) {
+                    $stmt->bind_param('is', $formRewardUsageCount, $formRewardUsageReward);
+                    if ($stmt->execute()) {
+                        $status = "Reward usage updated successfully for reward {$formRewardUsageReward}.";
                         $notification_status = "is-success";
                     } else {
                         $status = "Error: " . $stmt->error;
@@ -616,6 +704,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             } else {
                 $status = "Invalid input.";
                 $notification_status = "is-danger";
+            }
+            break;
+        case 'remove_reward_streak':
+            $formRewardStreakRemove = $_POST['rewardstreak-reward-remove'] ?? '';
+            if ($formRewardStreakRemove) {
+                $stmt = $db->prepare("DELETE FROM reward_streaks WHERE reward_id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('s', $formRewardStreakRemove);
+                    if ($stmt->execute()) {
+                        $status = "Reward streak for reward '$formRewardStreakRemove' has been removed.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = 'Error: ' . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
+        case 'remove_reward_usage':
+            $formRewardUsageRemove = $_POST['rewardusage-reward-remove'] ?? '';
+            if ($formRewardUsageRemove) {
+                $stmt = $db->prepare("UPDATE channel_point_rewards SET usage_count = 0 WHERE reward_title = ?");
+                if ($stmt) {
+                    $stmt->bind_param('s', $formRewardUsageRemove);
+                    if ($stmt->execute()) {
+                        $status = "Reward usage for reward '$formRewardUsageRemove' has been reset.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = 'Error: ' . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
             }
             break;
         case 'remove_quote':
@@ -1145,6 +1273,8 @@ ob_start();
                     <button class="button is-info" data-type="highfives" onclick="showTab('highfives')"><?php echo t('counters_highfives'); ?></button>
                     <button class="button is-info" data-type="userCounts" onclick="showTab('userCounts')"><?php echo t('counters_user_counts'); ?></button>
                     <button class="button is-info" data-type="rewardCounts" onclick="showTab('rewardCounts')"><?php echo t('counters_reward_counts'); ?></button>
+                    <button class="button is-info" data-type="rewardStreaks" onclick="showTab('rewardStreaks')"><?php echo t('counters_reward_streaks'); ?></button>
+                    <button class="button is-info" data-type="rewardUsage" onclick="showTab('rewardUsage')"><?php echo t('counters_reward_usage'); ?></button>
                     <button class="button is-info" data-type="quotes" onclick="showTab('quotes')"><?php echo t('counters_quotes'); ?></button>
                 </div>
                 <!-- Tab Contents -->
@@ -1763,6 +1893,150 @@ ob_start();
                         </div>
                     </div>
                 </div>
+                <div id="tab-rewardStreaks" class="tab-content" style="display:none;">
+                    <div class="columns is-desktop is-multiline">
+                        <!-- Edit Reward Streak -->
+                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5"><?php echo t('edit_counters_edit_reward_streaks'); ?></h4>
+                                <form action="" method="post" id="rewardstreak-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
+                                    <input type="hidden" name="action" value="update_reward_streak">
+                                    <div class="field">
+                                        <label class="label" for="rewardstreak-reward"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth is-clipped">
+                                                <select id="rewardstreak-reward" name="rewardstreak-reward" required onchange="populateRewardStreakUsers(); enableRewardStreakEditBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
+                                                    <?php foreach ($rewardStreaksIds as $rid): ?>
+                                                        <option value="<?php echo htmlspecialchars($rid); ?>" title="<?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>">
+                                                            <?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="label" for="rewardstreak-user"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <div class="control">
+                                            <input class="input" type="text" id="rewardstreak-user" name="rewardstreak-user" required>
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="label" for="rewardstreak-streak"><?php echo t('edit_counters_streak_label'); ?></label>
+                                        <div class="control">
+                                            <input class="input" type="number" id="rewardstreak-streak" name="rewardstreak-streak" value="" required min="0">
+                                        </div>
+                                    </div>
+                                    <div class="is-flex-grow-1"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-primary is-fullwidth" id="rewardstreak-edit-btn" disabled><?php echo t('edit_counters_update_rewardstreak_btn'); ?></button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <!-- Remove Reward Streak Record -->
+                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5"><?php echo t('edit_counters_remove_rewardstreak'); ?></h4>
+                                <form action="" method="post" id="rewardstreak-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="rewardstreak">
+                                    <input type="hidden" name="action" value="remove_reward_streak">
+                                    <div class="field">
+                                        <label class="label" for="rewardstreak-reward-remove"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth is-clipped">
+                                                <select id="rewardstreak-reward-remove" name="rewardstreak-reward-remove" required onchange="enableRewardStreakRemoveBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
+                                                    <?php foreach ($rewardStreaksIds as $rid): ?>
+                                                        <option value="<?php echo htmlspecialchars($rid); ?>" title="<?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>">
+                                                            <?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="flex-grow:1"></div>
+                                    <div style="height: 88px;"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-danger is-fullwidth" id="rewardstreak-remove-btn" disabled><?php echo t('edit_counters_remove_rewardstreak_btn'); ?></button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="tab-rewardUsage" class="tab-content" style="display:none;">
+                    <div class="columns is-desktop is-multiline">
+                        <!-- Edit Reward Usage -->
+                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5"><?php echo t('edit_counters_edit_reward_usage'); ?></h4>
+                                <form action="" method="post" id="rewardusage-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
+                                    <input type="hidden" name="action" value="update_reward_usage">
+                                    <div class="field">
+                                        <label class="label" for="rewardusage-reward"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth is-clipped">
+                                                <select id="rewardusage-reward" name="rewardusage-reward" required onchange="updateCurrentRewardUsage(); enableRewardUsageEditBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
+                                                    <?php foreach ($rewardUsageTitles as $title): ?>
+                                                        <option title="<?php echo htmlspecialchars($title); ?>" value="<?php echo htmlspecialchars($title); ?>"><?php echo htmlspecialchars($title); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="label" for="rewardusage-count"><?php echo t('edit_counters_usage_count_label'); ?></label>
+                                        <div class="control">
+                                            <input class="input" type="number" id="rewardusage-count" name="rewardusage-count" value="" required min="0">
+                                        </div>
+                                    </div>
+                                    <div class="is-flex-grow-1"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-primary is-fullwidth" id="rewardusage-edit-btn" disabled><?php echo t('edit_counters_update_rewardusage_btn'); ?></button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <!-- Remove Reward Usage Record -->
+                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5"><?php echo t('edit_counters_remove_rewardusage'); ?></h4>
+                                <form action="" method="post" id="rewardusage-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="rewardusage">
+                                    <input type="hidden" name="action" value="remove_reward_usage">
+                                    <div class="field">
+                                        <label class="label" for="rewardusage-reward-remove"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth is-clipped">
+                                                <select id="rewardusage-reward-remove" name="rewardusage-reward-remove" required onchange="enableRewardUsageRemoveBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
+                                                    <?php foreach ($rewardUsageTitles as $title): ?>
+                                                        <option title="<?php echo htmlspecialchars($title); ?>" value="<?php echo htmlspecialchars($title); ?>"><?php echo htmlspecialchars($title); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="flex-grow:1"></div>
+                                    <div style="height: 88px;"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-danger is-fullwidth" id="rewardusage-remove-btn" disabled><?php echo t('edit_counters_remove_rewardusage_btn'); ?></button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div id="tab-quotes" class="tab-content" style="display:none;">
                     <div class="columns is-desktop is-multiline is-flex">
                         <!-- Edit Quote -->
@@ -1932,6 +2206,10 @@ document.addEventListener('DOMContentLoaded', function() {
     enableButton('rewardcount-user', 'rewardcount-edit-btn');
     enableButton('rewardcount-reward-remove', 'rewardcount-remove-btn');
     enableButton('rewardcount-user-remove', 'rewardcount-remove-btn');
+    enableButton('rewardstreak-reward', 'rewardstreak-edit-btn');
+    enableButton('rewardstreak-reward-remove', 'rewardstreak-remove-btn');
+    enableButton('rewardusage-reward', 'rewardusage-edit-btn');
+    enableButton('rewardusage-reward-remove', 'rewardusage-remove-btn');
 });
 
 // SweetAlert2 for Remove User Typo Record
@@ -1945,7 +2223,9 @@ document.addEventListener('DOMContentLoaded', function() {
         kiss: "<?php echo t('edit_counters_swal_html_kiss'); ?>",
         highfive: "<?php echo t('edit_counters_swal_html_highfive'); ?>",
         usercount: "<?php echo t('edit_counters_swal_html_usercount'); ?>",
-        rewardcount: "<?php echo t('edit_counters_swal_html_rewardcount'); ?>"
+        rewardcount: "<?php echo t('edit_counters_swal_html_rewardcount'); ?>",
+        rewardstreak: "<?php echo t('edit_counters_swal_html_rewardstreak'); ?>",
+        rewardusage: "<?php echo t('edit_counters_swal_html_rewardusage'); ?>"
     };
 
     function getRemovalMessage(type, value, command) {
@@ -2003,6 +2283,8 @@ document.addEventListener('DOMContentLoaded', function() {
     wireRemoveForm('rewardcount-remove-form', 'rewardcount-reward-remove', 'rewardcount', function() {
         return document.getElementById('rewardcount-user-remove').value;
     });
+    wireRemoveForm('rewardstreak-remove-form', 'rewardstreak-reward-remove', 'rewardstreak');
+    wireRemoveForm('rewardusage-remove-form', 'rewardusage-reward-remove', 'rewardusage');
 });
 
 // Data from PHP for current counts
@@ -2021,6 +2303,10 @@ const userCountCounts = <?php
 ?>;
 const rewardCounts = <?php echo json_encode($rewardCountsJs); ?>;
 const rewardTitles = <?php echo json_encode($rewardTitlesJs); ?>;
+
+// Data for reward streaks and usage
+const rewardStreaks = <?php echo json_encode($rewardStreaksJs); ?>;
+const rewardUsage = <?php echo json_encode($rewardUsageJs); ?>;
 
 // Calculate and display total deaths
 const totalDeaths = Object.values(deathCounts).reduce((sum, count) => sum + parseInt(count || 0), 0);
@@ -2149,6 +2435,54 @@ function updateCurrentCount(type, value) {
     }
 }
 
+// Functions for reward streaks
+function populateRewardStreakUsers() {
+    var rid = document.getElementById('rewardstreak-reward').value;
+    if (rid && rewardStreaks[rid]) {
+        document.getElementById('rewardstreak-user').value = rewardStreaks[rid].user;
+        document.getElementById('rewardstreak-streak').value = rewardStreaks[rid].streak;
+    } else {
+        document.getElementById('rewardstreak-user').value = '';
+        document.getElementById('rewardstreak-streak').value = '';
+    }
+    enableRewardStreakEditBtn();
+}
+
+function enableRewardStreakEditBtn() {
+    var rid = document.getElementById('rewardstreak-reward').value;
+    var user = document.getElementById('rewardstreak-user').value;
+    var streak = parseInt(document.getElementById('rewardstreak-streak').value) || 0;
+    var original = rewardStreaks[rid];
+    var btn = document.getElementById('rewardstreak-edit-btn');
+    btn.disabled = !(rid && user && (user !== (original ? original.user : '') || streak !== (original ? original.streak : 0)));
+}
+
+function enableRewardStreakRemoveBtn() {
+    var rid = document.getElementById('rewardstreak-reward-remove').value;
+    var btn = document.getElementById('rewardstreak-remove-btn');
+    btn.disabled = !rid;
+}
+
+// Functions for reward usage
+function updateCurrentRewardUsage() {
+    var title = document.getElementById('rewardusage-reward').value;
+    document.getElementById('rewardusage-count').value = (title && rewardUsage[title] !== undefined) ? rewardUsage[title] : '';
+}
+
+function enableRewardUsageEditBtn() {
+    var title = document.getElementById('rewardusage-reward').value;
+    var count = parseInt(document.getElementById('rewardusage-count').value) || 0;
+    var original = rewardUsage[title] || 0;
+    var btn = document.getElementById('rewardusage-edit-btn');
+    btn.disabled = !(title && count !== original);
+}
+
+function enableRewardUsageRemoveBtn() {
+    var title = document.getElementById('rewardusage-reward-remove').value;
+    var btn = document.getElementById('rewardusage-remove-btn');
+    btn.disabled = !title;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Wire up user count dropdowns
     var usercountCmd = document.getElementById('usercount-command');
@@ -2201,6 +2535,41 @@ document.addEventListener('DOMContentLoaded', function() {
     if (rewardcountUserRemove) {
         rewardcountUserRemove.addEventListener('change', function() {
             enableRewardCountRemoveBtn();
+        });
+    }
+    // Wire up reward streak dropdowns
+    var rewardstreakReward = document.getElementById('rewardstreak-reward');
+    if (rewardstreakReward) {
+        rewardstreakReward.addEventListener('change', function() {
+            populateRewardStreakUsers();
+            enableRewardStreakEditBtn();
+        });
+    }
+    // Wire up reward usage dropdowns
+    var rewardusageReward = document.getElementById('rewardusage-reward');
+    if (rewardusageReward) {
+        rewardusageReward.addEventListener('change', function() {
+            updateCurrentRewardUsage();
+            enableRewardUsageEditBtn();
+        });
+    }
+    // Wire up input listeners for reward streak and usage
+    var rewardstreakUserInput = document.getElementById('rewardstreak-user');
+    if (rewardstreakUserInput) {
+        rewardstreakUserInput.addEventListener('input', function() {
+            enableRewardStreakEditBtn();
+        });
+    }
+    var rewardstreakStreakInput = document.getElementById('rewardstreak-streak');
+    if (rewardstreakStreakInput) {
+        rewardstreakStreakInput.addEventListener('input', function() {
+            enableRewardStreakEditBtn();
+        });
+    }
+    var rewardusageCountInput = document.getElementById('rewardusage-count');
+    if (rewardusageCountInput) {
+        rewardusageCountInput.addEventListener('input', function() {
+            enableRewardUsageEditBtn();
         });
     }
     // Wire up input listeners for count changes
