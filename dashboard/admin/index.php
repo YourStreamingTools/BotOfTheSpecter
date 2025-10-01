@@ -261,55 +261,11 @@ if ($conn) {
 
 // Handle AJAX request for bot overview
 if (isset($_GET['ajax']) && $_GET['ajax'] == 'bot_overview') {
-    echo '<h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>';
-    if (!empty($all_bots)) {
-        echo '<div class="columns is-multiline">';
-        foreach ($all_bots as $bot) {
-            $profile_image = $bot['profile_image'] ?? '';
-            $icon_color = $bot['type'] == 'beta' ? 'has-text-warning' : 'has-text-primary';
-            $tag_class = $bot['type'] == 'beta' ? 'is-warning' : 'is-primary';
-            $type_label = ucfirst($bot['type']);
-            echo '<div class="column is-one-third">';
-            echo '<div class="box">';
-            echo '<div class="level">';
-            echo '<div class="level-left">';
-            echo '<div class="level-item">';
-            if (!empty($profile_image)) {
-                echo '<figure class="image is-32x32">';
-                echo '<img src="' . htmlspecialchars($profile_image) . '" alt="Profile" class="is-rounded">';
-                echo '</figure>';
-            } else {
-                echo '<span class="icon ' . $icon_color . '">';
-                echo '<i class="fas fa-robot fa-lg"></i>';
-                echo '</span>';
-            }
-            echo '</div>';
-            echo '<div class="level-item">';
-            echo '<p class="heading">' . htmlspecialchars($bot['channel']) . '</p>';
-            echo '</div>';
-            echo '</div>';
-            echo '<div class="level-right">';
-            echo '<div class="level-item">';
-            echo '<span class="tag ' . $tag_class . '">' . $type_label . '</span>';
-            echo '</div>';
-            echo '<div class="level-item">';
-            echo '<span class="tag is-light has-text-black">PID: ' . $bot['pid'] . '</span>';
-            echo '</div>';
-            echo '<div class="level-item">';
-            echo '<button type="button" class="button is-danger is-small" onclick="stopBot(' . $bot['pid'] . ')">';
-            echo '<span class="icon"><i class="fas fa-stop"></i></span>';
-            echo '</button>';
-            echo '</div>';
-            echo '</div>';
-            echo '</div>';
-            // Removed buttons section
-            echo '</div>';
-            echo '</div>';
-        }
-        echo '</div>';
-    } else {
-        echo '<p>' . htmlspecialchars($bot_output ?: 'None') . '</p>';
-    }
+    header('Content-Type: application/json');
+    echo json_encode([
+        'bots' => $all_bots,
+        'error' => empty($all_bots) ? ($bot_output ?: 'None') : null
+    ]);
     exit;
 }
 
@@ -653,14 +609,70 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
     }, 100);
+    // Function to generate HTML for a single bot
+    function generateBotHtml(bot) {
+        const profileImage = bot.profile_image || '';
+        const iconColor = bot.type === 'beta' ? 'has-text-warning' : 'has-text-primary';
+        const tagClass = bot.type === 'beta' ? 'is-warning' : 'is-primary';
+        const typeLabel = bot.type.charAt(0).toUpperCase() + bot.type.slice(1);
+        let html = '<div class="column is-one-third">';
+        html += '<div class="box">';
+        html += '<div class="level">';
+        html += '<div class="level-left">';
+        html += '<div class="level-item">';
+        if (profileImage) {
+            html += '<figure class="image is-32x32">';
+            html += '<img src="' + profileImage + '" alt="Profile" class="is-rounded">';
+            html += '</figure>';
+        } else {
+            html += '<span class="icon ' + iconColor + '">';
+            html += '<i class="fas fa-robot fa-lg"></i>';
+            html += '</span>';
+        }
+        html += '</div>';
+        html += '<div class="level-item">';
+        html += '<p class="heading">' + bot.channel + '</p>';
+        html += '</div>';
+        html += '</div>';
+        html += '<div class="level-right">';
+        html += '<div class="level-item">';
+        html += '<span class="tag ' + tagClass + '">' + typeLabel + '</span>';
+        html += '</div>';
+        html += '<div class="level-item">';
+        html += '<span class="tag is-light has-text-black">PID: ' + bot.pid + '</span>';
+        html += '</div>';
+        html += '<div class="level-item">';
+        html += '<button type="button" class="button is-danger is-small" onclick="stopBot(' + bot.pid + ')">';
+        html += '<span class="icon"><i class="fas fa-stop"></i></span>';
+        html += '</button>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        return html;
+    }
     // Load bot overview after page load
     const loadBotOverview = () => {
         const botContainer = document.getElementById('bot-overview-container');
         if (botContainer) {
             fetch(window.location.href + '?ajax=bot_overview')
-                .then(response => response.text())
-                .then(html => {
-                    botContainer.innerHTML = html;
+                .then(response => response.json())
+                .then(data => {
+                    botContainer.innerHTML = '<h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>';
+                    if (data.bots && data.bots.length > 0) {
+                        const columns = document.createElement('div');
+                        columns.className = 'columns is-multiline';
+                        botContainer.appendChild(columns);
+                        data.bots.forEach((bot, index) => {
+                            setTimeout(() => {
+                                const botHtml = generateBotHtml(bot);
+                                columns.insertAdjacentHTML('beforeend', botHtml);
+                            }, index * 150); // 150ms delay between each bot for smooth loading
+                        });
+                    } else {
+                        botContainer.innerHTML += '<p>' + (data.error || 'None') + '</p>';
+                    }
                 })
                 .catch(error => {
                     console.error('Error loading bot overview:', error);
