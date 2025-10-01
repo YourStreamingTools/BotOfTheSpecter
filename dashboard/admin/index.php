@@ -47,6 +47,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     exit;
 }
 
+// Handle bot stop action
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($_POST['pid'])) {
+    $pid = intval($_POST['pid']);
+    if ($pid > 0) {
+        try {
+            $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+            if ($connection) {
+                SSHConnectionManager::executeCommand($connection, "kill $pid");
+            }
+        } catch (Exception $e) {}
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true]);
+    exit;
+}
+
 // Handle send message action
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
     $message = trim($_POST['message']);
@@ -211,6 +227,92 @@ foreach ($lines as $line) {
     }
 }
 
+$all_bots = [];
+foreach ($beta_bots as $bot) {
+    $bot['type'] = 'beta';
+    $all_bots[] = $bot;
+}
+foreach ($stable_bots as $bot) {
+    $bot['type'] = 'stable';
+    $all_bots[] = $bot;
+}
+
+// Fetch user IDs and profile images, then sort by ID
+if ($conn) {
+    foreach ($all_bots as &$bot) {
+        $stmt = $conn->prepare("SELECT id, profile_image FROM users WHERE username = ?");
+        $stmt->bind_param("s", $bot['channel']);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result->num_rows > 0) {
+            $row = $result->fetch_assoc();
+            $bot['id'] = $row['id'];
+            $bot['profile_image'] = $row['profile_image'];
+        } else {
+            $bot['id'] = PHP_INT_MAX;
+            $bot['profile_image'] = '';
+        }
+        $stmt->close();
+    }
+    usort($all_bots, function($a, $b) {
+        return ($a['id'] ?? PHP_INT_MAX) <=> ($b['id'] ?? PHP_INT_MAX);
+    });
+}
+
+// Handle AJAX request for bot overview
+if (isset($_GET['ajax']) && $_GET['ajax'] == 'bot_overview') {
+    echo '<h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>';
+    if (!empty($all_bots)) {
+        echo '<div class="columns is-multiline">';
+        foreach ($all_bots as $bot) {
+            $profile_image = $bot['profile_image'] ?? '';
+            $icon_color = $bot['type'] == 'beta' ? 'has-text-warning' : 'has-text-primary';
+            $tag_class = $bot['type'] == 'beta' ? 'is-warning' : 'is-primary';
+            $type_label = ucfirst($bot['type']);
+            echo '<div class="column is-one-third">';
+            echo '<div class="box">';
+            echo '<div class="level">';
+            echo '<div class="level-left">';
+            echo '<div class="level-item">';
+            if (!empty($profile_image)) {
+                echo '<figure class="image is-32x32">';
+                echo '<img src="' . htmlspecialchars($profile_image) . '" alt="Profile" class="is-rounded">';
+                echo '</figure>';
+            } else {
+                echo '<span class="icon ' . $icon_color . '">';
+                echo '<i class="fas fa-robot fa-lg"></i>';
+                echo '</span>';
+            }
+            echo '</div>';
+            echo '<div class="level-item">';
+            echo '<p class="heading">' . htmlspecialchars($bot['channel']) . '</p>';
+            echo '</div>';
+            echo '</div>';
+            echo '<div class="level-right">';
+            echo '<div class="level-item">';
+            echo '<span class="tag ' . $tag_class . '">' . $type_label . '</span>';
+            echo '</div>';
+            echo '<div class="level-item">';
+            echo '<span class="tag is-light has-text-black">PID: ' . $bot['pid'] . '</span>';
+            echo '</div>';
+            echo '<div class="level-item">';
+            echo '<button type="button" class="button is-danger is-small" onclick="stopBot(' . $bot['pid'] . ')">';
+            echo '<span class="icon"><i class="fas fa-stop"></i></span>';
+            echo '</button>';
+            echo '</div>';
+            echo '</div>';
+            echo '</div>';
+            // Removed buttons section
+            echo '</div>';
+            echo '</div>';
+        }
+        echo '</div>';
+    } else {
+        echo '<p>' . htmlspecialchars($bot_output ?: 'None') . '</p>';
+    }
+    exit;
+}
+
 ob_start();
 ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -350,36 +452,9 @@ ob_start();
         </div>
     </div>
 </div>
-<div class="box">
+<div class="box" id="bot-overview-container">
     <h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
-    <div class="columns">
-        <div class="column">
-            <h3 class="title is-5">Stable Bots</h3>
-            <?php if (!empty($stable_bots)): ?>
-                <ul>
-                    <?php foreach ($stable_bots as $bot): ?>
-                        <li><?php echo htmlspecialchars($bot['channel']); ?> (PID: <?php echo $bot['pid']; ?>)</li>
-                    <?php endforeach; ?>
-                </ul>
-                <p><strong>Total:</strong> <?php echo count($stable_bots); ?></p>
-            <?php else: ?>
-                <p><?php echo htmlspecialchars($bot_output ?: 'None'); ?></p>
-            <?php endif; ?>
-        </div>
-        <div class="column">
-            <h3 class="title is-5">Beta Bots</h3>
-            <?php if (!empty($beta_bots)): ?>
-                <ul>
-                    <?php foreach ($beta_bots as $bot): ?>
-                        <li><?php echo htmlspecialchars($bot['channel']); ?> (PID: <?php echo $bot['pid']; ?>)</li>
-                    <?php endforeach; ?>
-                </ul>
-                <p><strong>Total:</strong> <?php echo count($beta_bots); ?></p>
-            <?php else: ?>
-                <p><?php echo htmlspecialchars($bot_output ?: 'None'); ?></p>
-            <?php endif; ?>
-        </div>
-    </div>
+    <p>Loading bot overview...</p>
 </div>
 <div class="box">
     <h2 class="title is-4"><span class="icon"><i class="fas fa-chart-pie"></i></span> User Overview</h2>
@@ -515,6 +590,18 @@ document.addEventListener('DOMContentLoaded', function() {
             buttons.forEach(btn => btn.disabled = false);
         });
     };
+    // Function to stop bot
+    window.stopBot = function(pid) {
+        if (confirm('Are you sure you want to stop this bot?')) {
+            const formData = new FormData();
+            formData.append('stop_bot', '1');
+            formData.append('pid', pid);
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            }).then(() => location.reload());
+        }
+    };
     // Function to update service status
     function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
         fetch(`admin_service_status.php?service=${service}`)
@@ -566,6 +653,24 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
     }, 100);
+    // Load bot overview after page load
+    const loadBotOverview = () => {
+        const botContainer = document.getElementById('bot-overview-container');
+        if (botContainer) {
+            fetch(window.location.href + '?ajax=bot_overview')
+                .then(response => response.text())
+                .then(html => {
+                    botContainer.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading bot overview:', error);
+                    botContainer.innerHTML = '<h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2><p>Error loading bot overview.</p>';
+                });
+        }
+    };
+    setTimeout(loadBotOverview, 200);
+    // Update bot overview every 60 seconds
+    setInterval(loadBotOverview, 60000);
     // Enable send button when message is typed
     const messageTextarea = document.getElementById('message');
     const sendButton = document.getElementById('send');
