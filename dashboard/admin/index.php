@@ -146,6 +146,20 @@ function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password
     return ['status' => $status, 'pid' => $pid];
 }
 
+// Function to get bot status
+function getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password) {
+    $output = '';
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        if ($connection) {
+            $output = SSHConnectionManager::executeCommand($connection, "python3 /home/botofthespecter/running_bots.py 2>&1");
+        }
+    } catch (Exception $e) {
+        $output = "Error fetching bot status: " . $e->getMessage();
+    }
+    return $output;
+}
+
 // Service statuses will be loaded asynchronously via JavaScript
 $discord_status = ['status' => 'Loading...', 'pid' => '...'];
 $api_status = ['status' => 'Loading...', 'pid' => '...'];
@@ -174,6 +188,27 @@ if ($conn) {
     // Assuming premium is based on beta_access for now, adjust if needed
     $premium_count = $beta_count;
     $regular_count = $total_users - $admin_count - $beta_count;
+}
+
+$bot_output = getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+$stable_bots = [];
+$beta_bots = [];
+$lines = explode("\n", $bot_output);
+$section = '';
+foreach ($lines as $line) {
+    $line = trim($line);
+    if (strpos($line, 'Stable bots running:') === 0) {
+        $section = 'stable';
+    } elseif (strpos($line, 'Beta bots running:') === 0) {
+        $section = 'beta';
+    } elseif (preg_match('/- Channel: (\S+), PID: (\d+)/', $line, $matches)) {
+        $bot = ['channel' => $matches[1], 'pid' => $matches[2]];
+        if ($section == 'stable') {
+            $stable_bots[] = $bot;
+        } elseif ($section == 'beta') {
+            $beta_bots[] = $bot;
+        }
+    }
 }
 
 ob_start();
@@ -312,6 +347,37 @@ ob_start();
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+<div class="box">
+    <h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
+    <div class="columns">
+        <div class="column">
+            <h3 class="title is-5">Stable Bots</h3>
+            <?php if (!empty($stable_bots)): ?>
+                <ul>
+                    <?php foreach ($stable_bots as $bot): ?>
+                        <li><?php echo htmlspecialchars($bot['channel']); ?> (PID: <?php echo $bot['pid']; ?>)</li>
+                    <?php endforeach; ?>
+                </ul>
+                <p><strong>Total:</strong> <?php echo count($stable_bots); ?></p>
+            <?php else: ?>
+                <p><?php echo htmlspecialchars($bot_output ?: 'None'); ?></p>
+            <?php endif; ?>
+        </div>
+        <div class="column">
+            <h3 class="title is-5">Beta Bots</h3>
+            <?php if (!empty($beta_bots)): ?>
+                <ul>
+                    <?php foreach ($beta_bots as $bot): ?>
+                        <li><?php echo htmlspecialchars($bot['channel']); ?> (PID: <?php echo $bot['pid']; ?>)</li>
+                    <?php endforeach; ?>
+                </ul>
+                <p><strong>Total:</strong> <?php echo count($beta_bots); ?></p>
+            <?php else: ?>
+                <p><?php echo htmlspecialchars($bot_output ?: 'None'); ?></p>
+            <?php endif; ?>
         </div>
     </div>
 </div>
