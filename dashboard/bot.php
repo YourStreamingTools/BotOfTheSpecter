@@ -793,6 +793,8 @@ const latestBetaVersion = <?php echo json_encode($betaNewVersion); ?>;
 // Make versions accessible globally for updates
 window.latestStableVersion = latestStableVersion;
 window.latestBetaVersion = latestBetaVersion;
+// Track which update notifications we've already shown to avoid duplicates
+window._seenUpdateNotifications = window._seenUpdateNotifications || new Set();
 const serverStableVersion = <?php echo json_encode($versionRunning); ?>;
 const serverBetaVersion = <?php echo json_encode($betaVersionRunning); ?>;
 // Technical UI Enhancements
@@ -1125,7 +1127,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function showNotification(message, type) {
     // Remove existing notifications with the same message and type
     document.querySelectorAll(`.notification.is-${type}`).forEach(n => {
-      // Don't remove update notifications
+      // Skip removing update notifications here; they are persistent and handled separately
       if (type === 'update' || n.classList.contains('bot-operation-persistent')) {
         return;
       }
@@ -1152,6 +1154,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const isPersistentBotOperation = message.includes('currently starting up') || message.includes('Cannot switch bot types');
     // Add special handling for update notifications
     const isUpdateNotification = type === 'update' || message.includes('version is available');
+    // If this is an update notification, avoid creating duplicate persistent update notices
+    if (isUpdateNotification) {
+      try {
+        if (window._seenUpdateNotifications && window._seenUpdateNotifications.has(message.trim())) {
+          return;
+        }
+        const existing = Array.from(document.querySelectorAll('.notification.bot-operation-persistent'))
+          .find(n => n.textContent && n.textContent.trim() === message.trim());
+        if (existing) {
+          try { window._seenUpdateNotifications.add(message.trim()); } catch(e) {}
+          return;
+        }
+      } catch (e) {
+        console.error('Error while checking for existing update notifications:', e);
+      }
+    }
     if (isPersistentBotOperation || isUpdateNotification) {
       notification.classList.add('bot-operation-persistent');
       if (isUpdateNotification) {
@@ -1187,6 +1205,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add to the page
     const container = document.querySelector('.container');
     container.insertBefore(notification, container.firstChild);
+    // If this was an update notification, remember we've shown it this session
+    if (isUpdateNotification) {
+      try { window._seenUpdateNotifications.add(message.trim()); } catch(e) {}
+    }
     // Auto-remove after time (except for persistent bot operation messages and update notifications)
     if (!isPersistentBotOperation && !isUpdateNotification) {
       const autoRemoveTime = type === 'info' ? 3000 : 5000;
@@ -1304,6 +1326,34 @@ document.addEventListener('DOMContentLoaded', function() {
         notification.parentNode.removeChild(notification);
       }
     });
+    // Clear the seen updates cache so new notifications can be shown later if needed
+    try { window._seenUpdateNotifications.clear(); } catch(e) { /* ignore */ }
+  }
+  // Remove update notifications for a specific bot type (stable/beta) or globally
+  function removeUpdateNotificationsForBot(botType, latestVersion) {
+    const selector = '.notification.bot-operation-persistent';
+    document.querySelectorAll(selector).forEach(notification => {
+      const text = (notification.textContent || '').toLowerCase();
+      if (text.includes('version is available') || text.includes('update available') || (botType && text.includes(botType + ' bot'))) {
+        // If latestVersion provided, try to match it too (safe substring match)
+        if (!latestVersion || text.includes(String(latestVersion).toLowerCase())) {
+          if (notification.parentNode) notification.parentNode.removeChild(notification);
+        }
+      }
+    });
+    // Remove any matching entries from the seen cache
+    try {
+      if (window._seenUpdateNotifications && window._seenUpdateNotifications.size) {
+        const toRemove = [];
+        window._seenUpdateNotifications.forEach(msg => {
+          const lower = (msg || '').toLowerCase();
+          if (lower.includes('version is available') || (botType && lower.includes(botType + ' bot')) || (latestVersion && lower.includes(String(latestVersion).toLowerCase()))) {
+            toRemove.push(msg);
+          }
+        });
+        toRemove.forEach(m => { try { window._seenUpdateNotifications.delete(m); } catch(e){} });
+      }
+    } catch(e) { /* ignore */ }
   }
   // Function to update bot status
   function updateBotStatus(silentUpdate = false) {
@@ -1329,7 +1379,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             // Check for version updates
             const latestVersion = selectedBot === 'beta' ? window.latestBetaVersion : window.latestStableVersion;
-            if (data.version && data.version !== latestVersion && latestVersion !== 'N/A') {
+            // Normalize versions to compare (strip whitespace / leading 'v')
+            function normalizeVersion(v) {
+              if (!v && v !== 0) return '';
+              return String(v).trim().replace(/^v/i, '').toLowerCase();
+            }
+            const normalizedLatest = normalizeVersion(latestVersion);
+            const normalizedRunning = normalizeVersion(data.version);
+            if (data.version && normalizedRunning !== normalizedLatest && latestVersion !== 'N/A') {
               // Always show update notification when there's an update available
               showNotification(`A new ${selectedBot} bot version is available! Current: ${data.version}, Latest: ${latestVersion}`, 'update');
               // Show update indicator in version card
@@ -1343,8 +1400,8 @@ document.addEventListener('DOMContentLoaded', function() {
               if (updateIndicator) {
                 updateIndicator.style.display = 'none';
               }
-              // Remove update notifications
-              removeUpdateNotifications();
+              // Remove update notifications for this bot now that running version matches latest
+              removeUpdateNotificationsForBot(selectedBot, latestVersion);
             }
             const statusText = data.running ? 'ONLINE' : 'OFFLINE';
             const statusClass = data.running ? 'success' : 'danger';
