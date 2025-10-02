@@ -7924,18 +7924,25 @@ async def update_version_control():
     try:
         # Define the directory path
         directory = "/home/botofthespecter/logs/version/"
+        beta_directory = "/home/botofthespecter/logs/version/beta/"
         # Ensure the directory exists, create it if it doesn't
         if not os.path.exists(directory):
             os.makedirs(directory)
+        if not os.path.exists(beta_directory):
+            os.makedirs(beta_directory)
         # Determine file name based on SYSTEM value
         if SYSTEM == "STABLE":
             file_name = f"{CHANNEL_NAME}_version_control.txt"
+            directory = "/home/botofthespecter/logs/version/"
+            # Define the full file path
+            file_path = os.path.join(directory, file_name)
         elif SYSTEM == "BETA":
             file_name = f"{CHANNEL_NAME}_beta_version_control.txt"
+            directory = "/home/botofthespecter/logs/version/beta/"
+            # Define the full file path
+            file_path = os.path.join(directory, file_name)
         else:
             raise ValueError("Invalid SYSTEM value. Expected STABLE, BETA, or ALPHA.")
-        # Define the full file path
-        file_path = os.path.join(directory, file_name)
         # Delete the file if it exists
         if os.path.exists(file_path):
             os.remove(file_path)
