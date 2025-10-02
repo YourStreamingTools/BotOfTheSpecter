@@ -6,7 +6,7 @@ import logging
 import asyncio
 import datetime
 import urllib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Third-party imports
 import aiohttp
@@ -98,12 +98,14 @@ async def update_api_count(count_type, new_count):
     conn = await get_mysql_connection()
     try:
         async with conn.cursor() as cur:
-            # Update the count, even if it's the same value, to trigger the ON UPDATE CURRENT_TIMESTAMP
+            local_now = datetime.now()  # local system time
+            local_now_str = local_now.strftime('%Y-%m-%d %H:%M:%S')
             await cur.execute("""
-                UPDATE api_counts 
-                SET count = %s 
-                WHERE type = %s AND (count != %s OR count = %s)
-            """, (new_count, count_type, new_count, new_count))
+                UPDATE api_counts
+                SET count = %s,
+                    updated = %s
+                WHERE type = %s
+            """, (new_count, local_now_str, count_type))
             await conn.commit()
             logging.info(f"Successfully updated {count_type} count to {new_count}")
     except Exception as e:
@@ -114,36 +116,78 @@ async def update_api_count(count_type, new_count):
 
 # Midnight function
 async def midnight():
-    while True:
-        # Get the current time
-        current_time = datetime.now()
-        try:
-            # Connect to database to check reset days
-            conn = await get_mysql_connection()
+    last_local_reload = None  # date of last local midnight reload
+    last_utc_reset = None     # date of last UTC reset
+    try:
+        while True:
+            now_utc = datetime.now(timezone.utc)
+            now_local = datetime.now()
+            next_utc_midnight = datetime(now_utc.year, now_utc.month, now_utc.day, tzinfo=timezone.utc) + timedelta(days=1)
+            next_local_midnight = datetime(now_local.year, now_local.month, now_local.day) + timedelta(days=1)
+            seconds_until_utc = (next_utc_midnight - now_utc).total_seconds()
+            seconds_until_local = (next_local_midnight - now_local).total_seconds()
+            # Sleep until the next event (either local or UTC midnight)
+            sleep_seconds = max(0, min(seconds_until_utc, seconds_until_local))
+            await asyncio.sleep(sleep_seconds)
+            # Recompute times after waking
+            now_utc = datetime.now(timezone.utc)
+            now_local = datetime.now()
+            # Reload .env at local midnight (once per local date)
             try:
-                async with conn.cursor() as cur:
-                    # Reset weather requests at midnight (this happens daily)
-                    if current_time.hour == 0 and current_time.minute == 0:
-                        # Reload the .env file at midnight
-                        load_dotenv()
-                        # Reset weather requests to 1000
-                        await update_api_count("weather", 1000)
-                    # Get reset days for other API types
-                    await cur.execute("SELECT type, reset_day FROM api_counts WHERE type in ('shazam', 'exchangerate')")
-                    reset_days = await cur.fetchall()
-                    for api_type, reset_day in reset_days:
-                        if current_time.day == reset_day and current_time.hour == 0 and current_time.minute == 0:
-                            if api_type == "shazam":
-                                await update_api_count("shazam", 500)
-                            elif api_type == "exchangerate":
-                                await update_api_count("exchangerate", 1500)
-            finally:
-                conn.close()
-        except Exception as e:
-            # Handle any errors during the reset
-            logging.error(f"Failed to reset API request counts: {e}")
-        # Sleep for 60 seconds before checking again
-        await asyncio.sleep(60)
+                if last_local_reload != now_local.date() and now_local.hour == 0:
+                    try:
+                        load_dotenv(find_dotenv())
+                        logging.info("Reloaded .env at local midnight")
+                    except Exception as e:
+                        logging.error(f"Failed to reload .env at local midnight: {e}")
+                    last_local_reload = now_local.date()
+            except Exception as e:
+                logging.error(f"Error during local midnight .env reload check: {e}")
+            # Perform UTC resets at UTC midnight (once per UTC date)
+            try:
+                if last_utc_reset != now_utc.date() and now_utc.hour == 0:
+                    conn = await get_mysql_connection()
+                    try:
+                        async with conn.cursor() as cur:
+                            # Reset weather requests every UTC midnight
+                            try:
+                                await update_api_count("weather", 1000)
+                            except Exception as e:
+                                logging.error(f"Failed to reset weather count: {e}")
+                            # Reset API counts for types that reset on a specific day (day-of-month in UTC)
+                            await cur.execute("SELECT type, reset_day FROM api_counts WHERE type in ('shazam', 'exchangerate')")
+                            reset_days = await cur.fetchall()
+                            for api_type, reset_day in reset_days:
+                                try:
+                                    rd = int(reset_day)
+                                except Exception:
+                                    # Skip invalid reset_day values
+                                    continue
+                                # If the reset_day equals today's UTC day-of-month, reset that API count
+                                if rd == now_utc.day:
+                                    if api_type == "shazam":
+                                        try:
+                                            await update_api_count("shazam", 500)
+                                        except Exception as e:
+                                            logging.error(f"Failed to reset shazam count: {e}")
+                                    elif api_type == "exchangerate":
+                                        try:
+                                            await update_api_count("exchangerate", 1500)
+                                        except Exception as e:
+                                            logging.error(f"Failed to reset exchangerate count: {e}")
+                    finally:
+                        conn.close()
+                    last_utc_reset = now_utc.date()
+            except asyncio.CancelledError:
+                # Allow cancellation to propagate so shutdown is clean
+                raise
+            except Exception as e:
+                logging.error(f"Failed to run UTC midnight reset tasks: {e}")
+                # Back off a bit before trying again to avoid busy-loop on persistent errors
+                await asyncio.sleep(60)
+    except asyncio.CancelledError:
+        logging.info("midnight task cancelled")
+        return
 
 # Lifespan event handler
 @asynccontextmanager
@@ -660,15 +704,15 @@ async def api_song():
     try:
         # Get count from database
         count, reset_day = await get_api_count("shazam")
-        # Calculate days until reset
+        # Calculate days until reset (based on UTC now)
         reset_day = int(reset_day)
-        today = datetime.now()
+        today = datetime.now(timezone.utc)
         if today.day >= reset_day:
             next_month = today.month + 1 if today.month < 12 else 1
             next_year = today.year + 1 if today.month == 12 else today.year
-            next_reset = datetime(next_year, next_month, reset_day)
+            next_reset = datetime(next_year, next_month, reset_day, tzinfo=timezone.utc)
         else:
-            next_reset = datetime(today.year, today.month, reset_day)
+            next_reset = datetime(today.year, today.month, reset_day, tzinfo=timezone.utc)
         days_until_reset = (next_reset - today).days
         return {"requests_remaining": str(count), "days_remaining": days_until_reset}
     except Exception as e:
@@ -687,15 +731,15 @@ async def api_exchangerate():
     try:
         # Get count from database
         count, reset_day = await get_api_count("exchangerate")
-        # Calculate days until reset
+        # Calculate days until reset (based on UTC now)
         reset_day = int(reset_day)
-        today = datetime.now()
+        today = datetime.now(timezone.utc)
         if today.day >= reset_day:
             next_month = today.month + 1 if today.month < 12 else 1
             next_year = today.year + 1 if today.month == 12 else today.year
-            next_reset = datetime(next_year, next_month, reset_day)
+            next_reset = datetime(next_year, next_month, reset_day, tzinfo=timezone.utc)
         else:
-            next_reset = datetime(today.year, today.month, reset_day)
+            next_reset = datetime(today.year, today.month, reset_day, tzinfo=timezone.utc)
         days_until_reset = (next_reset - today).days
         return {"requests_remaining": str(count), "days_remaining": days_until_reset}
     except Exception as e:
@@ -712,10 +756,10 @@ async def api_exchangerate():
 )
 async def api_weather_requests_remaining():
     try:
-        # Calculate time remaining until midnight
-        now = datetime.now()
-        midnight = datetime(now.year, now.month, now.day) + timedelta(days=1)
-        time_until_midnight = (midnight - now).seconds
+        # Calculate time remaining until next UTC midnight
+        now = datetime.now(timezone.utc)
+        midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=1)
+        time_until_midnight = int((midnight - now).total_seconds())
         hours, remainder = divmod(time_until_midnight, 3600)
         minutes, seconds = divmod(remainder, 60)
         if hours > 0: time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds"
@@ -1029,6 +1073,7 @@ async def web_weather(api_key: str = Query(...), location: str = Query(...)):
         location_data, lat, lon = await get_weather_lat_lon(location)
         if lat is None or lon is None:
             raise HTTPException(status_code=404, detail=f"Location '{location}' not found.")
+        # Decrement weather count (UTC-based usage)
         count, _ = await get_api_count("weather")
         new_count = count - 1  # Decrease by 1 for location data
         await update_api_count("weather", new_count)
