@@ -5,13 +5,18 @@ include_once __DIR__ . '/lang/i18n.php';
 // SSH Connection parameters
 include_once "/var/www/config/ssh.php";
 
-// Define variables for standard bot
-$versionFilePath = '/home/botofthespecter/logs/version/' . $username . '_version_control.txt';
-$botScriptPath = "/home/botofthespecter/bot.py";
+// Define the versions for the bots
+$remoteVersionFile = "/home/botofthespecter/logs/version";
+$versionFilePath = "{$remoteVersionFile}/{$username}_version_control.txt";
+$betaVersionFilePath = "{$remoteVersionFile}/beta/{$username}_beta_version_control.txt";
+
+// Define the status script path
 $statusScriptPath = "/home/botofthespecter/status.py";
 
-// Define variables for beta bot
-$betaVersionFilePath = '/home/botofthespecter/logs/version/' . $username . '_beta_version_control.txt';
+// Define script path for stable bot
+$botScriptPath = "/home/botofthespecter/bot.py";
+
+// Define script path for beta bot
 $BetaBotScriptPath = "/home/botofthespecter/beta.py";
 
 // Fetch all versions from the API ONCE at the top

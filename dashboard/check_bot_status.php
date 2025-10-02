@@ -62,7 +62,7 @@ $remoteVersionFile = "/home/botofthespecter/logs/version/";
 if ($bot === 'stable') {
   $remoteVersionFile .= "{$username}_version_control.txt";
 } elseif ($bot === 'beta') {
-  $remoteVersionFile .= "{$username}_beta_version_control.txt";
+  $remoteVersionFile .= "beta/{$username}_beta_version_control.txt";
 }
 
 // Function to get remote file mtime via SSH
