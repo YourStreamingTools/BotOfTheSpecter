@@ -57,7 +57,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.4.6"
+VERSION = "5.4.7"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -8466,32 +8466,39 @@ async def known_users():
         await connection.ensure_closed()
 
 async def check_premium_feature():
-    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, ADMIN_API_KEY, CHANNEL_NAME
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, CHANNEL_NAME
+    api_logger.info("Starting premium feature check")
+    connection = None
     try:
+        connection = await mysql_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT beta_access FROM users WHERE username = %s", (CHANNEL_NAME.lower(),))
+            result = await cursor.fetchone()
+            if result and result['beta_access'] == 1:
+                api_logger.info("User has beta access, returning 4000")
+                return 4000
+        api_logger.info("User does not have beta access, checking subscription")
         twitch_subscriptions_url = f"https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id={CHANNEL_ID}"
-        beta_users_url = f"https://api.botofthespecter.com/authorizedusers?api_key={ADMIN_API_KEY}"
         headers = {"Client-ID": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}",}
+        api_logger.info(f"Fetching subscription from {twitch_subscriptions_url}")
         async with httpClientSession() as session:
-            # Fetch auth list first
-            async with session.get(beta_users_url) as auth_response:
-                auth_response.raise_for_status()
-                auth_data = await auth_response.json()
-                # Convert usernames in the users list to lowercase for comparison
-                authorized_users = [user.lower() for user in auth_data.get("users", [])]
-                if CHANNEL_NAME.lower() in authorized_users:
-                    return 4000
-            # If not in auth list, check if they're a subscriber
             async with session.get(twitch_subscriptions_url, headers=headers) as response:
                 response.raise_for_status()
                 data = await response.json()
+                api_logger.info(f"Subscription data: {data}")
                 if data.get("data"):
-                    return int(data["data"][0]["tier"])
+                    tier = int(data["data"][0]["tier"])
+                    api_logger.info(f"User is subscribed with tier {tier}")
+                    return tier
                 else:
+                    api_logger.info("User is not subscribed, returning 0")
                     return 0  # Return 0 if not subscribed
-    except aiohttpClientError as e:
-        sanitized_message = str(e).replace(ADMIN_API_KEY, "[ADMIN_API_KEY]")
-        twitch_logger.error(f"Error checking user/subscription: {sanitized_message}")
-        return 0  # Return 0 for any API error
+    except Exception as e:
+        api_logger.error(f"Error in check_premium_feature: {e}")
+        return 0
+    finally:
+        if connection:
+            await connection.ensure_closed()
 
 # Make a Stream Marker for events
 async def make_stream_marker(description: str):
