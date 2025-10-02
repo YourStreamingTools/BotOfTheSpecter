@@ -334,6 +334,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       $monitor_username = trim(str_replace(' ', '', $_POST['monitor_username']));
       if (empty($monitor_username)) {
         $errorMsg = "Twitch Username cannot be empty.";
+      } elseif (strtolower($monitor_username) === strtolower($username)) {
+        $errorMsg = "You cannot track your own channel.";
       } else {
         $monitor_url = "https://www.twitch.tv/" . $monitor_username;
         // Check if the streamer already exists
