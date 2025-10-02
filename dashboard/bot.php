@@ -489,7 +489,7 @@ ob_start();
       <div class="card-content">
         <?php if ($selectedBot === 'stable'): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
-            <?php echo t('bot_stable_controls') . " (v{$newVersion})"; ?>
+            <?php echo t('bot_stable_controls'); ?> <span id="bot-controls-version" class="has-text-info">(v<?php echo $versionRunning ?: $newVersion; ?>)</span>
           </h3>
           <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
             <?php echo t('bot_stable_description'); ?>
@@ -1468,8 +1468,22 @@ document.addEventListener('DOMContentLoaded', function() {
               console.log('Updated last-run to:', data.lastRun || 'Never');
             }
             if (runningVersionElement) {
-              runningVersionElement.textContent = data.version || 'Offline';
-              console.log('Updated running-version to:', data.version || 'Offline');
+              let displayedVersion;
+              if (data.running) {
+                // If the bot is running, show the version it is running (prefer lastRunVersion)
+                displayedVersion = data.lastRunVersion || data.version || 'Offline';
+              } else {
+                // If the bot is not running, show Offline in the left panel
+                displayedVersion = 'Offline';
+              }
+              runningVersionElement.textContent = displayedVersion;
+              console.log('Updated running-version to:', displayedVersion);
+            }
+            // Update the header version for stable controls to use the authoritative lastRunVersion
+            const headerVersionEl = document.getElementById('bot-controls-version');
+            if (headerVersionEl && selectedBot === 'stable') {
+              const headerVersionText = data.lastRunVersion || data.version || (window.latestStableVersion || '');
+              headerVersionEl.textContent = headerVersionText ? `(v${headerVersionText})` : '';
             }
             // Update technical info if available
             const latencyElement = document.getElementById(`${selectedBot}-service-latency`);
