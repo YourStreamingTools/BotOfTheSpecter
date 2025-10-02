@@ -82,16 +82,56 @@ function getRemoteFileMTime($remoteFile) {
   return null;
 }
 
+// Function to get remote file contents via SSH
+function getRemoteFileContents($remoteFile) {
+  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+  try {
+    $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+    $cmd = "cat " . escapeshellarg($remoteFile) . " 2>/dev/null";
+    $output = SSHConnectionManager::executeCommand($connection, $cmd);
+    if ($output !== false) {
+      return trim($output);
+    }
+  } catch (Exception $e) {
+    error_log("Failed to get remote file contents: " . $e->getMessage());
+  }
+  return null;
+}
+
+// Helper: try to extract a semantic version number from arbitrary text
+function extractSemver($text) {
+  if (!$text) return '';
+  // Match v?1.2.3 or 1.2.3 or 1.2
+  if (preg_match('/v?(\d+\.\d+(?:\.\d+)?)/', $text, $m)) {
+    return $m[1];
+  }
+  return trim($text);
+}
+
 $lastRunTimestamp = getRemoteFileMTime($remoteVersionFile);
+
+// Try to read the remote version file contents and extract a version string
+$remoteFileContents = getRemoteFileContents($remoteVersionFile);
+$remoteFileVersion = extractSemver($remoteFileContents);
+
+// If we were able to extract a version from the remote file, prefer that as the "version" value
+$preferredVersion = '';
+if (!empty($remoteFileVersion)) {
+  $preferredVersion = $remoteFileVersion;
+} elseif (!empty($botStatus['version'])) {
+  $preferredVersion = $botStatus['version'];
+}
 
 $response = [
   'success' => $botStatus['success'],
   'bot' => $bot,
   'running' => isset($botStatus['running']) ? $botStatus['running'] : false,
   'pid' => isset($botStatus['pid']) ? $botStatus['pid'] : 0,
-  'version' => isset($botStatus['version']) ? $botStatus['version'] : '',
+  // 'version' is the version the user last ran on the remote server (preferred), fallback to botStatus
+  'version' => $preferredVersion,
+  'lastRunVersion' => $remoteFileVersion ?: null,
   'latestVersion' => $latestVersion,
-  'updateAvailable' => !empty($botStatus['version']) && !empty($latestVersion) && version_compare($botStatus['version'], $latestVersion, '<'),
+  'updateAvailable' => !empty($preferredVersion) && !empty($latestVersion) && version_compare($preferredVersion, $latestVersion, '<'),
   'lastModified' => isset($botStatus['lastModified']) && $botStatus['lastModified'] ? formatTimeAgo($botStatus['lastModified']) : 'Unknown',
   'lastRun' => $lastRunTimestamp ? formatTimeAgo($lastRunTimestamp) : 'Never'
 ];
