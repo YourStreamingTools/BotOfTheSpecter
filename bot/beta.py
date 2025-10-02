@@ -1670,12 +1670,12 @@ class TwitchBot(commands.Bot):
                     return
                 # Handle commands
                 await self.handle_commands(message)
-                messageContent = message.content.strip().lower() if message.content else ""
+                messageContent = str(message.content).strip().lower() if message.content else ""
                 messageAuthor = message.author.name if message.author else ""
                 messageAuthorID = message.author.id if message.author else ""
-                AuthorMessage = message.content if message.content else ""
+                AuthorMessage = str(message.content) if message.content else ""
                 # Check if the message matches the spam pattern
-                spam_pattern = await get_spam_patterns()  
+                spam_pattern = await get_spam_patterns()
                 if spam_pattern:  # Check if spam_pattern is not empty
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
@@ -1905,8 +1905,8 @@ class TwitchBot(commands.Bot):
                         else:
                             chat_logger.info(f"Custom command '{command}' not found.")
                 # Handle AI responses
-                if f'@{self.nick.lower()}' in message.content.lower():
-                    user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
+                if f'@{self.nick.lower()}' in str(message.content).lower():
+                    user_message = str(message.content).lower().replace(f'@{self.nick.lower()}', '').strip()
                     if not user_message:
                         await send_chat_message(f'Hello, {message.author.name}!')
                     else:
@@ -2199,9 +2199,10 @@ class TwitchBot(commands.Bot):
                         api_logger.info(f"AI response received: {ai_response}")
                         return ai_response
             except aiohttpClientError as e:
-                bot_logger.error(f"Error getting AI response: {e}")
+                api_logger.error(f"Error getting AI response: {e}")
                 return "Sorry, I could not understand your request."
         else:
+            api_logger.info("AI access denied due to lack of premium.")
             # No premium access and not the bot owner
             return "This channel doesn't have a premium subscription to use this feature."
 
@@ -8770,32 +8771,39 @@ async def known_users():
         await connection.ensure_closed()
 
 async def check_premium_feature():
-    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, ADMIN_API_KEY, CHANNEL_NAME
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, CHANNEL_NAME
+    api_logger.info("Starting premium feature check")
+    connection = None
     try:
+        connection = await mysql_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT beta_access FROM users WHERE username = %s", (CHANNEL_NAME.lower(),))
+            result = await cursor.fetchone()
+            if result and result['beta_access'] == 1:
+                api_logger.info("User has beta access, returning 4000")
+                return 4000
+        api_logger.info("User does not have beta access, checking subscription")
         twitch_subscriptions_url = f"https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id={CHANNEL_ID}"
-        beta_users_url = f"https://api.botofthespecter.com/authorizedusers?api_key={ADMIN_API_KEY}"
         headers = {"Client-ID": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}",}
+        api_logger.info(f"Fetching subscription from {twitch_subscriptions_url}")
         async with httpClientSession() as session:
-            # Fetch auth list first
-            async with session.get(beta_users_url) as auth_response:
-                auth_response.raise_for_status()
-                auth_data = await auth_response.json()
-                # Convert usernames in the users list to lowercase for comparison
-                authorized_users = [user.lower() for user in auth_data.get("users", [])]
-                if CHANNEL_NAME.lower() in authorized_users:
-                    return 4000
-            # If not in auth list, check if they're a subscriber
             async with session.get(twitch_subscriptions_url, headers=headers) as response:
                 response.raise_for_status()
                 data = await response.json()
+                api_logger.info(f"Subscription data: {data}")
                 if data.get("data"):
-                    return int(data["data"][0]["tier"])
+                    tier = int(data["data"][0]["tier"])
+                    api_logger.info(f"User is subscribed with tier {tier}")
+                    return tier
                 else:
+                    api_logger.info("User is not subscribed, returning 0")
                     return 0  # Return 0 if not subscribed
-    except aiohttpClientError as e:
-        sanitized_message = str(e).replace(ADMIN_API_KEY, "[ADMIN_API_KEY]")
-        twitch_logger.error(f"Error checking user/subscription: {sanitized_message}")
-        return 0  # Return 0 for any API error
+    except Exception as e:
+        api_logger.error(f"Error in check_premium_feature: {e}")
+        return 0
+    finally:
+        if connection:
+            await connection.ensure_closed()
 
 # Make a Stream Marker for events
 async def make_stream_marker(description: str):
