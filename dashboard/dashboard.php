@@ -68,7 +68,7 @@ if ($isLoggedIn) {
                             </div>
                             <h4 class="title is-5">Commands</h4>
                             <p class="subtitle is-6">Create and edit custom commands</p>
-                            <a href="manage_custom_commands.php" class="button is-success is-fullwidth">
+                            <a href="custom_commands.php" class="button is-success is-fullwidth">
                                 <span class="icon"><i class="fas fa-plus"></i></span>
                                 <span>Edit Commands</span>
                             </a>

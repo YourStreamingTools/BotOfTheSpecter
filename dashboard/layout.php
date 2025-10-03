@@ -115,7 +115,7 @@ $maintenanceMode = $config['maintenanceMode'];
                         <span>Commands</span>
                     </a>
                     <div class="navbar-dropdown">
-                        <a class="navbar-item" href="manage_custom_commands.php">
+                        <a class="navbar-item" href="custom_commands.php">
                             <span class="icon"><i class="fas fa-terminal"></i></span>
                             <span>Custom Commands</span>
                         </a>
@@ -126,10 +126,6 @@ $maintenanceMode = $config['maintenanceMode'];
                         <a class="navbar-item" href="builtin.php">
                             <span class="icon"><i class="fas fa-terminal"></i></span>
                             <span>Builtin Commands</span>
-                        </a>
-                        <a class="navbar-item" href="commands.php">
-                            <span class="icon"><i class="fas fa-terminal"></i></span>
-                            <span>Custom Commands</span>
                         </a>
                     </div>
                 </div>
