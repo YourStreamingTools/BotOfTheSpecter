@@ -242,7 +242,7 @@ ob_start();
 <?php endif; ?>
 <h4 class="title is-4 has-text-centered mb-5"><?php echo t('navbar_edit_custom_commands'); ?></h4>
 <div class="columns is-desktop is-multiline is-centered command-columns-equal" style="align-items: stretch;">
-    <div class="column is-5-desktop is-12-mobile">
+    <div class="column is-6-desktop is-12-mobile">
         <div class="box">
             <div class="mb-3" style="display: flex; align-items: center;">
                 <span class="icon is-large has-text-primary" style="margin-right: 0.5rem;">
@@ -299,7 +299,7 @@ ob_start();
             </form>
         </div>
     </div>
-    <div class="column is-5-desktop is-12-mobile">
+    <div class="column is-6-desktop is-12-mobile">
         <div class="box">
             <div class="mb-3" style="display: flex; align-items: center;">
                 <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
