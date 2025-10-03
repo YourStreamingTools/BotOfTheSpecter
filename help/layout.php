@@ -16,9 +16,8 @@ $maintenanceMode = $config['maintenanceMode'];
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" type="text/css" href="../home/style.css?v=<?= $dashboardVersion ?>">
-    <script src="../home/navbar.js" defer></script>
+    <!-- CUSTOM -->
+    <script src="navbar.js" defer></script>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
