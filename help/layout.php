@@ -41,6 +41,7 @@ $maintenanceMode = $config['maintenanceMode'];
         <div class="navbar-start">
             <a href="../" class="navbar-item">Home</a>
             <a href="custom_command_variables.php" class="navbar-item">Custom Command Variables</a>
+            <a href="twitch_channel_points.php" class="navbar-item">Twitch Channel Points</a>
         </div>
         <div class="navbar-end">
             <div class="navbar-item no-hover">
