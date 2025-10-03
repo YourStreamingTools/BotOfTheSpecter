@@ -149,6 +149,35 @@ function isOnline($user_id, $client_id, $bearer) {
     return isset($data['data']) && !empty($data['data']);
 }
 
+// Function to get online user IDs in batch
+function getOnlineUserIds($user_ids, $client_id, $bearer) {
+    if (empty($user_ids)) return [];
+    $url = "https://api.twitch.tv/helix/streams?";
+    $params = [];
+    foreach ($user_ids as $user_id) {
+        $params[] = "user_id=" . urlencode($user_id);
+    }
+    $url .= implode('&', $params);
+    $headers = [
+        "Authorization: Bearer " . $bearer,
+        "Client-Id: " . $client_id
+    ];
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    $data = json_decode($response, true);
+    $online_ids = [];
+    if (isset($data['data'])) {
+        foreach ($data['data'] as $stream) {
+            $online_ids[] = $stream['user_id'];
+        }
+    }
+    return $online_ids;
+}
+
 // Prepare an empty placeholder for the online channels — they'll be populated by JS via AJAX.
 $online_channels = [];
 // AJAX handlers: bot_overview and online_channels
@@ -213,19 +242,30 @@ if (isset($_GET['ajax'])) {
         ]);
         exit;
     } elseif ($ajax === 'online_channels') {
-        // Build online channels list (this may perform Twitch API calls per user — it's now deferred)
-        $online = [];
+        // Build channels list (online or all based on parameter)
+        $channels = [];
+        $include_offline = isset($_GET['include_offline']) && $_GET['include_offline'] == '1';
         if ($conn && isset($_SESSION['access_token'])) {
             $result = $conn->query("SELECT id, twitch_user_id, twitch_display_name FROM users");
             if ($result) {
+                $user_ids = [];
+                $user_data = [];
                 while ($row = $result->fetch_assoc()) {
-                    if (isOnline($row['twitch_user_id'], $clientID, $_SESSION['access_token'])) {
-                        $online[] = $row;
+                    $user_ids[] = $row['twitch_user_id'];
+                    $user_data[$row['twitch_user_id']] = $row;
+                }
+                // Get online status in batch
+                $online_user_ids = getOnlineUserIds($user_ids, $clientID, $_SESSION['access_token']);
+                foreach ($user_data as $user_id => $row) {
+                    $is_online = in_array($user_id, $online_user_ids);
+                    if ($include_offline || $is_online) {
+                        $row['is_online'] = $is_online;
+                        $channels[] = $row;
                     }
                 }
             }
         }
-        echo json_encode(['channels' => $online]);
+        echo json_encode(['channels' => $channels]);
         exit;
     }
 }
@@ -485,14 +525,22 @@ ob_start();
     <?php endif; ?>
     <form method="post">
         <div class="field">
-            <label class="label">Select Channel (Online Only)</label>
+            <label class="label">Select Channel</label>
             <div class="control">
                 <div class="select">
                     <!-- Populated via AJAX to avoid blocking page load -->
                     <select name="channel_id" id="channel-select" required>
-                        <option value="">Loading online channels...</option>
+                        <option value="">Loading channels...</option>
                     </select>
                 </div>
+            </div>
+        </div>
+        <div class="field">
+            <div class="control">
+                <label class="checkbox">
+                    <input type="checkbox" id="include-offline">
+                    Include offline channels
+                </label>
             </div>
         </div>
         <div class="field">
@@ -864,16 +912,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageTextarea = document.getElementById('message');
     const sendButton = document.getElementById('send');
     const channelSelect = document.getElementById('channel-select');
+    const includeOfflineCheckbox = document.getElementById('include-offline');
     function updateSendButtonState() {
         if (!sendButton) return;
         const hasMessage = messageTextarea && messageTextarea.value.trim() !== '';
         const hasChannel = channelSelect && channelSelect.value && channelSelect.value !== '';
         sendButton.disabled = !(hasMessage && hasChannel);
     }
-    // Fetch online channels via AJAX (deferred heavy work)
-    (function fetchOnlineChannels() {
+    // Fetch channels via AJAX (deferred heavy work)
+    function fetchChannels() {
+        const includeOffline = includeOfflineCheckbox && includeOfflineCheckbox.checked;
         const base = window.location.href.split('?')[0];
-        fetch(base + '?ajax=online_channels')
+        const url = base + '?ajax=online_channels' + (includeOffline ? '&include_offline=1' : '');
+        fetch(url)
             .then(response => response.json())
             .then(data => {
                 if (!channelSelect) return;
@@ -882,7 +933,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (channels.length === 0) {
                     const opt = document.createElement('option');
                     opt.value = '';
-                    opt.textContent = 'No online channels';
+                    opt.textContent = includeOffline ? 'No channels found' : 'No online channels';
                     channelSelect.appendChild(opt);
                     channelSelect.disabled = true;
                 } else {
@@ -893,7 +944,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     channels.forEach(ch => {
                         const opt = document.createElement('option');
                         opt.value = ch.twitch_user_id;
-                        opt.textContent = ch.twitch_display_name || ch.twitch_user_id;
+                        const displayName = ch.twitch_display_name || ch.twitch_user_id;
+                        opt.textContent = ch.is_online ? displayName : displayName + ' (Offline)';
                         channelSelect.appendChild(opt);
                     });
                     channelSelect.disabled = false;
@@ -901,7 +953,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateSendButtonState();
             })
             .catch(err => {
-                console.error('Failed to load online channels:', err);
+                console.error('Failed to load channels:', err);
                 if (channelSelect) {
                     channelSelect.innerHTML = '';
                     const opt = document.createElement('option');
@@ -912,7 +964,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 updateSendButtonState();
             });
-    })();
+    }
+    // Initial fetch
+    fetchChannels();
+    // Refetch when checkbox changes
+    if (includeOfflineCheckbox) {
+        includeOfflineCheckbox.addEventListener('change', fetchChannels);
+    }
     if (messageTextarea) {
         messageTextarea.addEventListener('input', updateSendButtonState);
     }
