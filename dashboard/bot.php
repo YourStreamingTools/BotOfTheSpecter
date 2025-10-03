@@ -1322,7 +1322,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function removeUpdateNotifications() {
     // Remove all update notifications
     document.querySelectorAll('.notification.bot-operation-persistent').forEach(notification => {
-      if (notification.textContent.includes('version is available') || notification.textContent.includes('Update Available')) {
+      if (notification.textContent.includes('version is available') || notification.textContent.includes('Update Available') || notification.textContent.includes('code has been updated')) {
         notification.parentNode.removeChild(notification);
       }
     });
@@ -1334,7 +1334,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const selector = '.notification.bot-operation-persistent';
     document.querySelectorAll(selector).forEach(notification => {
       const text = (notification.textContent || '').toLowerCase();
-      if (text.includes('version is available') || text.includes('update available') || (botType && text.includes(botType + ' bot'))) {
+      if (text.includes('version is available') || text.includes('update available') || text.includes('code has been updated') || (botType && text.includes(botType + ' bot'))) {
         // If latestVersion provided, try to match it too (safe substring match)
         if (!latestVersion || text.includes(String(latestVersion).toLowerCase())) {
           if (notification.parentNode) notification.parentNode.removeChild(notification);
@@ -1347,7 +1347,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const toRemove = [];
         window._seenUpdateNotifications.forEach(msg => {
           const lower = (msg || '').toLowerCase();
-          if (lower.includes('version is available') || (botType && lower.includes(botType + ' bot')) || (latestVersion && lower.includes(String(latestVersion).toLowerCase()))) {
+          if (lower.includes('version is available') || lower.includes('code has been updated') || (botType && lower.includes(botType + ' bot')) || (latestVersion && lower.includes(String(latestVersion).toLowerCase()))) {
             toRemove.push(msg);
           }
         });
@@ -1386,16 +1386,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const normalizedLatest = normalizeVersion(latestVersion);
             const normalizedRunning = normalizeVersion(data.version);
+            let hasUpdate = false;
             if (data.version && normalizedRunning !== normalizedLatest && latestVersion !== 'N/A') {
               // Always show update notification when there's an update available
               showNotification(`A new ${selectedBot} bot version is available! Current: ${data.version}, Latest: ${latestVersion}`, 'update');
+              hasUpdate = true;
+            } else if (selectedBot === 'beta' && data.lastModified && data.lastRun && data.lastRun !== 'Never' && parseAgoToSeconds(data.lastModified) < parseAgoToSeconds(data.lastRun)) {
+              // Check for beta code changes
+              showNotification('Beta bot code has been updated since your last run. Please restart the bot to apply changes.', 'update');
+              hasUpdate = true;
+            }
+            if (hasUpdate) {
               // Show update indicator in version card
               const updateIndicator = document.getElementById('version-update-indicator');
               if (updateIndicator) {
+                const tag = updateIndicator.querySelector('.tag');
+                if (tag) {
+                  tag.textContent = selectedBot === 'beta' ? 'Code Update Available' : 'Update Available';
+                }
                 updateIndicator.style.display = 'block';
               }
             } else {
-              // Hide update indicator if versions match
+              // Hide update indicator if no updates
               const updateIndicator = document.getElementById('version-update-indicator');
               if (updateIndicator) {
                 updateIndicator.style.display = 'none';
@@ -1609,6 +1621,21 @@ document.addEventListener('DOMContentLoaded', function() {
     hours: <?php echo json_encode(t('time_hours_ago', [':count' => ':count'])); ?>,
     days: <?php echo json_encode(t('time_days_ago', [':count' => ':count'])); ?>
   };
+  // Helper: parse "X unit ago" to seconds
+  function parseAgoToSeconds(agoString) {
+    if (!agoString || agoString === 'Never' || agoString === 'Unknown') return Infinity;
+    const match = agoString.match(/(\d+)\s*(second|minute|hour|day)s?\s+ago/i);
+    if (!match) return Infinity;
+    const num = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    switch (unit) {
+      case 'second': return num;
+      case 'minute': return num * 60;
+      case 'hour': return num * 3600;
+      case 'day': return num * 86400;
+      default: return Infinity;
+    }
+  }
   // Helper: convert ISO date to "time ago"
   function timeAgo(isoDate) {
     if (!isoDate) return '--';
