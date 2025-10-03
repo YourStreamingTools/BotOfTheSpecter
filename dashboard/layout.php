@@ -111,38 +111,57 @@ $maintenanceMode = $config['maintenanceMode'];
                 </a>
                 <div class="navbar-item has-dropdown is-hoverable">
                     <a class="navbar-link">
-                        <span class="icon"><i class="fas fa-cogs"></i></span>
-                        <span><?php echo t('navbar_configuration'); ?></span>
+                        <span class="icon"><i class="fas fa-terminal"></i></span>
+                        <span>Commands</span>
                     </a>
                     <div class="navbar-dropdown">
                         <a class="navbar-item" href="manage_custom_commands.php">
                             <span class="icon"><i class="fas fa-terminal"></i></span>
-                            <span><?php echo t('navbar_edit_custom_commands'); ?></span>
+                            <span>Custom Commands</span>
                         </a>
                         <a class="navbar-item" href="manage_custom_user_commands.php">
                             <span class="icon"><i class="fas fa-user-cog"></i></span>
-                            <span><?php echo t('navbar_manage_user_commands'); ?></span>
+                            <span>User Commands</span>
                         </a>
+                        <a class="navbar-item" href="builtin.php">
+                            <span class="icon"><i class="fas fa-terminal"></i></span>
+                            <span>Builtin Commands</span>
+                        </a>
+                        <a class="navbar-item" href="commands.php">
+                            <span class="icon"><i class="fas fa-terminal"></i></span>
+                            <span>Custom Commands</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="navbar-item has-dropdown is-hoverable">
+                    <a class="navbar-link">
+                        <span class="icon"><i class="fas fa-cogs"></i></span>
+                        <span>Settings</span>
+                    </a>
+                    <div class="navbar-dropdown">
                         <a class="navbar-item" href="timed_messages.php">
                             <span class="icon"><i class="fas fa-clock"></i></span>
-                            <span><?php echo t('navbar_timed_messages'); ?></span>
+                            <span>Auto Messages</span>
                         </a>
                         <a class="navbar-item" href="edit_counters.php">
                             <span class="icon"><i class="fas fa-pen-to-square"></i></span>
-                            <span><?php echo t('navbar_edit_counters'); ?></span>
+                            <span>Stream Counters</span>
                         </a>
                         <a class="navbar-item" href="bot_points.php">
                             <span class="icon"><i class="fas fa-coins"></i></span>
-                            <span><?php echo t('navbar_points_system'); ?></span>
+                            <span>Loyalty Points</span>
                         </a>
                         <a class="navbar-item" href="subathon.php">
                             <span class="icon"><i class="fas fa-hourglass-half"></i></span>
-                            <span><?php echo t('navbar_subathon'); ?></span>
+                            <span>Subathon</span>
                         </a>
-                        <hr class="navbar-divider">
+                        <a class="navbar-item" href="known_users.php">
+                            <span class="icon"><i class="fas fa-users"></i></span>
+                            <span>Welcome Messages</span>
+                        </a>
                         <a class="navbar-item" href="channel_rewards.php">
                             <span class="icon"><i class="fas fa-gift"></i></span>
-                            <span><?php echo t('navbar_channel_rewards'); ?></span>
+                            <span>Channel Rewards</span>
                         </a>
                     </div>
                 </div>
@@ -158,11 +177,7 @@ $maintenanceMode = $config['maintenanceMode'];
                         </a>
                         <a class="navbar-item" href="counters.php">
                             <span class="icon"><i class="fas fa-calculator"></i></span>
-                            <span><?php echo t('navbar_counters'); ?></span>
-                        </a>
-                        <a class="navbar-item" href="known_users.php">
-                            <span class="icon"><i class="fas fa-users"></i></span>
-                            <span><?php echo t('navbar_user_management'); ?></span>
+                            <span>Counter Stats</span>
                         </a>
                         <hr class="navbar-divider">
                         <a class="navbar-item" href="followers.php">
@@ -185,25 +200,17 @@ $maintenanceMode = $config['maintenanceMode'];
                 </div>
                 <div class="navbar-item has-dropdown is-hoverable">
                     <a class="navbar-link">
-                        <span class="icon"><i class="fas fa-broadcast-tower"></i></span>
-                        <span><?php echo t('navbar_streaming'); ?></span>
+                        <span class="icon"><i class="fas fa-video"></i></span>
+                        <span>Stream Tools</span>
                     </a>
                     <div class="navbar-dropdown">
-                        <a class="navbar-item" href="builtin.php">
-                            <span class="icon"><i class="fas fa-terminal"></i></span>
-                            <span><?php echo t('navbar_view_builtin_commands'); ?></span>
-                        </a>
-                        <a class="navbar-item" href="commands.php">
-                            <span class="icon"><i class="fas fa-terminal"></i></span>
-                            <span><?php echo t('navbar_view_custom_commands'); ?></span>
-                        </a>
                         <a class="navbar-item" href="streaming.php">
                             <span class="icon"><i class="fas fa-video"></i></span>
-                            <span><?php echo t('navbar_stream_recording'); ?></span>
+                            <span>Recording</span>
                         </a>
                         <a class="navbar-item" href="overlays.php">
                             <span class="icon"><i class="fas fa-layer-group"></i></span>
-                            <span><?php echo t('navbar_stream_overlays'); ?></span>
+                            <span>Overlays</span>
                         </a>
                         <hr class="navbar-divider">
                         <a class="navbar-item" href="sound-alerts.php">
@@ -216,7 +223,7 @@ $maintenanceMode = $config['maintenanceMode'];
                         </a>
                         <a class="navbar-item" href="walkons.php">
                             <span class="icon"><i class="fas fa-door-open"></i></span>
-                            <span><?php echo t('navbar_walkon_alerts'); ?></span>
+                            <span>Walk-on Alerts</span>
                         </a>
                     </div>
                 </div>
