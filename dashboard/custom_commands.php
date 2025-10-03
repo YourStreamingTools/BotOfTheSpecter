@@ -243,14 +243,20 @@ ob_start();
 <h4 class="title is-4 has-text-centered mb-5"><?php echo t('navbar_edit_custom_commands'); ?></h4>
 <div class="columns is-desktop is-multiline is-centered command-columns-equal" style="align-items: stretch;">
     <div class="column is-6-desktop is-12-mobile">
-        <div class="box">
-            <div class="mb-3" style="display: flex; align-items: center;">
-                <span class="icon is-large has-text-primary" style="margin-right: 0.5rem;">
-                    <i class="fas fa-plus-circle fa-2x"></i>
-                </span>
-                <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_add_title'); ?></h4>
-            </div>
-            <form method="post" action="">
+        <div class="box" style="min-height: 500px; display: flex; flex-direction: column;">
+            <form method="post" action="" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="mb-3" style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center;">
+                        <span class="icon is-large has-text-primary" style="margin-right: 0.5rem;">
+                            <i class="fas fa-plus-circle fa-2x"></i>
+                        </span>
+                        <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_add_title'); ?></h4>
+                    </div>
+                    <button class="button is-primary" type="submit">
+                        <span class="icon"><i class="fas fa-plus"></i></span>
+                        <span><?php echo t('custom_commands_add_btn'); ?></span>
+                    </button>
+                </div>
                 <div class="field mb-4">
                     <label class="label" for="command"><?php echo t('custom_commands_command_label'); ?></label>
                     <div class="control has-icons-left">
@@ -288,27 +294,25 @@ ob_start();
                         <span class="icon is-small is-left"><i class="fas fa-users"></i></span>
                     </div>
                 </div>
-                <div class="field is-grouped is-grouped-right">
-                    <div class="control">
-                        <button class="button is-primary" type="submit">
-                            <span class="icon"><i class="fas fa-plus"></i></span>
-                            <span><?php echo t('custom_commands_add_btn'); ?></span>
-                        </button>
-                    </div>
-                </div>
             </form>
         </div>
     </div>
     <div class="column is-6-desktop is-12-mobile">
-        <div class="box">
-            <div class="mb-3" style="display: flex; align-items: center;">
-                <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
-                    <i class="fas fa-edit fa-2x"></i>
-                </span>
-                <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_edit_title'); ?></h4>
-            </div>
+        <div class="box" style="min-height: 500px; display: flex; flex-direction: column;">
             <?php if (!empty($commands)): ?>
-                <form method="post" action="">
+                <form method="post" action="" style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="mb-3" style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center;">
+                            <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
+                                <i class="fas fa-edit fa-2x"></i>
+                            </span>
+                            <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_edit_title'); ?></h4>
+                        </div>
+                        <button type="submit" class="button is-primary">
+                            <span class="icon"><i class="fas fa-save"></i></span>
+                            <span><?php echo t('custom_commands_update_btn'); ?></span>
+                        </button>
+                    </div>
                     <div class="field mb-4">
                         <label class="label" for="command_to_edit"><?php echo t('custom_commands_edit_select_label'); ?></label>
                         <div class="control">
@@ -360,16 +364,14 @@ ob_start();
                             <span class="icon is-small is-left"><i class="fas fa-users"></i></span>
                         </div>
                     </div>
-                    <div class="field is-grouped is-grouped-right">
-                        <div class="control">
-                            <button type="submit" class="button is-link">
-                                <span class="icon"><i class="fas fa-save"></i></span>
-                                <span><?php echo t('custom_commands_update_btn'); ?></span>
-                            </button>
-                        </div>
-                    </div>
                 </form>
             <?php else: ?>
+                <div class="mb-3" style="display: flex; align-items: center;">
+                    <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
+                        <i class="fas fa-edit fa-2x"></i>
+                    </span>
+                    <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_edit_title'); ?></h4>
+                </div>
                 <h4 class="subtitle is-4 has-text-grey-light"><?php echo t('custom_commands_no_commands'); ?></h4>
             <?php endif; ?>
         </div>
