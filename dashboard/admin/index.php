@@ -637,20 +637,59 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
     }, 100);
-    // Function to generate HTML for a single bot
+    // Utility to create safe DOM ids from channel names
+    function sanitizeId(str) {
+        return String(str).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+    }
+    // Track last updated time and show compact relative time (e.g. "Updated: 12s ago", "Updated: 2m ago")
+    let botLastUpdated = null;
+    let botRelativeInterval = null;
+    let botHasLoadedOnce = false; // track if we've completed the first load
+    function updateRelativeTime() {
+        const el = document.getElementById('bot-updated-at');
+        if (!el || !botLastUpdated) return;
+        const delta = Math.floor((Date.now() - botLastUpdated) / 1000);
+        if (delta < 5) {
+            el.textContent = 'Updated: just now';
+        } else if (delta < 60) {
+            el.textContent = 'Updated: ' + delta + 's ago';
+        } else if (delta < 3600) {
+            const mins = Math.floor(delta / 60);
+            el.textContent = 'Updated: ' + mins + 'm ago';
+        } else {
+            const hours = Math.floor(delta / 3600);
+            el.textContent = 'Updated: ' + hours + 'h ago';
+        }
+    }
+    function setBotUpdatedNow() {
+        botLastUpdated = Date.now();
+        updateRelativeTime();
+        if (!botRelativeInterval) {
+            botRelativeInterval = setInterval(updateRelativeTime, 1000);
+        }
+    }
+    // Clear interval on unload
+    window.addEventListener('beforeunload', function() {
+        if (botRelativeInterval) {
+            clearInterval(botRelativeInterval);
+            botRelativeInterval = null;
+        }
+    });
+    // Function to generate HTML for a single bot (returns element HTML and uses stable data attributes)
     function generateBotHtml(bot) {
         const profileImage = bot.profile_image || '';
         const iconColor = bot.type === 'beta' ? 'has-text-warning' : 'has-text-primary';
         const tagClass = bot.type === 'beta' ? 'is-warning' : 'is-primary';
         const typeLabel = bot.type.charAt(0).toUpperCase() + bot.type.slice(1);
-        let html = '<div class="column is-one-third">';
+        const safeId = 'bot-' + sanitizeId(bot.channel);
+        let html = '<div class="column is-one-third" id="' + safeId + '" data-bot-id="' + safeId + '">';
         html += '<div class="box">';
         html += '<div class="level">';
         html += '<div class="level-left">';
         html += '<div class="level-item">';
         if (profileImage) {
             html += '<figure class="image is-32x32">';
-            html += '<img src="' + profileImage + '" alt="Profile" class="is-rounded">';
+            html += '<img src="' + profileImage + '" alt="Profile" class="is-rounded bot-profile-img">';
             html += '</figure>';
         } else {
             html += '<span class="icon ' + iconColor + '">';
@@ -659,18 +698,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         html += '</div>';
         html += '<div class="level-item">';
-        html += '<p class="heading">' + bot.channel + '</p>';
+        html += '<p class="heading bot-channel">' + bot.channel + '</p>';
         html += '</div>';
         html += '</div>';
         html += '<div class="level-right">';
         html += '<div class="level-item">';
-        html += '<span class="tag ' + tagClass + '">' + typeLabel + '</span>';
+        html += '<span class="tag bot-type-tag ' + tagClass + '">' + typeLabel + '</span>';
         html += '</div>';
         html += '<div class="level-item">';
-        html += '<span class="tag is-light has-text-black">PID: ' + bot.pid + '</span>';
+        html += '<span class="tag is-light has-text-black bot-pid">PID: ' + bot.pid + '</span>';
         html += '</div>';
         html += '<div class="level-item">';
-        html += '<button type="button" class="button is-danger is-small" onclick="stopBot(' + bot.pid + ')">';
+        html += '<button type="button" class="button is-danger is-small bot-stop-button" data-pid="' + bot.pid + '">';
         html += '<span class="icon"><i class="fas fa-stop"></i></span>';
         html += '</button>';
         html += '</div>';
@@ -680,33 +719,133 @@ document.addEventListener('DOMContentLoaded', function() {
         html += '</div>';
         return html;
     }
-    // Load bot overview after page load
+    // Load bot overview after page load (diffs DOM instead of replacing everything)
     const loadBotOverview = () => {
         const botContainer = document.getElementById('bot-overview-container');
-        if (botContainer) {
-            fetch(window.location.href + '?ajax=bot_overview')
-                .then(response => response.json())
-                .then(data => {
-                    botContainer.innerHTML = '<h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>';
-                    if (data.bots && data.bots.length > 0) {
-                        const columns = document.createElement('div');
-                        columns.className = 'columns is-multiline';
-                        botContainer.appendChild(columns);
-                        data.bots.forEach((bot, index) => {
-                            setTimeout(() => {
-                                const botHtml = generateBotHtml(bot);
-                                columns.insertAdjacentHTML('beforeend', botHtml);
-                            }, index * 150); // 150ms delay between each bot for smooth loading
-                        });
-                    } else {
-                        botContainer.innerHTML += '<p>' + (data.error || 'None') + '</p>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading bot overview:', error);
-                    botContainer.innerHTML = '<h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2><p>Error loading bot overview.</p>';
-                });
+        if (!botContainer) return;
+        // Ensure header and columns wrapper exist. Include an updated-at span inside the header.
+        if (!document.getElementById('bot-overview-header')) {
+            botContainer.innerHTML = '<h2 id="bot-overview-header" class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview <small id="bot-updated-at" class="ml-2 has-text-grey">Updated: --</small></h2>';
+        } else if (!document.getElementById('bot-updated-at')) {
+            // If header exists but timestamp is missing (older markup), append it
+            const header = document.getElementById('bot-overview-header');
+            const small = document.createElement('small');
+            small.id = 'bot-updated-at';
+            small.className = 'ml-2 has-text-grey';
+            small.textContent = 'Updated: --';
+            header.appendChild(small);
         }
+        let columns = document.getElementById('bot-columns');
+        if (!columns) {
+            columns = document.createElement('div');
+            columns.id = 'bot-columns';
+            columns.className = 'columns is-multiline';
+            botContainer.appendChild(columns);
+        }
+        // Show loading text while we fetch the bot overview, but only on first load
+        let loadingEl = document.getElementById('bot-loading');
+        if (!botHasLoadedOnce && !loadingEl) {
+            loadingEl = document.createElement('p');
+            loadingEl.id = 'bot-loading';
+            loadingEl.textContent = 'Loading bot overview...';
+            botContainer.appendChild(loadingEl);
+        }
+        fetch(window.location.href + '?ajax=bot_overview')
+            .then(response => response.json())
+            .then(data => {
+                // remove loading indicator (first load only)
+                if (loadingEl && loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
+                botHasLoadedOnce = true;
+                // update the 'updated at' relative timestamp
+                setBotUpdatedNow();
+                if (!data.bots || data.bots.length === 0) {
+                    // No bots: clear columns and show message
+                    botHasLoadedOnce = true;
+                    setBotUpdatedNow();
+                    // No bots: clear columns and show message
+                    columns.innerHTML = '<div class="column"><p>' + (data.error || 'None') + '</p></div>';
+                    return;
+                }
+                Array.from(columns.children).forEach(child => {
+                    if (!(child instanceof Element) || !child.hasAttribute || !child.hasAttribute('data-bot-id')) {
+                        // remove placeholder or non-bot child nodes
+                        columns.removeChild(child);
+                    }
+                });
+                const returnedMap = new Map();
+                data.bots.forEach(b => returnedMap.set('bot-' + sanitizeId(b.channel), b));
+                // Remove DOM nodes that are no longer present
+                const existing = Array.from(columns.querySelectorAll('[data-bot-id]'));
+                existing.forEach(el => {
+                    const botId = el.getAttribute('data-bot-id');
+                    if (!returnedMap.has(botId)) {
+                        // remove missing bot
+                        el.parentNode && el.parentNode.removeChild(el);
+                    }
+                });
+                // Add or update bots
+                let addIndex = 0;
+                const hasExistingBots = columns.querySelector('[data-bot-id]') !== null;
+                data.bots.forEach((bot) => {
+                    const botId = 'bot-' + sanitizeId(bot.channel);
+                    const existingEl = document.getElementById(botId);
+                    if (existingEl) {
+                        // update pid
+                        const pidEl = existingEl.querySelector('.bot-pid');
+                        if (pidEl) pidEl.textContent = 'PID: ' + bot.pid;
+                        // update profile image if present
+                        const imgEl = existingEl.querySelector('.bot-profile-img');
+                        if (imgEl && bot.profile_image) imgEl.src = bot.profile_image;
+                        // update type tag
+                        const tagEl = existingEl.querySelector('.bot-type-tag');
+                        if (tagEl) {
+                            tagEl.textContent = bot.type.charAt(0).toUpperCase() + bot.type.slice(1);
+                            tagEl.className = 'tag bot-type-tag ' + (bot.type === 'beta' ? 'is-warning' : 'is-primary');
+                        }
+                        // update stop button pid data attribute
+                        const stopBtn = existingEl.querySelector('.bot-stop-button');
+                        if (stopBtn) {
+                            stopBtn.setAttribute('data-pid', bot.pid);
+                            // Overwrite onclick to ensure only a single handler (prevents duplicates on repeated updates)
+                            stopBtn.onclick = function() {
+                                const pid = this.getAttribute('data-pid');
+                                stopBot(pid);
+                            };
+                        }
+                    } else {
+                        // create new element for new bots
+                        const insertFunc = () => {
+                            const botHtml = generateBotHtml(bot);
+                            columns.insertAdjacentHTML('beforeend', botHtml);
+                            // attach click handler for newly inserted button
+                            const newEl = document.getElementById('bot-' + sanitizeId(bot.channel));
+                            if (newEl) {
+                                const stopButton = newEl.querySelector('.bot-stop-button');
+                                if (stopButton) {
+                                    stopButton.addEventListener('click', function() {
+                                        const pid = this.getAttribute('data-pid');
+                                        stopBot(pid);
+                                    });
+                                }
+                            }
+                        };
+                        // Stagger insert only when there are no existing bots (initial load). On subsequent polling, insert immediately.
+                        if (hasExistingBots) {
+                            insertFunc();
+                        } else {
+                            setTimeout(insertFunc, addIndex * 150);
+                        }
+                        addIndex++;
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Error loading bot overview:', error);
+                if (loadingEl && loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
+                botHasLoadedOnce = true;
+                setBotUpdatedNow();
+                columns.innerHTML = '<div class="column"><p>Error loading bot overview.</p></div>';
+            });
     };
     setTimeout(loadBotOverview, 200);
     // Update bot overview every 60 seconds
