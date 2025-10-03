@@ -6,7 +6,7 @@ ob_start();
 <div class="columns is-desktop is-multiline">
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(count)</span><br>
                 Displays the number of times this command has been used.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -18,7 +18,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(usercount)</span><br>
                 Displays the total number of unique users who have used this command.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -30,7 +30,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(customapi.URL)</span><br>
                 Fetches data from a custom API endpoint. Replace URL with your API endpoint.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -42,7 +42,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(daysuntil.DATE)</span><br>
                 Calculates the number of days until a specific date. Format: YYYY-MM-DD.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -54,7 +54,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(timeuntil.DATE-TIME)</span><br>
                 Calculates the time remaining until a specific date and time. Format: YYYY-MM-DD HH:MM.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -66,7 +66,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(user)</span> | <span class="has-text-weight-bold variable-title">(author)</span><br>
                 Displays the username of the person who triggered the command.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -78,7 +78,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(random.pick.*)</span><br>
                 Randomly selects one option from a list. Separate options with a pipe (|).<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -90,7 +90,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(math.*)</span><br>
                 Performs mathematical calculations. Supports +, -, *, /, and parentheses.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -102,7 +102,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(command.COMMAND)</span><br>
                 Executes another custom command. Replace COMMAND with the command name.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -114,7 +114,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(random.number)</span><br>
                 Generates a random number between 1 and 100.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -126,7 +126,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(random.percent)</span><br>
                 Generates a random percentage between 0% and 100%.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
@@ -138,7 +138,7 @@ ob_start();
     </div>
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
-            <div class="card-content has-background-dark has-text-light" style="min-height: 250px;">
+            <div class="card-content has-background-dark has-text-light" style="min-height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title">(game)</span><br>
                 Displays the current game/category being streamed.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
