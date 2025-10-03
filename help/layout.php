@@ -41,7 +41,7 @@ $maintenanceMode = $config['maintenanceMode'];
     <div id="navbarBasic" class="navbar-menu">
         <div class="navbar-start">
             <a href="../" class="navbar-item">Home</a>
-            <a href="#commands" class="navbar-item">Custom Command Variables</a>
+            <a href="custom_command_variables.php" class="navbar-item">Custom Command Variables</a>
         </div>
         <div class="navbar-end">
             <div class="navbar-item no-hover">
@@ -50,7 +50,7 @@ $maintenanceMode = $config['maintenanceMode'];
         </div>
     </div>
 </nav>
-
+<br><br>
 <main class="section">
     <div class="container">
         <?php echo $content; ?>

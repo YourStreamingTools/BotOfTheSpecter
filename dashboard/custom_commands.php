@@ -202,10 +202,10 @@ ob_start();
             <p class="mb-1"><strong><?php echo t('custom_commands_level_up'); ?></strong></p>
             <p class="mb-1"><?php echo t('custom_commands_explore_variables'); ?></p>
             <p class="mb-2"><strong><?php echo t('custom_commands_note'); ?></strong> <?php echo t('custom_commands_note_detail'); ?></p>
-            <button class="button is-primary is-small" id="openModalButton">
+            <a href="https://help.botofthespecter.com/custom_command_variables.php" target="_blank" class="button is-primary is-small">
                 <span class="icon"><i class="fas fa-code"></i></span>
                 <span><?php echo t('custom_commands_view_variables'); ?></span>
-            </button>
+            </a>
         </div>
     </div>
 </div>
@@ -445,124 +445,6 @@ ob_start();
                 <?php endif; ?>
             </div>
         </div>
-    </div>
-</div>
-<div class="modal" id="customVariablesModal">
-    <div class="modal-background"></div>
-    <div class="modal-card custom-width">
-        <header class="modal-card-head has-background-dark">
-            <p class="modal-card-title has-text-white"><?php echo t('custom_commands_variables_modal_title'); ?><br>
-                <span class="has-text-white is-size-6">
-                    <?php echo t('custom_commands_variables_modal_hint'); ?>
-                </span>
-            </p>
-            <button class="delete" aria-label="close" id="closeModalButton"></button>
-        </header>
-        <section class="modal-card-body has-background-dark has-text-white">
-            <div class="mb-4">
-                <span class="has-text-warning">
-                    <?php echo t('custom_var_english_note'); ?>
-                </span>
-            </div>
-            <div class="columns is-desktop is-multiline">
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(count)</span><br>
-                    <?php echo t('custom_var_count_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_count_example'); ?></code><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_count_in_chat'); ?></code><br><br>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(usercount)</span><br>
-                    <?php echo t('custom_var_usercount_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_usercount_example'); ?></code><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_usercount_in_chat'); ?></code><br><br>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(customapi.URL)</span><br>
-                    <?php echo t('custom_var_customapi_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_customapi_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_customapi_in_chat'); ?></code>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(daysuntil.DATE)</span><br>
-                    <?php echo t('custom_var_daysuntil_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_daysuntil_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_daysuntil_in_chat'); ?></code>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(timeuntil.DATE-TIME)</span><br>
-                    <?php echo t('custom_var_timeuntil_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_timeuntil_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_timeuntil_in_chat'); ?></code>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(user)</span> | <span class="has-text-weight-bold variable-title">(author)</span><br>
-                    <?php echo t('custom_var_user_author_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_user_author_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_user_author_in_chat'); ?></code>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(random.pick.*)</span><br>
-                    <?php echo t('custom_var_random_pick_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_random_pick_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_random_pick_in_chat'); ?></code>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(math.*)</span><br>
-                    <?php echo t('custom_var_math_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_math_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_math_in_chat'); ?></code>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(command.COMMAND)</span><br>
-                    <?php echo t('custom_var_command_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_command_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span>
-                    <br><?php echo t('custom_var_command_in_chat'); ?>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(random.number)</span><br>
-                    <?php echo t('custom_var_random_number_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_random_number_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_random_number_in_chat'); ?></code>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(random.percent)</span><br>
-                    <?php echo t('custom_var_random_percent_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_random_percent_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_random_percent_in_chat'); ?></code>
-                </div>
-                <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(game)</span><br>
-                    <?php echo t('custom_var_game_desc'); ?><br>
-                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
-                    <code><?php echo t('custom_var_game_example'); ?></code>
-                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
-                    <code><?php echo t('custom_var_game_in_chat'); ?></code>
-                </div>
-            </div>
-        </section>
     </div>
 </div>
 <?php
