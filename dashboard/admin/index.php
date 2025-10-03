@@ -53,9 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($
     if ($pid > 0) {
         try {
             $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-            if ($connection) {
-                SSHConnectionManager::executeCommand($connection, "kill $pid");
-            }
+                if ($connection) {
+                    // Use SIGKILL explicitly to force-stop the process on the bots server
+                    SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
+                }
         } catch (Exception $e) {}
     }
     header('Content-Type: application/json');
