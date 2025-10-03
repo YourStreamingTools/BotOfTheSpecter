@@ -149,16 +149,84 @@ function isOnline($user_id, $client_id, $bearer) {
     return isset($data['data']) && !empty($data['data']);
 }
 
-// Fetch online channels
+// Prepare an empty placeholder for the online channels — they'll be populated by JS via AJAX.
 $online_channels = [];
-if ($conn && isset($_SESSION['access_token'])) {
-    $result = $conn->query("SELECT id, twitch_user_id, twitch_display_name FROM users");
-    if ($result) {
-        while ($row = $result->fetch_assoc()) {
-            if (isOnline($row['twitch_user_id'], $clientID, $_SESSION['access_token'])) {
-                $online_channels[] = $row;
+// AJAX handlers: bot_overview and online_channels
+if (isset($_GET['ajax'])) {
+    $ajax = $_GET['ajax'];
+    header('Content-Type: application/json');
+    if ($ajax === 'bot_overview') {
+        // Perform the heavy SSH call now (only for the AJAX request)
+        $bot_output = getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        $stable_bots = [];
+        $beta_bots = [];
+        $lines = explode("\n", $bot_output);
+        $section = '';
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (strpos($line, 'Stable bots running:') === 0) {
+                $section = 'stable';
+            } elseif (strpos($line, 'Beta bots running:') === 0) {
+                $section = 'beta';
+            } elseif (preg_match('/- Channel: (\S+), PID: (\d+)/', $line, $matches)) {
+                $bot = ['channel' => $matches[1], 'pid' => $matches[2]];
+                if ($section == 'stable') {
+                    $stable_bots[] = $bot;
+                } elseif ($section == 'beta') {
+                    $beta_bots[] = $bot;
+                }
             }
         }
+        $all_bots = [];
+        foreach ($beta_bots as $bot) {
+            $bot['type'] = 'beta';
+            $all_bots[] = $bot;
+        }
+        foreach ($stable_bots as $bot) {
+            $bot['type'] = 'stable';
+            $all_bots[] = $bot;
+        }
+        // Fetch user IDs and profile images
+        if ($conn) {
+            foreach ($all_bots as &$bot) {
+                $stmt = $conn->prepare("SELECT id, profile_image FROM users WHERE username = ?");
+                $stmt->bind_param("s", $bot['channel']);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if ($result->num_rows > 0) {
+                    $row = $result->fetch_assoc();
+                    $bot['id'] = $row['id'];
+                    $bot['profile_image'] = $row['profile_image'];
+                } else {
+                    $bot['id'] = PHP_INT_MAX;
+                    $bot['profile_image'] = '';
+                }
+                $stmt->close();
+            }
+            usort($all_bots, function($a, $b) {
+                return ($a['id'] ?? PHP_INT_MAX) <=> ($b['id'] ?? PHP_INT_MAX);
+            });
+        }
+        echo json_encode([
+            'bots' => $all_bots,
+            'error' => empty($all_bots) ? ($bot_output ?: 'None') : null
+        ]);
+        exit;
+    } elseif ($ajax === 'online_channels') {
+        // Build online channels list (this may perform Twitch API calls per user — it's now deferred)
+        $online = [];
+        if ($conn && isset($_SESSION['access_token'])) {
+            $result = $conn->query("SELECT id, twitch_user_id, twitch_display_name FROM users");
+            if ($result) {
+                while ($row = $result->fetch_assoc()) {
+                    if (isOnline($row['twitch_user_id'], $clientID, $_SESSION['access_token'])) {
+                        $online[] = $row;
+                    }
+                }
+            }
+        }
+        echo json_encode(['channels' => $online]);
+        exit;
     }
 }
 
@@ -234,68 +302,11 @@ if ($conn) {
     $regular_count = $total_users - $admin_count - $beta_count;
 }
 
-$bot_output = getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+// Defer bot status fetching until the AJAX request
+$bot_output = '';
 $stable_bots = [];
 $beta_bots = [];
-$lines = explode("\n", $bot_output);
-$section = '';
-foreach ($lines as $line) {
-    $line = trim($line);
-    if (strpos($line, 'Stable bots running:') === 0) {
-        $section = 'stable';
-    } elseif (strpos($line, 'Beta bots running:') === 0) {
-        $section = 'beta';
-    } elseif (preg_match('/- Channel: (\S+), PID: (\d+)/', $line, $matches)) {
-        $bot = ['channel' => $matches[1], 'pid' => $matches[2]];
-        if ($section == 'stable') {
-            $stable_bots[] = $bot;
-        } elseif ($section == 'beta') {
-            $beta_bots[] = $bot;
-        }
-    }
-}
-
 $all_bots = [];
-foreach ($beta_bots as $bot) {
-    $bot['type'] = 'beta';
-    $all_bots[] = $bot;
-}
-foreach ($stable_bots as $bot) {
-    $bot['type'] = 'stable';
-    $all_bots[] = $bot;
-}
-
-// Fetch user IDs and profile images, then sort by ID
-if ($conn) {
-    foreach ($all_bots as &$bot) {
-        $stmt = $conn->prepare("SELECT id, profile_image FROM users WHERE username = ?");
-        $stmt->bind_param("s", $bot['channel']);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            $bot['id'] = $row['id'];
-            $bot['profile_image'] = $row['profile_image'];
-        } else {
-            $bot['id'] = PHP_INT_MAX;
-            $bot['profile_image'] = '';
-        }
-        $stmt->close();
-    }
-    usort($all_bots, function($a, $b) {
-        return ($a['id'] ?? PHP_INT_MAX) <=> ($b['id'] ?? PHP_INT_MAX);
-    });
-}
-
-// Handle AJAX request for bot overview
-if (isset($_GET['ajax']) && $_GET['ajax'] == 'bot_overview') {
-    header('Content-Type: application/json');
-    echo json_encode([
-        'bots' => $all_bots,
-        'error' => empty($all_bots) ? ($bot_output ?: 'None') : null
-    ]);
-    exit;
-}
 
 ob_start();
 ?>
@@ -477,11 +488,9 @@ ob_start();
             <label class="label">Select Channel (Online Only)</label>
             <div class="control">
                 <div class="select">
-                    <select name="channel_id" required>
-                        <option value="">Choose a channel...</option>
-                        <?php foreach ($online_channels as $channel): ?>
-                            <option value="<?php echo htmlspecialchars($channel['twitch_user_id']); ?>"><?php echo htmlspecialchars($channel['twitch_display_name']); ?></option>
-                        <?php endforeach; ?>
+                    <!-- Populated via AJAX to avoid blocking page load -->
+                    <select name="channel_id" id="channel-select" required>
+                        <option value="">Loading online channels...</option>
                     </select>
                 </div>
             </div>
@@ -750,7 +759,8 @@ document.addEventListener('DOMContentLoaded', function() {
             loadingEl.textContent = 'Loading bot overview...';
             botContainer.appendChild(loadingEl);
         }
-        fetch(window.location.href + '?ajax=bot_overview')
+        const base = window.location.href.split('?')[0];
+        fetch(base + '?ajax=bot_overview')
             .then(response => response.json())
             .then(data => {
                 // remove loading indicator (first load only)
@@ -850,13 +860,64 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(loadBotOverview, 200);
     // Update bot overview every 60 seconds
     setInterval(loadBotOverview, 60000);
-    // Enable send button when message is typed
+    // Populate online channels asynchronously and enable send button only when both a channel is selected and a message is entered.
     const messageTextarea = document.getElementById('message');
     const sendButton = document.getElementById('send');
-    if (messageTextarea && sendButton) {
-        messageTextarea.addEventListener('input', function() {
-            sendButton.disabled = this.value.trim() === '';
-        });
+    const channelSelect = document.getElementById('channel-select');
+    function updateSendButtonState() {
+        if (!sendButton) return;
+        const hasMessage = messageTextarea && messageTextarea.value.trim() !== '';
+        const hasChannel = channelSelect && channelSelect.value && channelSelect.value !== '';
+        sendButton.disabled = !(hasMessage && hasChannel);
+    }
+    // Fetch online channels via AJAX (deferred heavy work)
+    (function fetchOnlineChannels() {
+        const base = window.location.href.split('?')[0];
+        fetch(base + '?ajax=online_channels')
+            .then(response => response.json())
+            .then(data => {
+                if (!channelSelect) return;
+                channelSelect.innerHTML = '';
+                const channels = data.channels || [];
+                if (channels.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'No online channels';
+                    channelSelect.appendChild(opt);
+                    channelSelect.disabled = true;
+                } else {
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = 'Choose a channel...';
+                    channelSelect.appendChild(placeholder);
+                    channels.forEach(ch => {
+                        const opt = document.createElement('option');
+                        opt.value = ch.twitch_user_id;
+                        opt.textContent = ch.twitch_display_name || ch.twitch_user_id;
+                        channelSelect.appendChild(opt);
+                    });
+                    channelSelect.disabled = false;
+                }
+                updateSendButtonState();
+            })
+            .catch(err => {
+                console.error('Failed to load online channels:', err);
+                if (channelSelect) {
+                    channelSelect.innerHTML = '';
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'Error loading channels';
+                    channelSelect.appendChild(opt);
+                    channelSelect.disabled = true;
+                }
+                updateSendButtonState();
+            });
+    })();
+    if (messageTextarea) {
+        messageTextarea.addEventListener('input', updateSendButtonState);
+    }
+    if (channelSelect) {
+        channelSelect.addEventListener('change', updateSendButtonState);
     }
 });
 </script>
