@@ -69,36 +69,63 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
     $message = trim($_POST['message']);
     $channel_id = $_POST['channel_id'];
     if (!empty($message) && !empty($channel_id)) {
-        // Send message using Twitch API
-        $url = "https://api.twitch.tv/helix/chat/messages";
-        $headers = [
-            "Authorization: Bearer " . $twitch_bot_oauth,
-            "Client-Id: " . $clientID,
-            "Content-Type: application/json"
+        // Queue message to a background worker to avoid blocking the UI.
+        $payload = [
+            'broadcaster_id' => $channel_id,
+            'sender_id' => '971436498',
+            'message' => $message,
+            'twitch_bot_oauth' => $twitch_bot_oauth,
+            'clientID' => $clientID
         ];
-        $data = [
-            "broadcaster_id" => $channel_id,
-            "sender_id" => "971436498",
-            "message" => $message
-        ];
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($http_code == 200) {
-            $response_data = json_decode($response, true);
-            if (isset($response_data['data'][0]['is_sent']) && $response_data['data'][0]['is_sent']) {
-                $success_message = "Message sent successfully.";
-            } else {
-                $error_message = "Message not sent: " . ($response_data['data'][0]['drop_reason'] ?? 'Unknown reason');
-            }
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $worker = __DIR__ . '/send_message_worker.php';
+        // Use PHP binary if available, otherwise fallback to /usr/bin/php
+        $phpBin = defined('PHP_BINARY') ? PHP_BINARY : '/usr/bin/php';
+        // Build safe command and run in background. Redirect output to null. This works on typical Linux servers.
+        $canExec = function_exists('exec') && function_exists('escapeshellarg');
+        if ($canExec) {
+            $cmd = $phpBin . ' ' . escapeshellarg($worker) . ' ' . escapeshellarg($json) . ' > /dev/null 2>&1 &';
+            @exec($cmd);
+            // Immediately return success to the user — the worker will handle the delivery.
+            $success_message = "Message queued for sending. It should appear in chat shortly.";
         } else {
-            $error_message = "Failed to send message: HTTP $http_code - $response";
+            // Fallback: try to finish the HTTP response quickly (if running under FPM) and then do a short-timeout cURL.
+            if (function_exists('fastcgi_finish_request')) {
+                // send success to client
+                $success_message = "Message queued for sending. It should appear in chat shortly.";
+                // flush response
+                @fastcgi_finish_request();
+                // now perform the cURL with a short timeout so we don't block for long
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/chat/messages");
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $json = json_encode([
+                    'broadcaster_id' => $channel_id,
+                    'sender_id' => '971436498',
+                    'message' => $message
+                ]));
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer " . $twitch_bot_oauth, "Client-Id: " . $clientID, "Content-Type: application/json"]);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+                @curl_exec($ch);
+                @curl_close($ch);
+            } else {
+                // Last resort: synchronous cURL with a short timeout so the page doesn't hang long.
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/chat/messages");
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                    'broadcaster_id' => $channel_id,
+                    'sender_id' => '971436498',
+                    'message' => $message
+                ]));
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer " . $twitch_bot_oauth, "Client-Id: " . $clientID, "Content-Type: application/json"]);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+                @curl_exec($ch);
+                @curl_close($ch);
+                $success_message = "Message queued for sending. It should appear in chat shortly.";
+            }
         }
     } else {
         $error_message = "Message and channel are required.";
