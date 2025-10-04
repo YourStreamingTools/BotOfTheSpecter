@@ -69,8 +69,8 @@ ob_start();
     </div>
     <h2 class="title is-4 has-text-light">Have a Question?</h2>
     <p class="has-text-light">If you have questions about BotOfTheSpecter, we'd love to hear from you! Here are the best ways to reach us:</p>
-    <div class="columns is-multiline is-flex">
-        <div class="column is-5">
+    <div class="columns is-multiline is-flex mt-3">
+        <div class="column is-3">
             <div class="card has-background-dark has-shadow is-flex" style="height: 100%;">
                 <div class="card-content has-background-dark has-text-light has-text-centered">
                     <span class="icon is-large has-text-primary">
@@ -82,7 +82,7 @@ ob_start();
                 </div>
             </div>
         </div>
-        <div class="column is-5">
+        <div class="column is-3">
             <div class="card has-background-dark has-shadow is-flex" style="height: 100%;">
                 <div class="card-content has-background-dark has-text-light has-text-centered">
                     <span class="icon is-large has-text-info">
@@ -93,18 +93,19 @@ ob_start();
                 </div>
             </div>
         </div>
-        <div class="column is-5">
+        <div class="column is-3">
             <div class="card has-background-dark has-shadow is-flex" style="height: 100%;">
                 <div class="card-content has-background-dark has-text-light has-text-centered">
                     <span class="icon is-large has-text-success">
                         <i class="fas fa-envelope fa-3x"></i>
                     </span>
                     <h3 class="title is-5 has-text-light">Email Support</h3>
-                    <p>Send us an email at <a href="mailto:questions@botofthespecter.com" class="has-text-link">questions@botofthespecter.com</a> for detailed inquiries.</p>
+                    <p>Send us an email for detailed inquiries.</p>
+                    <a href="mailto:questions@botofthespecter.com" class="has-text-link">questions@botofthespecter.com</a>
                 </div>
             </div>
         </div>
-        <div class="column is-5">
+        <div class="column is-3">
             <div class="card has-background-dark has-shadow is-flex" style="height: 100%;">
                 <div class="card-content has-background-dark has-text-light has-text-centered">
                     <span class="icon is-large has-text-warning">
@@ -116,9 +117,6 @@ ob_start();
                 </div>
             </div>
         </div>
-    </div>
-    <div class="notification is-warning has-background-dark has-text-light mt-5">
-        <strong>Coming Soon:</strong> As we collect more questions from our community, we'll add them to this FAQ page with detailed answers to help everyone get the most out of BotOfTheSpecter.
     </div>
 </div>
 <?php
