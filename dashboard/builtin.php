@@ -86,15 +86,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         header('Content-Type: application/json');
         if ($_POST['action'] === 'get_command_options') {
             $command_name = $_POST['command_name'];
+            // Get cooldown options from builtin_commands table
+            $cooldown_stmt = $db->prepare("SELECT cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command = ?");
+            $cooldown_stmt->bind_param('s', $command_name);
+            $cooldown_stmt->execute();
+            $cooldown_result = $cooldown_stmt->get_result();
+            $cooldown_row = $cooldown_result->fetch_assoc();
+            $cooldown_stmt->close();
+            $options = [];
+            if ($cooldown_row) {
+                $options['cooldown_rate'] = (int)$cooldown_row['cooldown_rate'];
+                $options['cooldown_time'] = (int)$cooldown_row['cooldown_time'];
+                $options['cooldown_bucket'] = $cooldown_row['cooldown_bucket'];
+            }
+            // Get command-specific options from command_options table
             $stmt = $db->prepare("SELECT options FROM command_options WHERE command = ?");
             $stmt->bind_param('s', $command_name);
             $stmt->execute();
             $result = $stmt->get_result();
             $row = $result->fetch_assoc();
             $stmt->close();
-            $options = null;
             if ($row && $row['options']) {
-                $options = json_decode($row['options'], true);
+                $command_options = json_decode($row['options'], true);
+                if (is_array($command_options)) {
+                    $options = array_merge($options, $command_options);
+                }
             }
             echo json_encode(['success' => true, 'options' => $options]);
             exit();
@@ -105,18 +121,44 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Validate JSON
             $decoded_options = json_decode($options, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
-                echo json_encode(['success' => false, 'message' => 'Invalid JSON options']);
+                echo json_encode(['success' => false, 'message' => 'Invalid JSON options: ' . json_last_error_msg()]);
                 exit();
             }
-            // Insert or update command options
-            $stmt = $db->prepare("INSERT INTO command_options (command, options) VALUES (?, ?) ON DUPLICATE KEY UPDATE options = ?");
-            $stmt->bind_param('sss', $command_name, $options, $options);
-            if ($stmt->execute()) {
-                echo json_encode(['success' => true]);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Database error']);
+            // Save cooldown options to builtin_commands table
+            if (isset($decoded_options['cooldown_rate']) || isset($decoded_options['cooldown_time']) || isset($decoded_options['cooldown_bucket'])) {
+                $cooldown_rate = $decoded_options['cooldown_rate'] ?? 1;
+                $cooldown_time = $decoded_options['cooldown_time'] ?? 15;
+                $cooldown_bucket = $decoded_options['cooldown_bucket'] ?? 'default';
+                $cooldown_stmt = $db->prepare("UPDATE builtin_commands SET cooldown_rate = ?, cooldown_time = ?, cooldown_bucket = ? WHERE command = ?");
+                $cooldown_stmt->bind_param('iiss', $cooldown_rate, $cooldown_time, $cooldown_bucket, $command_name);
+                if (!$cooldown_stmt->execute()) {
+                    echo json_encode(['success' => false, 'message' => 'Database error updating cooldown: ' . $cooldown_stmt->error]);
+                    $cooldown_stmt->close();
+                    exit();
+                }
+                $cooldown_stmt->close();
             }
-            $stmt->close();
+            // Save command-specific options to command_options table (excluding cooldown options)
+            $command_specific_options = array_diff_key($decoded_options, array_flip(['cooldown_rate', 'cooldown_time', 'cooldown_bucket']));
+            if (!empty($command_specific_options)) {
+                $command_options_json = json_encode($command_specific_options);
+                // Insert or update command options
+                $stmt = $db->prepare("INSERT INTO command_options (command, options) VALUES (?, ?) ON DUPLICATE KEY UPDATE options = ?");
+                $stmt->bind_param('sss', $command_name, $command_options_json, $command_options_json);
+                if (!$stmt->execute()) {
+                    echo json_encode(['success' => false, 'message' => 'Database error saving command options: ' . $stmt->error]);
+                    $stmt->close();
+                    exit();
+                }
+                $stmt->close();
+            } else {
+                // If no command-specific options, remove from command_options table
+                $stmt = $db->prepare("DELETE FROM command_options WHERE command = ?");
+                $stmt->bind_param('s', $command_name);
+                $stmt->execute();
+                $stmt->close();
+            }
+            echo json_encode(['success' => true, 'debug' => 'Options saved successfully']);
             exit();
         }
     }
@@ -286,6 +328,12 @@ ob_start();
             <button class="delete" aria-label="close" onclick="closeCommandModal()"></button>
         </header>
         <section class="modal-card-body" style="max-height: 70vh; overflow-y: auto;">
+            <div class="notification is-info is-light mb-4">
+                <span class="icon">
+                    <i class="fas fa-info-circle"></i>
+                </span>
+                <strong>Cooldown Options:</strong> These settings are available in version 5.5 and above. Configure how often commands can be used.
+            </div>
             <div id="modalContent">
                 <!-- Content will be dynamically loaded here -->
             </div>
@@ -428,47 +476,74 @@ function closeCommandModal() {
 
 function loadCommandOptions(commandName) {
     const modalContent = document.getElementById('modalContent');
-    // Commands that have custom options
-    const commandsWithOptions = ['lurk', 'unlurk'];
-    
-    if (commandsWithOptions.includes(commandName)) {
-        // Show loading state for commands that have options
-        modalContent.innerHTML = '<div class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
-        // Fetch command options
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '', true);
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.success) {
-                            renderCommandOptions(commandName, response.options);
-                        } else {
-                            modalContent.innerHTML = '<div class="notification is-danger">' + response.message + '</div>';
-                        }
-                    } catch (e) {
-                        modalContent.innerHTML = '<div class="notification is-danger">Error parsing response</div>';
+    // Show loading state
+    modalContent.innerHTML = '<div class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    // Fetch command options
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            if (xhr.status === 200) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        renderCommandOptions(commandName, response.options);
+                    } else {
+                        modalContent.innerHTML = '<div class="notification is-danger">' + response.message + '</div>';
                     }
-                } else {
-                    modalContent.innerHTML = '<div class="notification is-danger">Error loading command options</div>';
+                } catch (e) {
+                    modalContent.innerHTML = '<div class="notification is-danger">Error parsing response</div>';
                 }
+            } else {
+                modalContent.innerHTML = '<div class="notification is-danger">Error loading command options</div>';
             }
-        };
-        xhr.send('action=get_command_options&command_name=' + encodeURIComponent(commandName));
-    } else {
-        // Immediately show no options message for commands without custom options
-        renderCommandOptions(commandName, null);
-    }
+        }
+    };
+    xhr.send('action=get_command_options&command_name=' + encodeURIComponent(commandName));
 }
 
 function renderCommandOptions(commandName, options) {
     const modalContent = document.getElementById('modalContent');
+    // Get cooldown options with defaults
+    const cooldownRate = options && options.cooldown_rate !== undefined ? options.cooldown_rate : 1;
+    const cooldownTime = options && options.cooldown_time !== undefined ? options.cooldown_time : 15;
+    const cooldownBucket = options && options.cooldown_bucket !== undefined ? options.cooldown_bucket : 'default';
+    // Build cooldown options HTML
+    let html = `
+        <div class="field">
+            <label class="label">Cooldown Rate</label>
+            <div class="control">
+                <input class="input" type="number" id="cooldownRate" value="${cooldownRate}" min="1">
+            </div>
+            <p class="help">Number of times the command can be used before triggering cooldown. 1 means once used, you must wait the cooldown time before using it again.</p>
+        </div>
+        <div class="field">
+            <label class="label">Cooldown Time (seconds)</label>
+            <div class="control">
+                <input class="input" type="number" id="cooldownTime" value="${cooldownTime}" min="0">
+            </div>
+            <p class="help">Time in seconds before the command can be used again after reaching the rate limit.</p>
+        </div>
+        <div class="field">
+            <label class="label">Cooldown Bucket</label>
+            <div class="control">
+                <div class="select is-fullwidth">
+                    <select id="cooldownBucket">
+                        <option value="default" ${cooldownBucket === 'default' ? 'selected' : ''}>Default (all users)</option>
+                        <option value="user" ${cooldownBucket === 'user' ? 'selected' : ''}>User (per-user cooldown)</option>
+                        <option value="mod" ${cooldownBucket === 'mod' ? 'selected' : ''}>Mod (only cooldown for mods)</option>
+                    </select>
+                </div>
+            </div>
+            <p class="help">Bucket name for grouping cooldowns.</p>
+        </div>
+    `;
+    // Add command-specific options
     if (commandName === 'lurk') {
-        // Special handling for lurk command
         const timerEnabled = options && options.timer ? options.timer : false;
-        modalContent.innerHTML = `
+        html += `
+            <hr class="mt-4 mb-4">
             <div class="field">
                 <label class="label">Lurk Timer</label>
                 <div class="control">
@@ -481,9 +556,9 @@ function renderCommandOptions(commandName, options) {
             </div>
         `;
     } else if (commandName === 'unlurk') {
-        // Special handling for unlurk command
         const timerEnabled = options && options.timer ? options.timer : false;
-        modalContent.innerHTML = `
+        html += `
+            <hr class="mt-4 mb-4">
             <div class="field">
                 <label class="label">Unlurk Timer</label>
                 <div class="control">
@@ -495,15 +570,21 @@ function renderCommandOptions(commandName, options) {
                 <p class="help">When enabled, the bot will reset the user's lurk timer instead of removing them from lurk tracking when they use !unlurk. This allows continuous lurk time tracking.</p>
             </div>
         `;
-    } else {
-        // Default message for commands without custom options
-        modalContent.innerHTML = '<div class="notification is-info">There are no custom options to set for this command.</div>';
     }
+    modalContent.innerHTML = html;
 }
 
 function saveCommandOptions() {
     const commandName = document.getElementById('modalCommandName').textContent;
     let options = {};
+    // Collect cooldown options
+    const cooldownRate = document.getElementById('cooldownRate');
+    const cooldownTime = document.getElementById('cooldownTime');
+    const cooldownBucket = document.getElementById('cooldownBucket');
+    if (cooldownRate) options.cooldown_rate = parseInt(cooldownRate.value) || 1;
+    if (cooldownTime) options.cooldown_time = parseInt(cooldownTime.value) || 15;
+    if (cooldownBucket) options.cooldown_bucket = cooldownBucket.value || 'default';
+    // Collect command-specific options
     if (commandName === 'lurk') {
         const timerCheckbox = document.getElementById('lurkTimer');
         if (timerCheckbox) {
