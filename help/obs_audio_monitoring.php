@@ -1,9 +1,9 @@
 <?php
 ob_start();
 ?>
-<nav class="breadcrumb has-arrow-separator has-text-light" aria-label="breadcrumbs" style="margin-bottom: 2rem; background-color: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1); --breadcrumb-separator: '→'; --breadcrumb-separator-color: #fff;">
+<nav class="breadcrumb has-text-light" aria-label="breadcrumbs" style="margin-bottom: 2rem; background-color: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
     <ul>
-        <li><a href="troubleshooting.php" class="has-text-light">Troubleshooting Guide</a></li>
+        <li><a href="troubleshooting.php" class="has-text-light">Troubleshooting Guide</a> <span style="color: #fff;">→</span></li>
         <li class="is-active"><a aria-current="page" class="has-text-light">OBS Audio Monitoring Setup</a></li>
     </ul>
 </nav>
