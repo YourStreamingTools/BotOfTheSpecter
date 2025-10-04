@@ -69,6 +69,9 @@ try {
                 command VARCHAR(255),
                 status VARCHAR(255),
                 permission VARCHAR(255),
+                cooldown_rate INT DEFAULT 1,
+                cooldown_time INT DEFAULT 15,
+                cooldown_bucket VARCHAR(255) DEFAULT 'default',
                 PRIMARY KEY (command)
             ) ENGINE=InnoDB",
         'user_typos' => "
@@ -501,7 +504,7 @@ try {
         'everyone' => ['username' => "VARCHAR(255)",'group_name' => "VARCHAR(255) DEFAULT NULL"],
         'groups' => ['id' => "INT NOT NULL AUTO_INCREMENT",'name' => "VARCHAR(255)"],
         'custom_commands' => ['command' => "TEXT",'response' => "TEXT",'status' => "TEXT",'cooldown' => "INT DEFAULT '15'",'permission' => "VARCHAR(255) DEFAULT 'everyone'"],
-        'builtin_commands' => ['command' => "VARCHAR(255)",'status' => "VARCHAR(255)",'permission' => "VARCHAR(255)"],
+        'builtin_commands' => ['command' => "VARCHAR(255)",'status' => "VARCHAR(255)",'permission' => "VARCHAR(255)",'cooldown_rate' => "INT DEFAULT 1",'cooldown_time' => "INT DEFAULT 15",'cooldown_bucket' => "VARCHAR(255) DEFAULT 'default'"],
         'user_typos' => ['username' => "VARCHAR(255)",'typo_count' => "INT DEFAULT 0"],
         'lurk_times' => ['user_id' => "VARCHAR(255)",'start_time' => "VARCHAR(255) NOT NULL"],
         'hug_counts' => ['username' => "VARCHAR(255)",'hug_count' => "INT DEFAULT 0"],
