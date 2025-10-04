@@ -185,7 +185,9 @@ ob_start();
                             <?php echo t('timed_messages_info'); ?>
                         </div>
                         <?php if ($displayMessages): ?>
-                            <div class="notification is-primary"><?php echo $displayMessages; ?></div>
+                            <div class="notification is-primary">
+                                <span class="has-text-black"><?php echo $displayMessages; ?></span>
+                            </div>
                         <?php endif; ?>
                         <div class="columns is-desktop is-multiline">
                             <!-- Add Timed Message -->
