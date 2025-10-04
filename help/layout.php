@@ -28,81 +28,58 @@ $maintenanceMode = $config['maintenanceMode'];
     <?php if (isset($extraScripts)) echo $extraScripts; ?>
 </head>
 <body class="has-background-dark has-text-light">
-<nav class="navbar is-fixed-top is-dark" role="navigation" aria-label="main navigation">
-    <div class="navbar-brand">
-        <span class="navbar-item has-text-weight-bold is-unselectable no-hover">BotOfTheSpecter Help</span>
-        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasic">
-            <span aria-hidden="true"></span>
-            <span aria-hidden="true"></span>
-            <span aria-hidden="true"></span>
-        </a>
+<div class="columns is-fullheight">
+    <div class="column is-narrow has-background-grey-darker" style="min-width: 200px; padding: 1rem;">
+        <a href="../" class="is-3 title has-text-white">BotOfTheSpecter Help</a>
+        <aside class="menu mt-3">
+            <ul class="menu-list">
+                <li><a href="custom_command_variables.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Custom Command Variables</a></li>
+                <li><a href="twitch_channel_points.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Twitch Channel Points</a></li>
+                <li><a href="https://api.botofthespecter.com/docs" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">API Documentation</a></li>
+                <li><a href="https://dashboard.botofthespecter.com/dashboard.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Bot Dashboard</a></li>
+            </ul>
+        </aside>
     </div>
-    <div id="navbarBasic" class="navbar-menu">
-        <div class="navbar-start">
-            <a href="../" class="navbar-item">Home</a>
-            <a href="custom_command_variables.php" class="navbar-item">Custom Command Variables</a>
-            <a href="twitch_channel_points.php" class="navbar-item">Twitch Channel Points</a>
-        </div>
-        <div class="navbar-end">
-            <div class="navbar-item no-hover">
-                <a href="https://dashboard.botofthespecter.com/dashboard.php" class="button is-primary">DASHBOARD</a>
+    <div class="column">
+        <main class="section">
+            <div class="container">
+                <?php echo $content; ?>
             </div>
-        </div>
+        </main>
+        <footer class="footer is-dark has-text-white" style="width:100%; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
+                <!-- Version Badge positioned in footer -->
+                <div style="position: absolute; bottom: 12px; left: 12px;" class="is-hidden-mobile">
+                    <span class="tag is-info is-light">Dashboard Version: <?php echo $dashboardVersion; ?></span>
+                </div>
+                <div style="max-width: 1500px; padding-left: 140px;" class="is-hidden-mobile">
+                    &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
+                    <?php
+                        $tz = new DateTimeZone("Australia/Sydney");
+                        $launchDate = new DateTime("2023-10-17 11:54:58", $tz);
+                        $now = new DateTime("now", $tz);
+                        $interval = $launchDate->diff($now);
+                        echo "Project has been running since 17th October 2023, 11:54:58 AEDT";
+                        echo "<br>";
+                        echo "As of now, ";
+                        echo "it's been {$interval->y} year" . ($interval->y != 1 ? "s" : "") . ", ";
+                        echo "{$interval->m} month" . ($interval->m != 1 ? "s" : "") . ", ";
+                        echo "{$interval->d} day" . ($interval->d != 1 ? "s" : "") . ", ";
+                        echo "{$interval->h} hour" . ($interval->h != 1 ? "s" : "") . ", ";
+                        echo "{$interval->i} minute" . ($interval->i != 1 ? "s" : "") . " since launch.<br>";
+                    ?>
+                    BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
+                    This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
+                    All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
+                </div>
+                <div style="max-width: 1500px;" class="is-hidden-tablet">
+                    &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
+                    <span class="tag is-info is-light mt-2">Dashboard Version: <?php echo $dashboardVersion; ?></span><br>
+                    BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
+                    This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
+                    All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
+                </div>
+            </footer>
     </div>
-</nav>
-<br><br>
-<main class="section">
-    <div class="container">
-        <?php echo $content; ?>
-    </div>
-</main>
-
-<footer class="footer is-dark has-text-white" style="width:100%; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
-        <!-- Version Badge positioned in footer -->
-        <div style="position: absolute; bottom: 12px; left: 12px;" class="is-hidden-mobile">
-            <span class="tag is-info is-light">Dashboard Version: <?php echo $dashboardVersion; ?></span>
-        </div>
-        <div style="max-width: 1500px; padding-left: 140px;" class="is-hidden-mobile">
-            &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-            <?php
-                $tz = new DateTimeZone("Australia/Sydney");
-                $launchDate = new DateTime("2023-10-17 11:54:58", $tz);
-                $now = new DateTime("now", $tz);
-                $interval = $launchDate->diff($now);
-                echo "Project has been running since 17th October 2023, 11:54:58 AEDT";
-                echo "<br>";
-                echo "As of now, ";
-                echo "it's been {$interval->y} year" . ($interval->y != 1 ? "s" : "") . ", ";
-                echo "{$interval->m} month" . ($interval->m != 1 ? "s" : "") . ", ";
-                echo "{$interval->d} day" . ($interval->d != 1 ? "s" : "") . ", ";
-                echo "{$interval->h} hour" . ($interval->h != 1 ? "s" : "") . ", ";
-                echo "{$interval->i} minute" . ($interval->i != 1 ? "s" : "") . " since launch.<br>";
-            ?>
-            BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
-            This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
-            All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
-        </div>
-        <div style="max-width: 1500px;" class="is-hidden-tablet">
-            &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-            <span class="tag is-info is-light mt-2">Dashboard Version: <?php echo $dashboardVersion; ?></span><br>
-            BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
-            This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
-            All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
-        </div>
-    </footer>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
-            $navbarBurgers.forEach( el => {
-                el.addEventListener('click', () => {
-                    const target = el.dataset.target;
-                    const $target = document.getElementById(target);
-                    el.classList.toggle('is-active');
-                    $target.classList.toggle('is-active');
-                });
-            });
-        });
-    </script>
+</div>
 </body>
 </html>
