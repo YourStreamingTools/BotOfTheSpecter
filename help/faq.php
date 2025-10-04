@@ -14,37 +14,37 @@ ob_start();
         <div class="columns is-multiline is-flex">
             <div class="column is-6">
                 <div class="box has-background-dark has-text-light mb-4" style="border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; display: flex; flex-direction: column;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 25px rgba(255,255,255,0.1)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 3px rgba(10,10,10,0.1), 0 0 0 1px rgba(10,10,10,0.1)';">
-                    <h3 class="title is-5 has-text-light">What built-in commands are there for the bot?</h3>
+                    <h3 class="title is-6 has-text-light">What built-in commands are there for the bot?</h3>
                     <p>BotOfTheSpecter comes with many built-in commands for moderation, entertainment, and utility. You can see the full list on our <a href="command_reference.php" class="has-text-link">Command Reference</a> page.</p>
                 </div>
             </div>
             <div class="column is-6">
                 <div class="box has-background-dark has-text-light mb-4" style="border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; display: flex; flex-direction: column;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 25px rgba(255,255,255,0.1)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 3px rgba(10,10,10,0.1), 0 0 0 1px rgba(10,10,10,0.1)';">
-                    <h3 class="title is-5 has-text-light">How do I set up audio monitoring in OBS?</h3>
+                    <h3 class="title is-6 has-text-light">How do I set up audio monitoring in OBS?</h3>
                     <p>For detailed instructions on setting up audio monitoring in OBS to hear bot sounds and alerts, check out our <a href="obs_audio_monitoring.php" class="has-text-link">OBS Audio Monitoring Setup</a> guide.</p>
                 </div>
             </div>
             <div class="column is-6">
                 <div class="box has-background-dark has-text-light mb-4" style="border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; display: flex; flex-direction: column;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 25px rgba(255,255,255,0.1)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 3px rgba(10,10,10,0.1), 0 0 0 1px rgba(10,10,10,0.1)';">
-                    <h3 class="title is-5 has-text-light">I'm having trouble with the bot. What should I do?</h3>
+                    <h3 class="title is-6 has-text-light">I'm having trouble with the bot. What should I do?</h3>
                     <p>If you're experiencing issues, start with our <a href="troubleshooting.php" class="has-text-link">Troubleshooting Guide</a> which covers common problems and solutions.</p>
                 </div>
             </div>
             <div class="column is-6">
                 <div class="box has-background-dark has-text-light mb-4" style="border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; display: flex; flex-direction: column;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 25px rgba(255,255,255,0.1)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 3px rgba(10,10,10,0.1), 0 0 0 1px rgba(10,10,10,0.1)';">
-                    <h3 class="title is-5 has-text-light">How do I use custom command variables?</h3>
+                    <h3 class="title is-6 has-text-light">How do I use custom command variables?</h3>
                     <p>Custom commands support various variables for dynamic content. Learn all about them on our <a href="custom_command_variables.php" class="has-text-link">Custom Command Variables</a> page.</p>
                 </div>
             </div>
             <div class="column is-6">
                 <div class="box has-background-dark has-text-light mb-4" style="border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; display: flex; flex-direction: column;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 25px rgba(255,255,255,0.1)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 3px rgba(10,10,10,0.1), 0 0 0 1px rgba(10,10,10,0.1)';">
-                    <h3 class="title is-5 has-text-light">How do Twitch Channel Points work with the bot?</h3>
+                    <h3 class="title is-6 has-text-light">How do Twitch Channel Points work with the bot?</h3>
                     <p>BotOfTheSpecter integrates seamlessly with Twitch Channel Points. Learn how to set them up and customize responses on our <a href="twitch_channel_points.php" class="has-text-link">Twitch Channel Points</a> page.</p>
                 </div>
             </div>
             <div class="column is-6">
                 <div class="box has-background-dark has-text-light mb-4" style="border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; display: flex; flex-direction: column;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 25px rgba(255,255,255,0.1)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 3px rgba(10,10,10,0.1), 0 0 0 1px rgba(10,10,10,0.1)';">
-                    <h3 class="title is-5 has-text-light">I want to do something custom with my commands, what can I do?</h3>
+                    <h3 class="title is-6 has-text-light">I want to do something custom with my commands, what can I do?</h3>
                     <p>Check out our <a href="custom_command_variables.php" class="has-text-link">Custom Command Variables</a> page for the different ways you can change the way your commands work with dynamic variables, API calls, and more.</p>
                 </div>
             </div>
