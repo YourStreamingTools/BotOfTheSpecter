@@ -137,7 +137,7 @@ $displayMessageData = !empty($_GET['successMessage']) || !empty($_GET['errorMess
 if ($displayMessageData) {
     if (!empty($_GET['successMessage'])) {
         $errorMessage = isset($_GET['successMessage']) ? $_GET['successMessage'] : '';
-        $displayMessages = "<p class='has-text-white'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
+        $displayMessages = "<p class='has-text-black'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
     } elseif (!empty($_GET['errorMessage'])) {
         $errorMessage = isset($_GET['errorMessage']) ? $_GET['errorMessage'] : '';
         $displayMessages = "<p class='has-text-black'>". htmlspecialchars($errorMessage) . "</p>";
@@ -186,7 +186,7 @@ ob_start();
                         </div>
                         <?php if ($displayMessages): ?>
                             <div class="notification is-primary">
-                                <span class="has-text-black"><?php echo $displayMessages; ?></span>
+                                <?php echo $displayMessages; ?>
                             </div>
                         <?php endif; ?>
                         <div class="columns is-desktop is-multiline">
