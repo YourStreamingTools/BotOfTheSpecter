@@ -22,9 +22,9 @@ if (isset($_SESSION['access_token'])) {
 if (!isset($_SESSION['access_token']) && !isset($_GET['code'])) {
     header('Location: https://id.twitch.tv/oauth2/authorize' .
         '?client_id=' . $clientID .
-        '&redirect_uri=' . $redirectURI .
+        '&redirect_uri=' . urlencode($redirectURI) .
         '&response_type=code' .
-        '&scope=' . $IDScope);
+        '&scope=' . urlencode($IDScope));
     exit;
 }
 
