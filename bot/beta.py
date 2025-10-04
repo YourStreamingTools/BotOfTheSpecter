@@ -1968,6 +1968,7 @@ class TwitchBot(commands.Bot):
             # Skip message counting and welcome message for the bot itself
             return
         connection = None
+        send_shoutout = False
         try:
             connection = await mysql_connection()
             async with connection.cursor(DictCursor) as cursor:
@@ -2056,6 +2057,7 @@ class TwitchBot(commands.Bot):
                                 else:
                                     message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
                         if '(shoutout)' in message_to_send:
+                            send_shoutout = True
                             message_to_send = message_to_send.replace('(shoutout)', '')
                             user_id = messageAuthorID
                             user_to_shoutout = messageAuthor
@@ -2072,11 +2074,11 @@ class TwitchBot(commands.Bot):
                                     f"You should go give them a follow over at "
                                     f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
                                 )
-                            chat_logger.info(shoutout_message)
-                            await send_chat_message(shoutout_message)
-                            await add_shoutout(user_to_shoutout, user_id)
                         if message_to_send.strip():
-                            await send_chat_message(message_to_send)
+                                await send_chat_message(message_to_send)
+                        if send_shoutout and shoutout_message:
+                            await add_shoutout(user_to_shoutout, user_id)
+                            await send_chat_message(shoutout_message)
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
                         create_task(self.safe_walkon(messageAuthor))
         except Exception as e:
