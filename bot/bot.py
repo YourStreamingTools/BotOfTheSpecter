@@ -57,7 +57,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.4.7"
+VERSION = "5.4.8"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -1654,37 +1654,34 @@ class TwitchBot(commands.Bot):
                     else:
                         await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
-                    # Fetch url_blocking option from the protection table in the user's database
+                    # Always check blacklist
+                    await cursor.execute('SELECT link FROM link_blacklisting')
+                    blacklist_result = await cursor.fetchall()
+                    blacklisted_links = [row['link'] for row in blacklist_result] if blacklist_result else []
+                    contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
+                    if contains_blacklisted_link:
+                        await message.delete()
+                        chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
+                        await channel.send(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
+                        return
+                    # Now check if URL blocking is enabled
                     await cursor.execute('SELECT url_blocking FROM protection')
                     result = await cursor.fetchone()
                     url_blocking = bool(result.get("url_blocking")) if result else False
-                    # Proceed if URL blocking is enabled
                     if url_blocking:
                         # Check if user has permission to post links
                         if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
                             return  # User is permitted, skip URL blocking
                         if await command_permissions("mod", message.author):
                             return  # Mods and broadcaster have permission by default
-                        # Fetch whitelist and blacklist from the database
+                        # Fetch whitelist
                         await cursor.execute('SELECT link FROM link_whitelist')
                         whitelist_result = await cursor.fetchall()  # Fetch whitelist results
                         whitelisted_links = [row['link'] for row in whitelist_result] if whitelist_result else []
-                        await cursor.execute('SELECT link FROM link_blacklisting')
-                        blacklist_result = await cursor.fetchall()  # Fetch blacklist results
-                        blacklisted_links = [row['link'] for row in blacklist_result] if blacklist_result else []
-                        # Check if message contains whitelisted or blacklisted links using domain matching
                         contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
-                        contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
                         # Check for Twitch clip links
                         contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
-                        # Process based on whitelist/blacklist match results
-                        if contains_blacklisted_link:
-                            # Delete the message if it contains a blacklisted URL
-                            await message.delete()
-                            chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
-                            await channel.send(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
-                            return
-                        elif not contains_whitelisted_link and not contains_twitch_clip_link:
+                        if not contains_whitelisted_link and not contains_twitch_clip_link:
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
                             await channel.send(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
