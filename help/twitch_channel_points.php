@@ -1,6 +1,12 @@
 <?php
 ob_start();
 ?>
+<nav class="breadcrumb has-text-light" aria-label="breadcrumbs" style="margin-bottom: 2rem; background-color: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
+    <ul>
+        <li><a href="index.php" class="has-text-light">Home</a> <span style="color: #fff;">→</span></li>
+        <li class="is-active"><a aria-current="page" class="has-text-link has-text-weight-bold">Twitch Channel Points</a></li>
+    </ul>
+</nav>
 <h1 class="title has-text-light">Twitch Channel Points</h1>
 <p class="subtitle has-text-light">Learn how to use Twitch Channel Points with BotOfTheSpecter for enhanced viewer engagement.</p>
 
