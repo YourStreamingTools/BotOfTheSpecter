@@ -125,6 +125,16 @@ ob_start();
           </span>
         </header>
         <div class="card-content">
+          <div class="notification is-info mb-5">
+            <p class="has-text-weight-bold">
+              <span class="icon"><i class="fas fa-code"></i></span>
+              Custom Variables for Welcome Messages
+            </p>
+            <p>You can use the following variables in welcome messages:</p>
+            <ul>
+              <li><span class="has-text-weight-bold">(shoutout)</span>: Automatically sends a shoutout to the user. This feature is in testing for beta 5.5 bot.</li>
+            </ul>
+          </div>
           <div class="notification has-background-danger has-text-black has-text-weight-bold"><?php echo t('known_users_edit_notice'); ?></div>
           <!-- Search Bar -->
           <input type="text" id="searchInput" class="input" placeholder="<?php echo t('known_users_search_placeholder'); ?>" onkeyup="searchFunction()">
