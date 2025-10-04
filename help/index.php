@@ -154,7 +154,7 @@ ob_start();
                             </span>
                             API Documentation
                         </a></li>
-                        <li><a href="#faq" class="has-text-light">
+                        <li><a href="faq.php" class="has-text-light">
                             <span class="icon">
                                 <i class="fas fa-question-circle"></i>
                             </span>
