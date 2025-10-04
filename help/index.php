@@ -160,7 +160,7 @@ ob_start();
                             </span>
                             Frequently Asked Questions
                         </a></li>
-                        <li><a href="#troubleshooting" class="has-text-light">
+                        <li><a href="troubleshooting.php" class="has-text-light">
                             <span class="icon">
                                 <i class="fas fa-wrench"></i>
                             </span>
