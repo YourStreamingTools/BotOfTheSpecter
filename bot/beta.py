@@ -2055,7 +2055,28 @@ class TwitchBot(commands.Bot):
                                     message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
                                 else:
                                     message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
-                        await send_chat_message(message_to_send)
+                        if '(shoutout)' in message_to_send:
+                            message_to_send = message_to_send.replace('(shoutout)', '')
+                            user_id = messageAuthorID
+                            user_to_shoutout = messageAuthor
+                            game = await get_latest_stream_game(user_id, user_to_shoutout)
+                            if not game:
+                                shoutout_message = (
+                                    f"Hey, huge shoutout to @{user_to_shoutout}! "
+                                    f"You should go give them a follow over at "
+                                    f"https://www.twitch.tv/{user_to_shoutout}"
+                                )
+                            else:
+                                shoutout_message = (
+                                    f"Hey, huge shoutout to @{user_to_shoutout}! "
+                                    f"You should go give them a follow over at "
+                                    f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
+                                )
+                            chat_logger.info(shoutout_message)
+                            await send_chat_message(shoutout_message)
+                            await add_shoutout(user_to_shoutout, user_id)
+                        if message_to_send.strip():
+                            await send_chat_message(message_to_send)
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
                         create_task(self.safe_walkon(messageAuthor))
         except Exception as e:
