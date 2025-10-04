@@ -18,6 +18,7 @@ $maintenanceMode = $config['maintenanceMode'];
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
     <!-- CUSTOM -->
     <script src="navbar.js" defer></script>
+    <script src="search.js" defer></script>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
@@ -41,6 +42,19 @@ $maintenanceMode = $config['maintenanceMode'];
         </aside>
     </div>
     <div class="column">
+        <div class="is-flex is-justify-content-flex-end mb-3" style="padding: 1rem; position: relative;">
+            <form action="search.php" method="get" id="search-form">
+                <div class="field">
+                    <div class="control has-icons-left">
+                        <input class="input" type="text" name="q" placeholder="Search help..." id="search-input" autocomplete="off" style="border-radius: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); background-color: #2c2c2c; color: #ffffff; border: 1px solid #4a4a4a; padding-left: 2.5rem; font-size: 1rem; transition: all 0.3s ease;">
+                        <span class="icon is-small is-left" style="color: #888;">
+                            <i class="fas fa-search"></i>
+                        </span>
+                    </div>
+                </div>
+            </form>
+            <div id="search-results" style="position: absolute; top: 100%; right: 0; width: 300px; max-height: 400px; overflow-y: auto; z-index: 1000; display: none;"></div>
+        </div>
         <main class="section">
             <div class="container">
                 <?php echo $content; ?>
