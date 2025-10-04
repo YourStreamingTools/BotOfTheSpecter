@@ -255,11 +255,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const editActionGroup = this.parentElement;
       const editBtn = editActionGroup.querySelector('.edit-btn');
       const cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
-      // Hide save/cancel, show edit
-      this.style.display = 'none';
-      if (cancelBtn) cancelBtn.style.display = 'none';
-      if (editBtn) editBtn.style.display = '';
-      updateWelcomeMessage(userId, newWelcomeMessage, editBtn);
+      // Show loading state
+      const originalIcon = this.innerHTML;
+      this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      this.disabled = true;
+      updateWelcomeMessage(userId, newWelcomeMessage, this, originalIcon, editBtn, cancelBtn);
     });
   });
   // Cancel edit functionality
@@ -473,13 +473,20 @@ function updateLoadingNotice() {
     loadingNotice.innerText = '<?php echo t('known_users_loading_js'); ?>'.replace('{loaded}', loadedUsers).replace('{total}', totalUsers);
   }
 }
-function updateWelcomeMessage(userId, newWelcomeMessage, button) {
+function updateWelcomeMessage(userId, newWelcomeMessage, button, originalIcon, editBtn, cancelBtn) {
   console.log(`Updating welcome message for user ID ${userId} to "${newWelcomeMessage}"`);
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
+      // Restore button state
+      button.innerHTML = originalIcon;
+      button.disabled = false;
+      // Hide save/cancel, show edit
+      button.style.display = 'none';
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      if (editBtn) editBtn.style.display = '';
       console.log(`Response received for updating welcome message of user ID ${userId}`);
       location.reload();
     }
