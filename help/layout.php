@@ -34,10 +34,11 @@ $maintenanceMode = $config['maintenanceMode'];
         <a href="../" class="is-3 title has-text-white">BotOfTheSpecter Help</a>
         <aside class="menu mt-3">
             <ul class="menu-list">
+                <li><a href="setup.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">First Time Setup</a></li>
                 <li><a href="custom_command_variables.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Custom Command Variables</a></li>
                 <li><a href="twitch_channel_points.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Twitch Channel Points</a></li>
-                <li><a href="https://api.botofthespecter.com/docs" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">API Documentation</a></li>
-                <li><a href="https://dashboard.botofthespecter.com/dashboard.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Bot Dashboard</a></li>
+                <li><a href="https://api.botofthespecter.com/docs" target="_blank" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">API Documentation</a></li>
+                <li><a href="https://dashboard.botofthespecter.com/dashboard.php" target="_blank" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Bot Dashboard</a></li>
             </ul>
         </aside>
     </div>

@@ -142,6 +142,12 @@ ob_start();
             <div class="card-content has-background-dark">
                 <div class="content has-text-light">
                     <ul>
+                        <li><a href="setup.php" class="has-text-light">
+                            <span class="icon">
+                                <i class="fas fa-rocket"></i>
+                            </span>
+                            First Time Setup
+                        </a></li>
                         <li><a href="command_reference.php" class="has-text-light">
                             <span class="icon">
                                 <i class="fas fa-terminal"></i>
