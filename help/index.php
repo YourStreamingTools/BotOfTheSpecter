@@ -1,7 +1,7 @@
 <?php
 ob_start();
 ?>
-<section class="hero is-primary mb-5">
+<section class="hero mb-5">
     <div class="hero-body" style="height: 300px;">
         <div class="container" style="height: 100%;">
             <div class="columns is-vcentered" style="height: 100%;">
@@ -9,7 +9,7 @@ ob_start();
                     <h1 class="title is-1 has-text-weight-bold has-text-light">BotOfTheSpecter Help & Wiki</h1>
                     <p class="subtitle is-4 has-text-light">Your comprehensive guide to setting up and using BotOfTheSpecter, the ultimate streaming bot for Twitch, Discord, and beyond.</p>
                     <div class="buttons">
-                        <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank" class="button is-primary is-outlined is-large has-text-light">
+                        <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank" class="button is-large has-text-light">
                             <span class="icon">
                                 <i class="fab fa-github"></i>
                             </span>
