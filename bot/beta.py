@@ -172,7 +172,7 @@ permitted_users = {}                                    # Dictionary for permitt
 connected = set()                                       # Set for connected users
 pending_removals = {}                                   # Dictionary for pending removals
 shoutout_tracker = {}                                   # Dictionary for tracking shoutouts
-command_last_used = {}                                  # Dictionary for tracking command usage
+command_usage = {}                                      # Dictionary for tracking command usage with timestamps
 last_poll_progress_update = 0                           # Variable for last poll progress update
 last_message_time = 0                                   # Variable for last message time
 chat_line_count = 0                                     # Tracks the number of chat messages
@@ -218,6 +218,26 @@ allowed_ops = {
     '*': operator.mul,
     '/': operator.floordiv
 }
+
+# Custom cooldown functions
+def check_cooldown(command, user_id, bucket_type, rate, time_window):
+    global command_usage
+    current_time = time.time()
+    key = (command, user_id)
+    if key not in command_usage:
+        command_usage[key] = []
+    # Clean old timestamps outside the time window
+    command_usage[key] = [t for t in command_usage[key] if current_time - t < time_window]
+    # Check if under the rate limit
+    return len(command_usage[key]) < rate
+
+def add_usage(command, user_id):
+    global command_usage
+    current_time = time.time()
+    key = (command, user_id)
+    if key not in command_usage:
+        command_usage[key] = []
+    command_usage[key].append(current_time)
 
 # Function to handle termination signals
 def signal_handler(sig, frame):
@@ -1712,17 +1732,9 @@ class TwitchBot(commands.Bot):
                             if not await command_permissions(cc_permission, message.author):
                                 chat_logger.info(f"{messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
                                 return
-                            cooldown = int(cooldown)
-                            # Checking if the command is on cooldown
-                            last_used = command_last_used.get(command, None)
-                            if last_used:
-                                time_since_last_used = (time_right_now() - last_used).total_seconds()
-                                if time_since_last_used < cooldown:
-                                    remaining_time = cooldown - time_since_last_used
-                                    chat_logger.info(f"{command} is on cooldown. {max(1, math.ceil(remaining_time))} seconds remaining.")
-                                    await send_chat_message(f"The command {command} is on cooldown. Please wait {max(1, math.ceil(remaining_time))} seconds.")
-                                    return
-                            command_last_used[command] = time_right_now()
+                            # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
+                            if not check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                                return
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
                                 '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
@@ -1877,6 +1889,8 @@ class TwitchBot(commands.Bot):
                             for resp in responses_to_send:
                                 chat_logger.info(f"{command} command ran with response: {resp}")
                                 await send_chat_message(resp)
+                            # Record usage
+                            add_usage(command, 'global')
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
@@ -1889,19 +1903,13 @@ class TwitchBot(commands.Bot):
                             cooldown = custom_user_command['cooldown']
                             user_id = custom_user_command['user_id']
                             if cuc_status == 'Enabled':
-                                cooldown = int(cooldown)
-                                # Checking if the command is on cooldown
-                                last_used = command_last_used.get(command, None)
-                                if last_used:
-                                    time_since_last_used = (time_right_now() - last_used).total_seconds()
-                                    if time_since_last_used < cooldown:
-                                        remaining_time = cooldown - time_since_last_used
-                                        chat_logger.info(f"{command} is on cooldown. {max(1, math.ceil(remaining_time))} seconds remaining.")
-                                        await send_chat_message(f"The command {command} is on cooldown. Please wait {max(1, math.ceil(remaining_time))} seconds.")
-                                        return
+                                # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
+                                if not check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                                    return
                                 if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
-                                    command_last_used[command] = time_right_now()
                                     await send_chat_message(response)
+                                    # Record usage
+                                    add_usage(command, 'global')
                         else:
                             chat_logger.info(f"Custom command '{command}' not found.")
                 # Handle AI responses
@@ -2226,7 +2234,6 @@ class TwitchBot(commands.Bot):
             # No premium access and not the bot owner
             return "This channel doesn't have a premium subscription to use this feature."
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
         global bot_owner
@@ -2234,13 +2241,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("commands",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("commands",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('commands', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2255,6 +2269,8 @@ class TwitchBot(commands.Bot):
                         # Custom commands link
                         custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
                         await send_chat_message(custom_response_message)
+                        # Record usage
+                        add_usage('commands', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the commands command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2264,7 +2280,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='bot')
     async def bot_command(self, ctx):
         global bot_owner
@@ -2272,18 +2287,27 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("bot",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("bot",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('bot', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
                         await send_chat_message(f"This amazing bot is built by the one and the only {bot_owner}. Check me out on my website: https://botofthespecter.com")
+                        # Record usage
+                        add_usage('bot', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the bot command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2293,7 +2317,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=30, bucket=commands.Bucket.default)
     @commands.command(name='wsstatus')
     async def websocket_status_command(self, ctx):
         global bot_owner
@@ -2301,19 +2324,28 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("wsstatus",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("wsstatus",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('wsstatus', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         websocket_status = "Connected" if is_websocket_connected() else "Disconnected"
                         chat_logger.info(f"{ctx.author.name} checked WebSocket status: {websocket_status}")
                         await send_chat_message(f"Internal system WebSocket status: {websocket_status}")
+                        # Record usage
+                        add_usage('wsstatus', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to check WebSocket status but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2323,7 +2355,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
         global bot_owner
@@ -2331,13 +2362,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("forceonline",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("forceonline",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('forceonline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2345,6 +2383,8 @@ class TwitchBot(commands.Bot):
                         bot_logger.info(f"Stream is now online!")
                         await send_chat_message("Stream status has been forcibly set to online.")
                         create_task(websocket_notice(event="STREAM_ONLINE"))
+                        # Record usage
+                        add_usage('forceonline', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2354,7 +2394,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='forceoffline')
     async def forceoffline_command(self, ctx):
         global bot_owner
@@ -2362,13 +2401,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("forceoffline",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("forceoffline",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
-                    permissions = result.get("permission")  # Unpack the status and permissions
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('forceoffline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2376,6 +2422,8 @@ class TwitchBot(commands.Bot):
                         bot_logger.info(f"Stream is now offline.")
                         await send_chat_message("Stream status has been forcibly set to offline.")
                         create_task(websocket_notice(event="STREAM_OFFLINE"))
+                        # Record usage
+                        add_usage('forceoffline', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2387,7 +2435,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='version')
     async def version_command(self, ctx):
         global bot_owner, bot_started
@@ -2395,13 +2442,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("version",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('version', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2438,6 +2492,8 @@ class TwitchBot(commands.Bot):
                         else:
                             premium_status = "Premium Features: None"
                         await send_chat_message(f"{message[:-2]}. {premium_status}")
+                        # Record usage
+                        add_usage('version', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the version command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2447,7 +2503,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
         global bot_owner
@@ -2455,17 +2510,26 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("roadmap",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("roadmap",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('roadmap', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         await send_chat_message("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
+                        # Record usage
+                        add_usage('roadmap', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the roadmap command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2475,7 +2539,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='weather')
     async def weather_command(self, ctx, *, location: str = None) -> None:
         global bot_owner, CHANNEL_NAME
@@ -2483,17 +2546,24 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("weather",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("weather",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if websocket is connected - weather data comes via websocket
                     if not is_websocket_connected():
                         await send_chat_message(f"The bot is not connected to the weather data service. @{CHANNEL_NAME} please restart me to reconnect to the service.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('weather', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2510,6 +2580,8 @@ class TwitchBot(commands.Bot):
                                     api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
                         else:
                             await send_chat_message("Unable to retrieve location.")
+                        # Record usage
+                        add_usage('weather', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the weather command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2519,7 +2591,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='points')
     async def points_command(self, ctx):
         global bot_owner
@@ -2529,13 +2600,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("points",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("points",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('points', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2554,6 +2632,8 @@ class TwitchBot(commands.Bot):
                             )
                             await connection.commit()
                         await send_chat_message(f'@{user_name}, you have {points} points.')
+                        # Record usage
+                        add_usage('points', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the points command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2563,7 +2643,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='addpoints')
     async def addpoints_command(self, ctx, user: str, points_to_add: int):
         global bot_owner
@@ -2571,13 +2650,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("addpoints",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("addpoints",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('addpoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2597,13 +2683,14 @@ class TwitchBot(commands.Bot):
                             )
                         await connection.commit()
                         await send_chat_message(f"Added {points_to_add} points to {user_name}. They now have {new_points} points.")
+                        # Record usage
+                        add_usage('addpoints', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of addpoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='removepoints')
     async def removepoints_command(self, ctx, user: str, points_to_remove: int):
         global bot_owner
@@ -2611,13 +2698,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removepoints",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("removepoints",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('removepoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2631,6 +2725,8 @@ class TwitchBot(commands.Bot):
                             await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
                             await connection.commit()
                             await send_chat_message(f"Removed {points_to_remove} points from {user_name}. They now have {new_points} points.")
+                            # Record usage
+                            add_usage('removepoints', bucket_key)
                         else:
                             await send_chat_message(f"{user_name} does not have any points.")
         except Exception as e:
@@ -2639,7 +2735,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='time')
     async def time_command(self, ctx, *, timezone: str = None) -> None:
         global bot_owner
@@ -2647,13 +2742,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("time",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("time",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('time', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2701,6 +2803,8 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message("Streamer timezone is not set.")
                                 return
                         await send_chat_message(time_format)
+                        # Record usage
+                        add_usage('time', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the time command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2710,7 +2814,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='joke')
     async def joke_command(self, ctx):
         global bot_owner
@@ -2718,13 +2821,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("joke",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("joke",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('joke', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2748,6 +2858,8 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['joke']}")
                             else:
                                 await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
+                            # Record usage
+                            add_usage('joke', bucket_key)
                         else:
                             await send_chat_message("Error: Could not fetch the blacklist settings.")
                     else:
@@ -2759,7 +2871,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
         global bot_owner
@@ -2767,13 +2878,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("quote",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("quote",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('quote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2791,6 +2909,8 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message(f"Quote {number}: " + quote["quote"])
                             else:
                                 await send_chat_message(f"No quote found with ID {number}.")
+                        # Record usage
+                        add_usage('quote', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the quote command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2800,7 +2920,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='quoteadd')
     async def quoteadd_command(self, ctx, *, quote):
         global bot_owner
@@ -2808,19 +2927,28 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("quoteadd",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("quoteadd",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('quoteadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         await cursor.execute("INSERT INTO quotes (quote) VALUES (%s)", (quote,))
                         await connection.commit()
                         await send_chat_message("Quote added successfully: " + quote)
+                        # Record usage
+                        add_usage('quoteadd', bucket_key)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to add a quote but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2830,7 +2958,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removequote')
     async def quoteremove_command(self, ctx, number: int = None):
         global bot_owner
@@ -2838,13 +2965,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removequote",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("removequote",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('removequote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2855,6 +2989,8 @@ class TwitchBot(commands.Bot):
                         await connection.commit()
                         if cursor.rowcount > 0:  # Check if a row was deleted
                             await send_chat_message(f"Quote {number} has been removed.")
+                            # Record usage
+                            add_usage('removequote', bucket_key)
                         else:
                             await send_chat_message(f"No quote found with ID {number}.")
                     else:
@@ -2866,7 +3002,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='permit')
     async def permit_command(self, ctx, permit_user: str = None):
         global bot_owner
@@ -2874,13 +3009,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the permit command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("permit",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("permit",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('permit', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the required permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2888,6 +3030,8 @@ class TwitchBot(commands.Bot):
                         if permit_user:
                             permitted_users[permit_user] = time.time() + 30
                             await send_chat_message(f"{permit_user} is now permitted to post links for the next 30 seconds.")
+                            # Record usage
+                            add_usage('permit', bucket_key)
                         else:
                             await send_chat_message("Please specify a user to permit.")
                     else:
@@ -2899,7 +3043,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='settitle')
     async def settitle_command(self, ctx, *, title: str = None) -> None:
         global bot_owner
@@ -2907,13 +3050,20 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the settitle command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("settitle",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("settitle",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('settitle', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the required permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2924,6 +3074,8 @@ class TwitchBot(commands.Bot):
                         await trigger_twitch_title_update(title)
                         twitch_logger.info(f'Setting stream title to: {title}')
                         await send_chat_message(f'Stream title updated to: {title}')
+                        # Record usage
+                        add_usage('settitle', bucket_key)
                     else:
                         await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
@@ -2932,7 +3084,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='setgame')
     async def setgame_command(self, ctx, *, game: str = None) -> None:
         global bot_owner
@@ -2940,22 +3091,31 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the setgame command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("setgame",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("setgame",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Verify user permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not check_cooldown('setgame', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
                         if game is None:
                             await send_chat_message("You must provide a game for the stream.")
                             return
                         try:
                             game_name = await update_twitch_game(game)
                             await send_chat_message(f'Stream game updated to: {game_name}')
+                            # Record usage
+                            add_usage('setgame', bucket_key)
                         except GameNotFoundException as e:
                             await send_chat_message(f"Game not found: {str(e)}")
                         except GameUpdateFailedException as e:
@@ -2970,7 +3130,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.default)
     @commands.command(name='song')
     async def song_command(self, ctx):
         global stream_online, song_requests, bot_owner
@@ -2978,17 +3137,24 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the song command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("song",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("song",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('song', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Get the current song and artist from Spotify
                 song_name, artist_name, song_id, spotify_error = await get_spotify_current_song()
@@ -3028,13 +3194,14 @@ class TwitchBot(commands.Bot):
                 else:
                     # No premium access
                     await send_chat_message("This channel doesn't have a premium subscription to use the alternative method.")
+                # Record usage
+                add_usage('song', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the song command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
     @commands.command(name='songrequest', aliases=['sr'])
     async def songrequest_command(self, ctx):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
@@ -3042,11 +3209,14 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the songrequest command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("songrequest",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("songrequest",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         await send_chat_message(f"Requesting songs is currently disabled.")
@@ -3054,6 +3224,10 @@ class TwitchBot(commands.Bot):
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('songrequest', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
@@ -3196,6 +3370,8 @@ class TwitchBot(commands.Bot):
                 async with queue_session.post(request_url, headers=headers) as response:
                     if response.status == 200:
                         await send_chat_message(f"The song {song_name} by {artist_name} has been added to the queue.")
+                        # Record usage
+                        add_usage('songrequest', bucket_key)
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -3206,23 +3382,29 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
     @commands.command(name='skipsong', aliases=['skip'])
     async def skipsong_command(self, ctx):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("skipsong",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("skipsong",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         await send_chat_message(f"Skipping songs is currently disabled.")
                         return
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('skipsong', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
@@ -3259,6 +3441,8 @@ class TwitchBot(commands.Bot):
                     if response.status in (200, 204):
                         api_logger.info(f"Song skipped successfully by {ctx.message.author.name}")
                         await send_chat_message("Song skipped successfully.")
+                        # Record usage
+                        add_usage('skipsong', bucket_key)
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -3269,7 +3453,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=30, bucket=commands.Bucket.member)
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
     async def songqueue_command(self, ctx):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
@@ -3277,11 +3460,14 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the songqueue command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("songqueue",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("songqueue",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         await send_chat_message(f"Sorry, checking the song queue is currently disabled.")
@@ -3289,6 +3475,10 @@ class TwitchBot(commands.Bot):
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('songqueue', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             # Request the queue information from Spotify
             access_token = await get_spotify_access_token()
@@ -3340,13 +3530,14 @@ class TwitchBot(commands.Bot):
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Something went wrong with Spotify. Please try again soon.")
                         await send_chat_message(f"Sorry, I couldn't fetch the queue. {error_message}")
                         api_logger.error(f"Spotify returned response code: {response.status}")
+            # Record usage
+            add_usage('songqueue', bucket_key)
         except Exception as e:
             await send_chat_message("Something went wrong while fetching the song queue. Please try again later.")
             api_logger.error(f"Error in songqueue_command: {e}")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='timer')
     async def timer_command(self, ctx):
         global bot_owner
@@ -3354,17 +3545,24 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the timer command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("timer",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("timer",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('timer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Check if the user already has an active timer
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
@@ -3388,13 +3586,14 @@ class TwitchBot(commands.Bot):
                 # Remove the timer from the active_timers table
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 await connection.commit()
+                # Record usage
+                add_usage('timer', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='stoptimer')
     async def stoptimer_command(self, ctx):
         global bot_owner
@@ -3402,17 +3601,24 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the stoptimer command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("stoptimer",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("stoptimer",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('stoptimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
@@ -3422,13 +3628,14 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 await connection.commit()
                 await send_chat_message(f"Your timer has been stopped @{ctx.author.name}.")
+                # Record usage
+                add_usage('stoptimer', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the stoptimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='checktimer')
     async def checktimer_command(self, ctx):
         global bot_owner
@@ -3436,17 +3643,24 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the checktimer command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("checktimer",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("checktimer",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('checktimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
@@ -3458,13 +3672,14 @@ class TwitchBot(commands.Bot):
                 minutes_left = remaining_time.total_seconds() // 60
                 seconds_left = remaining_time.total_seconds() % 60
                 await send_chat_message(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
+                # Record usage
+                add_usage('checktimer', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the checktimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='hug')
     async def hug_command(self, ctx, *, mentioned_username: str = None):
         global bot_owner
@@ -3472,17 +3687,24 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the hug command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("hug",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("hug",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('hug', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
@@ -3517,6 +3739,8 @@ class TwitchBot(commands.Bot):
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "hug")
+                    # Record usage
+                    add_usage('hug', bucket_key)
                 else:
                     chat_logger.error(f"No hug count found for user: {mentioned_username}")
                     await send_chat_message(f"Sorry @{ctx.author.name}, you can't hug @{mentioned_username} right now, there's an issue in my system.")
@@ -3526,7 +3750,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='highfive')
     async def highfive_command(self, ctx, *, mentioned_username: str = None):
         global bot_owner
@@ -3534,17 +3757,24 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the hug command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("highfive",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("highfive",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('highfive', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
@@ -3579,6 +3809,8 @@ class TwitchBot(commands.Bot):
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "highfive")
+                    # Record usage
+                    add_usage('highfive', bucket_key)
                 else:
                     chat_logger.error(f"No high-five count found for user: {mentioned_username}")
                     await send_chat_message(f"Sorry @{ctx.author.name}, you can't high-five @{mentioned_username} right now, there's an issue in my system.")
@@ -3588,7 +3820,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='kiss')
     async def kiss_command(self, ctx, *, mentioned_username: str = None):
         global bot_owner
@@ -3596,17 +3827,24 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch the status and permissions for the kiss command
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("kiss",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("kiss",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('kiss', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
@@ -3641,6 +3879,8 @@ class TwitchBot(commands.Bot):
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "kiss")
+                    # Record usage
+                    add_usage('kiss', bucket_key)
                 else:
                     chat_logger.error(f"No kiss count found for user: {mentioned_username}")
                     await send_chat_message(f"Sorry @{ctx.author.name}, you can't kiss @{mentioned_username} right now, there's an issue in my system.")
@@ -3650,7 +3890,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='ping')
     async def ping_command(self, ctx):
         global bot_owner
@@ -3658,16 +3897,23 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("ping",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("ping",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not check_cooldown('ping', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
                         # Using subprocess to run the ping command
                         result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
                         # Decode the result from bytes to string and search for the time
@@ -3678,6 +3924,8 @@ class TwitchBot(commands.Bot):
                             bot_logger.info(f"Pong: {ping_time} ms")
                             # Updated message to make it clear to the user
                             await send_chat_message(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
+                            # Record usage
+                            add_usage('ping', bucket_key)
                         else:
                             bot_logger.error(f"Error Pinging. {output}")
                             await send_chat_message(f'Error pinging the internet from the bot server.')
@@ -3690,7 +3938,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='translate')
     async def translate_command(self, ctx):
         global bot_owner
@@ -3698,16 +3945,23 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("translate",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("translate",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not check_cooldown('translate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
                         # Get the message content after the command
                         message = ctx.message.content[len("!translate "):]
                         # Check if there is a message to translate
@@ -3721,6 +3975,8 @@ class TwitchBot(commands.Bot):
                                 return
                             translate_message = translator(source='auto', target='en').translate(text=message)
                             await send_chat_message(f"Translation: {translate_message}")
+                            # Record usage
+                            add_usage('translate', bucket_key)
                         except AttributeError as ae:
                             chat_logger.error(f"AttributeError: {ae}")
                             await send_chat_message("An error occurred while detecting the language.")
@@ -3736,7 +3992,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='cheerleader', aliases=['bitsleader'])
     async def cheerleader_command(self, ctx):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
@@ -3744,16 +3999,23 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("cheerleader",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("cheerleader",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not check_cooldown('cheerleader', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
                         headers = {
                             'Client-ID': CLIENT_ID,
                             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -3769,6 +4031,8 @@ class TwitchBot(commands.Bot):
                                         top_cheerer = data['data'][0]
                                         score = "{:,}".format(top_cheerer['score'])
                                         await send_chat_message(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
+                                        # Record usage
+                                        add_usage('cheerleader', bucket_key)
                                     else:
                                         await send_chat_message("There is no one currently in the leaderboard for bits; cheer to take this spot.")
                                 elif response.status == 401:
@@ -3784,7 +4048,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='mybits')
     async def mybits_command(self, ctx):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
@@ -3792,16 +4055,23 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("mybits",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("mybits",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not check_cooldown('mybits', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
                         user_id = ctx.author.id
                         await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
                         db_bits = await cursor.fetchone()
@@ -3832,15 +4102,23 @@ class TwitchBot(commands.Bot):
                                             await connection.commit()
                                             bits = "{:,}".format(api_bits)
                                             await send_chat_message(f"You have given {bits} bits in total.")
+                                            # Record usage
+                                            add_usage('mybits', bucket_key)
                                         elif api_bits < db_bits:
                                             # Inform the user that the local database has a higher value
                                             bits = "{:,}".format(db_bits)
                                             await send_chat_message(f"Our records show you have given {bits} bits in total.")
+                                            # Record usage
+                                            add_usage('mybits', bucket_key)
                                         else:
                                             bits = "{:,}".format(api_bits)
                                             await send_chat_message(f"You have given {bits} bits in total.")
+                                            # Record usage
+                                            add_usage('mybits', bucket_key)
                                     else:
                                         await send_chat_message("You haven't given any bits yet.")
+                                        # Record usage
+                                        add_usage('mybits', bucket_key)
                                 elif response.status == 401:
                                     await send_chat_message("Sorry, something went wrong while reaching the Twitch API.")
                                 else:
@@ -3854,23 +4132,29 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='lurk')
     async def lurk_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurk",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("lurk",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the lurk command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('lurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = str(ctx.author.id)
                     now = time_right_now()
@@ -3913,29 +4197,37 @@ class TwitchBot(commands.Bot):
                         (user_id, formatted_datetime, formatted_datetime)
                     )
                     await connection.commit()
+                    # Record usage
+                    add_usage('lurk', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
             await send_chat_message(f"Thanks for lurking! See you soon.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='lurking')
     async def lurking_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurking",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("lurking",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the lurking command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('lurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -3951,32 +4243,42 @@ class TwitchBot(commands.Bot):
                         # Send the lurk time message
                         await send_chat_message(f"{ctx.author.name}, you've been lurking for {time_string} so far.")
                         chat_logger.info(f"{ctx.author.name} checked their lurk time: {time_string}.")
+                        # Record usage
+                        add_usage('lurking', bucket_key)
                     else:
                         await send_chat_message(f"{ctx.author.name}, you're not currently lurking.")
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time but is not lurking.")
+                        # Record usage
+                        add_usage('lurking', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in lurking_command: {e}")
             await send_chat_message(f"Oops, something went wrong while trying to check your lurk time.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='lurklead', aliases=['lurkleader'])
     async def lurklead_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurklead",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("lurklead",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the lurklead command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('lurklead', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     try:
                         await cursor.execute('SELECT user_id, start_time FROM lurk_times')
@@ -3998,11 +4300,15 @@ class TwitchBot(commands.Bot):
                                 time_string = format_lurk_time(longest_lurk)
                                 await send_chat_message(f"{display_name} is currently lurking the most with {time_string} on the clock.")
                                 chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
+                                # Record usage
+                                add_usage('lurklead', bucket_key)
                             else:
                                 await send_chat_message("There was an issue retrieving the display name of the lurk leader.")
                         else:
                             await send_chat_message("No one is currently lurking.")
                             chat_logger.info("Lurklead command run but no lurkers found.")
+                            # Record usage
+                            add_usage('lurklead', bucket_key)
                     except Exception as e:
                         chat_logger.error(f"Error in lurklead_command: {e}")
                         await send_chat_message("Oops, something went wrong while trying to find the lurk leader.")
@@ -4012,22 +4318,28 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("unlurk",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("unlurk",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('unlurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -4056,45 +4368,61 @@ class TwitchBot(commands.Bot):
                             # Log the unlurk command execution and send a response
                             chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
                             await send_chat_message(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
+                            # Record usage
+                            add_usage('unlurk', bucket_key)
                         else:
                             chat_logger.info(f"{ctx.author.name} is no longer lurking.")
                             await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
+                            # Record usage
+                            add_usage('unlurk', bucket_key)
                         # Remove the user's start time from the database
                         await cursor.execute('DELETE FROM lurk_times WHERE user_id = %s', (user_id,))
                         await connection.commit()
                     else:
                         await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
+                        # Record usage
+                        add_usage('unlurk', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
             await send_chat_message("Oops, something went wrong with the unlurk command.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='userslurking')
     async def userslurking_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("userslurking",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("userslurking",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the userslurking command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('userslurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
                 await cursor.execute('SELECT COUNT(*) as count FROM lurk_times')
                 result = await cursor.fetchone()
                 count = result.get("count", 0)
                 if count == 0:
                     await send_chat_message("No one is currently lurking.")
+                    # Record usage
+                    add_usage('userslurking', bucket_key)
                 else:
                     await send_chat_message(f"There are currently {count} user{'s' if count != 1 else ''} lurking.")
+                    # Record usage
+                    add_usage('userslurking', bucket_key)
                 chat_logger.info(f"{ctx.author.name} checked the number of lurkers: {count}.")
         except Exception as e:
             chat_logger.error(f"Error in userslurking_command: {e}")
@@ -4102,22 +4430,28 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='clip')
     async def clip_command(self, ctx):
         global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("clip",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("clip",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('clip', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     if not stream_online:
                         await send_chat_message("Sorry, I can only create clips while the stream is online.")
@@ -4141,6 +4475,8 @@ class TwitchBot(commands.Bot):
                                     twitch_logger.info(f"A stream marker was created for the clip: {marker_description}.")
                                 else:
                                     twitch_logger.info("Failed to create a stream marker for the clip.")
+                                # Record usage
+                                add_usage('clip', bucket_key)
                             else:
                                 marker_description = f"Failed to create clip."
                                 if await make_stream_marker(marker_description):
@@ -4155,245 +4491,305 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
         global stream_online, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("marker",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("marker",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not stream_online:
-                        await send_chat_message("Sorry, I can only make a marker while the stream is online.")
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    if await command_permissions(permissions, ctx.author):
-                        marker_description = description if description else f"Marker made by {ctx.author.name}"
-                        if await make_stream_marker(marker_description):
-                            await send_chat_message(f'A stream marker was created with the description: "{marker_description}".')
-                        else:
-                            await send_chat_message("Failed to create a stream marker.")
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('marker', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    if not stream_online:
+                        await send_chat_message("Sorry, I can only create stream markers while the stream is online.")
+                        return
+                    marker_description = description if description else f"Marker made by {ctx.author.name}"
+                    if await make_stream_marker(marker_description):
+                        await send_chat_message(f"{ctx.author.name} created a stream marker.")
+                        twitch_logger.info(f"A stream marker was created: {marker_description}.")
                     else:
-                        await send_chat_message("You do not have the correct permissions to use this command.")
+                        await send_chat_message("Failed to create a stream marker.")
+                        twitch_logger.error("Failed to create a stream marker.")
+                    # Record usage
+                    add_usage('marker', bucket_key)
         except Exception as e:
-            chat_logger.error(f"An error occurred during the execution of the marker command: {e}")
-            await send_chat_message("An unexpected error occurred. Please try again later.")
+            twitch_logger.error(f"Error in marker_command: {e}")
+            await send_chat_message("An error occurred while executing the marker command.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("subscription",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("subscription",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if await command_permissions(permissions, ctx.author):
-                        user_id = ctx.author.id
-                        headers = {
-                            "Client-ID": CLIENT_ID,
-                            "Authorization": f"Bearer {CHANNEL_AUTH}"
-                        }
-                        params = {
-                            "broadcaster_id": CHANNEL_ID,
-                            "user_id": user_id
-                        }
-                        tier_mapping = {
-                            "1000": "Tier 1",
-                            "2000": "Tier 2",
-                            "3000": "Tier 3"
-                        }
-                        async with httpClientSession() as session:
-                            async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
-                                if subscription_response.status == 200:
-                                    subscription_data = await subscription_response.json()
-                                    subscriptions = subscription_data.get('data', [])
-                                    if subscriptions:
-                                        for subscription in subscriptions:
-                                            user_name = subscription['user_name']
-                                            tier = subscription['tier']
-                                            is_gift = subscription['is_gift']
-                                            gifter_name = subscription.get('gifter_name') if is_gift else None
-                                            tier_name = tier_mapping.get(tier, tier)
-                                            if is_gift:
-                                                await send_chat_message(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
-                                            else:
-                                                await send_chat_message(f"{user_name}, you are currently subscribed at {tier_name}.")
-                                    else:
-                                        await send_chat_message(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
-                                else:
-                                    await send_chat_message("Failed to retrieve subscription information. Please try again later.")
-                                    twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
-                    else:
+                    if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('subscription', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    user_id = ctx.author.id
+                    headers = {
+                        "Client-ID": CLIENT_ID,
+                        "Authorization": f"Bearer {CHANNEL_AUTH}"
+                    }
+                    params = {
+                        "broadcaster_id": CHANNEL_ID,
+                        "user_id": user_id
+                    }
+                    tier_mapping = {
+                        "1000": "Tier 1",
+                        "2000": "Tier 2",
+                        "3000": "Tier 3"
+                    }
+                    async with httpClientSession() as session:
+                        async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
+                            if subscription_response.status == 200:
+                                subscription_data = await subscription_response.json()
+                                subscriptions = subscription_data.get('data', [])
+                                if subscriptions:
+                                    for subscription in subscriptions:
+                                        user_name = subscription['user_name']
+                                        tier = subscription['tier']
+                                        is_gift = subscription['is_gift']
+                                        gifter_name = subscription.get('gifter_name') if is_gift else None
+                                        tier_name = tier_mapping.get(tier, tier)
+                                        if is_gift:
+                                            await send_chat_message(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
+                                        else:
+                                            await send_chat_message(f"{user_name}, you are currently subscribed at {tier_name}.")
+                                else:
+                                    await send_chat_message(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
+                            else:
+                                await send_chat_message("Failed to retrieve subscription information. Please try again later.")
+                                twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
+                    # Record usage
+                    add_usage('subscription', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subscription command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
         global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("uptime",))
+                # Fetch the status and permissions for the uptime command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("uptime",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not stream_online:
-                        await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
-                        return
-                    if await command_permissions(permissions, ctx.author):
-                        headers = {
-                            'Client-ID': CLIENT_ID,
-                            'Authorization': f'Bearer {CHANNEL_AUTH}'
-                        }
-                        params = {
-                            'user_login': CHANNEL_NAME,
-                            'type': 'live'
-                        }
-                        try:
-                            async with httpClientSession() as session:
-                                async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
-                                    if response.status == 200:
-                                        data = await response.json()
-                                        if data['data']:  # If stream is live
-                                            started_at_str = data['data'][0]['started_at']
-                                            started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
-                                            uptime = time_right_now(timezone.utc) - started_at
-                                            hours, remainder = divmod(uptime.seconds, 3600)
-                                            minutes, seconds = divmod(remainder, 60)
-                                            await send_chat_message(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
-                                            chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
-                                        else:
-                                            await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
-                                            api_logger.info(f"{CHANNEL_NAME} is currently offline.")
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('uptime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                if not stream_online:
+                    await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
+                    return
+                if await command_permissions(permissions, ctx.author):
+                    headers = {
+                        'Client-ID': CLIENT_ID,
+                        'Authorization': f'Bearer {CHANNEL_AUTH}'
+                    }
+                    params = {
+                        'user_login': CHANNEL_NAME,
+                        'type': 'live'
+                    }
+                    try:
+                        async with httpClientSession() as session:
+                            async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
+                                if response.status == 200:
+                                    data = await response.json()
+                                    if data['data']:  # If stream is live
+                                        started_at_str = data['data'][0]['started_at']
+                                        started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
+                                        uptime = time_right_now(timezone.utc) - started_at
+                                        hours, remainder = divmod(uptime.seconds, 3600)
+                                        minutes, seconds = divmod(remainder, 60)
+                                        await send_chat_message(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
+                                        chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
+                                        # Record usage
+                                        add_usage('uptime', bucket_key)
                                     else:
-                                        await send_chat_message(f"Failed to retrieve stream data. Status: {response.status}")
-                                        chat_logger.error(f"Failed to retrieve stream data. Status: {response.status}")
-                        except Exception as e:
-                            chat_logger.error(f"Error retrieving stream data: {e}")
-                            await send_chat_message("Oops, something went wrong while trying to check uptime.")
-                    else:
-                        await send_chat_message("You do not have the required permissions to use this command.")
+                                        await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
+                                        api_logger.info(f"{CHANNEL_NAME} is currently offline.")
+                                else:
+                                    await send_chat_message(f"Failed to retrieve stream data. Status: {response.status}")
+                                    chat_logger.error(f"Failed to retrieve stream data. Status: {response.status}")
+                    except Exception as e:
+                        chat_logger.error(f"Error retrieving stream data: {e}")
+                        await send_chat_message("Oops, something went wrong while trying to check uptime.")
+                else:
+                    await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the uptime command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.member)
     @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("typo",))
+                # Fetch the status and permissions for the typo command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("typo",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if await command_permissions(permissions, ctx.author):
-                        chat_logger.info("Typo Command ran.")
-                        # Determine the target user: mentioned user or the command caller
-                        target_user = mentioned_username.lower().lstrip('@') if mentioned_username else ctx.author.name.lower()
-                        # Check if the target is the broadcaster
-                        if target_user == CHANNEL_NAME.lower():
-                            if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                                await send_chat_message("Dear Streamer, you can never have a typo in your own channel.")
-                            else:
-                                await send_chat_message("The streamer cannot have a typo count.")
-                            return
-                        # Increment typo count in the database
-                        await cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE typo_count = typo_count + 1', (target_user,))
-                        await connection.commit()
-                        # Retrieve the updated count
-                        await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
-                        result = await cursor.fetchone()
-                        typo_count = result.get("typo_count") if result else 0
-                        # Send the message
-                        chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
-                        await send_chat_message(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('typo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                chat_logger.info("Typo Command ran.")
+                # Determine the target user: mentioned user or the command caller
+                target_user = mentioned_username.lower().lstrip('@') if mentioned_username else ctx.author.name.lower()
+                # Check if the target is the broadcaster
+                if target_user == CHANNEL_NAME.lower():
+                    if ctx.author.name.lower() == CHANNEL_NAME.lower():
+                        await send_chat_message("Dear Streamer, you can never have a typo in your own channel.")
                     else:
-                        await send_chat_message("You do not have the required permissions to use this command.")
+                        await send_chat_message("The streamer cannot have a typo count.")
+                    return
+                # Increment typo count in the database
+                await cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE typo_count = typo_count + 1', (target_user,))
+                await connection.commit()
+                # Retrieve the updated count
+                await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
+                result = await cursor.fetchone()
+                typo_count = result.get("typo_count") if result else 0
+                # Send the message
+                chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
+                await send_chat_message(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
+                # Record usage
+                add_usage('typo', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
             await send_chat_message(f"An error occurred while trying to add to your typo count.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("typos",))
+                # Fetch the status and permissions for the typos command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("typos",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        chat_logger.info(f"{ctx.author.name} tried to use the typos command but lacked permissions.")
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
-                    chat_logger.info("Typos Command ran.")
-                    if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                        await send_chat_message(f"Dear Streamer, you can never have a typo in your own channel.")
-                        return
-                    mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
-                    target_user = mentioned_username_lower.lstrip('@')
-                    await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
-                    result = await cursor.fetchone()
-                    typo_count = result.get("typo_count") if result else 0
-                    chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
-                    await send_chat_message(f"{target_user} has made {typo_count} typos in chat.")
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    chat_logger.info(f"{ctx.author.name} tried to use the typos command but lacked permissions.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('typos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                chat_logger.info("Typos Command ran.")
+                if ctx.author.name.lower() == CHANNEL_NAME.lower():
+                    await send_chat_message(f"Dear Streamer, you can never have a typo in your own channel.")
+                    return
+                mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
+                target_user = mentioned_username_lower.lstrip('@')
+                await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
+                result = await cursor.fetchone()
+                typo_count = result.get("typo_count") if result else 0
+                chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
+                await send_chat_message(f"{target_user} has made {typo_count} typos in chat.")
+                # Record usage
+                add_usage('typos', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to check typos.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("edittypos",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("edittypos",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message(f"You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('edittypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     chat_logger.info("Edit Typos Command ran.")
                     try:
@@ -4434,28 +4830,36 @@ class TwitchBot(commands.Bot):
                     except Exception as e:
                         chat_logger.error(f"Error in edit_typo_command: {e}")
                         await send_chat_message(f"An error occurred while trying to edit typos. {e}")
+            # Record usage
+            add_usage('edittypos', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removetypos",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("removetypos",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message(f"You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('removetypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     if mentioned_username is None:
                         chat_logger.error("Command missing username parameter.")
@@ -4478,28 +4882,36 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"Typo count for {target_user} decreased by {decrease_amount}. New count: {new_count}.")
                     else:
                         await send_chat_message(f"No typo record found for {target_user}.")
+            # Record usage
+            add_usage('removetypos', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to remove typos.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='steam')
     async def steam_command(self, ctx):
         global current_game, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("steam",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("steam",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('steam', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
             # File path
             file_path = '/var/www/api/steamapplist.json'
@@ -4538,29 +4950,40 @@ class TwitchBot(commands.Bot):
                 await send_chat_message(f"{current_game} is available on Steam, you can get it here: {store_url}")
             else:
                 await send_chat_message("This game is not available on Steam.")
+            # Record usage
+            add_usage('steam', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in steam_command: {e}")
             await send_chat_message("An error occurred while trying to check the Steam store.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
         global current_game, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deaths",))
+                # Fetch the status and permissions for the deaths command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("deaths",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('deaths', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 if current_game is None:
                     await send_chat_message("Current game is not set. Can't see death count.")
                     return
@@ -4568,6 +4991,8 @@ class TwitchBot(commands.Bot):
                 ignored_result = await cursor.fetchone()
                 if ignored_result:
                     await send_chat_message("Deaths are not counted for this game.")
+                    # Record usage
+                    add_usage('deaths', bucket_key)
                 chat_logger.info("Deaths command ran.")
                 await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = await cursor.fetchone()
@@ -4583,29 +5008,37 @@ class TwitchBot(commands.Bot):
                 if await command_permissions("mod", ctx.author):
                     chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {stream_death_count}")
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                # Record usage
+                add_usage('deaths', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(self, ctx, deaths: int = 1):
         global current_game, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deathadd",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("deathadd",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('deathadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 if current_game is None:
                     await send_chat_message("Current game is not set. Cannot add death to nothing.")
                     return
@@ -4644,29 +5077,37 @@ class TwitchBot(commands.Bot):
                 except Exception as e:
                     await send_chat_message(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathadd_command: {e}")
+            # Record usage
+            add_usage('deathadd', bucket_key)
         except Exception as e:
             chat_logger.error(f"Unexpected error in deathadd_command: {e}")
             await send_chat_message(f"An unexpected error occurred: {e}")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(self, ctx, deaths: int = 1):
         global current_game, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deathremove",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("deathremove",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('deathremove', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 if current_game is None:
                     await send_chat_message("Current game is not set. Can't remove from nothing.")
                     return
@@ -4698,56 +5139,75 @@ class TwitchBot(commands.Bot):
                 except Exception as e:
                     await send_chat_message(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathremove_command: {e}")
+            # Record usage
+            add_usage('deathremove', bucket_key)
         except Exception as e:
             chat_logger.error(f"Unexpected error in deathremove_command: {e}")
             await send_chat_message(f"An unexpected error occurred: {e}")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='game')
     async def game_command(self, ctx):
         global current_game, bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("game",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("game",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('game', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 if current_game is not None:
                     await send_chat_message(f"The current game we're playing is: {current_game}")
                 else:
                     await send_chat_message("We're not currently streaming any specific game category.")
+            # Record usage
+            add_usage('game', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in game_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to retrieve the game information.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("followage",))
+                # Fetch the status and permissions for the followage command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("followage",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('followage', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
                 headers = {
                     'Client-ID': CLIENT_ID,
@@ -4798,9 +5258,13 @@ class TwitchBot(commands.Bot):
                                     followage_text = ", ".join(parts)
                                     await send_chat_message(f"{target_user} has been following for: {followage_text}.")
                                     chat_logger.info(f"{target_user} has been following for: {followage_text}.")
+                                    # Record usage
+                                    add_usage('followage', bucket_key)
                                 else:
                                     await send_chat_message(f"{target_user} does not follow {CHANNEL_NAME}.")
                                     chat_logger.info(f"{target_user} does not follow {CHANNEL_NAME}.")
+                                    # Record usage
+                                    add_usage('followage', bucket_key)
                             else:
                                 await send_chat_message(f"Failed to retrieve followage information for {target_user}.")
                                 chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
@@ -4813,23 +5277,31 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("schedule",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("schedule",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('schedule', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 await cursor.execute("SELECT timezone FROM profile")
                 timezone_row = await cursor.fetchone()
                 timezone = timezone_row["timezone"] if timezone_row else 'UTC'
@@ -4900,29 +5372,37 @@ class TwitchBot(commands.Bot):
                 except Exception as e:
                     chat_logger.error(f"Error retrieving schedule: {e}")
                     await send_chat_message(f"Oops, something went wrong while trying to check the schedule.")
+            # Record usage
+            add_usage('schedule', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the schedule command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='checkupdate')
     async def checkupdate_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("checkupdate",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("checkupdate",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('checkupdate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 API_URL = "https://api.botofthespecter.com/versions"
                 async with httpClientSession() as session:
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
@@ -4947,286 +5427,332 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message(message)
                         else:
                             await send_chat_message("Failed to check for updates. Please try again later.")
+            # Record usage
+            add_usage('checkupdate', bucket_key)
         except Exception as e:
             chat_logger.error(f"Error in checkupdate_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check for updates.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         global bot_owner, shoutout_user
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("shoutout",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("shoutout",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
+                    # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
+            # Check cooldown
+            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            if not check_cooldown('shoutout', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                return
             chat_logger.info(f"Shoutout command running from {ctx.author.name}")
             if not user_to_shoutout:
                 chat_logger.error(f"Shoutout command missing username parameter.")
                 await send_chat_message(f"Usage: !so @username")
                 return
-            try:
-                chat_logger.info(f"Shoutout command trying to run.")
-                user_to_shoutout = user_to_shoutout.lstrip('@')
-                is_valid_user = await is_valid_twitch_user(user_to_shoutout)
-                if not is_valid_user:
-                    chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch.")
-                    await send_chat_message(f"The user @{user_to_shoutout} does not exist on Twitch.")
-                    return
-                chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
-                user_info = await self.fetch_users(names=[user_to_shoutout])
-                if not user_info:
-                    await send_chat_message("Failed to fetch user information.")
-                    return
-                user_id = user_info[0].id
-                game = await get_latest_stream_game(user_id, user_to_shoutout)
-                if not game:
-                    shoutout_message = (
-                        f"Hey, huge shoutout to @{user_to_shoutout}! "
-                        f"You should go give them a follow over at "
-                        f"https://www.twitch.tv/{user_to_shoutout}"
-                    )
-                else:
-                    shoutout_message = (
-                        f"Hey, huge shoutout to @{user_to_shoutout}! "
-                        f"You should go give them a follow over at "
-                        f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-                    )
-                chat_logger.info(shoutout_message)
-                await send_chat_message(shoutout_message)
-                await add_shoutout(user_to_shoutout, user_id)
-            except Exception as e:
-                chat_logger.error(f"Error in shoutout_command: {e}")
-                await send_chat_message("An error occurred while processing the shoutout command.")
+            chat_logger.info(f"Shoutout command trying to run.")
+            user_to_shoutout = user_to_shoutout.lstrip('@')
+            is_valid_user = await is_valid_twitch_user(user_to_shoutout)
+            if not is_valid_user:
+                chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch.")
+                await send_chat_message(f"The user @{user_to_shoutout} does not exist on Twitch.")
+                return
+            chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
+            user_info = await self.fetch_users(names=[user_to_shoutout])
+            if not user_info:
+                await send_chat_message("Failed to fetch user information.")
+                return
+            user_id = user_info[0].id
+            game = await get_latest_stream_game(user_id, user_to_shoutout)
+            if not game:
+                shoutout_message = (
+                    f"Hey, huge shoutout to @{user_to_shoutout}! "
+                    f"You should go give them a follow over at "
+                    f"https://www.twitch.tv/{user_to_shoutout}"
+                )
+            else:
+                shoutout_message = (
+                    f"Hey, huge shoutout to @{user_to_shoutout}! "
+                    f"You should go give them a follow over at "
+                    f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
+                )
+            chat_logger.info(shoutout_message)
+            await send_chat_message(shoutout_message)
+            await add_shoutout(user_to_shoutout, user_id)
+            # Record usage
+            add_usage('shoutout', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='addcommand')
     async def addcommand_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("addcommand",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("addcommand",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                # Parse the command and response from the message
-                try:
-                    command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
-                except ValueError:
-                    await send_chat_message(f"Invalid command format. Use: !addcommand [command] [response]")
-                    return
-                # Insert the command and response into the database
-                async with connection.cursor(DictCursor) as cursor:
-                    await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
-                    await connection.commit()
-                chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
-                await send_chat_message(f'Custom command added: !{command}')
+            # Check cooldown
+            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            if not check_cooldown('addcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                return
+            # Parse the command and response from the message
+            try:
+                command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
+            except ValueError:
+                await send_chat_message(f"Invalid command format. Use: !addcommand [command] [response]")
+                return
+            # Insert the command and response into the database
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
+                await connection.commit()
+            chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
+            await send_chat_message(f'Custom command added: !{command}')
+            # Record usage
+            add_usage('addcommand', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the addcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='editcommand')
     async def editcommand_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("editcommand",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("editcommand",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                # Parse the command and new response from the message
-                try:
-                    command, new_response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
-                except ValueError:
-                    await send_chat_message(f"Invalid command format. Use: !editcommand [command] [new_response]")
-                    return
-                # Update the command's response in the database
-                async with connection.cursor(DictCursor) as cursor:
-                    await cursor.execute('UPDATE custom_commands SET response = %s WHERE command = %s', (new_response, command))
-                    await connection.commit()
-                chat_logger.info(f"{ctx.author.name} has edited the command !{command} to have the new response: {new_response}")
-                await send_chat_message(f'Custom command edited: !{command}')
+            # Check cooldown
+            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            if not check_cooldown('editcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                return
+            # Parse the command and new response from the message
+            try:
+                command, new_response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
+            except ValueError:
+                await send_chat_message(f"Invalid command format. Use: !editcommand [command] [new_response]")
+                return
+            # Update the command's response in the database
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute('UPDATE custom_commands SET response = %s WHERE command = %s', (new_response, command))
+                await connection.commit()
+            chat_logger.info(f"{ctx.author.name} has edited the command !{command} to have the new response: {new_response}")
+            await send_chat_message(f'Custom command edited: !{command}')
+            # Record usage
+            add_usage('editcommand', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the editcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removecommand')
     async def removecommand_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removecommand",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("removecommand",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                # Parse the command from the message
-                try:
-                    command = ctx.message.content.strip().split(' ')[1]
-                except IndexError:
-                    await send_chat_message(f"Invalid command format. Use: !removecommand [command]")
-                    return
-                # Delete the command from the database
-                async with connection.cursor(DictCursor) as cursor:
-                    await cursor.execute('DELETE FROM custom_commands WHERE command = %s', (command,))
-                    await connection.commit()
-                chat_logger.info(f"{ctx.author.name} has removed {command}")
-                await send_chat_message(f'Custom command removed: !{command}')
+            # Check cooldown
+            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            if not check_cooldown('removecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                return
+            # Parse the command from the message
+            try:
+                command = ctx.message.content.strip().split(' ')[1]
+            except IndexError:
+                await send_chat_message(f"Invalid command format. Use: !removecommand [command]")
+                return
+            # Delete the command from the database
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute('DELETE FROM custom_commands WHERE command = %s', (command,))
+                await connection.commit()
+            chat_logger.info(f"{ctx.author.name} has removed {command}")
+            await send_chat_message(f'Custom command removed: !{command}')
+            # Record usage
+            add_usage('removecommand', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the removecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='enablecommand')
     async def enablecommand_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("enablecommand",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("enablecommand",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                # Parse the command from the message
-                try:
-                    command = ctx.message.content.strip().split(' ')[1]
-                except IndexError:
-                    await send_chat_message(f"Invalid command format. Use: !enablecommand [command]")
-                    return
-                # First check if it's a built-in command
-                await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
-                builtin_result = await cursor.fetchone()
-                if builtin_result:
-                    # It's a built-in command, enable it
-                    await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Enabled', command))
+            # Check cooldown
+            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            if not check_cooldown('enablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                return
+            # Parse the command from the message
+            try:
+                command = ctx.message.content.strip().split(' ')[1]
+            except IndexError:
+                await send_chat_message(f"Invalid command format. Use: !enablecommand [command]")
+                return
+            # First check if it's a built-in command
+            await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
+            builtin_result = await cursor.fetchone()
+            if builtin_result:
+                # It's a built-in command, enable it
+                await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Enabled', command))
+                await connection.commit()
+                chat_logger.info(f"{ctx.author.name} has enabled the built-in command: {command}")
+                await send_chat_message(f'Built-in command enabled: !{command}')
+            else:
+                # Check if it's a custom command
+                await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
+                custom_result = await cursor.fetchone()
+                if custom_result:
+                    # It's a custom command, enable it
+                    await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Enabled', command))
                     await connection.commit()
-                    chat_logger.info(f"{ctx.author.name} has enabled the built-in command: {command}")
-                    await send_chat_message(f'Built-in command enabled: !{command}')
+                    chat_logger.info(f"{ctx.author.name} has enabled the custom command: {command}")
+                    await send_chat_message(f'Custom command enabled: !{command}')
                 else:
-                    # Check if it's a custom command
-                    await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
-                    custom_result = await cursor.fetchone()
-                    if custom_result:
-                        # It's a custom command, enable it
-                        await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Enabled', command))
-                        await connection.commit()
-                        chat_logger.info(f"{ctx.author.name} has enabled the custom command: {command}")
-                        await send_chat_message(f'Custom command enabled: !{command}')
-                    else:
-                        # Command doesn't exist in either table
-                        await send_chat_message(f"Command !{command} not found.")
+                    # Command doesn't exist in either table
+                    await send_chat_message(f"Command !{command} not found.")
+            # Record usage
+            add_usage('enablecommand', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='disablecommand')
     async def disablecommand_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("disablecommand",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("disablecommand",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                # Parse the command from the message
-                try:
-                    command = ctx.message.content.strip().split(' ')[1]
-                except IndexError:
-                    await send_chat_message(f"Invalid command format. Use: !disablecommand [command]")
-                    return
-                # First check if it's a built-in command
-                await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
-                builtin_result = await cursor.fetchone()
-                if builtin_result:
-                    # It's a built-in command, disable it
-                    await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
+            # Check cooldown
+            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            if not check_cooldown('disablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                return
+            # Parse the command from the message
+            try:
+                command = ctx.message.content.strip().split(' ')[1]
+            except IndexError:
+                await send_chat_message(f"Invalid command format. Use: !disablecommand [command]")
+                return
+            # First check if it's a built-in command
+            await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
+            builtin_result = await cursor.fetchone()
+            if builtin_result:
+                # It's a built-in command, disable it
+                await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
+                await connection.commit()
+                chat_logger.info(f"{ctx.author.name} has disabled the built-in command: {command}")
+                await send_chat_message(f'Built-in command disabled: !{command}')
+            else:
+                # Check if it's a custom command
+                await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
+                custom_result = await cursor.fetchone()
+                if custom_result:
+                    # It's a custom command, disable it
+                    await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Disabled', command))
                     await connection.commit()
-                    chat_logger.info(f"{ctx.author.name} has disabled the built-in command: {command}")
-                    await send_chat_message(f'Built-in command disabled: !{command}')
+                    chat_logger.info(f"{ctx.author.name} has disabled the custom command: {command}")
+                    await send_chat_message(f'Custom command disabled: !{command}')
                 else:
-                    # Check if it's a custom command
-                    await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
-                    custom_result = await cursor.fetchone()
-                    if custom_result:
-                        # It's a custom command, disable it
-                        await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Disabled', command))
-                        await connection.commit()
-                        chat_logger.info(f"{ctx.author.name} has disabled the custom command: {command}")
-                        await send_chat_message(f'Custom command disabled: !{command}')
-                    else:
-                        # Command doesn't exist in either table
-                        await send_chat_message(f"Command !{command} not found.")
+                    # Command doesn't exist in either table
+                    await send_chat_message(f"Command !{command} not found.")
+            # Record usage
+            add_usage('disablecommand', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='slots')
     async def slots_command(self, ctx):
         global bot_owner
@@ -5235,121 +5761,137 @@ class TwitchBot(commands.Bot):
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("slots",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("slots",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    # Fetch user's points from the database
-                    await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                    user_data = await cursor.fetchone()
-                    if not user_data:
-                        await cursor.execute(
-                            "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                            (user_id, user_name, 0)
-                        )
-                        await connection.commit()
-                        user_points = 0
-                    else:
-                        user_points = user_data.get("points")
-                    # Define the payouts for each icon
-                    slot_payouts = {
-                        "🍒": 10,
-                        "🍋": 15,
-                        "🍊": 20,
-                        "🍉": 25,
-                        "🍇": 30,
-                        "🍓": 35,
-                        "⭐": 50
-                    }
-                    slot_icons = list(slot_payouts.keys())
-                    # Determine if the user wins 70% of the time
-                    if random.random() < 0.7:  # 70% win chance
-                        # Generate a winning result (all symbols the same)
-                        winning_icon = random.choice(slot_icons)
-                        result = [winning_icon] * 3
-                        winnings = slot_payouts[winning_icon] * 3
-                        user_points += winnings
-                        message = f"{ctx.author.name}, {''.join(result)} You Win {winnings} points!"
-                    else:
-                        result = [random.choice(slot_icons) for _ in range(3)]
-                        loss_penalty = sum(slot_payouts[icon] for icon in result)
-                        user_points = max(0, user_points - loss_penalty)
-                        message = f"{ctx.author.name}, {''.join(result)} Better luck next time. You lost {loss_penalty} points."
-                    # Update user's points in the database
-                    await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('slots', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                # Fetch user's points from the database
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                user_data = await cursor.fetchone()
+                if not user_data:
+                    await cursor.execute(
+                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                        (user_id, user_name, 0)
+                    )
                     await connection.commit()
-                    await send_chat_message(message)
+                    user_points = 0
+                else:
+                    user_points = user_data.get("points")
+                # Define the payouts for each icon
+                slot_payouts = {
+                    "🍒": 10,
+                    "🍋": 15,
+                    "🍊": 20,
+                    "🍉": 25,
+                    "🍇": 30,
+                    "🍓": 35,
+                    "⭐": 50
+                }
+                slot_icons = list(slot_payouts.keys())
+                # Determine if the user wins 70% of the time
+                if random.random() < 0.7:  # 70% win chance
+                    # Generate a winning result (all symbols the same)
+                    winning_icon = random.choice(slot_icons)
+                    result = [winning_icon] * 3
+                    winnings = slot_payouts[winning_icon] * 3
+                    user_points += winnings
+                    message = f"{ctx.author.name}, {''.join(result)} You Win {winnings} points!"
+                else:
+                    result = [random.choice(slot_icons) for _ in range(3)]
+                    loss_penalty = sum(slot_payouts[icon] for icon in result)
+                    user_points = max(0, user_points - loss_penalty)
+                    message = f"{ctx.author.name}, {''.join(result)} Better luck next time. You lost {loss_penalty} points."
+                # Update user's points in the database
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                await connection.commit()
+                await send_chat_message(message)
+            # Record usage
+            add_usage('slots', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the slots command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='kill')
     async def kill_command(self, ctx, mention: str = None):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("kill",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("kill",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                async with httpClientSession() as session:
-                    async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            kill_message = data.get("killcommand", {})
-                            if not kill_message:
-                                chat_logger.error("No 'killcommand' found in the API response.")
-                                await send_chat_message("No kill messages found.")
-                                return
-                        else:
-                            chat_logger.error(f"Failed to fetch kill messages from API. Status code: {response.status}")
-                            await send_chat_message("Unable to retrieve kill messages.")
+            # Check cooldown
+            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            if not check_cooldown('kill', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                return
+            async with httpClientSession() as session:
+                async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        kill_message = data.get("killcommand", {})
+                        if not kill_message:
+                            chat_logger.error("No 'killcommand' found in the API response.")
+                            await send_chat_message("No kill messages found.")
                             return
-                if mention:
-                    mention = mention.lstrip('@')
-                    target = mention
-                    message_key = [key for key in kill_message if "other" in key]
-                    if message_key:
-                        message = random.choice([kill_message[key] for key in message_key])
-                        result = message.replace("$1", ctx.author.name).replace("$2", target)
                     else:
-                        result = f"{ctx.author.name} tried to kill {target}, but something went wrong."
-                        chat_logger.error("No 'other' kill message found.")
-                    api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
+                        chat_logger.error(f"Failed to fetch kill messages from API. Status code: {response.status}")
+                        await send_chat_message("Unable to retrieve kill messages.")
+                        return
+            if mention:
+                mention = mention.lstrip('@')
+                target = mention
+                message_key = [key for key in kill_message if "other" in key]
+                if message_key:
+                    message = random.choice([kill_message[key] for key in message_key])
+                    result = message.replace("$1", ctx.author.name).replace("$2", target)
                 else:
-                    message_key = [key for key in kill_message if "self" in key]
-                    if message_key:
-                        message = random.choice([kill_message[key] for key in message_key])
-                        result = message.replace("$1", ctx.author.name)
-                    else:
-                        result = f"{ctx.author.name} tried to kill themselves, but something went wrong."
-                        chat_logger.error("No 'self' kill message found.")
-                    api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
-                await send_chat_message(result)
-                chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
+                    result = f"{ctx.author.name} tried to kill {target}, but something went wrong."
+                    chat_logger.error("No 'other' kill message found.")
+                api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
+            else:
+                message_key = [key for key in kill_message if "self" in key]
+                if message_key:
+                    message = random.choice([kill_message[key] for key in message_key])
+                    result = message.replace("$1", ctx.author.name)
+                else:
+                    result = f"{ctx.author.name} tried to kill themselves, but something went wrong."
+                    chat_logger.error("No 'self' kill message found.")
+                api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
+            await send_chat_message(result)
+            chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
+            # Record usage
+            add_usage('kill', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the kill command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.member)
     @commands.command(name="roulette")
     async def roulette_command(self, ctx):
         global bot_owner
@@ -5358,16 +5900,26 @@ class TwitchBot(commands.Bot):
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("roulette",))
+                # Fetch the status and permissions for the roulette command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("roulette",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('roulette', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 # Fetch user's points from the database
                 await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
                 user_data = await cursor.fetchone()
@@ -5395,29 +5947,40 @@ class TwitchBot(commands.Bot):
                     await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
                     await connection.commit()
                 await send_chat_message(message)
+                # Record usage
+                add_usage('roulette', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roulette command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name="rps")
     async def rps_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("rps",))
+                # Fetch the status and permissions for the rps command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("rps",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('rps', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 choices = ["rock", "paper", "scissors"]
                 bot_choice = random.choice(choices)
                 user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
@@ -5434,13 +5997,14 @@ class TwitchBot(commands.Bot):
                 else:
                     result = f"You lose! You chose {user_choice} and I chose {bot_choice}."
                 await send_chat_message(result)
+                # Record usage
+                add_usage('rps', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the RPS command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name="gamble")
     async def gamble_command(self, ctx):
         global bot_owner
@@ -5449,16 +6013,26 @@ class TwitchBot(commands.Bot):
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("gamble",))
+                # Fetch the status and permissions for the gamble command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("gamble",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('gamble', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 # Parse command arguments
                 parts = ctx.message.content.split(' ')
                 if len(parts) < 2:
@@ -5541,29 +6115,40 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
                 await connection.commit()
                 await send_chat_message(message)
+                # Record usage
+                add_usage('gamble', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the gamble command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name="story")
     async def story_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("story",))
+                # Fetch the status and permissions for the story command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("story",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('story', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 words = ctx.message.content.split(' ')[1:]
                 if len(words) < 5:
                     await send_chat_message(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
@@ -5572,30 +6157,40 @@ class TwitchBot(commands.Bot):
                 story = template.format(*words)
                 response = await self.handle_ai_response(story, ctx.author.id, ctx.author.name)
                 await send_chat_message(response)
+                # Record usage
+                add_usage('story', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the story command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name="convert")
     async def convert_command(self, ctx, *args):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                # Check if the 'convert' command is enabled
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("convert",))
+                # Fetch the status and permissions for the convert command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("convert",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('convert', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
                 try:
                     startwitch = ["€", "$", "£", "¥", "₹", "₣", "₽", "₺", "₩", "₼", "₱", "₪", "₴", "₭", "₨", "฿", "₮", "₳", "₵", "ƒ", "៛", "﷼", "R$"]
                     if len(args) == 3 and any(args[0].startswith(symbol) for symbol in startwitch):
@@ -5607,6 +6202,8 @@ class TwitchBot(commands.Bot):
                         converted_amount = await convert_currency(amount, from_currency, to_currency)
                         formatted_converted_amount = f"{converted_amount:,.2f}"
                         await send_chat_message(f"The currency exchange for {amount_str} {from_currency} is {formatted_converted_amount} {to_currency}")
+                        # Record usage
+                        add_usage('convert', bucket_key)
                     elif len(args) == 3:
                         # Handle unit conversion
                         amount_str = args[0]
@@ -5631,6 +6228,8 @@ class TwitchBot(commands.Bot):
                         converted_quantity = quantity.to(to_unit)
                         formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
                         await send_chat_message(f"{amount_str} {args[1]} in {args[2]} is {formatted_converted_quantity} {converted_quantity.units}")
+                        # Record usage
+                        add_usage('convert', bucket_key)
                     else:
                         await send_chat_message("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except Exception as e:
@@ -5643,7 +6242,6 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
     @commands.command(name='todo')
     async def todo_command(self, ctx: commands.Context):
         global bot_owner
@@ -5653,19 +6251,31 @@ class TwitchBot(commands.Bot):
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("todo",))
+                # Fetch the status and permissions for the todo command
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("todo",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('todo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
             if message_content.lower() == '!todo':
                 await send_chat_message(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/")
                 chat_logger.info(f"{user.name} viewed the todo list.")
+                # Record usage
+                add_usage('todo', bucket_key)
                 return
             action, *params = message_content[5:].strip().split(' ', 1)
             action = action.lower()
@@ -5687,6 +6297,8 @@ class TwitchBot(commands.Bot):
                         return
                 await actions[action](ctx, params, user_id, connection)
                 chat_logger.info(f"{user.name} executed the action {action} with params {params}.")
+                # Record usage
+                add_usage('todo', bucket_key)
             else:
                 await send_chat_message(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
                 chat_logger.warning(f"{user.name} used an unrecognized action: {action}.")
@@ -5695,23 +6307,31 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
     @commands.command(name="subathon")
     async def subathon_command(self, ctx, action: str = None, minutes: int = None):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("subathon",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("subathon",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Check cooldown
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not check_cooldown('subathon', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
             user = ctx.author
             # Check permissions for valid actions
             if action in ['start', 'stop', 'pause', 'resume', 'addtime']:
@@ -5735,13 +6355,14 @@ class TwitchBot(commands.Bot):
                 await subathon_status(ctx)
             else:
                 await send_chat_message(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
+            # Record usage
+            add_usage('subathon', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subathon command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='heartrate')
     async def heartrate_command(self, ctx):
         global bot_owner, HEARTRATE, hyperate_task
@@ -5749,15 +6370,24 @@ class TwitchBot(commands.Bot):
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Check if the 'heartrate' command is enabled
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("heartrate",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("heartrate",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
+                    # Verify user permissions
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('heartrate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if heartrate code exists in database
                     await cursor.execute('SELECT heartrate_code FROM profile')
@@ -5776,13 +6406,14 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("The Heart Rate is not turned on right now.")
                     else:
                         await send_chat_message(f"The current Heart Rate is: {HEARTRATE}")
+            # Record usage
+            add_usage('heartrate', bucket_key)
         except Exception as e:
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.user)
     @commands.command(name='watchtime')
     async def watchtime_command(self, ctx):
         global bot_owner
@@ -5791,16 +6422,23 @@ class TwitchBot(commands.Bot):
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                # Check if the 'convert' command is enabled
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("watchtime",))
+                # Check if the 'watchtime' command is enabled
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("watchtime",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('watchtime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 # Query watch time for the user
                 await cursor.execute("""
@@ -5840,27 +6478,35 @@ class TwitchBot(commands.Bot):
                 else:
                     # If no watch time data is found
                     await send_chat_message(f"@{username}, no watch time data recorded for you yet.")
+            # Record usage
+            add_usage('watchtime', bucket_key)
         except Exception as e:
             bot_logger.error(f"Error fetching watch time for {username}: {e}")
             await send_chat_message(f"@{username}, an error occurred while fetching your watch time.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='startlotto')
     async def startlotto_command(self, ctx):
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("startlotto",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("startlotto",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('startlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 done = await generate_winning_lotto_numbers()
                 if done == True:
@@ -5869,28 +6515,36 @@ class TwitchBot(commands.Bot):
                     await send_chat_message("Lotto numbers have already been generated. Ready to draw the winners.")
                 else:
                     await send_chat_message("There was an error generating the lotto numbers.")
+            # Record usage
+            add_usage('startlotto', bucket_key)
         except Exception as e:
             bot_logger.error(f"Error in starting lotto game: {e}")
             await send_chat_message("There was an error generating the lotto numbers.")
         finally:
             await connection.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='drawlotto')
     async def drawlotto_command(self, ctx):
         global bot_owner
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("drawlotto",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("drawlotto",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not check_cooldown('drawlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 prize_pool = {
                     "Division 1 (Jackpot!)": 100000,
@@ -5972,6 +6626,8 @@ class TwitchBot(commands.Bot):
                 # Clear winning numbers after the draw
                 await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
                 await connection.commit()
+            # Record usage
+            add_usage('drawlotto', bucket_key)
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
