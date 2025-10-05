@@ -63,9 +63,8 @@ function uuidv4() {
             <button id="cookieDeclineBtn" class="button is-danger has-text-weight-bold"><?php echo t('cookie_decline_btn'); ?></button>
         </div>
     </div>
-    
-    <!-- Sidebar Navigation (Desktop Only) -->
-    <aside class="sidebar-nav" id="sidebarNav">
+    <!-- Sidebar Navigation (Desktop Only - Hidden on Mobile/Tablet) -->
+    <aside class="sidebar-nav desktop-only" id="sidebarNav">
         <div class="sidebar-header">
             <div class="sidebar-brand">
                 <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo">
@@ -388,8 +387,8 @@ function uuidv4() {
         </div>
     </div>
     <?php endif; endif; ?>
-    <!-- Top Navigation Bar -->
-    <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
+    <!-- Top Navigation Bar (Mobile/Tablet Only - Hidden on Desktop) -->
+    <nav class="navbar is-dark top-navbar mobile-only" id="topNavbar" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
             <div class="navbar-item">
                 <img src="https://cdn.botofthespecter.com/logo.png" width="28" height="28" alt="BotOfTheSpecter Logo">
@@ -616,14 +615,9 @@ function uuidv4() {
             </div>
         </div>
     </div>
-</div>
 <!-- Footer -->
 <footer class="footer is-dark has-text-white" style="width:100%; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
-    <!-- Version Badge positioned in footer -->
-    <div style="position: absolute; bottom: 12px; left: 12px;" class="is-hidden-mobile">
-        <span class="tag is-info is-light">Dashboard Version: <?php echo $dashboardVersion; ?></span>
-    </div>
-    <div style="max-width: 1500px; padding-left: 140px;" class="is-hidden-mobile">
+    <div class="is-hidden-mobile">
         &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
         <?php
             $tz = new DateTimeZone("Australia/Sydney");
