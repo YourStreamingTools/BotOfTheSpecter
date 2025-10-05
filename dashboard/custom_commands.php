@@ -109,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             try {
                 $dbPermission = $permissionsMap[$permission];
                 $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, permission) VALUES (?, ?, 'Enabled', ?, ?)");
-                $insertSTMT->bind_param("ssiss", $newCommand, $newResponse, $cooldown, $dbPermission);
+                $insertSTMT->bind_param("ssis", $newCommand, $newResponse, $cooldown, $dbPermission);
                 $insertSTMT->execute();
                 $insertSTMT->close();
                 $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
