@@ -1059,6 +1059,10 @@ document.addEventListener('DOMContentLoaded', function() {
                   document.querySelectorAll('.notification.bot-operation-persistent').forEach(n => {
                     if (n.parentNode) n.parentNode.removeChild(n);
                   });
+                  // Also remove update notifications for this bot since it's now running
+                  if (botType === 'beta') {
+                    removeUpdateNotificationsForBot('beta', null);
+                  }
                 }
                 return;
               }
@@ -1071,6 +1075,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (currentBotBeingStarted === botType) {
                   botRunOperationInProgress = false;
                   currentBotBeingStarted = null;
+                  // Also remove update notifications for this bot since it's now running
+                  if (botType === 'beta') {
+                    removeUpdateNotificationsForBot('beta', null);
+                  }
                 }
                 return;
               }
