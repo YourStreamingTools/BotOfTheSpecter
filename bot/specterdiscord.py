@@ -1282,6 +1282,28 @@ class BotOfTheSpecter(commands.Bot):
             await self.update_presence()  # Update the presence
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
 
+    async def _send_message_with_fallback(self, channel, embed=None, fallback_text="", logger_context=""):
+        try:
+            if embed:
+                await channel.send(embed=embed)
+            else:
+                await channel.send(fallback_text)
+            return True
+        except discord.Forbidden:
+            self.logger.error(f"Missing permissions to send {logger_context} message in #{channel.name} (ID: {channel.id})")
+            # Try sending as plain text if embed failed
+            if embed and fallback_text:
+                try:
+                    await channel.send(fallback_text)
+                    self.logger.info(f"Sent {logger_context} as plain text fallback in #{channel.name}")
+                    return True
+                except Exception as fallback_error:
+                    self.logger.error(f"Fallback text message also failed in #{channel.name}: {fallback_error}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Failed to send {logger_context} message to #{channel.name}: {e}")
+            return False
+
     async def handle_twitch_event(self, event_type, data):
         channel_code = data.get("channel_code", "unknown")
         mapping = await self.channel_mapping.get_mapping(channel_code)
@@ -1525,7 +1547,16 @@ class BotOfTheSpecter(commands.Bot):
         else:
             message = offline_text
             channel_update = f"🔴 {message}"
-        await channel.send(channel_update)
+        # Send status message to the channel
+        self.logger.info(f"Attempting to send status message to #{channel.name} (ID: {channel.id}): '{channel_update}'")
+        try:
+            msg = await channel.send(channel_update)
+            self.logger.info(f"✅ SUCCESS: Sent status message (ID: {msg.id}) to #{channel.name}: '{channel_update}'")
+        except discord.Forbidden as e:
+            self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{channel.name} (ID: {channel.id})")
+            self.logger.error(f"   Error: {e}")
+        except Exception as e:
+            self.logger.error(f"❌ Failed to send status message to #{channel.name}: {type(e).__name__}: {e}")
         # Send notification to stream_channel_id for online events
         # Always check database first to ensure we have the latest channel settings
         databases_checked = []
@@ -1545,72 +1576,96 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.info(f"Cache mismatch detected for {code}: cache={cached_channel_id}, database={website_channel_id}")
         if event_type == "ONLINE" and stream_channel_id:
             self.logger.info(f"Sending live notification for {code} to stream_channel_id {stream_channel_id}")
-            stream_channel = guild.get_channel(int(stream_channel_id))
-            if stream_channel:
-                self.logger.info(f"Stream channel found: {stream_channel.name}")
-                mysql_helper = MySQLHelper(self.logger)
-                user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (code,), database_name='website', dict_cursor=True)
-                account_username = user_row['username'] if user_row else "Unknown User"
-                # Get stream alert settings from database
-                discord_info = await mysql_helper.fetchone(
-                    "SELECT stream_alert_everyone, stream_alert_custom_role FROM discord_users WHERE guild_id = %s",
-                    (guild.id,), database_name='website', dict_cursor=True)
-                mention_text = ""
-                if discord_info:
-                    if discord_info.get('stream_alert_everyone') == 1:
-                        mention_text = "@everyone "
-                    elif discord_info.get('stream_alert_custom_role'):
-                        try:
-                            role_id = int(discord_info['stream_alert_custom_role'])
-                            role = guild.get_role(role_id)
-                            if role:
-                                mention_text = f"{role.mention} "
-                        except (ValueError, TypeError):
-                            self.logger.warning(f"Invalid custom role ID for guild {guild.id}: {discord_info['stream_alert_custom_role']}")
+            try:
+                stream_channel = guild.get_channel(int(stream_channel_id))
+                if stream_channel:
+                    self.logger.info(f"Stream channel found: {stream_channel.name}")
+                    mysql_helper = MySQLHelper(self.logger)
+                    user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (code,), database_name='website', dict_cursor=True)
+                    account_username = user_row['username'] if user_row else "Unknown User"
+                    # Get stream alert settings from database
+                    discord_info = await mysql_helper.fetchone(
+                        "SELECT stream_alert_everyone, stream_alert_custom_role FROM discord_users WHERE guild_id = %s",
+                        (guild.id,), database_name='website', dict_cursor=True)
+                    mention_text = ""
+                    if discord_info:
+                        if discord_info.get('stream_alert_everyone') == 1:
+                            mention_text = "@everyone "
+                        elif discord_info.get('stream_alert_custom_role'):
+                            try:
+                                role_id = int(discord_info['stream_alert_custom_role'])
+                                role = guild.get_role(role_id)
+                                if role:
+                                    mention_text = f"{role.mention} "
+                            except (ValueError, TypeError):
+                                self.logger.warning(f"Invalid custom role ID for guild {guild.id}: {discord_info['stream_alert_custom_role']}")
+                    else:
+                        self.logger.info("No discord_info found for guild")
+                    self.logger.info(f"Final mention text for {account_username}: '{mention_text}'")
+                    # Get stream info (thumbnail and game)
+                    self.logger.info(f"Fetching stream info for {account_username}")
+                    thumbnail_url, game_name = await self.get_stream_info(account_username)
+                    self.logger.info(f"Stream info - Game: {game_name}, Thumbnail: {thumbnail_url}")
+                    # Get current date for footer
+                    self.logger.info(f"Getting timestamp for embed footer...")
+                    current_date = await self.format_discord_embed_timestamp(code)
+                    self.logger.info(f"Timestamp retrieved: {current_date}")
+                    # Create embed
+                    embed = discord.Embed(
+                        title=f"{account_username} is now live on Twitch!",
+                        url=f"https://twitch.tv/{account_username}",
+                        description=f"Stream is now online! Streaming: {game_name}",
+                        color=discord.Color.from_rgb(145, 70, 255)
+                    )
+                    # Set thumbnail if available
+                    thumbnail_to_use = thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
+                    embed.set_thumbnail(url=thumbnail_to_use)
+                    self.logger.info(f"Using thumbnail: {thumbnail_to_use}")
+                    # Set footer
+                    embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
+                    self.logger.info(f"Attempting to send live notification to #{stream_channel.name} (ID: {stream_channel.id}) with mention: '{mention_text.strip() or 'none'}'")
+                    try:
+                        message = await stream_channel.send(content=mention_text, embed=embed)
+                        self.logger.info(f"✅ SUCCESS: Sent live notification (message ID: {message.id}) for {account_username} in #{stream_channel.name}")
+                    except discord.Forbidden as e:
+                        self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{stream_channel.name} (ID: {stream_channel.id})!")
+                        self.logger.error(f"   Missing permissions. Bot needs: View Channel, Send Messages, Embed Links")
+                        self.logger.error(f"   Error details: {e}")
+                    except discord.HTTPException as e:
+                        self.logger.error(f"❌ Discord HTTP error sending notification to #{stream_channel.name}: Status {e.status}")
+                        self.logger.error(f"   Response: {e.text}")
+                    except Exception as e:
+                        self.logger.error(f"❌ Unexpected error sending live notification to #{stream_channel.name}: {type(e).__name__}")
+                        self.logger.error(f"   Details: {e}")
+                        import traceback
+                        self.logger.error(f"   Traceback: {traceback.format_exc()}")
                 else:
-                    self.logger.info("No discord_info found for guild")
-                self.logger.info(f"Final mention text for {account_username}: '{mention_text}'")
-                # Get stream info (thumbnail and game)
-                self.logger.info(f"Fetching stream info for {account_username}")
-                thumbnail_url, game_name = await self.get_stream_info(account_username)
-                self.logger.info(f"Stream info - Game: {game_name}, Thumbnail: {thumbnail_url}")
-                # Get current date for footer
-                current_date = await self.format_discord_embed_timestamp(code)
-                # Create embed
-                embed = discord.Embed(
-                    title=f"{account_username} is now live on Twitch!",
-                    url=f"https://twitch.tv/{account_username}",
-                    description=f"Stream is now online! Streaming: {game_name}",
-                    color=discord.Color.from_rgb(145, 70, 255)
-                )
-                # Set thumbnail if available
-                thumbnail_to_use = thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
-                embed.set_thumbnail(url=thumbnail_to_use)
-                self.logger.info(f"Using thumbnail: {thumbnail_to_use}")
-                # Set footer
-                embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
-                self.logger.info(f"Sending live notification to #{stream_channel.name} with mention: '{mention_text.strip() or 'none'}'")
-                try:
-                    await stream_channel.send(content=mention_text, embed=embed)
-                    self.logger.info(f"Successfully sent live notification with mention for {account_username} in guild {guild.id}")
-                except Exception as e:
-                    self.logger.error(f"Failed to send live notification to #{stream_channel.name}: {e}")
-            else:
-                self.logger.warning(f"Stream channel not found for id {stream_channel_id} in guild {guild.id}")
+                    self.logger.warning(f"Stream channel not found for id {stream_channel_id} in guild {guild.id}")
+            except Exception as e:
+                self.logger.error(f"❌ CRITICAL ERROR in stream notification block for {code}: {type(e).__name__}")
+                self.logger.error(f"   Details: {e}")
+                import traceback
+                self.logger.error(f"   Full traceback: {traceback.format_exc()}")
+                self.logger.error(f"   This error prevented the notification from being sent, but channel rename will still be attempted.")
         else:
             # Log exactly what was checked and found
             databases_info = " | ".join(databases_checked)
             self.logger.info(f"No live notification sent for {code} - event_type: {event_type}, final_stream_channel_id: {stream_channel_id}, databases_checked: [{databases_info}]")
         # Attempt to update the channel name if it is different
+        self.logger.info(f"Channel rename check: current='{channel.name}' vs target='{channel_update}'")
         if channel.name != channel_update:
+            self.logger.info(f"Names differ, attempting to rename channel #{channel.name} to '{channel_update}'")
             try:
                 await channel.edit(name=channel_update, reason="Stream status update")
-                self.logger.info(f"Updated channel name to '{channel_update}' for stream {event_type}")
+                self.logger.info(f"✅ SUCCESS: Updated channel name to '{channel_update}' for stream {event_type}")
+            except discord.Forbidden:
+                self.logger.error(f"❌ PERMISSION DENIED: Cannot rename channel #{channel.name} (ID: {channel.id}). Check 'Manage Channels' permission!")
+            except discord.HTTPException as e:
+                self.logger.error(f"❌ Discord HTTP error renaming channel: {e.status} - {e.text}")
             except Exception as e:
-                self.logger.error(f"Failed to update channel name: {e}")
-            self.logger.info(f"Set status to \"{event_type}\" for {guild.name}#{channel.name}")
+                self.logger.error(f"❌ Failed to update channel name: {type(e).__name__}: {e}")
         else:
-            self.logger.info(f"Status not set to \"{event_type}\" for {guild.name}#{channel.name} - channel name already matches \"{channel_update}\"")
+            self.logger.info(f"Channel name already matches target '{channel_update}' - skipping rename")
         self.logger.info(f"Completed processing {event_type} event for channel_code: {code}")
 
     async def _process_stream_alert(self, guild, code, stream_channel_id, event_type):
