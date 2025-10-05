@@ -223,7 +223,8 @@ allowed_ops = {
 async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_message=True):
     global command_usage
     current_time = time.time()
-    key = (command, user_id)
+    # Create key based on bucket type to properly separate cooldowns
+    key = (command, bucket_type, user_id)
     if key not in command_usage:
         command_usage[key] = []
     # Clean old timestamps outside the time window
@@ -239,10 +240,11 @@ async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_
             await send_chat_message(f"{command} is on cooldown. Please wait {remaining_time} seconds.")
         return False  # Command on cooldown
 
-def add_usage(command, user_id):
+def add_usage(command, user_id, bucket_type='default'):
     global command_usage
     current_time = time.time()
-    key = (command, user_id)
+    # Create key based on bucket type to properly separate cooldowns
+    key = (command, bucket_type, user_id)
     if key not in command_usage:
         command_usage[key] = []
     command_usage[key].append(current_time)
@@ -1898,7 +1900,7 @@ class TwitchBot(commands.Bot):
                                 chat_logger.info(f"{command} command ran with response: {resp}")
                                 await send_chat_message(resp)
                             # Record usage
-                            add_usage(command, 'global')
+                            add_usage(command, 'global', 'default')
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
@@ -1917,7 +1919,7 @@ class TwitchBot(commands.Bot):
                                 if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
                                     await send_chat_message(response)
                                     # Record usage
-                                    add_usage(command, 'global')
+                                    add_usage(command, 'global', 'default')
                         else:
                             chat_logger.info(f"Custom command '{command}' not found.")
                 # Handle AI responses
@@ -2278,7 +2280,7 @@ class TwitchBot(commands.Bot):
                         custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
                         await send_chat_message(custom_response_message)
                         # Record usage
-                        add_usage('commands', bucket_key)
+                        add_usage('commands', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the commands command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2315,7 +2317,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
                         await send_chat_message(f"This amazing bot is built by the one and the only {bot_owner}. Check me out on my website: https://botofthespecter.com")
                         # Record usage
-                        add_usage('bot', bucket_key)
+                        add_usage('bot', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the bot command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2353,7 +2355,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"{ctx.author.name} checked WebSocket status: {websocket_status}")
                         await send_chat_message(f"Internal system WebSocket status: {websocket_status}")
                         # Record usage
-                        add_usage('wsstatus', bucket_key)
+                        add_usage('wsstatus', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to check WebSocket status but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2392,7 +2394,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("Stream status has been forcibly set to online.")
                         create_task(websocket_notice(event="STREAM_ONLINE"))
                         # Record usage
-                        add_usage('forceonline', bucket_key)
+                        add_usage('forceonline', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2431,7 +2433,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("Stream status has been forcibly set to offline.")
                         create_task(websocket_notice(event="STREAM_OFFLINE"))
                         # Record usage
-                        add_usage('forceoffline', bucket_key)
+                        add_usage('forceoffline', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2501,7 +2503,7 @@ class TwitchBot(commands.Bot):
                             premium_status = "Premium Features: None"
                         await send_chat_message(f"{message[:-2]}. {premium_status}")
                         # Record usage
-                        add_usage('version', bucket_key)
+                        add_usage('version', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the version command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2537,7 +2539,7 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         await send_chat_message("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
                         # Record usage
-                        add_usage('roadmap', bucket_key)
+                        add_usage('roadmap', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the roadmap command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2589,7 +2591,7 @@ class TwitchBot(commands.Bot):
                         else:
                             await send_chat_message("Unable to retrieve location.")
                         # Record usage
-                        add_usage('weather', bucket_key)
+                        add_usage('weather', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the weather command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2641,7 +2643,7 @@ class TwitchBot(commands.Bot):
                             await connection.commit()
                         await send_chat_message(f'@{user_name}, you have {points} points.')
                         # Record usage
-                        add_usage('points', bucket_key)
+                        add_usage('points', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the points command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2692,7 +2694,7 @@ class TwitchBot(commands.Bot):
                         await connection.commit()
                         await send_chat_message(f"Added {points_to_add} points to {user_name}. They now have {new_points} points.")
                         # Record usage
-                        add_usage('addpoints', bucket_key)
+                        add_usage('addpoints', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of addpoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -2734,7 +2736,7 @@ class TwitchBot(commands.Bot):
                             await connection.commit()
                             await send_chat_message(f"Removed {points_to_remove} points from {user_name}. They now have {new_points} points.")
                             # Record usage
-                            add_usage('removepoints', bucket_key)
+                            add_usage('removepoints', bucket_key, cooldown_bucket)
                         else:
                             await send_chat_message(f"{user_name} does not have any points.")
         except Exception as e:
@@ -2812,7 +2814,7 @@ class TwitchBot(commands.Bot):
                                 return
                         await send_chat_message(time_format)
                         # Record usage
-                        add_usage('time', bucket_key)
+                        add_usage('time', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the time command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2867,7 +2869,7 @@ class TwitchBot(commands.Bot):
                             else:
                                 await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
                             # Record usage
-                            add_usage('joke', bucket_key)
+                            add_usage('joke', bucket_key, cooldown_bucket)
                         else:
                             await send_chat_message("Error: Could not fetch the blacklist settings.")
                     else:
@@ -2918,7 +2920,7 @@ class TwitchBot(commands.Bot):
                             else:
                                 await send_chat_message(f"No quote found with ID {number}.")
                         # Record usage
-                        add_usage('quote', bucket_key)
+                        add_usage('quote', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the quote command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2956,7 +2958,7 @@ class TwitchBot(commands.Bot):
                         await connection.commit()
                         await send_chat_message("Quote added successfully: " + quote)
                         # Record usage
-                        add_usage('quoteadd', bucket_key)
+                        add_usage('quoteadd', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to add a quote but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2998,7 +3000,7 @@ class TwitchBot(commands.Bot):
                         if cursor.rowcount > 0:  # Check if a row was deleted
                             await send_chat_message(f"Quote {number} has been removed.")
                             # Record usage
-                            add_usage('removequote', bucket_key)
+                            add_usage('removequote', bucket_key, cooldown_bucket)
                         else:
                             await send_chat_message(f"No quote found with ID {number}.")
                     else:
@@ -3039,7 +3041,7 @@ class TwitchBot(commands.Bot):
                             permitted_users[permit_user] = time.time() + 30
                             await send_chat_message(f"{permit_user} is now permitted to post links for the next 30 seconds.")
                             # Record usage
-                            add_usage('permit', bucket_key)
+                            add_usage('permit', bucket_key, cooldown_bucket)
                         else:
                             await send_chat_message("Please specify a user to permit.")
                     else:
@@ -3083,7 +3085,7 @@ class TwitchBot(commands.Bot):
                         twitch_logger.info(f'Setting stream title to: {title}')
                         await send_chat_message(f'Stream title updated to: {title}')
                         # Record usage
-                        add_usage('settitle', bucket_key)
+                        add_usage('settitle', bucket_key, cooldown_bucket)
                     else:
                         await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
@@ -3123,7 +3125,7 @@ class TwitchBot(commands.Bot):
                             game_name = await update_twitch_game(game)
                             await send_chat_message(f'Stream game updated to: {game_name}')
                             # Record usage
-                            add_usage('setgame', bucket_key)
+                            add_usage('setgame', bucket_key, cooldown_bucket)
                         except GameNotFoundException as e:
                             await send_chat_message(f"Game not found: {str(e)}")
                         except GameUpdateFailedException as e:
@@ -3203,7 +3205,7 @@ class TwitchBot(commands.Bot):
                     # No premium access
                     await send_chat_message("This channel doesn't have a premium subscription to use the alternative method.")
                 # Record usage
-                add_usage('song', bucket_key)
+                add_usage('song', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the song command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -3379,7 +3381,7 @@ class TwitchBot(commands.Bot):
                     if response.status == 200:
                         await send_chat_message(f"The song {song_name} by {artist_name} has been added to the queue.")
                         # Record usage
-                        add_usage('songrequest', bucket_key)
+                        add_usage('songrequest', bucket_key, cooldown_bucket)
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -3450,7 +3452,7 @@ class TwitchBot(commands.Bot):
                         api_logger.info(f"Song skipped successfully by {ctx.message.author.name}")
                         await send_chat_message("Song skipped successfully.")
                         # Record usage
-                        add_usage('skipsong', bucket_key)
+                        add_usage('skipsong', bucket_key, cooldown_bucket)
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -3539,7 +3541,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"Sorry, I couldn't fetch the queue. {error_message}")
                         api_logger.error(f"Spotify returned response code: {response.status}")
             # Record usage
-            add_usage('songqueue', bucket_key)
+            add_usage('songqueue', bucket_key, cooldown_bucket)
         except Exception as e:
             await send_chat_message("Something went wrong while fetching the song queue. Please try again later.")
             api_logger.error(f"Error in songqueue_command: {e}")
@@ -3595,7 +3597,7 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 await connection.commit()
                 # Record usage
-                add_usage('timer', bucket_key)
+                add_usage('timer', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -3637,7 +3639,7 @@ class TwitchBot(commands.Bot):
                 await connection.commit()
                 await send_chat_message(f"Your timer has been stopped @{ctx.author.name}.")
                 # Record usage
-                add_usage('stoptimer', bucket_key)
+                add_usage('stoptimer', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the stoptimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -3681,7 +3683,7 @@ class TwitchBot(commands.Bot):
                 seconds_left = remaining_time.total_seconds() % 60
                 await send_chat_message(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
                 # Record usage
-                add_usage('checktimer', bucket_key)
+                add_usage('checktimer', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the checktimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -3748,7 +3750,7 @@ class TwitchBot(commands.Bot):
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "hug")
                     # Record usage
-                    add_usage('hug', bucket_key)
+                    add_usage('hug', bucket_key, cooldown_bucket)
                 else:
                     chat_logger.error(f"No hug count found for user: {mentioned_username}")
                     await send_chat_message(f"Sorry @{ctx.author.name}, you can't hug @{mentioned_username} right now, there's an issue in my system.")
@@ -3818,7 +3820,7 @@ class TwitchBot(commands.Bot):
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "highfive")
                     # Record usage
-                    add_usage('highfive', bucket_key)
+                    add_usage('highfive', bucket_key, cooldown_bucket)
                 else:
                     chat_logger.error(f"No high-five count found for user: {mentioned_username}")
                     await send_chat_message(f"Sorry @{ctx.author.name}, you can't high-five @{mentioned_username} right now, there's an issue in my system.")
@@ -3888,7 +3890,7 @@ class TwitchBot(commands.Bot):
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "kiss")
                     # Record usage
-                    add_usage('kiss', bucket_key)
+                    add_usage('kiss', bucket_key, cooldown_bucket)
                 else:
                     chat_logger.error(f"No kiss count found for user: {mentioned_username}")
                     await send_chat_message(f"Sorry @{ctx.author.name}, you can't kiss @{mentioned_username} right now, there's an issue in my system.")
@@ -3933,7 +3935,7 @@ class TwitchBot(commands.Bot):
                             # Updated message to make it clear to the user
                             await send_chat_message(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
                             # Record usage
-                            add_usage('ping', bucket_key)
+                            add_usage('ping', bucket_key, cooldown_bucket)
                         else:
                             bot_logger.error(f"Error Pinging. {output}")
                             await send_chat_message(f'Error pinging the internet from the bot server.')
@@ -3984,7 +3986,7 @@ class TwitchBot(commands.Bot):
                             translate_message = translator(source='auto', target='en').translate(text=message)
                             await send_chat_message(f"Translation: {translate_message}")
                             # Record usage
-                            add_usage('translate', bucket_key)
+                            add_usage('translate', bucket_key, cooldown_bucket)
                         except AttributeError as ae:
                             chat_logger.error(f"AttributeError: {ae}")
                             await send_chat_message("An error occurred while detecting the language.")
@@ -4040,7 +4042,7 @@ class TwitchBot(commands.Bot):
                                         score = "{:,}".format(top_cheerer['score'])
                                         await send_chat_message(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
                                         # Record usage
-                                        add_usage('cheerleader', bucket_key)
+                                        add_usage('cheerleader', bucket_key, cooldown_bucket)
                                     else:
                                         await send_chat_message("There is no one currently in the leaderboard for bits; cheer to take this spot.")
                                 elif response.status == 401:
@@ -4111,22 +4113,22 @@ class TwitchBot(commands.Bot):
                                             bits = "{:,}".format(api_bits)
                                             await send_chat_message(f"You have given {bits} bits in total.")
                                             # Record usage
-                                            add_usage('mybits', bucket_key)
+                                            add_usage('mybits', bucket_key, cooldown_bucket)
                                         elif api_bits < db_bits:
                                             # Inform the user that the local database has a higher value
                                             bits = "{:,}".format(db_bits)
                                             await send_chat_message(f"Our records show you have given {bits} bits in total.")
                                             # Record usage
-                                            add_usage('mybits', bucket_key)
+                                            add_usage('mybits', bucket_key, cooldown_bucket)
                                         else:
                                             bits = "{:,}".format(api_bits)
                                             await send_chat_message(f"You have given {bits} bits in total.")
                                             # Record usage
-                                            add_usage('mybits', bucket_key)
+                                            add_usage('mybits', bucket_key, cooldown_bucket)
                                     else:
                                         await send_chat_message("You haven't given any bits yet.")
                                         # Record usage
-                                        add_usage('mybits', bucket_key)
+                                        add_usage('mybits', bucket_key, cooldown_bucket)
                                 elif response.status == 401:
                                     await send_chat_message("Sorry, something went wrong while reaching the Twitch API.")
                                 else:
@@ -4206,7 +4208,7 @@ class TwitchBot(commands.Bot):
                     )
                     await connection.commit()
                     # Record usage
-                    add_usage('lurk', bucket_key)
+                    add_usage('lurk', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
             await send_chat_message(f"Thanks for lurking! See you soon.")
@@ -4252,12 +4254,12 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"{ctx.author.name}, you've been lurking for {time_string} so far.")
                         chat_logger.info(f"{ctx.author.name} checked their lurk time: {time_string}.")
                         # Record usage
-                        add_usage('lurking', bucket_key)
+                        add_usage('lurking', bucket_key, cooldown_bucket)
                     else:
                         await send_chat_message(f"{ctx.author.name}, you're not currently lurking.")
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time but is not lurking.")
                         # Record usage
-                        add_usage('lurking', bucket_key)
+                        add_usage('lurking', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in lurking_command: {e}")
             await send_chat_message(f"Oops, something went wrong while trying to check your lurk time.")
@@ -4309,14 +4311,14 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message(f"{display_name} is currently lurking the most with {time_string} on the clock.")
                                 chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
                                 # Record usage
-                                add_usage('lurklead', bucket_key)
+                                add_usage('lurklead', bucket_key, cooldown_bucket)
                             else:
                                 await send_chat_message("There was an issue retrieving the display name of the lurk leader.")
                         else:
                             await send_chat_message("No one is currently lurking.")
                             chat_logger.info("Lurklead command run but no lurkers found.")
                             # Record usage
-                            add_usage('lurklead', bucket_key)
+                            add_usage('lurklead', bucket_key, cooldown_bucket)
                     except Exception as e:
                         chat_logger.error(f"Error in lurklead_command: {e}")
                         await send_chat_message("Oops, something went wrong while trying to find the lurk leader.")
@@ -4377,19 +4379,19 @@ class TwitchBot(commands.Bot):
                             chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
                             await send_chat_message(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
                             # Record usage
-                            add_usage('unlurk', bucket_key)
+                            add_usage('unlurk', bucket_key, cooldown_bucket)
                         else:
                             chat_logger.info(f"{ctx.author.name} is no longer lurking.")
                             await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
                             # Record usage
-                            add_usage('unlurk', bucket_key)
+                            add_usage('unlurk', bucket_key, cooldown_bucket)
                         # Remove the user's start time from the database
                         await cursor.execute('DELETE FROM lurk_times WHERE user_id = %s', (user_id,))
                         await connection.commit()
                     else:
                         await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
                         # Record usage
-                        add_usage('unlurk', bucket_key)
+                        add_usage('unlurk', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
             await send_chat_message("Oops, something went wrong with the unlurk command.")
@@ -4426,11 +4428,11 @@ class TwitchBot(commands.Bot):
                 if count == 0:
                     await send_chat_message("No one is currently lurking.")
                     # Record usage
-                    add_usage('userslurking', bucket_key)
+                    add_usage('userslurking', bucket_key, cooldown_bucket)
                 else:
                     await send_chat_message(f"There are currently {count} user{'s' if count != 1 else ''} lurking.")
                     # Record usage
-                    add_usage('userslurking', bucket_key)
+                    add_usage('userslurking', bucket_key, cooldown_bucket)
                 chat_logger.info(f"{ctx.author.name} checked the number of lurkers: {count}.")
         except Exception as e:
             chat_logger.error(f"Error in userslurking_command: {e}")
@@ -4484,7 +4486,7 @@ class TwitchBot(commands.Bot):
                                 else:
                                     twitch_logger.info("Failed to create a stream marker for the clip.")
                                 # Record usage
-                                add_usage('clip', bucket_key)
+                                add_usage('clip', bucket_key, cooldown_bucket)
                             else:
                                 marker_description = f"Failed to create clip."
                                 if await make_stream_marker(marker_description):
@@ -4533,7 +4535,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("Failed to create a stream marker.")
                         twitch_logger.error("Failed to create a stream marker.")
                     # Record usage
-                    add_usage('marker', bucket_key)
+                    add_usage('marker', bucket_key, cooldown_bucket)
         except Exception as e:
             twitch_logger.error(f"Error in marker_command: {e}")
             await send_chat_message("An error occurred while executing the marker command.")
@@ -4599,7 +4601,7 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message("Failed to retrieve subscription information. Please try again later.")
                                 twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
                     # Record usage
-                    add_usage('subscription', bucket_key)
+                    add_usage('subscription', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subscription command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -4658,7 +4660,7 @@ class TwitchBot(commands.Bot):
                                         await send_chat_message(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
                                         chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
                                         # Record usage
-                                        add_usage('uptime', bucket_key)
+                                        add_usage('uptime', bucket_key, cooldown_bucket)
                                     else:
                                         await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
                                         api_logger.info(f"{CHANNEL_NAME} is currently offline.")
@@ -4723,7 +4725,7 @@ class TwitchBot(commands.Bot):
                 chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
                 await send_chat_message(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
                 # Record usage
-                add_usage('typo', bucket_key)
+                add_usage('typo', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
             await send_chat_message(f"An error occurred while trying to add to your typo count.")
@@ -4769,7 +4771,7 @@ class TwitchBot(commands.Bot):
                 chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
                 await send_chat_message(f"{target_user} has made {typo_count} typos in chat.")
                 # Record usage
-                add_usage('typos', bucket_key)
+                add_usage('typos', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to check typos.")
@@ -4839,7 +4841,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.error(f"Error in edit_typo_command: {e}")
                         await send_chat_message(f"An error occurred while trying to edit typos. {e}")
             # Record usage
-            add_usage('edittypos', bucket_key)
+            add_usage('edittypos', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -4891,7 +4893,7 @@ class TwitchBot(commands.Bot):
                     else:
                         await send_chat_message(f"No typo record found for {target_user}.")
             # Record usage
-            add_usage('removetypos', bucket_key)
+            add_usage('removetypos', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to remove typos.")
@@ -4959,7 +4961,7 @@ class TwitchBot(commands.Bot):
             else:
                 await send_chat_message("This game is not available on Steam.")
             # Record usage
-            add_usage('steam', bucket_key)
+            add_usage('steam', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in steam_command: {e}")
             await send_chat_message("An error occurred while trying to check the Steam store.")
@@ -5000,7 +5002,7 @@ class TwitchBot(commands.Bot):
                 if ignored_result:
                     await send_chat_message("Deaths are not counted for this game.")
                     # Record usage
-                    add_usage('deaths', bucket_key)
+                    add_usage('deaths', bucket_key, cooldown_bucket)
                 chat_logger.info("Deaths command ran.")
                 await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = await cursor.fetchone()
@@ -5017,7 +5019,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {stream_death_count}")
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 # Record usage
-                add_usage('deaths', bucket_key)
+                add_usage('deaths', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
@@ -5086,7 +5088,7 @@ class TwitchBot(commands.Bot):
                     await send_chat_message(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathadd_command: {e}")
             # Record usage
-            add_usage('deathadd', bucket_key)
+            add_usage('deathadd', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Unexpected error in deathadd_command: {e}")
             await send_chat_message(f"An unexpected error occurred: {e}")
@@ -5148,7 +5150,7 @@ class TwitchBot(commands.Bot):
                     await send_chat_message(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathremove_command: {e}")
             # Record usage
-            add_usage('deathremove', bucket_key)
+            add_usage('deathremove', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Unexpected error in deathremove_command: {e}")
             await send_chat_message(f"An unexpected error occurred: {e}")
@@ -5183,7 +5185,7 @@ class TwitchBot(commands.Bot):
                 else:
                     await send_chat_message("We're not currently streaming any specific game category.")
             # Record usage
-            add_usage('game', bucket_key)
+            add_usage('game', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in game_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to retrieve the game information.")
@@ -5267,12 +5269,12 @@ class TwitchBot(commands.Bot):
                                     await send_chat_message(f"{target_user} has been following for: {followage_text}.")
                                     chat_logger.info(f"{target_user} has been following for: {followage_text}.")
                                     # Record usage
-                                    add_usage('followage', bucket_key)
+                                    add_usage('followage', bucket_key, cooldown_bucket)
                                 else:
                                     await send_chat_message(f"{target_user} does not follow {CHANNEL_NAME}.")
                                     chat_logger.info(f"{target_user} does not follow {CHANNEL_NAME}.")
                                     # Record usage
-                                    add_usage('followage', bucket_key)
+                                    add_usage('followage', bucket_key, cooldown_bucket)
                             else:
                                 await send_chat_message(f"Failed to retrieve followage information for {target_user}.")
                                 chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
@@ -5381,7 +5383,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.error(f"Error retrieving schedule: {e}")
                     await send_chat_message(f"Oops, something went wrong while trying to check the schedule.")
             # Record usage
-            add_usage('schedule', bucket_key)
+            add_usage('schedule', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the schedule command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5436,7 +5438,7 @@ class TwitchBot(commands.Bot):
                         else:
                             await send_chat_message("Failed to check for updates. Please try again later.")
             # Record usage
-            add_usage('checkupdate', bucket_key)
+            add_usage('checkupdate', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in checkupdate_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check for updates.")
@@ -5502,7 +5504,7 @@ class TwitchBot(commands.Bot):
             await send_chat_message(shoutout_message)
             await add_shoutout(user_to_shoutout, user_id)
             # Record usage
-            add_usage('shoutout', bucket_key)
+            add_usage('shoutout', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5546,7 +5548,7 @@ class TwitchBot(commands.Bot):
             chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
             await send_chat_message(f'Custom command added: !{command}')
             # Record usage
-            add_usage('addcommand', bucket_key)
+            add_usage('addcommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the addcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5590,7 +5592,7 @@ class TwitchBot(commands.Bot):
             chat_logger.info(f"{ctx.author.name} has edited the command !{command} to have the new response: {new_response}")
             await send_chat_message(f'Custom command edited: !{command}')
             # Record usage
-            add_usage('editcommand', bucket_key)
+            add_usage('editcommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the editcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5634,7 +5636,7 @@ class TwitchBot(commands.Bot):
             chat_logger.info(f"{ctx.author.name} has removed {command}")
             await send_chat_message(f'Custom command removed: !{command}')
             # Record usage
-            add_usage('removecommand', bucket_key)
+            add_usage('removecommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the removecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5694,7 +5696,7 @@ class TwitchBot(commands.Bot):
                     # Command doesn't exist in either table
                     await send_chat_message(f"Command !{command} not found.")
             # Record usage
-            add_usage('enablecommand', bucket_key)
+            add_usage('enablecommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5754,7 +5756,7 @@ class TwitchBot(commands.Bot):
                     # Command doesn't exist in either table
                     await send_chat_message(f"Command !{command} not found.")
             # Record usage
-            add_usage('disablecommand', bucket_key)
+            add_usage('disablecommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5827,7 +5829,7 @@ class TwitchBot(commands.Bot):
                 await connection.commit()
                 await send_chat_message(message)
             # Record usage
-            add_usage('slots', bucket_key)
+            add_usage('slots', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the slots command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5893,7 +5895,7 @@ class TwitchBot(commands.Bot):
             await send_chat_message(result)
             chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
             # Record usage
-            add_usage('kill', bucket_key)
+            add_usage('kill', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the kill command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5956,7 +5958,7 @@ class TwitchBot(commands.Bot):
                     await connection.commit()
                 await send_chat_message(message)
                 # Record usage
-                add_usage('roulette', bucket_key)
+                add_usage('roulette', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roulette command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6006,7 +6008,7 @@ class TwitchBot(commands.Bot):
                     result = f"You lose! You chose {user_choice} and I chose {bot_choice}."
                 await send_chat_message(result)
                 # Record usage
-                add_usage('rps', bucket_key)
+                add_usage('rps', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the RPS command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6124,7 +6126,7 @@ class TwitchBot(commands.Bot):
                 await connection.commit()
                 await send_chat_message(message)
                 # Record usage
-                add_usage('gamble', bucket_key)
+                add_usage('gamble', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the gamble command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6166,7 +6168,7 @@ class TwitchBot(commands.Bot):
                 response = await self.handle_ai_response(story, ctx.author.id, ctx.author.name)
                 await send_chat_message(response)
                 # Record usage
-                add_usage('story', bucket_key)
+                add_usage('story', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the story command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6211,7 +6213,7 @@ class TwitchBot(commands.Bot):
                         formatted_converted_amount = f"{converted_amount:,.2f}"
                         await send_chat_message(f"The currency exchange for {amount_str} {from_currency} is {formatted_converted_amount} {to_currency}")
                         # Record usage
-                        add_usage('convert', bucket_key)
+                        add_usage('convert', bucket_key, cooldown_bucket)
                     elif len(args) == 3:
                         # Handle unit conversion
                         amount_str = args[0]
@@ -6237,7 +6239,7 @@ class TwitchBot(commands.Bot):
                         formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
                         await send_chat_message(f"{amount_str} {args[1]} in {args[2]} is {formatted_converted_quantity} {converted_quantity.units}")
                         # Record usage
-                        add_usage('convert', bucket_key)
+                        add_usage('convert', bucket_key, cooldown_bucket)
                     else:
                         await send_chat_message("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except Exception as e:
@@ -6283,7 +6285,7 @@ class TwitchBot(commands.Bot):
                 await send_chat_message(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/")
                 chat_logger.info(f"{user.name} viewed the todo list.")
                 # Record usage
-                add_usage('todo', bucket_key)
+                add_usage('todo', bucket_key, cooldown_bucket)
                 return
             action, *params = message_content[5:].strip().split(' ', 1)
             action = action.lower()
@@ -6306,7 +6308,7 @@ class TwitchBot(commands.Bot):
                 await actions[action](ctx, params, user_id, connection)
                 chat_logger.info(f"{user.name} executed the action {action} with params {params}.")
                 # Record usage
-                add_usage('todo', bucket_key)
+                add_usage('todo', bucket_key, cooldown_bucket)
             else:
                 await send_chat_message(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
                 chat_logger.warning(f"{user.name} used an unrecognized action: {action}.")
@@ -6364,7 +6366,7 @@ class TwitchBot(commands.Bot):
             else:
                 await send_chat_message(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
             # Record usage
-            add_usage('subathon', bucket_key)
+            add_usage('subathon', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subathon command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6415,7 +6417,7 @@ class TwitchBot(commands.Bot):
                     else:
                         await send_chat_message(f"The current Heart Rate is: {HEARTRATE}")
             # Record usage
-            add_usage('heartrate', bucket_key)
+            add_usage('heartrate', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6487,7 +6489,7 @@ class TwitchBot(commands.Bot):
                     # If no watch time data is found
                     await send_chat_message(f"@{username}, no watch time data recorded for you yet.")
             # Record usage
-            add_usage('watchtime', bucket_key)
+            add_usage('watchtime', bucket_key, cooldown_bucket)
         except Exception as e:
             bot_logger.error(f"Error fetching watch time for {username}: {e}")
             await send_chat_message(f"@{username}, an error occurred while fetching your watch time.")
@@ -6524,7 +6526,7 @@ class TwitchBot(commands.Bot):
                 else:
                     await send_chat_message("There was an error generating the lotto numbers.")
             # Record usage
-            add_usage('startlotto', bucket_key)
+            add_usage('startlotto', bucket_key, cooldown_bucket)
         except Exception as e:
             bot_logger.error(f"Error in starting lotto game: {e}")
             await send_chat_message("There was an error generating the lotto numbers.")
@@ -6635,7 +6637,7 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
                 await connection.commit()
             # Record usage
-            add_usage('drawlotto', bucket_key)
+            add_usage('drawlotto', bucket_key, cooldown_bucket)
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
