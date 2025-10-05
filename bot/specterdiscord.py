@@ -1690,6 +1690,29 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.error(f"Exception in get_stream_info for {channel_name}: {e}")
             return None, "Unknown Game"
 
+    async def get_user_profile_image(self, username):
+        try:
+            mysql_helper = MySQLHelper(self.logger)
+            user_row = await mysql_helper.fetchone(
+                "SELECT profile_image FROM users WHERE username = %s", 
+                (username,), 
+                database_name='website', 
+                dict_cursor=True
+            )
+            if user_row and user_row.get('profile_image'):
+                profile_image_url = user_row['profile_image']
+                # Validate it's a proper URL
+                if profile_image_url and (profile_image_url.startswith('http://') or profile_image_url.startswith('https://')):
+                    self.logger.info(f"Found profile image for {username}: {profile_image_url}")
+                    return profile_image_url
+                else:
+                    self.logger.debug(f"Profile image field for {username} exists but doesn't contain valid URL: {profile_image_url}")
+            self.logger.info(f"No profile image found for {username}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Exception getting profile image for {username}: {e}")
+            return None
+
     async def handle_stream_event(self, event_type, data):
         code = data.get("channel_code", "unknown")
         self.logger.info(f"Processing {event_type} event for channel_code: {code}")
@@ -1831,10 +1854,13 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     self.logger.info("No discord_info found for guild")
                 self.logger.info(f"Final mention text for {account_username}: '{mention_text}'")
-                # Get stream info (thumbnail and game)
+                # Get stream info (game name only, we'll get profile image separately)
                 self.logger.info(f"Fetching stream info for {account_username}")
-                thumbnail_url, game_name = await self.get_stream_info(account_username)
-                self.logger.info(f"Stream info - Game: {game_name}, Thumbnail: {thumbnail_url}")
+                _, game_name = await self.get_stream_info(account_username)
+                self.logger.info(f"Stream info - Game: {game_name}")
+                # Get user's profile image from database instead of Twitch thumbnail
+                self.logger.info(f"Fetching profile image for {account_username}")
+                profile_image_url = await self.get_user_profile_image(account_username)
                 # Get current date for footer
                 self.logger.info(f"Formatting timestamp for {code}")
                 current_date = await self.format_discord_embed_timestamp(code)
@@ -1846,10 +1872,15 @@ class BotOfTheSpecter(commands.Bot):
                     description=f"Stream is now online! Streaming: {game_name}",
                     color=discord.Color.from_rgb(145, 70, 255)
                 )
-                # Set thumbnail if available
-                thumbnail_to_use = thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
-                embed.set_thumbnail(url=thumbnail_to_use)
-                self.logger.info(f"Using thumbnail: {thumbnail_to_use}")
+                # Set thumbnail using user's profile image or fallback
+                if profile_image_url:
+                    embed.set_thumbnail(url=profile_image_url)
+                    self.logger.info(f"Using user profile image: {profile_image_url}")
+                else:
+                    # Fallback to default image if no profile image
+                    fallback_url = "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
+                    embed.set_thumbnail(url=fallback_url)
+                    self.logger.info(f"Using fallback thumbnail: {fallback_url}")
                 # Set footer
                 embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
                 self.logger.info(f"Sending live notification to #{stream_channel.name} with mention: '{mention_text.strip() or 'none'}'")
@@ -1962,8 +1993,10 @@ class BotOfTheSpecter(commands.Bot):
                             mention_text = f"{role.mention} "
                     except (ValueError, TypeError):
                         self.logger.warning(f"Invalid custom role ID: {discord_info['stream_alert_custom_role']}")
-            # Get stream info
-            thumbnail_url, game_name = await self.get_stream_info(account_username)
+            # Get stream info (game name only)
+            _, game_name = await self.get_stream_info(account_username)
+            # Get user's profile image from database
+            profile_image_url = await self.get_user_profile_image(account_username)
             current_date = await self.format_discord_embed_timestamp(code)
             # Create embed
             embed = discord.Embed(
@@ -1972,8 +2005,11 @@ class BotOfTheSpecter(commands.Bot):
                 description=f"Stream is now online! Streaming: {game_name}",
                 color=discord.Color.from_rgb(145, 70, 255)
             )
-            thumbnail_to_use = thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
-            embed.set_thumbnail(url=thumbnail_to_use)
+            # Use profile image or fallback
+            if profile_image_url:
+                embed.set_thumbnail(url=profile_image_url)
+            else:
+                embed.set_thumbnail(url="https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg")
             embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
             # Send notification
             await self._send_message_with_fallback(
@@ -4285,7 +4321,8 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         title = stream_data['title']
         game_name = stream_data['game_name']
         stream_url = stream_data.get('stream_url', f"https://twitch.tv/{user_login}")
-        thumbnail_url = stream_data['thumbnail_url'].replace('{width}', '320').replace('{height}', '180')
+        # Get user's profile image from database instead of Twitch thumbnail
+        profile_image_url = await self.bot.get_user_profile_image(user_login)
         embed = discord.Embed(
             description=f"""
                 ### **[{user_login}]({stream_url}) is now live on Twitch!**
@@ -4293,6 +4330,15 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
             """,
             color=discord.Color.purple()
         )
+        # Set thumbnail using user's profile image or fallback
+        if profile_image_url:
+            embed.set_thumbnail(url=profile_image_url)
+            self.logger.info(f"Using profile image for {user_login}: {profile_image_url}")
+        else:
+            # Fallback to default image if no profile image
+            fallback_url = "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
+            embed.set_thumbnail(url=fallback_url)
+            self.logger.info(f"Using fallback thumbnail for {user_login}: {fallback_url}")
         embed.add_field(name="Watch Here", value=f"{stream_url}", inline=True)
         embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
         try:
