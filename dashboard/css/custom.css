@@ -977,6 +977,17 @@ input[type="range"].modern-volume::-ms-tooltip {
 }
 
 /* Sidebar Navigation Styles */
+:root {
+    --sidebar-width: 250px;
+    --sidebar-collapsed-width: 70px;
+}
+
+/* Sidebar-specific page styling */
+/* Default: Show navbar, hide sidebar (for mobile/tablet) */
+body:has(.sidebar-nav) .navbar {
+    display: flex !important;
+}
+
 .sidebar-nav {
     position: fixed;
     top: 0;
@@ -985,11 +996,19 @@ input[type="range"].modern-volume::-ms-tooltip {
     width: var(--sidebar-width);
     background-color: #1e2128;
     transition: width 0.3s ease;
-    overflow-x: hidden;
+    overflow-x: hidden !important;
     overflow-y: auto;
     z-index: 1000;
     box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    display: none !important;
+}
+
+.sidebar-nav::-webkit-scrollbar-x {
     display: none;
+}
+
+.sidebar-nav * {
+    overflow-x: hidden;
 }
 
 .sidebar-nav.collapsed {
@@ -1056,10 +1075,12 @@ input[type="range"].modern-volume::-ms-tooltip {
     list-style: none;
     margin: 0;
     padding: 0.5rem 0;
+    overflow-x: hidden !important;
 }
 
 .sidebar-menu-item {
     position: relative;
+    overflow: visible;
 }
 
 .sidebar-menu-link {
@@ -1071,6 +1092,7 @@ input[type="range"].modern-volume::-ms-tooltip {
     transition: all 0.2s ease;
     white-space: nowrap;
     border-left: 3px solid transparent;
+    position: relative;
 }
 
 .sidebar-menu-link:hover {
@@ -1284,6 +1306,8 @@ input[type="range"].modern-volume::-ms-tooltip {
 .sidebar-tooltip {
     position: absolute;
     left: calc(var(--sidebar-collapsed-width) + 10px);
+    top: 50%;
+    transform: translateY(-50%);
     background-color: #2a2e35;
     color: #ffffff;
     padding: 0.5rem 0.75rem;
@@ -1292,9 +1316,23 @@ input[type="range"].modern-volume::-ms-tooltip {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s;
-    z-index: 1001;
+    z-index: -1;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     font-size: 0.9rem;
+    display: none !important;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+/* Only show tooltips when sidebar is collapsed */
+.sidebar-nav.collapsed .sidebar-tooltip {
+    display: block !important;
+    visibility: visible;
+    z-index: 1001;
+    width: auto;
+    height: auto;
 }
 
 .sidebar-nav.collapsed .sidebar-menu-item:hover .sidebar-tooltip {
@@ -1361,21 +1399,19 @@ input[type="range"].modern-volume::-ms-tooltip {
 .sidebar-version .tag {
     font-size: 0.75rem;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .sidebar-nav.collapsed .sidebar-version {
-    padding: 0.5rem 0.25rem;
+    padding: 0.5rem 0;
 }
 
 .sidebar-nav.collapsed .sidebar-version .tag {
-    font-size: 0;
-    padding: 0.25rem;
-    width: 100%;
-}
-
-.sidebar-nav.collapsed .sidebar-version .tag::before {
-    content: "v";
-    font-size: 0.7rem;
+    font-size: 0.6rem;
+    padding: 0.15rem 0.25rem;
+    width: auto;
+    display: block;
+    margin: 0 auto;
 }
 
 /* Scrollbar for long menus */
@@ -1401,14 +1437,14 @@ input[type="range"].modern-volume::-ms-tooltip {
     background: #444;
 }
 
-/* Desktop - Show sidebar, hide top navbar */
+/* Desktop - Show sidebar, hide top navbar (only on pages with sidebar) */
 @media screen and (min-width: 1024px) {
     .sidebar-nav {
-        display: block;
+        display: block !important;
     }
     
-    .navbar {
-        display: none;
+    body:has(.sidebar-nav) .navbar {
+        display: none !important;
     }
     
     .page-content {
