@@ -1519,10 +1519,13 @@ class BotOfTheSpecter(commands.Bot):
             return
         message = await self.format_twitch_message(event_type, data, channel_code)
         if message:
-            if mention_everyone:
-                await channel.send(content="@everyone", embed=message)
-            else:
-                await channel.send(embed=message)
+            content = "@everyone" if mention_everyone else None
+            await self._send_message_with_fallback(
+                channel=channel,
+                embed=message,
+                content=content,
+                logger_context=f"{event_type} event"
+            )
         else:
             self.logger.warning(f"No message formatted for {event_type} event")
 
@@ -1850,11 +1853,12 @@ class BotOfTheSpecter(commands.Bot):
                 # Set footer
                 embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
                 self.logger.info(f"Sending live notification to #{stream_channel.name} with mention: '{mention_text.strip() or 'none'}'")
-                try:
-                    await stream_channel.send(content=mention_text, embed=embed)
-                    self.logger.info(f"Successfully sent live notification with mention for {account_username} in guild {guild.id}")
-                except Exception as e:
-                    self.logger.error(f"Failed to send live notification to #{stream_channel.name}: {e}")
+                await self._send_message_with_fallback(
+                    channel=stream_channel,
+                    embed=embed,
+                    content=mention_text,
+                    logger_context=f"live notification for {account_username}"
+                )
             else:
                 self.logger.warning(f"Stream channel not found for id {stream_channel_id} in guild {guild.id}")
                 self.logger.info(f"Available channels in guild {guild.name}: {[f'#{c.name} ({c.id})' for c in guild.channels if hasattr(c, 'name')]}")
@@ -1875,6 +1879,58 @@ class BotOfTheSpecter(commands.Bot):
         else:
             self.logger.info(f"Status not set to \"{event_type}\" for {guild.name}#{channel.name} - channel name already matches \"{channel_update}\"")
         self.logger.info(f"Completed processing {event_type} event for channel_code: {code}")
+
+    async def _send_message_with_fallback(self, channel, embed=None, content=None, fallback_text=None, logger_context="message"):
+        try:
+            # Try sending with embed first
+            if embed and content:
+                await channel.send(content=content, embed=embed)
+                self.logger.info(f"Successfully sent {logger_context} with embed and content to #{channel.name}")
+            elif embed:
+                await channel.send(embed=embed)
+                self.logger.info(f"Successfully sent {logger_context} with embed to #{channel.name}")
+            elif content:
+                await channel.send(content=content)
+                self.logger.info(f"Successfully sent {logger_context} with content to #{channel.name}")
+            else:
+                self.logger.warning(f"No content or embed provided for {logger_context}")
+                return False
+        except Exception as e:
+            self.logger.warning(f"Failed to send {logger_context} with embed to #{channel.name}: {e}")
+            # Generate fallback text if not provided
+            if not fallback_text and embed:
+                fallback_parts = []
+                if embed.title:
+                    fallback_parts.append(f"**{embed.title}**")
+                if embed.description:
+                    fallback_parts.append(embed.description)
+                if embed.fields:
+                    for field in embed.fields:
+                        fallback_parts.append(f"**{field.name}:** {field.value}")
+                if embed.footer and embed.footer.text:
+                    fallback_parts.append(f"_{embed.footer.text}_")
+                fallback_text = "\n".join(fallback_parts)
+            # Try sending as plain text
+            if fallback_text or content:
+                try:
+                    final_content = ""
+                    if content:
+                        final_content += content
+                    if fallback_text:
+                        if final_content:
+                            final_content += "\n\n"
+                        final_content += fallback_text
+                    
+                    await channel.send(content=final_content)
+                    self.logger.info(f"Successfully sent {logger_context} as plain text fallback to #{channel.name}")
+                    return True
+                except Exception as fallback_e:
+                    self.logger.error(f"Failed to send {logger_context} even as plain text to #{channel.name}: {fallback_e}")
+                    return False
+            else:
+                self.logger.error(f"No fallback text available for {logger_context}")
+                return False
+        return True
 
     async def _process_stream_alert(self, guild, code, stream_channel_id, event_type):
         try:
@@ -1920,8 +1976,12 @@ class BotOfTheSpecter(commands.Bot):
             embed.set_thumbnail(url=thumbnail_to_use)
             embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
             # Send notification
-            await stream_channel.send(content=mention_text, embed=embed)
-            self.logger.info(f"Successfully sent stream alert for {account_username} to #{stream_channel.name}")
+            await self._send_message_with_fallback(
+                channel=stream_channel,
+                embed=embed,
+                content=mention_text,
+                logger_context=f"stream alert for {account_username}"
+            )
         except Exception as e:
             self.logger.error(f"Exception in _process_stream_alert for {code}: {e}")
 
@@ -3398,12 +3458,22 @@ class MusicPlayer:
             description=desc,
             color=config.bot_color
         )
-        msg = await ctx.send(embed=embed)
-        try:
-            await msg.delete(delay=10)
-            await ctx.message.delete()
-        except Exception:
-            pass
+        
+        # Create fallback text
+        fallback_text = f"🎵 **Music Queue**\n\n{desc}"
+        
+        success = await self.bot._send_message_with_fallback(
+            channel=ctx.channel,
+            embed=embed,
+            fallback_text=fallback_text,
+            logger_context="music queue"
+        )
+        
+        if success:
+            try:
+                await ctx.message.delete()
+            except Exception:
+                pass
 
     async def now_playing(self, ctx):
         guild_id = ctx.guild.id
@@ -3431,12 +3501,27 @@ class MusicPlayer:
             elapsed_str = str(datetime.timedelta(seconds=elapsed))
             duration_str = str(datetime.timedelta(seconds=int(duration)))
             embed.add_field(name="Progress", value=f"{elapsed_str} / {duration_str}", inline=True)
-        msg = await ctx.send(embed=embed)
-        try:
-            await msg.delete(delay=5)
-            await ctx.message.delete()
-        except Exception:
-            pass
+        
+        # Create fallback text
+        fallback_text = f"🎵 **Currently Playing:** {title}\n**Source:** {source_label}\n**Requested by:** {requested_by}"
+        if duration and start:
+            elapsed = int(time.time() - start)
+            elapsed_str = str(datetime.timedelta(seconds=elapsed))
+            duration_str = str(datetime.timedelta(seconds=int(duration)))
+            fallback_text += f"\n**Progress:** {elapsed_str} / {duration_str}"
+        
+        success = await self.bot._send_message_with_fallback(
+            channel=ctx.channel,
+            embed=embed,
+            fallback_text=fallback_text,
+            logger_context="now playing"
+        )
+        
+        if success:
+            try:
+                await ctx.message.delete()
+            except Exception:
+                pass
 
     async def cleanup_cache(self):
         # Remove files not referenced in any queue or current_track
@@ -3726,19 +3811,31 @@ class VoiceCog(commands.Cog, name='Voice'):
             embed.add_field(name="Connected To", value=channel.mention, inline=True)
             embed.add_field(name="Channel Members", value=str(member_count), inline=True)
             embed.add_field(name="Latency", value=latency_display, inline=True)
-            msg = await ctx.send(embed=embed)
+            # Create fallback text
+            fallback_text = f"🔊 **Voice Status**\n**Connected To:** {channel.name}\n**Channel Members:** {member_count}\n**Latency:** {latency_display}"
+            success = await self._send_message_with_fallback(
+                channel=ctx.channel,
+                embed=embed,
+                fallback_text=fallback_text,
+                logger_context="voice status (connected)"
+            )
         else:
             embed = discord.Embed(
                 title="🔇 Voice Status",
                 description="Not connected to any voice channel in this server.",
                 color=discord.Color.red()
             )
-            msg = await ctx.send(embed=embed)
-        try:
-            await msg.delete(delay=5)
-            await ctx.message.delete(delay=5)
-        except Exception:
-            pass
+            success = await self._send_message_with_fallback(
+                channel=ctx.channel,
+                embed=embed,
+                fallback_text="🔇 **Voice Status**\nNot connected to any voice channel in this server.",
+                logger_context="voice status (disconnected)"
+            )
+        if success:
+            try:
+                await ctx.message.delete(delay=5)
+            except Exception:
+                pass
 
     @connect_voice.error
     async def connect_error(self, ctx, error):
@@ -4203,16 +4300,16 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         except (ValueError, TypeError):
             self.logger.error(f"Invalid discord_channel_id '{discord_channel_id}' for guild {guild_id}")
             return False
-        try:
-            if channel:
-                await channel.send(embed=embed)
-                self.logger.info(f"Posted live notification for {user_login} in guild {guild_id}")
-                return True
-            else:
-                self.logger.error(f"Could not find Discord channel {discord_channel_id} for guild {guild_id}")
-                return False
-        except Exception as e:
-            self.logger.error(f"Error posting live notification for {user_login} in guild {guild_id}: {e}")
+        if channel:
+            # Use the bot's fallback method for sending messages
+            success = await self.bot._send_message_with_fallback(
+                channel=channel,
+                embed=embed,
+                logger_context=f"live notification for {user_login} in guild {guild_id}"
+            )
+            return success
+        else:
+            self.logger.error(f"Could not find Discord channel {discord_channel_id} for guild {guild_id}")
             return False
 
     async def process_guild_streams(self, guild_id, guild_data):
