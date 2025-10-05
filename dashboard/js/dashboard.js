@@ -1,6 +1,9 @@
 // Dashboard JavaScript functionality
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize sidebar
+    initializeSidebar();
+    
     // Navbar burger menu toggle for mobile
     const navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
     if (navbarBurgers.length > 0) {
@@ -105,6 +108,87 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Sidebar functionality
+function initializeSidebar() {
+    const sidebar = document.getElementById('sidebarNav');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    
+    if (!sidebar || !toggleBtn) return;
+    
+    // Load saved state from cookie
+    const savedState = getCookie('sidebar_collapsed');
+    if (savedState === 'true') {
+        sidebar.classList.add('collapsed');
+    }
+    
+    // Toggle sidebar on button click
+    toggleBtn.addEventListener('click', function() {
+        sidebar.classList.toggle('collapsed');
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        setCookie('sidebar_collapsed', isCollapsed, 365);
+    });
+    
+    // Set active menu item based on current page
+    setActiveMenuItem();
+}
+
+function toggleSubmenu(event, element) {
+    event.preventDefault();
+    const menuItem = element.closest('.sidebar-menu-item');
+    const sidebar = document.getElementById('sidebarNav');
+    
+    // If sidebar is collapsed, don't toggle submenu
+    if (sidebar && sidebar.classList.contains('collapsed')) {
+        return;
+    }
+    
+    // Close other submenus (accordion behavior)
+    const allMenuItems = document.querySelectorAll('.sidebar-menu-item.has-submenu');
+    allMenuItems.forEach(item => {
+        if (item !== menuItem) {
+            item.classList.remove('expanded');
+        }
+    });
+    
+    // Toggle current submenu
+    menuItem.classList.toggle('expanded');
+}
+
+function setActiveMenuItem() {
+    const currentPath = window.location.pathname;
+    const fileName = currentPath.split('/').pop();
+    const menuLinks = document.querySelectorAll('.sidebar-menu-link:not([onclick]), .sidebar-submenu-link');
+    
+    menuLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && (href === fileName || currentPath.includes(href))) {
+            link.classList.add('active');
+            
+            // If it's a submenu link, expand the parent
+            const submenu = link.closest('.sidebar-submenu');
+            if (submenu) {
+                const parentItem = submenu.closest('.sidebar-menu-item');
+                if (parentItem) {
+                    parentItem.classList.add('expanded');
+                }
+            }
+        }
+    });
+}
+
+// Helper function to get cookie value
+function getCookie(name) {
+    var match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return match ? match[2] : null;
+}
+
+// Helper function to set cookie
+function setCookie(name, value, days) {
+    var d = new Date();
+    d.setTime(d.getTime() + (days*24*60*60*1000));
+    document.cookie = name + "=" + value + ";expires=" + d.toUTCString() + ";path=/";
+}
 
 // Function to create toast notifications
 function showNotification(message, type = 'info', duration = 3000) {
