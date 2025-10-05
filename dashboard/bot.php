@@ -1114,6 +1114,11 @@ document.addEventListener('DOMContentLoaded', function() {
               const actionText = expectedRunning ? 'started' : 'stopped';
               const statusText = expectedRunning ? 'online' : 'offline';
               showNotification(`${botType} bot ${actionText} successfully and is now ${statusText}!`, 'success');
+              // If bot just started, remove update notifications since the restart has occurred
+              if (expectedRunning) {
+                const latestVersion = botType.toLowerCase() === 'beta' ? window.latestBetaVersion : window.latestStableVersion;
+                removeUpdateNotificationsForBot(botType.toLowerCase(), latestVersion);
+              }
               return; // Stop verification
             } else {
               // State hasn't changed yet, continue checking
@@ -1399,8 +1404,8 @@ document.addEventListener('DOMContentLoaded', function() {
               // Always show update notification when there's an update available
               showNotification(`A new ${selectedBot} bot version is available! Current: ${data.version}, Latest: ${latestVersion}`, 'update');
               hasUpdate = true;
-            } else if (selectedBot === 'beta' && data.lastModified && data.lastRun && data.lastRun !== 'Never' && parseAgoToSeconds(data.lastModified) < parseAgoToSeconds(data.lastRun)) {
-              // Check for beta code changes
+            } else if (selectedBot === 'beta' && data.running && data.lastModified && data.lastRun && data.lastRun !== 'Never' && parseAgoToSeconds(data.lastModified) < parseAgoToSeconds(data.lastRun)) {
+              // Check for beta code changes only if bot is currently running
               showNotification('Beta bot code has been updated since your last run. Please restart the bot to apply changes.', 'update');
               hasUpdate = true;
             }
