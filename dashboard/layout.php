@@ -308,24 +308,10 @@ $maintenanceMode = $config['maintenanceMode'];
         </ul>
         <div class="sidebar-user-section">
             <?php if (!empty($showModDropdown) && !empty($modChannels)): ?>
-            <div class="sidebar-menu-item has-submenu">
-                <a href="#" class="sidebar-user-item" onclick="toggleSubmenu(event, this)">
-                    <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
-                    <span class="sidebar-user-text">Mod Channels</span>
-                </a>
-                <ul class="sidebar-submenu">
-                    <?php foreach ($modChannels as $modChannel): ?>
-                    <li>
-                        <a href="switch_channel.php?user_id=<?php echo urlencode($modChannel['twitch_user_id']); ?>" class="sidebar-submenu-link">
-                            <span class="sidebar-submenu-icon">
-                                <img src="<?php echo htmlspecialchars($modChannel['profile_image']); ?>" alt="" style="width: 18px; height: 18px; border-radius: 50%;">
-                            </span>
-                            <span class="sidebar-menu-text"><?php echo htmlspecialchars($modChannel['twitch_display_name']); ?></span>
-                        </a>
-                    </li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
+            <a href="mod_channels.php" class="sidebar-user-item">
+                <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
+                <span class="sidebar-user-text">Mod Channels</span>
+            </a>
             <?php endif; ?>
             <?php if (!empty($is_admin)): ?>
             <a href="admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>">
@@ -341,6 +327,10 @@ $maintenanceMode = $config['maintenanceMode'];
                 <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
                 <span class="sidebar-user-text"><?php echo t('navbar_logout'); ?></span>
             </a>
+            <!-- Version Badge -->
+            <div class="sidebar-version">
+                <span class="tag is-info is-light">v<?php echo $dashboardVersion; ?></span>
+            </div>
         </div>
     </aside>
     <?php if ($maintenanceMode): $modalAcknowledged = isset($_COOKIE['maintenance_modal_acknowledged']) && $_COOKIE['maintenance_modal_acknowledged'] === 'true'; ?>
@@ -566,20 +556,10 @@ $maintenanceMode = $config['maintenanceMode'];
             </div>
             <div class="navbar-end">
                 <?php if (!empty($showModDropdown) && !empty($modChannels)): ?>
-                <div class="navbar-item has-dropdown is-hoverable">
-                    <a class="navbar-link">
+                <div class="navbar-item">
+                    <a href="mod_channels.php" title="<?php echo t('navbar_mod_channels'); ?>">
                         <span class="icon"><i class="fas fa-user-shield"></i></span>
                     </a>
-                    <div class="navbar-dropdown">
-                        <?php foreach ($modChannels as $modChannel): ?>
-                            <a class="navbar-item" href="switch_channel.php?user_id=<?php echo urlencode($modChannel['twitch_user_id']); ?>">
-                                <span class="icon">
-                                    <img src="<?php echo htmlspecialchars($modChannel['profile_image']); ?>" alt="" style="width: 24px; height: 24px; border-radius: 50%;">
-                                </span>
-                                <span><?php echo htmlspecialchars($modChannel['twitch_display_name']); ?></span>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
                 </div>
                 <?php endif; ?>
                 <?php if (!empty($is_admin)): ?>

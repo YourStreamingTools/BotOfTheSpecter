@@ -1350,6 +1350,34 @@ input[type="range"].modern-volume::-ms-tooltip {
     cursor: pointer;
 }
 
+/* Sidebar version badge */
+.sidebar-version {
+    padding: 0.75rem;
+    text-align: center;
+    margin-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-version .tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.sidebar-nav.collapsed .sidebar-version {
+    padding: 0.5rem 0.25rem;
+}
+
+.sidebar-nav.collapsed .sidebar-version .tag {
+    font-size: 0;
+    padding: 0.25rem;
+    width: 100%;
+}
+
+.sidebar-nav.collapsed .sidebar-version .tag::before {
+    content: "v";
+    font-size: 0.7rem;
+}
+
 /* Scrollbar for long menus */
 .sidebar-menu {
     overflow-y: auto;
