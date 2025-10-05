@@ -146,6 +146,7 @@ class MySQLHelper:
                 conn.close()
 
     async def insert_live_notification(self, guild_id, username, stream_id, started_at, posted_at):
+        self.logger.info(f"Inserting/updating live notification for guild {guild_id}, username {username}, stream_id {stream_id}")
         conn = await self.get_connection('specterdiscordbot')
         if conn is None:
             self.logger.error("Failed to get connection for database: specterdiscordbot")
@@ -161,13 +162,15 @@ class MySQLHelper:
                     (guild_id, username, stream_id, started_at, posted_at)
                 )
                 await conn.commit()
+                self.logger.info(f"Successfully inserted/updated live notification for guild {guild_id}, username {username}")
         except Exception as e:
-            self.logger.error(f"Error inserting/updating live notification: {e}")
+            self.logger.error(f"Error inserting/updating live notification for guild {guild_id}, username {username}: {e}")
         finally:
             if conn:
                 conn.close()
 
     async def delete_live_notification(self, guild_id, username):
+        self.logger.info(f"Deleting live notification for guild {guild_id}, username {username}")
         conn = await self.get_connection('specterdiscordbot')
         if conn is None:
             self.logger.error("Failed to get connection for database: specterdiscordbot")
@@ -178,14 +181,22 @@ class MySQLHelper:
                     "DELETE FROM live_notifications WHERE guild_id = %s AND username = %s",
                     (guild_id, username)
                 )
+                affected_rows = cursor.rowcount
                 await conn.commit()
+                self.logger.info(f"Successfully deleted {affected_rows} live notification(s) for guild {guild_id}, username {username}")
         except Exception as e:
-            self.logger.error(f"Error deleting live notification: {e}")
+            self.logger.error(f"Error deleting live notification for guild {guild_id}, username {username}: {e}")
         finally:
             if conn:
                 conn.close()
 
     async def fetchone(self, query, params=None, database_name='website', dict_cursor=False):
+        # Use INFO level for stream alert queries, DEBUG for others
+        log_level = "info" if "stream_alert_channel_id" in query else "debug"
+        if log_level == "info":
+            self.logger.info(f"Executing fetchone query on {database_name}: {query} with params: {params}")
+        else:
+            self.logger.debug(f"Executing fetchone query on {database_name}: {query} with params: {params}")
         conn = await self.get_connection(database_name)
         if conn is None:
             self.logger.error(f"Failed to get connection for database: {database_name}")
@@ -195,20 +206,29 @@ class MySQLHelper:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
                     await cursor.execute(query, params)
                     row = await cursor.fetchone()
+                    if log_level == "info":
+                        self.logger.info(f"fetchone result: {row}")
+                    else:
+                        self.logger.debug(f"fetchone result: {row}")
                     return row
             else:
                 async with conn.cursor() as cursor:
                     await cursor.execute(query, params)
                     row = await cursor.fetchone()
+                    if log_level == "info":
+                        self.logger.info(f"fetchone result: {row}")
+                    else:
+                        self.logger.debug(f"fetchone result: {row}")
                     return row
         except Exception as e:
-            self.logger.error(f"MySQL fetchone error: {e}")
+            self.logger.error(f"MySQL fetchone error on query '{query}' with params {params}: {e}")
             return None
         finally:
             if conn:
                 conn.close()
 
     async def fetchall(self, query, params=None, database_name='website', dict_cursor=False):
+        self.logger.debug(f"Executing fetchall query on {database_name}: {query} with params: {params}")
         conn = await self.get_connection(database_name)
         if conn is None:
             self.logger.error(f"Failed to get connection for database: {database_name}")
@@ -218,20 +238,23 @@ class MySQLHelper:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
                     await cursor.execute(query, params)
                     rows = await cursor.fetchall()
+                    self.logger.debug(f"fetchall returned {len(rows)} rows")
                     return rows
             else:
                 async with conn.cursor() as cursor:
                     await cursor.execute(query, params)
                     rows = await cursor.fetchall()
+                    self.logger.debug(f"fetchall returned {len(rows)} rows")
                     return rows
         except Exception as e:
-            self.logger.error(f"MySQL fetchall error: {e}")
+            self.logger.error(f"MySQL fetchall error on query '{query}' with params {params}: {e}")
             return []
         finally:
             if conn:
                 conn.close()
 
     async def execute(self, query, params=None, database_name='website'):
+        self.logger.debug(f"Executing query on {database_name}: {query} with params: {params}")
         conn = await self.get_connection(database_name)
         if conn is None:
             self.logger.error(f"Failed to get connection for database: {database_name}")
@@ -240,9 +263,11 @@ class MySQLHelper:
             async with conn.cursor() as cursor:
                 await cursor.execute(query, params)
                 await conn.commit()
-                return cursor.rowcount
+                rowcount = cursor.rowcount
+                self.logger.debug(f"Execute query affected {rowcount} rows")
+                return rowcount
         except Exception as e:
-            self.logger.error(f"MySQL execute error: {e}")
+            self.logger.error(f"MySQL execute error on query '{query}' with params {params}: {e}")
             return None
         finally:
             if conn:
@@ -263,12 +288,18 @@ class WebsocketListener:
         @self.specterSocket.event
         async def connect():
             self.logger.info("Connected to websocket server")
-            await self.specterSocket.emit("REGISTER", {
-                "code": admin_key,
-                "global_listener": True,
-                "channel": "Global",
-                "name": "Discord Bot Global Listener"
-            })
+            try:
+                registration_data = {
+                    "code": admin_key,
+                    "global_listener": True,
+                    "channel": "Global",
+                    "name": "Discord Bot Global Listener"
+                }
+                self.logger.info(f"Sending REGISTER event with data: {registration_data}")
+                await self.specterSocket.emit("REGISTER", registration_data)
+                self.logger.info("Successfully sent REGISTER event")
+            except Exception as e:
+                self.logger.error(f"Failed to send REGISTER event: {e}")
         # Disconnect event handler
         @self.specterSocket.event
         async def disconnect():
@@ -284,32 +315,62 @@ class WebsocketListener:
         # Event handlers for Twitch Follows
         @self.specterSocket.event
         async def TWITCH_FOLLOW(data):
-            await self.bot.handle_twitch_event("FOLLOW", data)
+            try:
+                self.logger.info(f"Processing TWITCH_FOLLOW event: {data}")
+                await self.bot.handle_twitch_event("FOLLOW", data)
+            except Exception as e:
+                self.logger.error(f"Error handling TWITCH_FOLLOW event: {e}")
         # Event handlers for Twitch Subscription Events
         @self.specterSocket.event
         async def TWITCH_SUB(data):
-            await self.bot.handle_twitch_event("SUBSCRIPTION", data)
+            try:
+                self.logger.info(f"Processing TWITCH_SUB event: {data}")
+                await self.bot.handle_twitch_event("SUBSCRIPTION", data)
+            except Exception as e:
+                self.logger.error(f"Error handling TWITCH_SUB event: {e}")
         # Event handlers for Twitch Bits (Cheer) Events
         @self.specterSocket.event
         async def TWITCH_CHEER(data):
-            await self.bot.handle_twitch_event("CHEER", data)
+            try:
+                self.logger.info(f"Processing TWITCH_CHEER event: {data}")
+                await self.bot.handle_twitch_event("CHEER", data)
+            except Exception as e:
+                self.logger.error(f"Error handling TWITCH_CHEER event: {e}")
         # Event handlers for Twitch Raid Events
         @self.specterSocket.event
         async def TWITCH_RAID(data):
-            await self.bot.handle_twitch_event("RAID", data)
+            try:
+                self.logger.info(f"Processing TWITCH_RAID event: {data}")
+                await self.bot.handle_twitch_event("RAID", data)
+            except Exception as e:
+                self.logger.error(f"Error handling TWITCH_RAID event: {e}")
         # Event handlers for Twitch Stream Online Events
         @self.specterSocket.event
         async def STREAM_ONLINE(data):
-            await self.bot.handle_stream_event("ONLINE", data)
+            try:
+                self.logger.info(f"Processing STREAM_ONLINE event: {data}")
+                await self.bot.handle_stream_event("ONLINE", data)
+            except Exception as e:
+                self.logger.error(f"Error handling STREAM_ONLINE event: {e}")
         # Event handlers for Twitch Stream Offline Events
         @self.specterSocket.event
         async def STREAM_OFFLINE(data):
-            await self.bot.handle_stream_event("OFFLINE", data)
+            try:
+                self.logger.info(f"Processing STREAM_OFFLINE event: {data}")
+                await self.bot.handle_stream_event("OFFLINE", data)
+            except Exception as e:
+                self.logger.error(f"Error handling STREAM_OFFLINE event: {e}")
         # Log all other events generically
         @self.specterSocket.on('*')
         async def catch_all(event, data):
             self.logger.info(f"Received websocket event '{event}': {data}")
-        await self.specterSocket.connect(websocket_url)
+        try:
+            self.logger.info(f"Attempting to connect to websocket: {websocket_url}")
+            await self.specterSocket.connect(websocket_url)
+            self.logger.info("Successfully connected to websocket")
+        except Exception as e:
+            self.logger.error(f"Failed to connect to websocket {websocket_url}: {e}")
+            raise
 
 # Channel mapping class to manage multiple Discord servers
 class ChannelMapping:
@@ -467,15 +528,22 @@ class ChannelMapping:
                 self.mappings = {}
 
     async def get_mapping(self, channel_code):
+        self.logger.debug(f"Getting mapping for channel_code: {channel_code}")
         await self._ready.wait()
         if channel_code in self.mappings:
+            self.logger.debug(f"Found mapping in cache for {channel_code}")
             # Update last_seen_at for active mappings
-            await self._update_last_seen(channel_code)
+            try:
+                await self._update_last_seen(channel_code)
+            except Exception as e:
+                self.logger.warning(f"Failed to update last_seen for {channel_code}: {e}")
             return self.mappings[channel_code]
+        self.logger.debug(f"Mapping not in cache, querying database for {channel_code}")
         try:
             # Check if enhanced schema exists by checking for user_id column
             columns = await self._get_table_columns()
             if 'user_id' in columns:
+                self.logger.debug(f"Using enhanced schema for {channel_code}")
                 # Use enhanced schema
                 row = await self.mysql.fetchone(
                     """SELECT channel_code, user_id, username, twitch_display_name, twitch_user_id,
@@ -487,24 +555,32 @@ class ChannelMapping:
                     (channel_code,), database_name='specterdiscordbot', dict_cursor=True
                 )
             else:
+                self.logger.debug(f"Using basic schema for {channel_code}")
                 # Use basic schema
                 row = await self.mysql.fetchone(
                     "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings WHERE channel_code = %s",
                     (channel_code,), database_name='specterdiscordbot', dict_cursor=True
                 )
         except Exception as e:
-            self.logger.debug(f"Database query failed for {channel_code}: {e}")
+            self.logger.error(f"Database query failed for {channel_code}: {e}")
             row = None
         if row:
             self.mappings[channel_code] = dict(row)
-            await self._update_last_seen(channel_code)
-            self.logger.info(f"Loaded mapping for {channel_code} from database to memory cache")
+            try:
+                await self._update_last_seen(channel_code)
+            except Exception as e:
+                self.logger.warning(f"Failed to update last_seen for {channel_code}: {e}")
+            self.logger.info(f"Loaded mapping for {channel_code} from database to memory cache: guild_id={row.get('guild_id')}, channel_id={row.get('channel_id')}")
             return self.mappings[channel_code]
+        self.logger.info(f"No mapping found in database for {channel_code}, attempting to create from users table")
         # If no mapping found in database, try to create one from users table
         try:
             mapping = await self._create_mapping_from_users_table(channel_code)
             if mapping:
+                self.logger.info(f"Successfully created mapping for {channel_code} from users table")
                 return mapping
+            else:
+                self.logger.warning(f"Failed to create mapping from users table for {channel_code}")
         except Exception as e:
             self.logger.error(f"Error creating mapping from users table for {channel_code}: {e}")
         return None
@@ -663,11 +739,17 @@ class ChannelMapping:
             self.logger.error(f"Error updating Discord info for {channel_code}: {e}")
 
     async def get_fresh_channel_ids(self, guild_id):
+        self.logger.info(f"Getting fresh channel IDs for guild: {guild_id}")
         try:
             discord_info = await self.mysql.fetchone(
                 "SELECT stream_alert_channel_id, moderation_channel_id, alert_channel_id FROM discord_users WHERE guild_id = %s",
                 (guild_id,), database_name='website', dict_cursor=True)
-            return discord_info if discord_info else {}
+            if discord_info:
+                self.logger.info(f"Fresh channel IDs for guild {guild_id}: {discord_info}")
+                return discord_info
+            else:
+                self.logger.warning(f"No discord_users record found for guild {guild_id}")
+                return {}
         except Exception as e:
             self.logger.error(f"Error getting fresh channel IDs for guild {guild_id}: {e}")
             return {}
@@ -836,33 +918,73 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             self.logger.error(f"Failed to update Discord bot version file: {e}")
         # Auto-populate missing channel mappings from users table
-        await self.channel_mapping.populate_missing_mappings_from_users(self)
+        try:
+            self.logger.info("Auto-populating missing channel mappings from users table")
+            await self.channel_mapping.populate_missing_mappings_from_users(self)
+            self.logger.info("Successfully auto-populated channel mappings")
+        except Exception as e:
+            self.logger.error(f"Failed to auto-populate channel mappings: {e}")
         # Set the initial presence and check stream status for each guild
+        self.logger.info(f"Processing {len(self.guilds)} guilds for initial setup")
         for guild in self.guilds:
-            # Automatic mapping: get Twitch display name from SQL
-            resolver = DiscordChannelResolver(self.logger)
-            discord_info = await resolver.get_discord_info_from_guild_id(guild.id)
-            if discord_info:
-                twitch_display_name = discord_info.get('twitch_display_name', guild.name)
-                channel_key = twitch_display_name.lower().replace(' ', '')
-                # Combine mapping and status into a single log entry
-                online = self.read_stream_status(channel_key)
-                self.logger.info(
-                    f"Guild '{guild.name}' (ID: {guild.id}) auto-mapped to Twitch user '{twitch_display_name}', "
-                    f"stream is {'online' if online else 'offline'} for channel key '{channel_key}'."
-                )
-        await self.update_presence()
-        await self.add_cog(QuoteCog(self, config.api_token, self.logger))
-        ticket_cog = TicketCog(self, self.logger)
-        await self.add_cog(ticket_cog)
-        await ticket_cog.init_ticket_database()
-        await self.add_cog(VoiceCog(self, self.logger))
-        await self.add_cog(StreamerPostingCog(self, self.logger))
-        await self.add_cog(AdminCog(self, self.logger))
+            try:
+                # Automatic mapping: get Twitch display name from SQL
+                resolver = DiscordChannelResolver(self.logger)
+                discord_info = await resolver.get_discord_info_from_guild_id(guild.id)
+                if discord_info:
+                    twitch_display_name = discord_info.get('twitch_display_name', guild.name)
+                    channel_key = twitch_display_name.lower().replace(' ', '')
+                    # Combine mapping and status into a single log entry
+                    online = self.read_stream_status(channel_key)
+                    self.logger.info(
+                        f"Guild '{guild.name}' (ID: {guild.id}) auto-mapped to Twitch user '{twitch_display_name}', "
+                        f"stream is {'online' if online else 'offline'} for channel key '{channel_key}'."
+                    )
+                else:
+                    self.logger.warning(f"No Discord info found for guild '{guild.name}' (ID: {guild.id})")
+            except Exception as e:
+                self.logger.error(f"Error processing guild '{guild.name}' (ID: {guild.id}): {e}")
+        try:
+            await self.update_presence()
+            self.logger.info("Successfully updated bot presence")
+        except Exception as e:
+            self.logger.error(f"Failed to update bot presence: {e}")
+        # Add cogs with error handling
+        try:
+            await self.add_cog(QuoteCog(self, config.api_token, self.logger))
+            self.logger.info("Successfully added QuoteCog")
+        except Exception as e:
+            self.logger.error(f"Failed to add QuoteCog: {e}")
+        try:
+            ticket_cog = TicketCog(self, self.logger)
+            await self.add_cog(ticket_cog)
+            await ticket_cog.init_ticket_database()
+            self.logger.info("Successfully added TicketCog and initialized database")
+        except Exception as e:
+            self.logger.error(f"Failed to add TicketCog or initialize database: {e}")
+        try:
+            await self.add_cog(VoiceCog(self, self.logger))
+            self.logger.info("Successfully added VoiceCog")
+        except Exception as e:
+            self.logger.error(f"Failed to add VoiceCog: {e}")
+        try:
+            await self.add_cog(StreamerPostingCog(self, self.logger))
+            self.logger.info("Successfully added StreamerPostingCog")
+        except Exception as e:
+            self.logger.error(f"Failed to add StreamerPostingCog: {e}")
+        try:
+            await self.add_cog(AdminCog(self, self.logger))
+            self.logger.info("Successfully added AdminCog")
+        except Exception as e:
+            self.logger.error(f"Failed to add AdminCog: {e}")
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
-        self.websocket_listener = WebsocketListener(self, self.logger)
-        asyncio.create_task(self.websocket_listener.start())
+        try:
+            self.websocket_listener = WebsocketListener(self, self.logger)
+            asyncio.create_task(self.websocket_listener.start())
+            self.logger.info("Successfully started websocket listener")
+        except Exception as e:
+            self.logger.error(f"Failed to start websocket listener: {e}")
 
     async def setup_hook(self):
         # Sync the slash commands when the bot starts
@@ -1288,20 +1410,36 @@ class BotOfTheSpecter(commands.Bot):
         if not mapping:
             # Enhanced error message with debugging info
             total_mappings = len(self.channel_mapping.mappings)
-            self.logger.warning(f"No Discord mapping found for channel code: {channel_code} (total mappings: {total_mappings})")
+            self.logger.warning(f"No Discord mapping found for channel code: {channel_code} (total mappings: {total_mappings}) - continuing with minimal processing")
             if total_mappings > 0:
                 sample_codes = list(self.channel_mapping.mappings.keys())[:3]  # Show first 3 as sample
                 self.logger.info(f"Sample existing channel codes: {sample_codes}")
+            # Try to log the event even without mapping
+            try:
+                self.logger.info(f"Unmapped event {event_type} occurred for channel_code: {channel_code}")
+            except Exception as e:
+                self.logger.error(f"Exception during minimal event logging: {e}")
             return
         # Increment event counter
         await self.channel_mapping.increment_event_count(channel_code, event_type)
         try:
             guild = self.get_guild(int(mapping["guild_id"]))
         except (ValueError, TypeError):
-            self.logger.error(f"Invalid guild_id '{mapping['guild_id']}' for channel {channel_code}")
+            self.logger.error(f"Invalid guild_id '{mapping['guild_id']}' for channel {channel_code} - continuing with event tracking")
+            # Still increment event counter despite invalid guild_id
+            try:
+                await self.channel_mapping.increment_event_count(channel_code, event_type)
+            except Exception as e:
+                self.logger.error(f"Failed to increment event count for {channel_code}: {e}")
             return
         if not guild:
-            self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel {channel_code}")
+            self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel {channel_code} - continuing with cache updates")
+            # Still update event counter and cache info
+            try:
+                await self.channel_mapping.increment_event_count(channel_code, event_type)
+                await self.channel_mapping.update_discord_info(channel_code, f"GUILD_NOT_FOUND_{mapping['guild_id']}", "UNKNOWN_CHANNEL")
+            except Exception as e:
+                self.logger.error(f"Failed to update cache for unmapped guild {channel_code}: {e}")
             return
         # Always check database first to ensure we have the latest channel settings
         guild_id = mapping["guild_id"]
@@ -1312,7 +1450,13 @@ class BotOfTheSpecter(commands.Bot):
         # Always get fresh channel IDs from website database
         fresh_channel_ids = await self.channel_mapping.get_fresh_channel_ids(guild_id)
         if not fresh_channel_ids:
-            self.logger.warning(f"No Discord info found for guild {guild_id}")
+            self.logger.warning(f"No Discord info found for guild {guild_id} - continuing with basic event processing")
+            # Still update event counter and log the event
+            try:
+                await self.channel_mapping.increment_event_count(channel_code, event_type)
+                self.logger.info(f"Processed event {event_type} for {channel_code} despite missing Discord info")
+            except Exception as e:
+                self.logger.error(f"Failed to process basic event for {channel_code}: {e}")
             return
         # Use database values as authoritative source
         stream_alert_channel_id = fresh_channel_ids.get("stream_alert_channel_id")
@@ -1331,27 +1475,47 @@ class BotOfTheSpecter(commands.Bot):
         mention_everyone = False
         if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID"]:
             if not alert_channel_id:
-                self.logger.warning(f"No alert_channel_id for {event_type} event in guild {guild_id}")
+                self.logger.warning(f"No alert_channel_id for {event_type} event in guild {guild_id} - continuing with event tracking only")
+                try:
+                    await self.channel_mapping.increment_event_count(channel_code, event_type)
+                except Exception as e:
+                    self.logger.error(f"Failed to track event {event_type} for {channel_code}: {e}")
                 return
             channel_id = alert_channel_id
         elif event_type in ["ONLINE", "OFFLINE"]:
             if not stream_alert_channel_id:
-                self.logger.warning(f"No stream_alert_channel_id for {event_type} event in guild {guild_id}")
+                self.logger.warning(f"No stream_alert_channel_id for {event_type} event in guild {guild_id} - continuing with event tracking only")
+                try:
+                    await self.channel_mapping.increment_event_count(channel_code, event_type)
+                except Exception as e:
+                    self.logger.error(f"Failed to track event {event_type} for {channel_code}: {e}")
                 return
             channel_id = stream_alert_channel_id
             mention_everyone = True
         elif event_type == "MODERATION":
             if not moderation_channel_id:
-                self.logger.warning(f"No moderation_channel_id for {event_type} event in guild {guild_id}")
+                self.logger.warning(f"No moderation_channel_id for {event_type} event in guild {guild_id} - continuing with event tracking only")
+                try:
+                    await self.channel_mapping.increment_event_count(channel_code, event_type)
+                except Exception as e:
+                    self.logger.error(f"Failed to track event {event_type} for {channel_code}: {e}")
                 return
             channel_id = moderation_channel_id
         try:
             channel = guild.get_channel(int(channel_id))
         except (ValueError, TypeError):
-            self.logger.error(f"Invalid channel_id '{channel_id}' for event {event_type}")
+            self.logger.error(f"Invalid channel_id '{channel_id}' for event {event_type} - continuing with event tracking")
+            try:
+                await self.channel_mapping.increment_event_count(channel_code, event_type)
+            except Exception as e:
+                self.logger.error(f"Failed to track event {event_type} for {channel_code}: {e}")
             return
         if not channel:
-            self.logger.warning(f"Channel {channel_id} not found in guild {guild.name}")
+            self.logger.warning(f"Channel {channel_id} not found in guild {guild.name} - continuing with event tracking")
+            try:
+                await self.channel_mapping.increment_event_count(channel_code, event_type)
+            except Exception as e:
+                self.logger.error(f"Failed to track event {event_type} for {channel_code}: {e}")
             return
         message = await self.format_twitch_message(event_type, data, channel_code)
         if message:
@@ -1421,77 +1585,173 @@ class BotOfTheSpecter(commands.Bot):
         return embed
 
     async def format_discord_embed_timestamp(self, channel_code):
-        mysql_helper = MySQLHelper(self.logger)
-        # Get the username from the website database using the channel_code as api_key
-        user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
-        if not user_row:
-            timezone = 'UTC'
-        else:
-            username = user_row['username']
-            # Query the user's database for the timezone
-            timezone_info = await mysql_helper.fetchone("SELECT timezone FROM profile", (), database_name=username.lower(), dict_cursor=True)
-            if timezone_info and timezone_info.get("timezone"):
-                timezone = timezone_info.get("timezone")
-            else:
+        try:
+            self.logger.debug(f"Formatting timestamp for channel_code: {channel_code}")
+            mysql_helper = MySQLHelper(self.logger)
+            # Get the username from the website database using the channel_code as api_key
+            user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
+            if not user_row:
+                self.logger.warning(f"No user found for channel_code: {channel_code}, using UTC timezone")
                 timezone = 'UTC'
-        tz = pytz.timezone(timezone)
-        current_time = datetime.now(tz)
-        time_format_date = current_time.strftime("%B %d, %Y")
-        time_format_time = current_time.strftime("%I:%M %p")
-        time_format = f"{time_format_date} at {time_format_time}"
-        return time_format
+            else:
+                username = user_row['username']
+                self.logger.debug(f"Found username: {username} for channel_code: {channel_code}")
+                # Query the user's database for the timezone
+                try:
+                    timezone_info = await mysql_helper.fetchone("SELECT timezone FROM profile", (), database_name=username.lower(), dict_cursor=True)
+                    if timezone_info and timezone_info.get("timezone"):
+                        timezone = timezone_info.get("timezone")
+                        self.logger.debug(f"Using user timezone: {timezone} for {username}")
+                    else:
+                        timezone = 'UTC'
+                        self.logger.debug(f"No timezone found for {username}, using UTC")
+                except Exception as e:
+                    self.logger.warning(f"Failed to get timezone for {username}, using UTC: {e}")
+                    timezone = 'UTC'
+            # Format the timestamp
+            try:
+                tz = pytz.timezone(timezone)
+                current_time = datetime.now(tz)
+                time_format_date = current_time.strftime("%B %d, %Y")
+                time_format_time = current_time.strftime("%I:%M %p")
+                time_format = f"{time_format_date} at {time_format_time}"
+                self.logger.debug(f"Formatted timestamp for {channel_code}: {time_format}")
+                return time_format
+            except Exception as e:
+                self.logger.error(f"Error formatting timestamp with timezone {timezone}: {e}, falling back to UTC")
+                current_time = datetime.now(pytz.UTC)
+                time_format_date = current_time.strftime("%B %d, %Y")
+                time_format_time = current_time.strftime("%I:%M %p")
+                time_format = f"{time_format_date} at {time_format_time}"
+                return time_format
+        except Exception as e:
+            self.logger.error(f"Exception in format_discord_embed_timestamp for {channel_code}: {e}")
+            # Fallback to simple UTC timestamp
+            current_time = datetime.now(pytz.UTC)
+            time_format_date = current_time.strftime("%B %d, %Y")
+            time_format_time = current_time.strftime("%I:%M %p")
+            time_format = f"{time_format_date} at {time_format_time}"
+            return time_format
 
     async def get_stream_info(self, channel_name):
-        channel_name = channel_name.lower()
-        mysql_helper = MySQLHelper(self.logger)
-        twitch_user_id = await mysql_helper.fetchone(
-            "SELECT twitch_user_id FROM users WHERE username = %s",
-            (channel_name,), database_name='website', dict_cursor=True
-        )
-        twitch_user_id = twitch_user_id["twitch_user_id"]
-        auth_token = await mysql_helper.fetchone(
-            "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
-            (twitch_user_id,), database_name='website', dict_cursor=True
-        )
-        auth_token = auth_token['twitch_access_token']
-        async with aiohttp.ClientSession() as session:
-            headers = {"Client-ID": config.twitch_client_id,"Authorization": f"Bearer {auth_token}"}
-            async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    stream_data = data.get("data", [{}])[0]
-                    thumbnail_url = stream_data.get("thumbnail_url")
-                    if thumbnail_url:
-                        thumbnail_url = thumbnail_url.replace("{width}x{height}", "1280x720")
-                    game_name = stream_data.get("game_name", "Unknown Game")
-                    return thumbnail_url, game_name
-                else:
-                    self.logger.error(f"Failed to fetch stream info: {resp.status}")
-                    return None, "Unknown Game"
+        try:
+            channel_name = channel_name.lower()
+            self.logger.info(f"Fetching stream info for channel: {channel_name}")
+            mysql_helper = MySQLHelper(self.logger)
+            # Get Twitch user ID
+            user_result = await mysql_helper.fetchone(
+                "SELECT twitch_user_id FROM users WHERE username = %s",
+                (channel_name,), database_name='website', dict_cursor=True
+            )
+            if not user_result or not user_result.get("twitch_user_id"):
+                self.logger.error(f"No twitch_user_id found for username: {channel_name}")
+                return None, "Unknown Game"
+            twitch_user_id = user_result["twitch_user_id"]
+            self.logger.debug(f"Found twitch_user_id: {twitch_user_id} for channel: {channel_name}")
+            # Get auth token
+            auth_result = await mysql_helper.fetchone(
+                "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
+                (twitch_user_id,), database_name='website', dict_cursor=True
+            )
+            if not auth_result or not auth_result.get('twitch_access_token'):
+                self.logger.error(f"No twitch_access_token found for twitch_user_id: {twitch_user_id}")
+                return None, "Unknown Game"
+            auth_token = auth_result['twitch_access_token']
+            self.logger.debug(f"Retrieved auth token for twitch_user_id: {twitch_user_id}")
+            # Make Twitch API request
+            async with aiohttp.ClientSession() as session:
+                headers = {"Client-ID": config.twitch_client_id, "Authorization": f"Bearer {auth_token}"}
+                url = f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1"
+                self.logger.debug(f"Making Twitch API request to: {url}")
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        stream_data_list = data.get("data", [])
+                        if stream_data_list:
+                            stream_data = stream_data_list[0]
+                            thumbnail_url = stream_data.get("thumbnail_url")
+                            if thumbnail_url:
+                                thumbnail_url = thumbnail_url.replace("{width}x{height}", "1280x720")
+                            game_name = stream_data.get("game_name", "Unknown Game")
+                            self.logger.info(f"Successfully fetched stream info for {channel_name}: game={game_name}")
+                            return thumbnail_url, game_name
+                        else:
+                            self.logger.warning(f"No stream data found for {channel_name} (stream may be offline)")
+                            return None, "Unknown Game"
+                    else:
+                        error_text = await resp.text()
+                        self.logger.error(f"Failed to fetch stream info for {channel_name}: {resp.status} - {error_text}")
+                        return None, "Unknown Game"
+                        
+        except Exception as e:
+            self.logger.error(f"Exception in get_stream_info for {channel_name}: {e}")
+            return None, "Unknown Game"
 
     async def handle_stream_event(self, event_type, data):
         code = data.get("channel_code", "unknown")
         self.logger.info(f"Processing {event_type} event for channel_code: {code}")
+        self.logger.debug(f"Full event data: {data}")
         # Use enhanced caching system - this will auto-create mapping if needed
+        self.logger.info(f"Fetching mapping for channel_code: {code}")
         mapping = await self.channel_mapping.get_mapping(code)
         if not mapping:
-            self.logger.warning(f"Could not resolve mapping for channel_code: {code}")
+            self.logger.warning(f"Could not resolve mapping for channel_code: {code} - continuing with limited processing")
+            # Try to continue with basic event tracking even without full mapping
+            try:
+                # At minimum, we can log the event occurred
+                self.logger.info(f"Event {event_type} occurred for unmapped channel_code: {code}")
+            except Exception as e:
+                self.logger.error(f"Exception during minimal processing for {code}: {e}")
             return
+        self.logger.info(f"Found mapping for {code}: guild_id={mapping.get('guild_id')}, channel_id={mapping.get('channel_id')}")
         # Increment event counter
+        self.logger.info(f"Incrementing event count for {code} with event_type: {event_type}")
         await self.channel_mapping.increment_event_count(code, event_type)
+        self.logger.info(f"Looking up guild {mapping['guild_id']} for channel_code {code}")
         guild = self.get_guild(int(mapping["guild_id"]))
         if not guild:
-            self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel_code {code}")
+            self.logger.warning(f"Bot not in guild {mapping['guild_id']} for channel_code {code} - continuing with cache update only")
+            # Update event counter even if not in guild
+            try:
+                await self.channel_mapping.increment_event_count(code, event_type)
+                self.logger.info(f"Updated event count for {code} despite guild not found")
+                await self.channel_mapping.update_discord_info(code, f"GUILD_NOT_FOUND_{mapping['guild_id']}", "UNKNOWN_CHANNEL")
+            except Exception as e:
+                self.logger.error(f"Exception during guild-less processing for {code}: {e}")
             return
+        self.logger.info(f"Found guild: {guild.name} (ID: {guild.id})")
+        self.logger.info(f"Looking up channel {mapping['channel_id']} in guild {guild.name}")
         channel = guild.get_channel(int(mapping["channel_id"]))
         if not channel:
-            self.logger.warning(f"Channel {mapping['channel_id']} not found in guild {guild.name}")
+            self.logger.warning(f"Channel {mapping['channel_id']} not found in guild {guild.name} - continuing with partial processing")
+            # Continue with operations that don't require the specific channel
+            try:
+                await self.channel_mapping.increment_event_count(code, event_type)
+                await self.channel_mapping.update_discord_info(code, guild.name, f"CHANNEL_NOT_FOUND_{mapping['channel_id']}")
+                self.logger.info(f"Updated cache info for {code} despite channel not found")
+                
+                # Still try to send stream alerts if this is an ONLINE event
+                if event_type == "ONLINE":
+                    self.logger.info(f"Channel not found but attempting stream alert processing for {code}")
+                    fresh_channel_ids = await self.channel_mapping.get_fresh_channel_ids(guild.id)
+                    stream_channel_id = fresh_channel_ids.get("stream_alert_channel_id") if fresh_channel_ids else None
+                    if stream_channel_id:
+                        self.logger.info(f"Found stream_alert_channel_id {stream_channel_id}, attempting notification despite main channel missing")
+                        # Jump to stream alert processing
+                        await self._process_stream_alert(guild, code, stream_channel_id, event_type)
+                    else:
+                        self.logger.info(f"No stream alert channel configured for guild {guild.id}")
+            except Exception as e:
+                self.logger.error(f"Exception during partial processing for {code}: {e}")
             return
+        self.logger.info(f"Found channel: #{channel.name} (ID: {channel.id})")
         # Update Discord info in cache
+        self.logger.info(f"Updating Discord info in cache for {code}")
         await self.channel_mapping.update_discord_info(code, guild.name, channel.name)
         # Use cached message text or defaults
         online_text = mapping.get("online_text") or "Stream is now LIVE!"
         offline_text = mapping.get("offline_text") or "Stream is now OFFLINE"
+        self.logger.info(f"Message texts - Online: '{online_text}', Offline: '{offline_text}'")
         # Set message and channel name based on event_type
         if event_type == "ONLINE":
             message = online_text
@@ -1499,7 +1759,13 @@ class BotOfTheSpecter(commands.Bot):
         else:
             message = offline_text
             channel_update = f"🔴 {message}"
-        await channel.send(channel_update)
+        self.logger.info(f"Sending message to #{channel.name}: '{channel_update}'")
+        try:
+            await channel.send(channel_update)
+            self.logger.info(f"Successfully sent message to #{channel.name}")
+        except Exception as e:
+            self.logger.error(f"Failed to send message to #{channel.name}: {e} - continuing with other operations")
+            # Don't return here, continue with stream alerts and other processing
         # Send notification to stream_channel_id for online events
         # Always check database first to ensure we have the latest channel settings
         databases_checked = []
@@ -1514,39 +1780,63 @@ class BotOfTheSpecter(commands.Bot):
         databases_checked.append(f"website: {website_channel_id}")
         # Use database value as the authoritative source
         stream_channel_id = website_channel_id
+        self.logger.info(f"Final stream_channel_id decision for {code}: {stream_channel_id} (type: {type(stream_channel_id)})")
         # Log if cache differs from database
         if cached_channel_id != website_channel_id:
             self.logger.info(f"Cache mismatch detected for {code}: cache={cached_channel_id}, database={website_channel_id}")
+        # Log the condition check
+        self.logger.info(f"Checking live notification condition: event_type='{event_type}' (is ONLINE: {event_type == 'ONLINE'}), stream_channel_id='{stream_channel_id}' (is truthy: {bool(stream_channel_id)})")
         if event_type == "ONLINE" and stream_channel_id:
             self.logger.info(f"Sending live notification for {code} to stream_channel_id {stream_channel_id}")
-            stream_channel = guild.get_channel(int(stream_channel_id))
+            try:
+                stream_channel_id_int = int(stream_channel_id)
+                self.logger.info(f"Looking up stream channel with ID: {stream_channel_id_int}")
+                stream_channel = guild.get_channel(stream_channel_id_int)
+            except (ValueError, TypeError) as e:
+                self.logger.error(f"Invalid stream_channel_id '{stream_channel_id}': {e}")
+                stream_channel = None
             if stream_channel:
-                self.logger.info(f"Stream channel found: {stream_channel.name}")
+                self.logger.info(f"Stream channel found: #{stream_channel.name} (ID: {stream_channel.id})")
+                self.logger.info(f"Fetching user data for channel_code: {code}")
                 mysql_helper = MySQLHelper(self.logger)
                 user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (code,), database_name='website', dict_cursor=True)
                 account_username = user_row['username'] if user_row else "Unknown User"
+                self.logger.info(f"Found account username: {account_username}")
                 # Get stream alert settings from database
+                self.logger.info(f"Fetching stream alert settings for guild {guild.id}")
                 discord_info = await mysql_helper.fetchone(
                     "SELECT stream_alert_everyone, stream_alert_custom_role FROM discord_users WHERE guild_id = %s",
                     (guild.id,), database_name='website', dict_cursor=True)
                 mention_text = ""
                 if discord_info:
+                    self.logger.info(f"Discord info found: stream_alert_everyone={discord_info.get('stream_alert_everyone')}, stream_alert_custom_role={discord_info.get('stream_alert_custom_role')}")
                     if discord_info.get('stream_alert_everyone') == 1:
                         mention_text = "@everyone "
+                        self.logger.info("Setting mention to @everyone")
                     elif discord_info.get('stream_alert_custom_role'):
                         try:
                             role_id = int(discord_info['stream_alert_custom_role'])
+                            self.logger.info(f"Looking up custom role with ID: {role_id}")
                             role = guild.get_role(role_id)
                             if role:
                                 mention_text = f"{role.mention} "
+                                self.logger.info(f"Setting mention to role: {role.name}")
+                            else:
+                                self.logger.warning(f"Custom role ID {role_id} not found in guild {guild.id}")
                         except (ValueError, TypeError):
                             self.logger.warning(f"Invalid custom role ID for guild {guild.id}: {discord_info['stream_alert_custom_role']}")
-                self.logger.info(f"Mention text for {account_username}: '{mention_text}'")
+                else:
+                    self.logger.info("No discord_info found for guild")
+                self.logger.info(f"Final mention text for {account_username}: '{mention_text}'")
                 # Get stream info (thumbnail and game)
+                self.logger.info(f"Fetching stream info for {account_username}")
                 thumbnail_url, game_name = await self.get_stream_info(account_username)
+                self.logger.info(f"Stream info - Game: {game_name}, Thumbnail: {thumbnail_url}")
                 # Get current date for footer
+                self.logger.info(f"Formatting timestamp for {code}")
                 current_date = await self.format_discord_embed_timestamp(code)
                 # Create embed
+                self.logger.info(f"Creating embed for {account_username}")
                 embed = discord.Embed(
                     title=f"{account_username} is now live on Twitch!",
                     url=f"https://twitch.tv/{account_username}",
@@ -1554,27 +1844,86 @@ class BotOfTheSpecter(commands.Bot):
                     color=discord.Color.from_rgb(145, 70, 255)
                 )
                 # Set thumbnail if available
-                embed.set_thumbnail(url=thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg")
+                thumbnail_to_use = thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
+                embed.set_thumbnail(url=thumbnail_to_use)
+                self.logger.info(f"Using thumbnail: {thumbnail_to_use}")
                 # Set footer
                 embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
-                await stream_channel.send(content=mention_text, embed=embed)
-                self.logger.info(f"Sent live notification with mention for {account_username} in guild {guild.id}")
+                self.logger.info(f"Sending live notification to #{stream_channel.name} with mention: '{mention_text.strip() or 'none'}'")
+                try:
+                    await stream_channel.send(content=mention_text, embed=embed)
+                    self.logger.info(f"Successfully sent live notification with mention for {account_username} in guild {guild.id}")
+                except Exception as e:
+                    self.logger.error(f"Failed to send live notification to #{stream_channel.name}: {e}")
             else:
                 self.logger.warning(f"Stream channel not found for id {stream_channel_id} in guild {guild.id}")
+                self.logger.info(f"Available channels in guild {guild.name}: {[f'#{c.name} ({c.id})' for c in guild.channels if hasattr(c, 'name')]}")
         else:
             # Log exactly what was checked and found
             databases_info = " | ".join(databases_checked)
             self.logger.info(f"No live notification sent for {code} - event_type: {event_type}, final_stream_channel_id: {stream_channel_id}, databases_checked: [{databases_info}]")
         # Attempt to update the channel name if it is different
+        self.logger.info(f"Checking channel name update: current='{channel.name}' vs target='{channel_update}'")
         if channel.name != channel_update:
+            self.logger.info(f"Channel name needs updating from '{channel.name}' to '{channel_update}'")
             try:
                 await channel.edit(name=channel_update, reason="Stream status update")
-                self.logger.info(f"Updated channel name to '{channel_update}' for stream {event_type}")
+                self.logger.info(f"Successfully updated channel name to '{channel_update}' for stream {event_type}")
             except Exception as e:
-                self.logger.error(f"Failed to update channel name: {e}")
+                self.logger.error(f"Failed to update channel name from '{channel.name}' to '{channel_update}': {e}")
             self.logger.info(f"Set status to \"{event_type}\" for {guild.name}#{channel.name}")
         else:
             self.logger.info(f"Status not set to \"{event_type}\" for {guild.name}#{channel.name} - channel name already matches \"{channel_update}\"")
+        self.logger.info(f"Completed processing {event_type} event for channel_code: {code}")
+
+    async def _process_stream_alert(self, guild, code, stream_channel_id, event_type):
+        try:
+            self.logger.info(f"Processing stream alert for {code} in guild {guild.id}")
+            stream_channel_id_int = int(stream_channel_id)
+            stream_channel = guild.get_channel(stream_channel_id_int)
+            if not stream_channel:
+                self.logger.warning(f"Stream alert channel {stream_channel_id} not found in guild {guild.id}")
+                return
+            self.logger.info(f"Found stream alert channel: #{stream_channel.name} (ID: {stream_channel.id})")
+            # Get user info
+            mysql_helper = MySQLHelper(self.logger)
+            user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (code,), database_name='website', dict_cursor=True)
+            account_username = user_row['username'] if user_row else "Unknown User"
+            self.logger.info(f"Stream alert for account: {account_username}")
+            # Get stream alert settings
+            discord_info = await mysql_helper.fetchone(
+                "SELECT stream_alert_everyone, stream_alert_custom_role FROM discord_users WHERE guild_id = %s",
+                (guild.id,), database_name='website', dict_cursor=True)
+            mention_text = ""
+            if discord_info:
+                if discord_info.get('stream_alert_everyone') == 1:
+                    mention_text = "@everyone "
+                elif discord_info.get('stream_alert_custom_role'):
+                    try:
+                        role_id = int(discord_info['stream_alert_custom_role'])
+                        role = guild.get_role(role_id)
+                        if role:
+                            mention_text = f"{role.mention} "
+                    except (ValueError, TypeError):
+                        self.logger.warning(f"Invalid custom role ID: {discord_info['stream_alert_custom_role']}")
+            # Get stream info
+            thumbnail_url, game_name = await self.get_stream_info(account_username)
+            current_date = await self.format_discord_embed_timestamp(code)
+            # Create embed
+            embed = discord.Embed(
+                title=f"{account_username} is now live on Twitch!",
+                url=f"https://twitch.tv/{account_username}",
+                description=f"Stream is now online! Streaming: {game_name}",
+                color=discord.Color.from_rgb(145, 70, 255)
+            )
+            thumbnail_to_use = thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
+            embed.set_thumbnail(url=thumbnail_to_use)
+            embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
+            # Send notification
+            await stream_channel.send(content=mention_text, embed=embed)
+            self.logger.info(f"Successfully sent stream alert for {account_username} to #{stream_channel.name}")
+        except Exception as e:
+            self.logger.error(f"Exception in _process_stream_alert for {code}: {e}")
 
 # QuoteCog class for fetching and sending public quotes
 class QuoteCog(commands.Cog, name='Quote'):
@@ -4218,26 +4567,50 @@ class DiscordBotRunner:
                 self.loop.stop()
 
     def run(self):
+        self.logger.info("Starting bot runner")
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         try:
+            self.logger.info("Running bot initialization")
             self.loop.run_until_complete(self.initialize_bot())
         except asyncio.CancelledError:
             self.logger.error("BotRunner task was cancelled.")
+        except Exception as e:
+            self.logger.error(f"Unexpected error in bot runner: {e}")
         finally:
-            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            self.logger.info("Bot runner shutting down")
+            try:
+                self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            except Exception as e:
+                self.logger.error(f"Error during shutdown: {e}")
             self.loop.close()
 
     async def initialize_bot(self):
-        self.bot = BotOfTheSpecter(self.discord_token, self.logger)
-        await self.bot.start(self.discord_token)
+        try:
+            self.logger.info("Initializing BotOfTheSpecter Discord Bot")
+            self.bot = BotOfTheSpecter(self.discord_token, self.logger)
+            self.logger.info("Bot instance created, starting connection to Discord")
+            await self.bot.start(self.discord_token)
+        except Exception as e:
+            self.logger.error(f"Failed to initialize bot: {e}")
+            raise
 
 def main():
-    bot_log_file = os.path.join(config.discord_logs, f"discordbot.txt")
-    discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
-    discord_logger.info(f"Starting BotOfTheSpecter Discord Bot version {config.bot_version}")
-    bot_runner = DiscordBotRunner(discord_logger)
-    bot_runner.run()
+    try:
+        bot_log_file = os.path.join(config.discord_logs, f"discordbot.txt")
+        discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
+        discord_logger.info(f"Starting BotOfTheSpecter Discord Bot version {config.bot_version}")
+        # Log configuration details
+        discord_logger.info(f"Log file: {bot_log_file}")
+        discord_logger.info(f"Websocket URL: {config.websocket_url}")
+        discord_logger.info(f"API Base URL: {config.api_base_url}")
+        bot_runner = DiscordBotRunner(discord_logger)
+        bot_runner.run()
+    except Exception as e:
+        print(f"Fatal error in main(): {e}")
+        if 'discord_logger' in locals():
+            discord_logger.error(f"Fatal error in main(): {e}")
+        raise
 
 if __name__ == "__main__":
     main()
