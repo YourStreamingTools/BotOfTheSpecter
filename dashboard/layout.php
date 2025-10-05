@@ -656,9 +656,9 @@ function uuidv4() {
 <!-- Custom Uptime Script -->
 <script src="https://uptime.botofthespecter.com/en/cca64861/widget/script.js"></script>
 <!-- Custom JS -->
-<script src="js/dashboard.js"></script>
-<script src="/js/search.js"></script>
-<script src="/js/bulmaModals.js"></script>
+<script src="js/dashboard.js?v=<?php echo uuidv4(); ?>"></script>
+<script src="/js/search.js?v=<?php echo uuidv4(); ?>"></script>
+<script src="/js/bulmaModals.js?v=<?php echo uuidv4(); ?>"></script>
 <?php echo $scripts; ?>
 <?php include_once "usr_database.php"; ?>
 <script>
