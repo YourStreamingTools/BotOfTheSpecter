@@ -983,27 +983,36 @@ input[type="range"].modern-volume::-ms-tooltip {
 }
 
 /* Sidebar-specific page styling */
-/* Default: Hide sidebar, show navbar (for mobile/tablet) */
-.sidebar-nav {
-    position: fixed;
-    top: 0;
-    left: -9999px;
-    height: 0;
-    width: 0;
+/* Default: Hide sidebar (will be shown on desktop only), show navbar (mobile/tablet) */
+.desktop-only,
+aside.sidebar-nav,
+.sidebar-nav,
+#sidebarNav {
+    position: fixed !important;
+    top: 0 !important;
+    left: -99999px !important;
+    height: 0 !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    min-width: 0 !important;
     background-color: #1e2128;
-    transition: none;
+    transition: none !important;
     overflow: hidden !important;
-    z-index: -1;
-    box-shadow: none;
+    z-index: -9999 !important;
+    box-shadow: none !important;
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
     pointer-events: none !important;
 }
 
-/* Ensure navbar shows by default on pages with sidebar */
-body:has(.sidebar-nav) .navbar {
+/* Ensure navbar shows by default on mobile/tablet */
+.mobile-only,
+nav.navbar,
+nav.top-navbar,
+#topNavbar {
     display: flex !important;
+    visibility: visible !important;
 }
 
 .sidebar-nav::-webkit-scrollbar-x {
@@ -1444,15 +1453,22 @@ body:has(.sidebar-nav) .navbar {
     margin: 0 auto;
 }
 
-/* Desktop - Show sidebar, hide top navbar (only on pages with sidebar) */
+/* Desktop - Show sidebar, hide top navbar */
 @media screen and (min-width: 1024px) {
-    .sidebar-nav {
+    /* SHOW SIDEBAR ON DESKTOP */
+    .desktop-only,
+    aside.sidebar-nav,
+    .sidebar-nav,
+    #sidebarNav {
         display: flex !important;
         flex-direction: column !important;
         position: fixed !important;
         left: 0 !important;
+        top: 0 !important;
         height: 100vh !important;
         width: var(--sidebar-width) !important;
+        max-width: var(--sidebar-width) !important;
+        min-width: var(--sidebar-width) !important;
         overflow: hidden !important;
         z-index: 1000 !important;
         box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3) !important;
@@ -1460,17 +1476,53 @@ body:has(.sidebar-nav) .navbar {
         opacity: 1 !important;
         pointer-events: auto !important;
         transition: width 0.3s ease !important;
+        background-color: #1e2128 !important;
     }
     
-    body:has(.sidebar-nav) .navbar {
+    /* Collapsed state */
+    aside.sidebar-nav.collapsed,
+    .sidebar-nav.collapsed,
+    #sidebarNav.collapsed {
+        width: var(--sidebar-collapsed-width) !important;
+        max-width: var(--sidebar-collapsed-width) !important;
+        min-width: var(--sidebar-collapsed-width) !important;
+    }
+    
+    /* HIDE NAVBAR ON DESKTOP */
+    .mobile-only,
+    nav.navbar,
+    nav.top-navbar,
+    #topNavbar {
         display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        height: 0 !important;
+        max-height: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        left: -99999px !important;
+        pointer-events: none !important;
     }
     
     .page-content {
         margin-left: var(--sidebar-width);
+        transition: margin-left 0.3s ease;
     }
     
-    .sidebar-nav.collapsed ~ .page-content {
+    aside.sidebar-nav.collapsed ~ .page-content,
+    .sidebar-nav.collapsed ~ .page-content,
+    #sidebarNav.collapsed ~ .page-content {
+        margin-left: var(--sidebar-collapsed-width);
+    }
+    
+    .footer {
+        margin-left: var(--sidebar-width);
+        transition: margin-left 0.3s ease;
+    }
+    
+    aside.sidebar-nav.collapsed ~ * .footer,
+    .sidebar-nav.collapsed ~ * .footer,
+    #sidebarNav.collapsed ~ * .footer {
         margin-left: var(--sidebar-collapsed-width);
     }
     
@@ -1487,47 +1539,98 @@ body:has(.sidebar-nav) .navbar {
 
 /* Tablet - Hide sidebar, show top navbar */
 @media screen and (min-width: 769px) and (max-width: 1023px) {
-    .sidebar-nav {
+    /* HIDE SIDEBAR ON TABLET */
+    .desktop-only,
+    .desktop-only *,
+    aside.sidebar-nav,
+    aside.sidebar-nav *,
+    .sidebar-nav,
+    .sidebar-nav *,
+    #sidebarNav,
+    #sidebarNav * {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
         pointer-events: none !important;
         width: 0 !important;
         height: 0 !important;
+        max-width: 0 !important;
+        max-height: 0 !important;
         overflow: hidden !important;
         position: absolute !important;
-        left: -9999px !important;
+        left: -99999px !important;
+        top: -99999px !important;
+        z-index: -9999 !important;
     }
     
     .page-content {
         margin-left: 0 !important;
     }
     
-    .navbar {
+    /* SHOW NAVBAR ON TABLET */
+    .mobile-only,
+    nav.navbar,
+    nav.top-navbar,
+    #topNavbar {
         display: flex !important;
+        visibility: visible !important;
+        position: relative !important;
+        left: 0 !important;
+        opacity: 1 !important;
     }
 }
 
-/* Mobile - Hide sidebar, show top navbar */
-@media screen and (max-width: 768px) {
-    .sidebar-nav {
+/* Mobile & Tablet - Hide sidebar, show top navbar (EVERYTHING UNDER 1024px) */
+@media screen and (max-width: 1023px) {
+    /* COMPLETELY HIDE SIDEBAR ON MOBILE AND TABLET */
+    .desktop-only,
+    .desktop-only *,
+    aside.sidebar-nav,
+    aside.sidebar-nav *,
+    .sidebar-nav,
+    .sidebar-nav *,
+    #sidebarNav,
+    #sidebarNav *,
+    .sidebar-header,
+    .sidebar-header *,
+    .sidebar-content-wrapper,
+    .sidebar-content-wrapper *,
+    .sidebar-menu,
+    .sidebar-menu * {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
         pointer-events: none !important;
         width: 0 !important;
         height: 0 !important;
+        max-width: 0 !important;
+        max-height: 0 !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
         overflow: hidden !important;
         position: absolute !important;
-        left: -9999px !important;
+        left: -99999px !important;
+        top: -99999px !important;
+        z-index: -9999 !important;
+        clip: rect(0,0,0,0) !important;
+        clip-path: inset(50%) !important;
+        white-space: nowrap !important;
     }
     
     .page-content {
         margin-left: 0 !important;
     }
     
-    .navbar {
+    /* SHOW NAVBAR ON MOBILE */
+    .mobile-only,
+    nav.navbar,
+    nav.top-navbar,
+    #topNavbar {
         display: flex !important;
+        visibility: visible !important;
+        position: relative !important;
+        left: 0 !important;
+        opacity: 1 !important;
     }
 }
 
