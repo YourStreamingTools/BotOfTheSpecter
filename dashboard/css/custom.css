@@ -1014,6 +1014,32 @@ body:has(.sidebar-nav) .navbar {
     overflow-x: hidden;
 }
 
+/* Wrapper for scrollable content */
+.sidebar-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.sidebar-content-wrapper::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-content-wrapper::-webkit-scrollbar-track {
+    background: #1e2128;
+}
+
+.sidebar-content-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+.sidebar-content-wrapper::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
 .sidebar-nav.collapsed {
     width: var(--sidebar-collapsed-width) !important;
 }
@@ -1025,9 +1051,7 @@ body:has(.sidebar-nav) .navbar {
     justify-content: space-between;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     background-color: #1e2128;
-    position: sticky;
-    top: 0;
-    z-index: 10;
+    flex-shrink: 0;
 }
 
 .sidebar-brand {
@@ -1085,7 +1109,8 @@ body:has(.sidebar-nav) .navbar {
     list-style: none;
     margin: 0;
     padding: 0.5rem 0;
-    overflow-x: hidden !important;
+    overflow: visible;
+    flex: 0 0 auto;
 }
 
 .sidebar-menu-item {
@@ -1168,12 +1193,13 @@ body:has(.sidebar-nav) .navbar {
     padding: 0;
     max-height: 0;
     overflow: hidden;
-    transition: max-height 0.3s ease;
+    transition: max-height 0.4s ease-in-out;
     background-color: rgba(0, 0, 0, 0.3);
 }
 
 .sidebar-menu-item.expanded .sidebar-submenu {
-    max-height: 1000px;
+    max-height: none;
+    overflow: visible;
 }
 
 .sidebar-submenu-link {
@@ -1216,11 +1242,11 @@ body:has(.sidebar-nav) .navbar {
 }
 
 .sidebar-user-section {
-    position: sticky;
-    bottom: 0;
     background-color: #1e2128;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     padding: 1rem;
+    flex-shrink: 0;
+    margin-top: auto;
 }
 
 .sidebar-user-item {
@@ -1295,22 +1321,16 @@ body:has(.sidebar-nav) .navbar {
 }
 
 /* Scrollbar styling for sidebar */
+.sidebar-nav {
+    scroll-behavior: smooth;
+}
+
+/* Remove scrollbar from main sidebar container */
 .sidebar-nav::-webkit-scrollbar {
-    width: 6px;
+    display: none;
 }
 
-.sidebar-nav::-webkit-scrollbar-track {
-    background: #1e2128;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-}
+/* The content wrapper will have the scrollbar */
 
 /* Tooltip for collapsed sidebar */
 .sidebar-tooltip {
@@ -1427,13 +1447,13 @@ body:has(.sidebar-nav) .navbar {
 /* Desktop - Show sidebar, hide top navbar (only on pages with sidebar) */
 @media screen and (min-width: 1024px) {
     .sidebar-nav {
-        display: block !important;
+        display: flex !important;
+        flex-direction: column !important;
         position: fixed !important;
         left: 0 !important;
         height: 100vh !important;
         width: var(--sidebar-width) !important;
-        overflow-x: hidden !important;
-        overflow-y: auto !important;
+        overflow: hidden !important;
         z-index: 1000 !important;
         box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3) !important;
         visibility: visible !important;
