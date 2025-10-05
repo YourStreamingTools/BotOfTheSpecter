@@ -220,7 +220,7 @@ allowed_ops = {
 }
 
 # Custom cooldown functions
-def check_cooldown(command, user_id, bucket_type, rate, time_window):
+async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_message=True):
     global command_usage
     current_time = time.time()
     key = (command, user_id)
@@ -229,7 +229,15 @@ def check_cooldown(command, user_id, bucket_type, rate, time_window):
     # Clean old timestamps outside the time window
     command_usage[key] = [t for t in command_usage[key] if current_time - t < time_window]
     # Check if under the rate limit
-    return len(command_usage[key]) < rate
+    if len(command_usage[key]) < rate:
+        return True  # Command can be used
+    else:
+        # Calculate remaining cooldown time
+        if send_message:
+            oldest_usage = min(command_usage[key])
+            remaining_time = int(time_window - (current_time - oldest_usage))
+            await send_chat_message(f"{command} is on cooldown. Please wait {remaining_time} seconds.")
+        return False  # Command on cooldown
 
 def add_usage(command, user_id):
     global command_usage
@@ -1733,7 +1741,7 @@ class TwitchBot(commands.Bot):
                                 chat_logger.info(f"{messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
                                 return
                             # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
-                            if not check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                            if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
                                 return
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
@@ -1904,7 +1912,7 @@ class TwitchBot(commands.Bot):
                             user_id = custom_user_command['user_id']
                             if cuc_status == 'Enabled':
                                 # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
-                                if not check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                                if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
                                     return
                                 if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
                                     await send_chat_message(response)
@@ -2254,7 +2262,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('commands', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('commands', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2300,7 +2308,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('bot', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('bot', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2337,7 +2345,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('wsstatus', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('wsstatus', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2375,7 +2383,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('forceonline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('forceonline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2414,7 +2422,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('forceoffline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('forceoffline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2455,7 +2463,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('version', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('version', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2523,7 +2531,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('roadmap', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('roadmap', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2563,7 +2571,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('weather', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('weather', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2613,7 +2621,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('points', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('points', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2663,7 +2671,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('addpoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('addpoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2711,7 +2719,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('removepoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('removepoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2755,7 +2763,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('time', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('time', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2834,7 +2842,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('joke', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('joke', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2891,7 +2899,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('quote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('quote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2940,7 +2948,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('quoteadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('quoteadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2978,7 +2986,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('removequote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('removequote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -3022,7 +3030,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('permit', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('permit', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the required permissions
                     if await command_permissions(permissions, ctx.author):
@@ -3063,7 +3071,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('settitle', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('settitle', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the required permissions
                     if await command_permissions(permissions, ctx.author):
@@ -3106,7 +3114,7 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                        if not check_cooldown('setgame', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        if not await check_cooldown('setgame', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         if game is None:
                             await send_chat_message("You must provide a game for the stream.")
@@ -3154,7 +3162,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('song', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('song', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Get the current song and artist from Spotify
                 song_name, artist_name, song_id, spotify_error = await get_spotify_current_song()
@@ -3227,7 +3235,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('songrequest', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('songrequest', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
@@ -3404,7 +3412,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('skipsong', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('skipsong', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
@@ -3478,7 +3486,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('songqueue', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('songqueue', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             # Request the queue information from Spotify
             access_token = await get_spotify_access_token()
@@ -3562,7 +3570,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('timer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('timer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Check if the user already has an active timer
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
@@ -3618,7 +3626,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('stoptimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('stoptimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
@@ -3660,7 +3668,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('checktimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('checktimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
@@ -3704,7 +3712,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('hug', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('hug', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
@@ -3774,7 +3782,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('highfive', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('highfive', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
@@ -3844,7 +3852,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('kiss', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('kiss', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
@@ -3912,7 +3920,7 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                        if not check_cooldown('ping', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        if not await check_cooldown('ping', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         # Using subprocess to run the ping command
                         result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
@@ -3960,7 +3968,7 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                        if not check_cooldown('translate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        if not await check_cooldown('translate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         # Get the message content after the command
                         message = ctx.message.content[len("!translate "):]
@@ -4014,7 +4022,7 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                        if not check_cooldown('cheerleader', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        if not await check_cooldown('cheerleader', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         headers = {
                             'Client-ID': CLIENT_ID,
@@ -4070,7 +4078,7 @@ class TwitchBot(commands.Bot):
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                        if not check_cooldown('mybits', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        if not await check_cooldown('mybits', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         user_id = ctx.author.id
                         await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
@@ -4154,7 +4162,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('lurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('lurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = str(ctx.author.id)
                     now = time_right_now()
@@ -4227,7 +4235,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('lurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('lurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -4278,7 +4286,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('lurklead', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('lurklead', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     try:
                         await cursor.execute('SELECT user_id, start_time FROM lurk_times')
@@ -4339,7 +4347,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('unlurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('unlurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -4410,7 +4418,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('userslurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('userslurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 await cursor.execute('SELECT COUNT(*) as count FROM lurk_times')
                 result = await cursor.fetchone()
@@ -4451,7 +4459,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('clip', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('clip', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     if not stream_online:
                         await send_chat_message("Sorry, I can only create clips while the stream is online.")
@@ -4512,7 +4520,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('marker', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('marker', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     if not stream_online:
                         await send_chat_message("Sorry, I can only create stream markers while the stream is online.")
@@ -4553,7 +4561,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('subscription', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('subscription', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = ctx.author.id
                     headers = {
@@ -4622,7 +4630,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('uptime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('uptime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if not stream_online:
                     await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
@@ -4692,7 +4700,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('typo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('typo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 chat_logger.info("Typo Command ran.")
                 # Determine the target user: mentioned user or the command caller
@@ -4747,7 +4755,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('typos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('typos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 chat_logger.info("Typos Command ran.")
                 if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -4789,7 +4797,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('edittypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('edittypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     chat_logger.info("Edit Typos Command ran.")
                     try:
@@ -4859,7 +4867,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('removetypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('removetypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     if mentioned_username is None:
                         chat_logger.error("Command missing username parameter.")
@@ -4911,7 +4919,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('steam', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('steam', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
             # File path
             file_path = '/var/www/api/steamapplist.json'
@@ -4982,7 +4990,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('deaths', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('deaths', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if current_game is None:
                     await send_chat_message("Current game is not set. Can't see death count.")
@@ -5037,7 +5045,7 @@ class TwitchBot(commands.Bot):
                         return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('deathadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('deathadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if current_game is None:
                     await send_chat_message("Current game is not set. Cannot add death to nothing.")
@@ -5106,7 +5114,7 @@ class TwitchBot(commands.Bot):
                         return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('deathremove', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('deathremove', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if current_game is None:
                     await send_chat_message("Current game is not set. Can't remove from nothing.")
@@ -5168,7 +5176,7 @@ class TwitchBot(commands.Bot):
                         return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('game', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('game', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if current_game is not None:
                     await send_chat_message(f"The current game we're playing is: {current_game}")
@@ -5206,7 +5214,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('followage', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('followage', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
                 headers = {
@@ -5300,7 +5308,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('schedule', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('schedule', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 await cursor.execute("SELECT timezone FROM profile")
                 timezone_row = await cursor.fetchone()
@@ -5401,7 +5409,7 @@ class TwitchBot(commands.Bot):
                         return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('checkupdate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('checkupdate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 API_URL = "https://api.botofthespecter.com/versions"
                 async with httpClientSession() as session:
@@ -5457,7 +5465,7 @@ class TwitchBot(commands.Bot):
                         return
             # Check cooldown
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-            if not check_cooldown('shoutout', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+            if not await check_cooldown('shoutout', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             chat_logger.info(f"Shoutout command running from {ctx.author.name}")
             if not user_to_shoutout:
@@ -5523,7 +5531,7 @@ class TwitchBot(commands.Bot):
                         return
             # Check cooldown
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-            if not check_cooldown('addcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+            if not await check_cooldown('addcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command and response from the message
             try:
@@ -5567,7 +5575,7 @@ class TwitchBot(commands.Bot):
                         return
             # Check cooldown
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-            if not check_cooldown('editcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+            if not await check_cooldown('editcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command and new response from the message
             try:
@@ -5611,7 +5619,7 @@ class TwitchBot(commands.Bot):
                         return
             # Check cooldown
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-            if not check_cooldown('removecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+            if not await check_cooldown('removecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command from the message
             try:
@@ -5655,7 +5663,7 @@ class TwitchBot(commands.Bot):
                         return
             # Check cooldown
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-            if not check_cooldown('enablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+            if not await check_cooldown('enablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command from the message
             try:
@@ -5715,7 +5723,7 @@ class TwitchBot(commands.Bot):
                         return
             # Check cooldown
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-            if not check_cooldown('disablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+            if not await check_cooldown('disablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command from the message
             try:
@@ -5776,7 +5784,7 @@ class TwitchBot(commands.Bot):
                         return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('slots', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('slots', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Fetch user's points from the database
                 await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
@@ -5847,7 +5855,7 @@ class TwitchBot(commands.Bot):
                         return
             # Check cooldown
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-            if not check_cooldown('kill', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+            if not await check_cooldown('kill', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             async with httpClientSession() as session:
                 async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
@@ -5918,7 +5926,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('roulette', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('roulette', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Fetch user's points from the database
                 await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
@@ -5979,7 +5987,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('rps', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('rps', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 choices = ["rock", "paper", "scissors"]
                 bot_choice = random.choice(choices)
@@ -6031,7 +6039,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('gamble', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('gamble', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Parse command arguments
                 parts = ctx.message.content.split(' ')
@@ -6147,7 +6155,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('story', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('story', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 words = ctx.message.content.split(' ')[1:]
                 if len(words) < 5:
@@ -6189,7 +6197,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('convert', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('convert', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 try:
                     startwitch = ["€", "$", "£", "¥", "₹", "₣", "₽", "₺", "₩", "₼", "₱", "₪", "₴", "₭", "₨", "฿", "₮", "₳", "₵", "ƒ", "៛", "﷼", "R$"]
@@ -6269,7 +6277,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('todo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('todo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             if message_content.lower() == '!todo':
                 await send_chat_message(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/")
@@ -6330,7 +6338,7 @@ class TwitchBot(commands.Bot):
                     return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not check_cooldown('subathon', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                if not await check_cooldown('subathon', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             user = ctx.author
             # Check permissions for valid actions
@@ -6387,7 +6395,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('heartrate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('heartrate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if heartrate code exists in database
                     await cursor.execute('SELECT heartrate_code FROM profile')
@@ -6438,7 +6446,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('watchtime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('watchtime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 # Query watch time for the user
                 await cursor.execute("""
@@ -6506,7 +6514,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('startlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('startlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 done = await generate_winning_lotto_numbers()
                 if done == True:
@@ -6544,7 +6552,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not check_cooldown('drawlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('drawlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 prize_pool = {
                     "Division 1 (Jackpot!)": 100000,
