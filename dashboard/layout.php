@@ -75,6 +75,7 @@ function uuidv4() {
                 <span class="icon"><i class="fas fa-bars"></i></span>
             </button>
         </div>
+        <div class="sidebar-content-wrapper">
         <ul class="sidebar-menu">
             <li class="sidebar-menu-item">
                 <a href="dashboard.php" class="sidebar-menu-link">
@@ -346,6 +347,7 @@ function uuidv4() {
             <div class="sidebar-version">
                 <span class="tag is-info is-light">v<?php echo $dashboardVersion; ?></span>
             </div>
+        </div>
         </div>
     </aside>
     <?php if ($maintenanceMode): $modalAcknowledged = isset($_COOKIE['maintenance_modal_acknowledged']) && $_COOKIE['maintenance_modal_acknowledged'] === 'true'; ?>
