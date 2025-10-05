@@ -983,24 +983,27 @@ input[type="range"].modern-volume::-ms-tooltip {
 }
 
 /* Sidebar-specific page styling */
-/* Default: Show navbar, hide sidebar (for mobile/tablet) */
-body:has(.sidebar-nav) .navbar {
-    display: flex !important;
-}
-
+/* Default: Hide sidebar, show navbar (for mobile/tablet) */
 .sidebar-nav {
     position: fixed;
     top: 0;
-    left: 0;
-    height: 100vh;
-    width: var(--sidebar-width);
+    left: -9999px;
+    height: 0;
+    width: 0;
     background-color: #1e2128;
-    transition: width 0.3s ease;
-    overflow-x: hidden !important;
-    overflow-y: auto;
-    z-index: 1000;
-    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    transition: none;
+    overflow: hidden !important;
+    z-index: -1;
+    box-shadow: none;
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Ensure navbar shows by default on pages with sidebar */
+body:has(.sidebar-nav) .navbar {
+    display: flex !important;
 }
 
 .sidebar-nav::-webkit-scrollbar-x {
@@ -1012,7 +1015,7 @@ body:has(.sidebar-nav) .navbar {
 }
 
 .sidebar-nav.collapsed {
-    width: var(--sidebar-collapsed-width);
+    width: var(--sidebar-collapsed-width) !important;
 }
 
 .sidebar-header {
@@ -1041,10 +1044,17 @@ body:has(.sidebar-nav) .navbar {
     height: 28px;
     margin-right: 0.75rem;
     flex-shrink: 0;
+    transition: margin 0.3s ease;
+}
+
+.sidebar-nav.collapsed .sidebar-brand img {
+    margin-right: 0;
 }
 
 .sidebar-brand-text {
     transition: opacity 0.3s ease;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .sidebar-nav.collapsed .sidebar-brand-text {
@@ -1414,33 +1424,22 @@ body:has(.sidebar-nav) .navbar {
     margin: 0 auto;
 }
 
-/* Scrollbar for long menus */
-.sidebar-menu {
-    overflow-y: auto;
-    max-height: calc(100vh - 300px);
-}
-
-.sidebar-menu::-webkit-scrollbar {
-    width: 6px;
-}
-
-.sidebar-menu::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.sidebar-menu::-webkit-scrollbar-thumb {
-    background: #333;
-    border-radius: 3px;
-}
-
-.sidebar-menu::-webkit-scrollbar-thumb:hover {
-    background: #444;
-}
-
 /* Desktop - Show sidebar, hide top navbar (only on pages with sidebar) */
 @media screen and (min-width: 1024px) {
     .sidebar-nav {
         display: block !important;
+        position: fixed !important;
+        left: 0 !important;
+        height: 100vh !important;
+        width: var(--sidebar-width) !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        z-index: 1000 !important;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3) !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        transition: width 0.3s ease !important;
     }
     
     body:has(.sidebar-nav) .navbar {
@@ -1470,6 +1469,14 @@ body:has(.sidebar-nav) .navbar {
 @media screen and (min-width: 769px) and (max-width: 1023px) {
     .sidebar-nav {
         display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        left: -9999px !important;
     }
     
     .page-content {
@@ -1477,7 +1484,7 @@ body:has(.sidebar-nav) .navbar {
     }
     
     .navbar {
-        display: flex;
+        display: flex !important;
     }
 }
 
@@ -1485,6 +1492,14 @@ body:has(.sidebar-nav) .navbar {
 @media screen and (max-width: 768px) {
     .sidebar-nav {
         display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        left: -9999px !important;
     }
     
     .page-content {
@@ -1492,7 +1507,7 @@ body:has(.sidebar-nav) .navbar {
     }
     
     .navbar {
-        display: flex;
+        display: flex !important;
     }
 }
 
