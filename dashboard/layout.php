@@ -13,6 +13,21 @@ include_once __DIR__ . '/lang/i18n.php';
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
+
+// Function to generate a UUID v4 for cache busting
+function uuidv4() {
+    $data = random_bytes(16);
+    $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+    $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+    $hex = bin2hex($data);
+    return sprintf('%s-%s-%s-%s-%s',
+        substr($hex, 0, 8),
+        substr($hex, 8, 4),
+        substr($hex, 12, 4),
+        substr($hex, 16, 4),
+        substr($hex, 20, 12)
+    );
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" class="theme-dark">
@@ -27,7 +42,7 @@ $maintenanceMode = $config['maintenanceMode'];
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/custom.css?v=<?php echo $dashboardVersion; ?>">
+    <link rel="stylesheet" href="css/custom.css?v=<?php echo uuidv4(); ?>">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
