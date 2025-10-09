@@ -3964,10 +3964,43 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                     self.logger.debug(f"Twitch API params for guild {guild_id}: {params}")
                     async with session.get(url, headers=headers, params=params) as response:
                         if response.status != 200:
-                            self.logger.error(f"Failed to fetch streams for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
-                            return []
-                        data = await response.json()
-                        all_stream_data = data.get('data', [])
+                            if response.status == 401:
+                                # Try to get bot's auth token as fallback
+                                self.logger.warning(f"401 Unauthorized for guild {guild_id}, attempting to use bot auth token")
+                                bot_auth_token = await self.mysql.fetchone(
+                                    "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", 
+                                    ("971436498",), database_name='website'
+                                )
+                                if bot_auth_token:
+                                    if isinstance(bot_auth_token, dict):
+                                        bot_auth_token = bot_auth_token.get('twitch_access_token')
+                                    else:
+                                        bot_auth_token = bot_auth_token[0] if bot_auth_token else None
+                                    if bot_auth_token:
+                                        self.logger.info(f"Retrying with bot auth token for guild {guild_id}")
+                                        retry_headers = {
+                                            "Client-ID": config.twitch_client_id,
+                                            "Authorization": f"Bearer {bot_auth_token}"
+                                        }
+                                        async with session.get(url, headers=retry_headers, params=params) as retry_response:
+                                            if retry_response.status == 200:
+                                                data = await retry_response.json()
+                                                all_stream_data = data.get('data', [])
+                                            else:
+                                                self.logger.error(f"Failed to fetch streams with bot token for guild {guild_id}: {retry_response.status} {await retry_response.text()} | Params: {params}")
+                                                return []
+                                    else:
+                                        self.logger.error(f"No valid bot auth token available for guild {guild_id}")
+                                        return []
+                                else:
+                                    self.logger.error(f"Could not retrieve bot auth token for guild {guild_id}")
+                                    return []
+                            else:
+                                self.logger.error(f"Failed to fetch streams for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
+                                return []
+                        else:
+                            data = await response.json()
+                            all_stream_data = data.get('data', [])
             except Exception as e:
                 self.logger.error(f"Error checking streams for guild {guild_id}: {e}")
                 return []
@@ -3990,7 +4023,37 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                         self.logger.debug(f"Twitch API batch params for guild {guild_id}, batch {chunk_index + 1}: {params}")
                         async with session.get(url, headers=headers, params=params) as response:
                             if response.status != 200:
-                                self.logger.error(f"Failed to fetch streams batch {chunk_index + 1} for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
+                                if response.status == 401:
+                                    # Try to get bot's auth token as fallback
+                                    self.logger.warning(f"401 Unauthorized for guild {guild_id} batch {chunk_index + 1}, attempting to use bot auth token")
+                                    bot_auth_token = await self.mysql.fetchone(
+                                        "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", 
+                                        ("971436498",), database_name='website'
+                                    )
+                                    if bot_auth_token:
+                                        if isinstance(bot_auth_token, dict):
+                                            bot_auth_token = bot_auth_token.get('twitch_access_token')
+                                        else:
+                                            bot_auth_token = bot_auth_token[0] if bot_auth_token else None
+                                        if bot_auth_token:
+                                            self.logger.info(f"Retrying batch {chunk_index + 1} with bot auth token for guild {guild_id}")
+                                            retry_headers = {
+                                                "Client-ID": config.twitch_client_id,
+                                                "Authorization": f"Bearer {bot_auth_token}"
+                                            }
+                                            async with session.get(url, headers=retry_headers, params=params) as retry_response:
+                                                if retry_response.status == 200:
+                                                    data = await retry_response.json()
+                                                    batch_streams = data.get('data', [])
+                                                    all_stream_data.extend(batch_streams)
+                                                else:
+                                                    self.logger.error(f"Failed to fetch streams batch {chunk_index + 1} with bot token for guild {guild_id}: {retry_response.status} {await retry_response.text()} | Params: {params}")
+                                        else:
+                                            self.logger.error(f"No valid bot auth token available for guild {guild_id} batch {chunk_index + 1}")
+                                    else:
+                                        self.logger.error(f"Could not retrieve bot auth token for guild {guild_id} batch {chunk_index + 1}")
+                                else:
+                                    self.logger.error(f"Failed to fetch streams batch {chunk_index + 1} for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
                                 continue
                             data = await response.json()
                             batch_streams = data.get('data', [])
