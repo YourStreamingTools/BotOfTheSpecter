@@ -1442,7 +1442,7 @@ class BotOfTheSpecter(commands.Bot):
         if message_text:
             embed.insert_field_at(index=1, name="Message", value=message_text, inline=False)
         timestamp = await self.format_discord_embed_timestamp(channel_code)
-        embed.set_footer(text=f"Auto Posted by BotOfTheSpecter | {timestamp}")
+        embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {timestamp}")
         return embed
 
     async def format_discord_embed_timestamp(self, channel_code):
@@ -1463,7 +1463,8 @@ class BotOfTheSpecter(commands.Bot):
         current_time = datetime.now(tz)
         time_format_date = current_time.strftime("%B %d, %Y")
         time_format_time = current_time.strftime("%I:%M %p")
-        time_format = f"{time_format_date} at {time_format_time}"
+        timezone_abbr = current_time.strftime("%Z")
+        time_format = f"{time_format_date} at {time_format_time} {timezone_abbr}"
         return time_format
 
     async def get_stream_info(self, channel_name):
@@ -1622,7 +1623,7 @@ class BotOfTheSpecter(commands.Bot):
                     embed.set_thumbnail(url=thumbnail_to_use)
                     self.logger.info(f"Using thumbnail: {thumbnail_to_use}")
                     # Set footer
-                    embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
+                    embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {current_date}")
                     self.logger.info(f"Attempting to send live notification to #{stream_channel.name} (ID: {stream_channel.id}) with mention: '{mention_text.strip() or 'none'}'")
                     try:
                         message = await stream_channel.send(content=mention_text, embed=embed)
@@ -1710,7 +1711,7 @@ class BotOfTheSpecter(commands.Bot):
             )
             thumbnail_to_use = thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
             embed.set_thumbnail(url=thumbnail_to_use)
-            embed.set_footer(text=f"Autoposted by BotOfTheSpecter - {current_date}")
+            embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {current_date}")
             # Send notification
             await stream_channel.send(content=mention_text, embed=embed)
             self.logger.info(f"Successfully sent stream alert for {account_username} to #{stream_channel.name}")
