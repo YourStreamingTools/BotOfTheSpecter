@@ -28,6 +28,25 @@ function uuidv4() {
 if (!isset($pageTitle)) $pageTitle = "BotOfTheSpecter Moderator";
 if (!isset($pageDescription)) $pageDescription = "BotOfTheSpecter Moderator Dashboard";
 if (!isset($pageContent)) $pageContent = "";
+
+// Determine active menu item based on current URI
+$current_file = basename($_SERVER['PHP_SELF']);
+$active_menu = '';
+if ($current_file == 'index.php') {
+    $active_menu = 'dashboard';
+} elseif ($current_file == 'commands.php' || $current_file == 'builtin.php' || $current_file == 'manage_custom_commands.php') {
+    $active_menu = 'commands';
+} elseif ($current_file == 'timed_messages.php') {
+    $active_menu = 'timed_messages';
+} elseif ($current_file == 'bot_points.php') {
+    $active_menu = 'points';
+} elseif ($current_file == 'counters.php' || $current_file == 'edit_counters.php') {
+    $active_menu = 'counters';
+} elseif ($current_file == 'known_users.php') {
+    $active_menu = 'users';
+} elseif ($current_file == 'sound-alerts.php' || $current_file == 'video-alerts.php' || $current_file == 'walkons.php') {
+    $active_menu = 'alerts';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -83,14 +102,14 @@ if (!isset($pageContent)) $pageContent = "";
         <div class="sidebar-content-wrapper">
         <ul class="sidebar-menu">
             <li class="sidebar-menu-item">
-                <a href="index.php" class="sidebar-menu-link">
+                <a href="index.php" class="sidebar-menu-link <?php echo $active_menu == 'dashboard' ? 'active' : ''; ?>">
                     <span class="icon"><i class="fas fa-shield-alt"></i></span>
                     <span>Mod Dashboard</span>
                 </a>
                 <div class="sidebar-tooltip">Mod Dashboard</div>
             </li>
             <li class="sidebar-menu-item has-submenu">
-                <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                <a href="#" class="sidebar-menu-link <?php echo $active_menu == 'commands' ? 'active' : ''; ?>" onclick="toggleSubmenu(event, this)">
                     <span class="icon"><i class="fas fa-terminal"></i></span>
                     <span><?php echo t('navbar_commands'); ?></span>
                 </a>
@@ -102,21 +121,21 @@ if (!isset($pageContent)) $pageContent = "";
                 </ul>
             </li>
             <li class="sidebar-menu-item">
-                <a href="timed_messages.php" class="sidebar-menu-link">
+                <a href="timed_messages.php" class="sidebar-menu-link <?php echo $active_menu == 'timed_messages' ? 'active' : ''; ?>">
                     <span class="icon"><i class="fas fa-clock"></i></span>
                     <span><?php echo t('navbar_timed_messages'); ?></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_timed_messages'); ?></div>
             </li>
             <li class="sidebar-menu-item">
-                <a href="bot_points.php" class="sidebar-menu-link">
+                <a href="bot_points.php" class="sidebar-menu-link <?php echo $active_menu == 'points' ? 'active' : ''; ?>">
                     <span class="icon"><i class="fas fa-coins"></i></span>
                     <span><?php echo t('navbar_points_system'); ?></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_points_system'); ?></div>
             </li>
             <li class="sidebar-menu-item has-submenu">
-                <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                <a href="#" class="sidebar-menu-link <?php echo $active_menu == 'counters' ? 'active' : ''; ?>" onclick="toggleSubmenu(event, this)">
                     <span class="icon"><i class="fas fa-calculator"></i></span>
                     <span><?php echo t('navbar_counters'); ?></span>
                 </a>
@@ -127,14 +146,14 @@ if (!isset($pageContent)) $pageContent = "";
                 </ul>
             </li>
             <li class="sidebar-menu-item">
-                <a href="known_users.php" class="sidebar-menu-link">
+                <a href="known_users.php" class="sidebar-menu-link <?php echo $active_menu == 'users' ? 'active' : ''; ?>">
                     <span class="icon"><i class="fas fa-users"></i></span>
                     <span><?php echo t('known_users_title'); ?></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('known_users_title'); ?></div>
             </li>
             <li class="sidebar-menu-item has-submenu">
-                <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                <a href="#" class="sidebar-menu-link <?php echo $active_menu == 'alerts' ? 'active' : ''; ?>" onclick="toggleSubmenu(event, this)">
                     <span class="icon"><i class="fas fa-bell"></i></span>
                     <span><?php echo t('navbar_alerts'); ?></span>
                 </a>
@@ -214,10 +233,11 @@ if (!isset($pageContent)) $pageContent = "";
         </div>
         <div id="navbarMain" class="navbar-menu">
             <div class="navbar-start">
-                <a class="navbar-item" href="index.php">
+                <a class="navbar-item <?php echo $active_menu == 'dashboard' ? 'is-active' : ''; ?>" href="index.php">
                     <span class="icon"><i class="fas fa-shield-alt"></i></span>
                     <span>Mod Dashboard</span>
-                </a>                <div class="navbar-item has-dropdown is-hoverable">
+                </a> 
+                <div class="navbar-item has-dropdown is-hoverable <?php echo $active_menu == 'commands' ? 'is-active' : ''; ?>">
                     <a class="navbar-link">
                         <span class="icon"><i class="fas fa-terminal"></i></span>
                         <span><?php echo t('navbar_commands'); ?></span>
@@ -237,15 +257,15 @@ if (!isset($pageContent)) $pageContent = "";
                         </a>
                     </div>
                 </div>
-                <a class="navbar-item" href="timed_messages.php">
+                <a class="navbar-item <?php echo $active_menu == 'timed_messages' ? 'is-active' : ''; ?>" href="timed_messages.php">
                     <span class="icon"><i class="fas fa-clock"></i></span>
                     <span><?php echo t('navbar_timed_messages'); ?></span>
                 </a>
-                <a class="navbar-item" href="bot_points.php">
+                <a class="navbar-item <?php echo $active_menu == 'points' ? 'is-active' : ''; ?>" href="bot_points.php">
                     <span class="icon"><i class="fas fa-coins"></i></span>
                     <span><?php echo t('navbar_points_system'); ?></span>
                 </a>
-                <div class="navbar-item has-dropdown is-hoverable">
+                <div class="navbar-item has-dropdown is-hoverable <?php echo $active_menu == 'counters' ? 'is-active' : ''; ?>">
                     <a class="navbar-link">
                         <span class="icon"><i class="fas fa-calculator"></i></span>
                         <span><?php echo t('navbar_counters'); ?></span>
@@ -261,10 +281,11 @@ if (!isset($pageContent)) $pageContent = "";
                         </a>
                     </div>
                 </div>
-                <a class="navbar-item" href="known_users.php">
+                <a class="navbar-item <?php echo $active_menu == 'users' ? 'is-active' : ''; ?>" href="known_users.php">
                     <span class="icon"><i class="fas fa-users"></i></span>
                     <span><?php echo t('known_users_title'); ?></span>
-                </a>                <div class="navbar-item has-dropdown is-hoverable">
+                </a>
+                <div class="navbar-item has-dropdown is-hoverable <?php echo $active_menu == 'alerts' ? 'is-active' : ''; ?>">
                     <a class="navbar-link">
                         <span class="icon"><i class="fas fa-bell"></i></span>
                         <span><?php echo t('navbar_alerts'); ?></span>
@@ -442,6 +463,76 @@ if (!isset($pageContent)) $pageContent = "";
             setCookie('cookie_consent', 'declined', 14);
             hideCookieConsentBox();
         };
+    });
+    // Set active menu based on current URL
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentPath = window.location.pathname;
+        // Remove existing active classes
+        document.querySelectorAll('.sidebar-menu-link.active').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.navbar-item.is-active').forEach(el => el.classList.remove('is-active'));
+        // Moderator active menu logic
+        if (currentPath.includes('index.php')) {
+            // Mod Dashboard
+            const dashboardLinks = document.querySelectorAll('a[href="index.php"]');
+            dashboardLinks.forEach(link => {
+                if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
+                if (link.classList.contains('navbar-item')) link.classList.add('is-active');
+            });
+        } else if (currentPath.includes('commands.php') || currentPath.includes('builtin.php') || currentPath.includes('manage_custom_commands.php')) {
+            // Commands
+            const commandLinks = document.querySelectorAll('a[href*="commands.php"], a[href*="builtin.php"], a[href*="manage_custom_commands.php"]');
+            commandLinks.forEach(link => {
+                if (link.closest('.sidebar-menu-item.has-submenu')) {
+                    link.classList.add('active');
+                }
+                if (link.closest('.navbar-item.has-dropdown')) {
+                    link.closest('.navbar-item').classList.add('is-active');
+                }
+            });
+        } else if (currentPath.includes('timed_messages.php')) {
+            // Timed Messages
+            const timedLinks = document.querySelectorAll('a[href*="timed_messages.php"]');
+            timedLinks.forEach(link => {
+                if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
+                if (link.classList.contains('navbar-item')) link.classList.add('is-active');
+            });
+        } else if (currentPath.includes('bot_points.php')) {
+            // Bot Points
+            const pointsLinks = document.querySelectorAll('a[href*="bot_points.php"]');
+            pointsLinks.forEach(link => {
+                if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
+                if (link.classList.contains('navbar-item')) link.classList.add('is-active');
+            });
+        } else if (currentPath.includes('counters.php') || currentPath.includes('edit_counters.php')) {
+            // Counters
+            const counterLinks = document.querySelectorAll('a[href*="counters.php"], a[href*="edit_counters.php"]');
+            counterLinks.forEach(link => {
+                if (link.closest('.sidebar-menu-item.has-submenu')) {
+                    link.classList.add('active');
+                }
+                if (link.closest('.navbar-item.has-dropdown')) {
+                    link.closest('.navbar-item').classList.add('is-active');
+                }
+            });
+        } else if (currentPath.includes('known_users.php')) {
+            // Known Users
+            const usersLinks = document.querySelectorAll('a[href*="known_users.php"]');
+            usersLinks.forEach(link => {
+                if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
+                if (link.classList.contains('navbar-item')) link.classList.add('is-active');
+            });
+        } else if (currentPath.includes('sound-alerts.php') || currentPath.includes('video-alerts.php') || currentPath.includes('walkons.php')) {
+            // Alerts
+            const alertLinks = document.querySelectorAll('a[href*="sound-alerts.php"], a[href*="video-alerts.php"], a[href*="walkons.php"]');
+            alertLinks.forEach(link => {
+                if (link.closest('.sidebar-menu-item.has-submenu')) {
+                    link.classList.add('active');
+                }
+                if (link.closest('.navbar-item.has-dropdown')) {
+                    link.closest('.navbar-item').classList.add('is-active');
+                }
+            });
+        }
     });
     </script>
 </body>
