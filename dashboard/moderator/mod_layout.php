@@ -93,7 +93,7 @@ if ($current_file == 'index.php') {
         <div class="sidebar-header">
             <div class="sidebar-brand">
                 <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo">
-                <span class="sidebar-brand-text">BotOfTheSpecter Mod</span>
+                <span class="sidebar-brand-text">Moderator Panel</span>
             </div>
             <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
                 <span class="icon"><i class="fas fa-bars"></i></span>
@@ -223,7 +223,7 @@ if ($current_file == 'index.php') {
         <div class="navbar-brand">
             <a class="navbar-item" href="index.php">
                 <img src="https://cdn.botofthespecter.com/logo.png" width="28" height="28" alt="BotOfTheSpecter Logo">
-                <strong class="ml-2">BotOfTheSpecter Mod</strong>
+                <strong class="ml-2">Moderator Panel</strong>
             </a>
             <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMain">
                 <span aria-hidden="true"></span>
