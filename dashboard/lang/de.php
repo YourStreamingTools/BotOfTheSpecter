@@ -127,7 +127,7 @@ return [
     'navbar_return_home' => 'Zurück zur Startseite',
     // Bot Control Page
     'bot_management_title' => 'Bot-Verwaltung',
-    'bot_channel_status' => 'Kanalstatus',
+    'bot_channel_status' => 'Twitch-Status',
     'bot_force_offline' => 'Offline erzwingen',
     'bot_force_online' => 'Online erzwingen',
     'bot_stable_version_info' => 'Stabile Versionsinfo',
