@@ -2054,32 +2054,56 @@ document.addEventListener('DOMContentLoaded', function() {
     const offlineBtn = document.getElementById('force-offline-btn');
     if (onlineBtn) {
       onlineBtn.addEventListener('click', function() {
-        onlineBtn.disabled = true;
-        fetchWithTimeout('https://api.botofthespecter.com/websocket/stream_online?api_key=' + encodeURIComponent(apiKey), {}, 8000)
-          .then(r => r.json())
-          .then(data => {
-            showNotification(<?php echo json_encode(t('bot_channel_forced_online')); ?>, 'success');
-            setTimeout(fetchAndUpdateChannelStatus, 1200);
-          })
-          .catch(() => {
-            showNotification(<?php echo json_encode(t('bot_channel_force_online_failed')); ?>, 'danger');
-            onlineBtn.disabled = false;
-          });
+        Swal.fire({
+          title: 'Force Online',
+          text: "Forcing Online will tell the entire bot system that you're online, even if you're not online on Twitch",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          confirmButtonText: 'Yes, Force Online'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            onlineBtn.disabled = true;
+            fetchWithTimeout('https://api.botofthespecter.com/websocket/stream_online?api_key=' + encodeURIComponent(apiKey), {}, 8000)
+              .then(r => r.json())
+              .then(data => {
+                showNotification(<?php echo json_encode(t('bot_channel_forced_online')); ?>, 'success');
+                setTimeout(fetchAndUpdateChannelStatus, 1200);
+              })
+              .catch(() => {
+                showNotification(<?php echo json_encode(t('bot_channel_force_online_failed')); ?>, 'danger');
+                onlineBtn.disabled = false;
+              });
+          }
+        });
       });
     }
     if (offlineBtn) {
       offlineBtn.addEventListener('click', function() {
-        offlineBtn.disabled = true;
-        fetchWithTimeout('https://api.botofthespecter.com/websocket/stream_offline?api_key=' + encodeURIComponent(apiKey), {}, 8000)
-          .then(r => r.json())
-          .then(data => {
-            showNotification(<?php echo json_encode(t('bot_channel_forced_offline')); ?>, 'success');
-            setTimeout(fetchAndUpdateChannelStatus, 1200);
-          })
-          .catch(() => {
-            showNotification(<?php echo json_encode(t('bot_channel_force_offline_failed')); ?>, 'danger');
-            offlineBtn.disabled = false;
-          });
+        Swal.fire({
+          title: 'Force Offline',
+          text: "Forcing Offline will tell the bot system that you're offline, even if you're online on Twitch, doing so will result in the bot resetting certain information it's holding, for example, Users Seen today for welcome messages, credits overlay data and timed messages.",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          confirmButtonText: 'Yes, Force Offline'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            offlineBtn.disabled = true;
+            fetchWithTimeout('https://api.botofthespecter.com/websocket/stream_offline?api_key=' + encodeURIComponent(apiKey), {}, 8000)
+              .then(r => r.json())
+              .then(data => {
+                showNotification(<?php echo json_encode(t('bot_channel_forced_offline')); ?>, 'success');
+                setTimeout(fetchAndUpdateChannelStatus, 1200);
+              })
+              .catch(() => {
+                showNotification(<?php echo json_encode(t('bot_channel_force_offline_failed')); ?>, 'danger');
+                offlineBtn.disabled = false;
+              });
+          }
+        });
       });
     }
   }
