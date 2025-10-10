@@ -698,7 +698,7 @@ ob_start();
                                                             <?php echo t('modules_ad_upcoming_message'); ?>
                                                         </label>
                                                         <div class="control">
-                                                            <input class="input ad-notice-input" type="text" name="ad_upcoming_message" maxlength="255" placeholder="<?php echo t('modules_ad_upcoming_message_placeholder'); ?>" value="<?php echo htmlspecialchars($ad_upcoming_message ?? ''); ?>">
+                                                            <textarea class="textarea ad-notice-input" name="ad_upcoming_message" maxlength="255" placeholder="<?php echo t('modules_ad_upcoming_message_placeholder'); ?>" rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_upcoming_message ?? ''); ?></textarea>
                                                         </div>
                                                         <p class="help has-text-grey-light">
                                                             <span class="char-count" data-field="ad_upcoming_message">0</span>/255 characters
@@ -712,7 +712,7 @@ ob_start();
                                                             <?php echo t('modules_ad_start_message'); ?>
                                                         </label>
                                                         <div class="control">
-                                                            <input class="input ad-notice-input" type="text" name="ad_start_message" maxlength="255" placeholder="<?php echo t('modules_ad_start_message_placeholder'); ?>" value="<?php echo htmlspecialchars($ad_start_message ?? ''); ?>">
+                                                            <textarea class="textarea ad-notice-input" name="ad_start_message" maxlength="255" placeholder="<?php echo t('modules_ad_start_message_placeholder'); ?>" rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_start_message ?? ''); ?></textarea>
                                                         </div>
                                                         <p class="help has-text-grey-light">
                                                             <span class="char-count" data-field="ad_start_message">0</span>/255 characters
@@ -726,7 +726,7 @@ ob_start();
                                                             <?php echo t('modules_ad_end_message'); ?>
                                                         </label>
                                                         <div class="control">
-                                                            <input class="input ad-notice-input" type="text" name="ad_end_message" maxlength="255" placeholder="<?php echo t('modules_ad_end_message_placeholder'); ?>" value="<?php echo htmlspecialchars($ad_end_message ?? ''); ?>">
+                                                            <textarea class="textarea ad-notice-input" name="ad_end_message" maxlength="255" placeholder="<?php echo t('modules_ad_end_message_placeholder'); ?>" rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_end_message ?? ''); ?></textarea>
                                                         </div>
                                                         <p class="help has-text-grey-light">
                                                             <span class="char-count" data-field="ad_end_message">0</span>/255 characters
@@ -745,7 +745,7 @@ ob_start();
                                                             <?php echo t('modules_ad_snoozed_message'); ?>
                                                         </label>
                                                         <div class="control">
-                                                            <input class="input ad-notice-input" type="text" name="ad_snoozed_message" maxlength="255" placeholder="<?php echo t('modules_ad_snoozed_message_placeholder'); ?>" value="<?php echo htmlspecialchars($ad_snoozed_message ?? ''); ?>">
+                                                            <textarea class="textarea ad-notice-input" name="ad_snoozed_message" maxlength="255" placeholder="<?php echo t('modules_ad_snoozed_message_placeholder'); ?>" rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_snoozed_message ?? ''); ?></textarea>
                                                         </div>
                                                         <p class="help has-text-grey-light">
                                                             <span class="char-count" data-field="ad_snoozed_message">0</span>/255 characters
