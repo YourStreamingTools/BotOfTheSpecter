@@ -350,6 +350,7 @@ $all_bots = [];
 
 ob_start();
 ?>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <div class="box">
     <h1 class="title is-3"><span class="icon"><i class="fas fa-shield-alt"></i></span> Administrator Dashboard</h1>
@@ -633,24 +634,34 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     // Function to stop bot
     window.stopBot = function(pid, element) {
-        if (confirm('Are you sure you want to stop this bot?')) {
-            const formData = new FormData();
-            formData.append('stop_bot', '1');
-            formData.append('pid', pid);
-            fetch(window.location.href, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    element.remove();
-                }
-            })
-            .catch(error => {
-                console.error('Error stopping bot:', error);
-            });
-        }
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'Do you want to stop this bot?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, stop it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const formData = new FormData();
+                formData.append('stop_bot', '1');
+                formData.append('pid', pid);
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        element.remove();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error stopping bot:', error);
+                });
+            }
+        });
     };
     // Function to update service status
     function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
