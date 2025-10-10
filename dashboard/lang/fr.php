@@ -913,7 +913,6 @@ return [
     'modules_enable_ad_notice' => 'Activer la notification de pub',
     'modules_save_ad_notice_settings' => 'Enregistrer les paramètres de pub',
     'modules_twitch_event_sound_alerts_title' => 'Gérer les alertes sonores des événements Twitch',
-    'modules_twitch_event_sound_alerts_beta_warning' => 'Cette fonctionnalité est en développement et disponible pour les utilisateurs bêta en version 5.4.',
     'modules_upload_mp3_files' => 'Téléverser des fichiers MP3',
     'modules_choose_mp3_files' => 'Choisir des fichiers MP3…',
     'modules_no_files_selected' => 'Aucun fichier sélectionné',
