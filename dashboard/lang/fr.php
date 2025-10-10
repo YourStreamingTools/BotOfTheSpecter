@@ -900,7 +900,6 @@ return [
     'modules_enable_welcome_messages' => 'Activer les messages de bienvenue',
     'modules_save_welcome_settings' => 'Enregistrer les paramètres de bienvenue',
     'modules_ad_notices_title' => 'Notifications de pub',
-    'modules_ad_notices_beta_warning' => 'Cette fonctionnalité est en développement et disponible pour les utilisateurs bêta en version 5.4.',
     'modules_ad_notices_duration_var' => 'Vous pouvez utiliser la variable <code>(duration)</code> qui sera remplacée par la durée de la pub.',
     'modules_ad_notices_minutes_var' => 'Vous pouvez utiliser la variable <code>(minutes)</code> qui sera remplacée par la durée de la pub à venir en minutes.',
     'modules_ad_upcoming_message' => 'Message pub à venir',

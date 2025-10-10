@@ -614,23 +614,6 @@ ob_start();
     <!-- Ad Notices -->
     <div class="tab-content" id="ad-notices">
         <div class="module-container">
-            <div class="columns is-desktop is-multiline is-centered">
-                <div class="column is-fullwidth" style="max-width: 1200px;">
-                    <div class="notification is-warning">
-                        <div class="columns is-vcentered">
-                            <div class="column is-narrow">
-                                <span class="icon is-large">
-                                    <i class="fas fa-bullhorn fa-2x"></i>
-                                </span>
-                            </div>
-                            <div class="column">
-                                <p class="mb-2"><strong><?php echo t('modules_ad_notices_title'); ?></strong></p>
-                                <p><?php echo t('modules_ad_notices_beta_warning'); ?></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <!-- Variables Information Card -->
             <div class="columns is-desktop is-multiline is-centered mb-5">
                 <div class="column is-fullwidth" style="max-width: 1200px;">
