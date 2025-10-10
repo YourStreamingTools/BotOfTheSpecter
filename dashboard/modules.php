@@ -629,7 +629,7 @@ ob_start();
                             <div class="notification is-primary is-light mb-4">
                                 <p class="has-text-dark">
                                     <span class="icon"><i class="fas fa-info-circle"></i></span>
-                                    <strong><?php echo t('modules_variables_note_prefix'); ?></strong><?php echo t('modules_ad_notices_variables_note'); ?>
+                                    <strong><?php echo t('modules_variables_note_prefix'); ?></strong> <?php echo t('modules_ad_notices_variables_note'); ?>
                                 </p>
                             </div>
                             <div class="columns is-multiline">
