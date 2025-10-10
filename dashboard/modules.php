@@ -641,7 +641,7 @@ ob_start();
                                         </h4>
                                         <div class="content has-text-white-ter">
                                             <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(duration)</span>
+                                                <span class="tag is-primary is-small">(duration)</span><br>
                                                 <span class="is-size-7"><?php echo t('modules_ad_notices_duration_var'); ?></span>
                                             </div>
                                         </div>
@@ -655,7 +655,7 @@ ob_start();
                                         </h4>
                                         <div class="content has-text-white-ter">
                                             <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(minutes)</span>
+                                                <span class="tag is-primary is-small">(minutes)</span><br>
                                                 <span class="is-size-7"><?php echo t('modules_ad_notices_minutes_var'); ?></span>
                                             </div>
                                         </div>
