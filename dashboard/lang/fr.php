@@ -937,7 +937,6 @@ return [
     'modules_delete_selected' => 'Supprimer la sélection',
     'modules_no_sound_alert_files_uploaded' => 'Aucun fichier d\'alerte sonore téléversé.',
     'modules_configure_chat_alerts' => 'Configurer les alertes de chat',
-    'modules_chat_alerts_beta_warning' => 'Cette fonctionnalité est en développement et disponible pour les utilisateurs bêta en version 5.4.',
     'modules_variables' => 'Variables',
     'modules_var_user' => 'pour le nom d\'utilisateur.',
     'modules_var_bits' => 'pour le nombre de bits pour le message cheer.',

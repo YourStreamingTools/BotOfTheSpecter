@@ -935,7 +935,6 @@ return [
     'modules_delete_selected' => 'Ausgewählte löschen',
     'modules_no_sound_alert_files_uploaded' => 'Keine Sound-Alert-Dateien hochgeladen.',
     'modules_configure_chat_alerts' => 'Chat-Alerts konfigurieren',
-    'modules_chat_alerts_beta_warning' => 'Diese Funktion ist in Entwicklung und für Beta-Nutzer mit Version 5.4 verfügbar.',
     'modules_variables' => 'Variablen',
     'modules_var_user' => 'für den Benutzernamen.',
     'modules_var_bits' => 'für die Anzahl der Bits bei Cheer.',
