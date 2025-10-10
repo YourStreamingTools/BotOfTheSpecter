@@ -898,7 +898,6 @@ return [
     'modules_enable_welcome_messages' => 'Willkommensnachrichten aktivieren',
     'modules_save_welcome_settings' => 'Willkommens-Einstellungen speichern',
     'modules_ad_notices_title' => 'Werbehinweise',
-    'modules_ad_notices_beta_warning' => 'Diese Funktion ist in Entwicklung und für Beta-Nutzer mit Version 5.4 verfügbar.',
     'modules_ad_notices_duration_var' => 'Sie können die Variable <code>(duration)</code> verwenden, die durch die Werbedauer ersetzt wird.',
     'modules_ad_notices_minutes_var' => 'Sie können die Variable <code>(minutes)</code> verwenden, die durch die kommende Werbedauer in Minuten ersetzt wird.',
     'modules_ad_upcoming_message' => 'Werbung kommt gleich Nachricht',

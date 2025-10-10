@@ -955,7 +955,6 @@ return [
     'modules_enable_welcome_messages' => 'Enable welcome messages',
     'modules_save_welcome_settings' => 'Save Welcome Settings',
     'modules_ad_notices_title' => 'Ad Notices',
-    'modules_ad_notices_beta_warning' => 'This feature is currently in development and is available to beta users running version 5.4.',
     'modules_ad_notices_duration_var' => 'You can use the variable <code>(duration)</code> which will be replaced with the ads\' duration.',
     'modules_ad_notices_minutes_var' => 'You can use the variable <code>(minutes)</code> which will be replaced with upcoming ads\' duration in minutes.',
     'modules_ad_upcoming_message' => 'Ad Upcoming Message',
