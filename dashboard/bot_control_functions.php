@@ -171,6 +171,28 @@ function performBotAction($action, $botType, $params) {
         }
         switch ($action) {
             case 'run':
+                // Before starting this bot, ensure the other bot is stopped
+                $otherBotType = ($botType === 'stable') ? 'beta' : 'stable';
+                $otherBotScriptPath = "/home/botofthespecter/" . ($otherBotType === 'beta' ? "beta.py" : "bot.py");
+                $otherCommand = "python $statusScriptPath -system $otherBotType -channel $username";
+                $otherStatusOutput = SSHConnectionManager::executeCommand($connection, $otherCommand);
+                $otherBotStoppedMessage = '';
+                if ($otherStatusOutput !== false) {
+                    $otherStatusOutput = trim($otherStatusOutput);
+                    $otherPid = 0;
+                    if (preg_match('/process ID:\s*(\d+)/i', $otherStatusOutput, $matches) || 
+                        preg_match('/PID\s+(\d+)/i', $otherStatusOutput, $matches)) {
+                        $otherPid = intval($matches[1]);
+                    }
+                    if ($otherPid > 0) {    
+                        // Stop the other bot
+                        $killCommand = "kill -s kill $otherPid";
+                        SSHConnectionManager::executeCommand($connection, $killCommand);
+                        // Wait a moment for the process to terminate
+                        usleep(500000); // 0.5 seconds
+                        $otherBotStoppedMessage = "Found $otherBotType bot running, stopping it. ";
+                    }
+                }
                 if ($currentPid > 0) {
                     $result['message'] = "Bot is running (v{$newVersion})";
                     $result['pid'] = $currentPid;
@@ -205,7 +227,7 @@ function performBotAction($action, $botType, $params) {
                             if (preg_match('/process ID:\s*(\\d+)/i', $quickStatusOutput, $matches) || preg_match('/PID\\s+(\\d+)/i', $quickStatusOutput, $matches)) {
                                 $result['pid'] = intval($matches[1]);
                                 $result['success'] = true;
-                                $result['message'] = "Bot started successfully (v{$newVersion})";
+                                $result['message'] = $otherBotStoppedMessage . "Bot started successfully (v{$newVersion})";
                                 // Create version file via SSH
                                 $versionDir = dirname($versionFilePath);
                                 $createDirCmd = "mkdir -p " . escapeshellarg($versionDir);
@@ -213,11 +235,11 @@ function performBotAction($action, $botType, $params) {
                                 $writeVersionCmd = "echo " . escapeshellarg($newVersion) . " > " . escapeshellarg($versionFilePath);
                                 SSHConnectionManager::executeCommand($connection, $writeVersionCmd);
                             } else {
-                                $result['message'] = "Bot start command sent. Status will update shortly.";
+                                $result['message'] = $otherBotStoppedMessage . "Bot start command sent. Status will update shortly.";
                                 $result['success'] = true; // Background process started
                             }
                         } else {
-                            $result['message'] = "Bot start command sent. Status check failed but process may be starting.";
+                            $result['message'] = $otherBotStoppedMessage . "Bot start command sent. Status check failed but process may be starting.";
                             $result['success'] = true; // Background process likely started
                         }
                     }

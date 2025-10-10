@@ -114,6 +114,29 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
         }
         switch ($action) {
             case 'run':
+                // Before starting this bot, ensure the other bot is stopped
+                $otherSystem = ($system === 'stable') ? 'beta' : 'stable';
+                $otherBotScriptPath = "/home/botofthespecter/" . ($otherSystem === 'beta' ? "beta.py" : "bot.py");
+                $otherCommand = "python $statusScriptPath -system $otherSystem -channel $username";
+                $otherStatusOutput = SSHConnectionManager::executeCommand($connection, $otherCommand);
+                $otherBotStoppedMessage = '';
+                if ($otherStatusOutput !== false) {
+                    $otherStatusOutput = trim($otherStatusOutput);
+                    $otherPid = 0;
+                    if (preg_match('/process ID:\s*(\d+)/i', $otherStatusOutput, $matches)) {
+                        $otherPid = intval($matches[1]);
+                    } elseif (preg_match('/PID\s+(\d+)/i', $otherStatusOutput, $matches)) {
+                        $otherPid = intval($matches[1]);
+                    }
+                    if ($otherPid > 0) {
+                        // Stop the other bot
+                        $killCommand = "kill -s kill $otherPid";
+                        SSHConnectionManager::executeCommand($connection, $killCommand);
+                        // Wait a moment for the process to terminate
+                        sleep(1);
+                        $otherBotStoppedMessage = "Found $otherSystem bot running, stopping it. ";
+                    }
+                }
                 if ($pid > 0) {
                     // Ensure version file is up to date even if the bot is already running
                     updateVersionFile($currentVersionFilePath, $currentNewVersion);
@@ -134,7 +157,7 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     if ($pid > 0) {
                         // Update version file with latest version on successful start
                         updateVersionFile($currentVersionFilePath, $currentNewVersion);
-                        $message = "<div class='status-message'>Bot started successfully. PID $pid.</div>";
+                        $message = "<div class='status-message'>$otherBotStoppedMessage" . "Bot started successfully. PID $pid.</div>";
                     } else { $message = "<div class='status-message error'>Failed to start the bot. Please check the configuration or server status.</div>"; }
                 }
                 break;

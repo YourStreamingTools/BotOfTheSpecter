@@ -907,6 +907,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Immediately update UI optimistically
             const expectedRunning = (action === 'run');
             updateUIOptimistically(expectedRunning, 'Stable');
+            // Show success message from backend
+            if (data.message) {
+              showNotification(data.message, 'success');
+            }
             // Reset button state
             btn.innerHTML = originalContent;
             btn.disabled = false;
@@ -977,6 +981,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Immediately update UI optimistically
             const expectedRunning = (action === 'run');
             updateUIOptimistically(expectedRunning, 'Beta');
+            // Show success message from backend
+            if (data.message) {
+              showNotification(data.message, 'success');
+            }
             // Reset button state
             btn.innerHTML = originalContent;
             btn.disabled = false;
