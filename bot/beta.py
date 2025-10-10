@@ -27,6 +27,8 @@ from socketio.exceptions import ConnectionError as ConnectionExecptionError
 from aiomysql import DictCursor, MySQLError
 from aiomysql import Error as MySQLOtherErrors
 from deep_translator import GoogleTranslator as translator
+from twitchio.ext.commands import Context
+from twitchio import Message
 from twitchio.ext import commands, routines
 from streamlink import Streamlink
 import pytz as set_timezone
@@ -1627,6 +1629,7 @@ class TwitchBot(commands.Bot):
     def __init__(self, token, prefix, channel_name):
         super().__init__(token=token, prefix=prefix, initial_channels=[channel_name], case_insensitive=True)
         self.channel_name = channel_name
+        self.running_commands = set()
 
     async def event_ready(self):
         bot_logger.info(f'Logged in as "{self.nick}"')
@@ -1838,6 +1841,7 @@ class TwitchBot(commands.Bot):
                                     calling_match = re.search(r'\(call\.(\w+)\)', response)
                                     if calling_match:
                                         match_call = calling_match.group(1)
+                                        response = response.replace(f"(call.{match_call})", "")
                                         await self.call_command(match_call, message)
                                 # Handle random replacements
                                 if '(random.percent' in response or '(random.number' in response or '(random.pick.' in response:
@@ -2204,10 +2208,24 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     async def call_command(self, command_name, ctx):
+        if command_name in self.running_commands:
+            bot_logger.warning(f"Command '{command_name}' is already running, skipping.")
+            return
+        # If ctx doesn't have 'view', it's a Message, create a Context
+        if not hasattr(ctx, 'view'):
+            ctx = Context(message=ctx, bot=self, prefix='!')
         command_method = getattr(self, f"{command_name}_command", None)
         if command_method:
-            await command_method(ctx)
+            bot_logger.info(f"Calling command: {command_name}")
+            self.running_commands.add(command_name)
+            try:
+                await command_method(ctx)
+            except Exception as e:
+                bot_logger.error(f"Error executing command '{command_name}': {e}")
+            finally:
+                self.running_commands.discard(command_name)
         else:
+            bot_logger.warning(f"Command '{command_name}' not found.")
             await send_chat_message(f"Command '{command_name}' not found.")
 
     async def handle_ai_response(self, user_message, user_id, message_author_name):
