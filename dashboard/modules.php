@@ -755,10 +755,23 @@ ob_start();
                                             </div>
                                             <!-- Enable/Disable Toggle -->
                                             <div class="field mt-4">
-                                                <label class="checkbox">
-                                                    <input type="checkbox" name="enable_ad_notice" value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>>
-                                                    <?php echo t('modules_enable_ad_notice'); ?>
-                                                </label>
+                                                <div class="columns is-vcentered">
+                                                    <div class="column">
+                                                        <label class="label has-text-white mb-0">
+                                                            <span class="icon mr-2"><i class="fas fa-toggle-on"></i></span>
+                                                            <?php echo t('modules_enable_ad_notice'); ?>
+                                                        </label>
+                                                        <p class="help has-text-grey-light mt-2">
+                                                            Toggle this switch to enable or disable advertisement notices in your stream chat.
+                                                        </p>
+                                                    </div>
+                                                    <div class="column is-narrow">
+                                                        <label class="switch is-medium is-success" aria-label="<?php echo t('modules_enable_ad_notice'); ?>">
+                                                            <input type="checkbox" name="enable_ad_notice" value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?> style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+                                                            <span class="check"></span>
+                                                        </label>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
