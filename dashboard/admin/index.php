@@ -632,7 +632,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     // Function to stop bot
-    window.stopBot = function(pid) {
+    window.stopBot = function(pid, element) {
         if (confirm('Are you sure you want to stop this bot?')) {
             const formData = new FormData();
             formData.append('stop_bot', '1');
@@ -640,7 +640,16 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch(window.location.href, {
                 method: 'POST',
                 body: formData
-            }).then(() => location.reload());
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    element.remove();
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping bot:', error);
+            });
         }
     };
     // Function to update service status
@@ -864,11 +873,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         const stopBtn = existingEl.querySelector('.bot-stop-button');
                         if (stopBtn) {
                             stopBtn.setAttribute('data-pid', bot.pid);
-                            // Overwrite onclick to ensure only a single handler (prevents duplicates on repeated updates)
-                            stopBtn.onclick = function() {
+                            // Remove existing listeners to prevent duplicates
+                            const newStopBtn = stopBtn.cloneNode(true);
+                            stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
+                            newStopBtn.addEventListener('click', function() {
                                 const pid = this.getAttribute('data-pid');
-                                stopBot(pid);
-                            };
+                                const element = this.closest('.column');
+                                stopBot(pid, element);
+                            });
                         }
                     } else {
                         // create new element for new bots
@@ -882,7 +894,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 if (stopButton) {
                                     stopButton.addEventListener('click', function() {
                                         const pid = this.getAttribute('data-pid');
-                                        stopBot(pid);
+                                        const element = this.closest('.column');
+                                        stopBot(pid, element);
                                     });
                                 }
                             }
