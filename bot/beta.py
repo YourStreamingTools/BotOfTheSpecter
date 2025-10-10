@@ -1019,17 +1019,28 @@ async def process_twitch_eventsub_message(message):
                                 twitch_logger.error(f"Error denying message {messageHoldID}: {e}")
                 # Suspicious User Message Event
                 elif event_type == "channel.suspicious_user.message":
+                    spam_pattern = await get_spam_patterns()
                     event_logger.info(f"Got a Suspicious User Message: {event_data}")
                     messageContent = event_data["message"]["text"]
                     messageAuthor = event_data["user_name"]
                     messageAuthorID = event_data["user_id"]
                     lowTrustStatus = event_data["low_trust_status"]
                     banEvasionTypes = event_data["types"]
+                    banEvasionEvaluation = event_data["ban_evasion_evaluation"]
+                    if banEvasionEvaluation:
+                        twitch_logger.info(f"Suspicious user {messageAuthor} has ban evasion evaluation: {banEvasionEvaluation}")
+                        if banEvasionEvaluation == "likely":
+                            bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to likely ban evasion.")
+                            create_task(ban_user(messageAuthor, messageAuthorID))
                     if banEvasionTypes:
                         twitch_logger.info(f"Suspicious user {messageAuthor} has the following types: {banEvasionTypes}")
                     if lowTrustStatus == "active_monitoring":
                         bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
                         create_task(ban_user(messageAuthor, messageAuthorID))
+                    for pattern in spam_pattern:
+                        if pattern.search(messageContent):
+                            twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                            create_task(ban_user(messageAuthor, messageAuthorID))
                 elif event_type == "channel.shoutout.create" or event_type == "channel.shoutout.receive":
                     if event_type == "channel.shoutout.create":
                         global shoutout_user
