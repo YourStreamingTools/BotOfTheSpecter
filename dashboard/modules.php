@@ -961,23 +961,6 @@ ob_start();
     <!-- Twitch Chat Alerts -->
     <div class="tab-content" id="twitch-chat-alerts">
         <div class="module-container">
-            <div class="columns is-desktop is-multiline is-centered">
-                <div class="column is-fullwidth" style="max-width: 1200px;">
-                    <div class="notification is-warning">
-                        <div class="columns is-vcentered">
-                            <div class="column is-narrow">
-                                <span class="icon is-large">
-                                    <i class="fas fa-comment-dots fa-2x"></i>
-                                </span>
-                            </div>
-                            <div class="column">
-                                <p class="mb-2"><strong><?php echo t('modules_configure_chat_alerts'); ?></strong></p>
-                                <p><?php echo t('modules_chat_alerts_beta_warning'); ?></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <!-- Variables Information Card -->
             <div class="columns is-desktop is-multiline is-centered mb-5">
                 <div class="column is-fullwidth" style="max-width: 1200px;">
@@ -989,7 +972,8 @@ ob_start();
                             </span>
                         </header>
                         <div class="card-content">
-                            <!-- Note -->                            <div class="notification is-info mb-4">
+                            <!-- Note -->
+                            <div class="notification is-info mb-4">
                                 <p class="has-text-dark">
                                     <span class="icon"><i class="fas fa-info-circle"></i></span>
                                     <strong><?php echo t('modules_variables_note_prefix'); ?></strong> <?php echo t('modules_variables_note'); ?>
