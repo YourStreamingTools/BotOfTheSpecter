@@ -968,7 +968,6 @@ return [
     'modules_enable_ad_notice' => 'Enable Ad Notice',
     'modules_save_ad_notice_settings' => 'Save Ad Notice Settings',
     'modules_twitch_event_sound_alerts_title' => 'Manage Twitch Event Sound Alerts',
-    'modules_twitch_event_sound_alerts_beta_warning' => 'This feature is currently in development and is available to beta users running version 5.4.',
     'modules_upload_mp3_files' => 'Upload MP3 Files',
     'modules_choose_mp3_files' => 'Choose MP3 files…',
     'modules_no_files_selected' => 'No files selected',

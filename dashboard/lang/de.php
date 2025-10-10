@@ -911,7 +911,6 @@ return [
     'modules_enable_ad_notice' => 'Werbehinweis aktivieren',
     'modules_save_ad_notice_settings' => 'Werbehinweise speichern',
     'modules_twitch_event_sound_alerts_title' => 'Twitch-Event-Sound-Alerts verwalten',
-    'modules_twitch_event_sound_alerts_beta_warning' => 'Diese Funktion ist in Entwicklung und für Beta-Nutzer mit Version 5.4 verfügbar.',
     'modules_upload_mp3_files' => 'MP3-Dateien hochladen',
     'modules_choose_mp3_files' => 'MP3-Dateien auswählen…',
     'modules_no_files_selected' => 'Keine Dateien ausgewählt',

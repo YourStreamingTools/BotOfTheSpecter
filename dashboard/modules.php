@@ -802,23 +802,6 @@ ob_start();
         <div class="module-container">
             <div class="columns is-desktop is-multiline is-centered">
                 <div class="column is-fullwidth" style="max-width: 1200px;">
-                    <div class="notification is-warning">
-                        <div class="columns is-vcentered">
-                            <div class="column is-narrow">
-                                <span class="icon is-large">
-                                    <i class="fas fa-volume-up fa-2x"></i>
-                                </span>
-                            </div>
-                            <div class="column">
-                                <p class="mb-2"><strong><?php echo t('modules_twitch_event_sound_alerts_title'); ?></strong></p>
-                                <p><?php echo t('modules_twitch_event_sound_alerts_beta_warning'); ?></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="columns is-desktop is-multiline is-centered">
-                <div class="column is-fullwidth" style="max-width: 1200px;">
                     <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
                         <header class="card-header" style="border-bottom: 1px solid #23272f; display: flex; justify-content: space-between; align-items: center;">
                             <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
