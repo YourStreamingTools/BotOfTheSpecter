@@ -152,7 +152,7 @@ return [
     'navbar_return_home' => 'Return to Home',
     // Bot Control Page
     'bot_management_title' => 'Bot Management',
-    'bot_channel_status' => 'Channel Status',
+    'bot_channel_status' => 'Twitch Status',
     'bot_force_offline' => 'Force Offline',
     'bot_force_online' => 'Force Online',
     'bot_stable_version_info' => 'Stable Version Info',
