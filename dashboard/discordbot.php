@@ -498,7 +498,8 @@ if ($is_linked && $hasGuildId) {
         'messageTracking' => (bool)$serverMgmtData['messageTracking'],
         'roleTracking' => (bool)$serverMgmtData['roleTracking'],
         'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
-        'userTracking' => (bool)$serverMgmtData['userTracking']
+        'userTracking' => (bool)$serverMgmtData['userTracking'],
+        'reactionRoles' => (bool)$serverMgmtData['reactionRoles']
       ];
       // Override channel IDs with values from server_management table if they exist
       if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
