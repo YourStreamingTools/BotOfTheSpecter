@@ -454,6 +454,10 @@ $existingMessageLogChannelID = "";
 $existingRoleLogChannelID = "";
 $existingServerMgmtLogChannelID = "";
 $existingUserLogChannelID = "";
+$existingReactionRolesChannelID = "";
+$existingReactionRolesMessage = "";
+$existingReactionRolesMappings = "";
+$existingAllowMultipleReactions = false;
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -524,6 +528,29 @@ if ($is_linked && $hasGuildId) {
       }
       if (!empty($serverMgmtData['user_tracking_configuration_channel'])) {
         $existingUserLogChannelID = $serverMgmtData['user_tracking_configuration_channel'];
+      }
+      // Parse reaction_roles_configuration JSON
+      if (!empty($serverMgmtData['reaction_roles_configuration'])) {
+        $reactionRolesConfig = json_decode($serverMgmtData['reaction_roles_configuration'], true);
+        if ($reactionRolesConfig && is_array($reactionRolesConfig)) {
+          $existingReactionRolesChannelID = $reactionRolesConfig['channel_id'] ?? "";
+          $existingReactionRolesMessage = $reactionRolesConfig['message'] ?? "";
+          $existingReactionRolesMappings = $reactionRolesConfig['mappings'] ?? "";
+          $existingAllowMultipleReactions = isset($reactionRolesConfig['allow_multiple']) ? (bool)$reactionRolesConfig['allow_multiple'] : false;
+          
+          // Debug log for reaction roles configuration
+          $reactionRolesDebugData = json_encode([
+            'raw_json' => $serverMgmtData['reaction_roles_configuration'],
+            'parsed_data' => $reactionRolesConfig,
+            'channel_id' => $existingReactionRolesChannelID,
+            'has_message' => !empty($existingReactionRolesMessage),
+            'has_mappings' => !empty($existingReactionRolesMappings),
+            'allow_multiple' => $existingAllowMultipleReactions
+          ]);
+          $consoleLogs[] = "console.log('Reaction Roles Configuration Debug for guild $existingGuildId:', " . $reactionRolesDebugData . ");";
+        } else {
+          $consoleLogs[] = "console.error('Failed to parse reaction_roles_configuration JSON for guild $existingGuildId');";
+        }
       }
     }
     $serverMgmtStmt->close();
@@ -677,16 +704,29 @@ function updateExistingDiscordValues() {
         if (!empty($serverMgmtData['user_tracking_configuration_channel'])) {
           $existingUserLogChannelID = $serverMgmtData['user_tracking_configuration_channel'];
         }
-        if (!empty($serverMgmtData['reaction_roles_configuration_channel'])) {
-          $existingReactionRolesChannelID = $serverMgmtData['reaction_roles_configuration_channel'];
+        // Parse reaction_roles_configuration JSON
+        if (!empty($serverMgmtData['reaction_roles_configuration'])) {
+          $reactionRolesConfig = json_decode($serverMgmtData['reaction_roles_configuration'], true);
+          if ($reactionRolesConfig && is_array($reactionRolesConfig)) {
+            $existingReactionRolesChannelID = $reactionRolesConfig['channel_id'] ?? "";
+            $existingReactionRolesMessage = $reactionRolesConfig['message'] ?? "";
+            $existingReactionRolesMappings = $reactionRolesConfig['mappings'] ?? "";
+            $existingAllowMultipleReactions = isset($reactionRolesConfig['allow_multiple']) ? (bool)$reactionRolesConfig['allow_multiple'] : false;
+            
+            // Debug log for reaction roles configuration
+            $reactionRolesDebugData = json_encode([
+              'raw_json' => $serverMgmtData['reaction_roles_configuration'],
+              'parsed_data' => $reactionRolesConfig,
+              'channel_id' => $existingReactionRolesChannelID,
+              'has_message' => !empty($existingReactionRolesMessage),
+              'has_mappings' => !empty($existingReactionRolesMappings),
+              'allow_multiple' => $existingAllowMultipleReactions
+            ]);
+            $consoleLogs[] = "console.log('Reaction Roles Configuration Debug (refresh) for guild $existingGuildId:', " . $reactionRolesDebugData . ");";
+          } else {
+            $consoleLogs[] = "console.error('Failed to parse reaction_roles_configuration JSON (refresh) for guild $existingGuildId');";
+          }
         }
-        if (!empty($serverMgmtData['reaction_roles_configuration_message'])) {
-          $existingReactionRolesMessage = $serverMgmtData['reaction_roles_configuration_message'];
-        }
-        if (!empty($serverMgmtData['reaction_roles_configuration_mappings'])) {
-          $existingReactionRolesMappings = $serverMgmtData['reaction_roles_configuration_mappings'];
-        }
-        $existingAllowMultipleReactions = (int)($serverMgmtData['reaction_roles_configuration_allow_multiple'] ?? 0) === 1;
       }
       $serverMgmtStmt->close();
     }
@@ -2166,7 +2206,7 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
                     <div class="control">
-                      <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: Thumbs Up @Role1&#10;:heart: Love @Role2&#10;:star: VIP @Role3" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings); ?></textarea>
+                      <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: Thumbs Up @Role1&#10;:heart: Love @Role2&#10;:star: VIP @Role3" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings ?? ''); ?></textarea>
                     </div>
                     <p class="help has-text-grey-light">Format: :emoji: Description @RoleName (one per line)</p>
                   </div>
