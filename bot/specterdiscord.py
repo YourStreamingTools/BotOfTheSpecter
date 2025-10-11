@@ -4253,6 +4253,30 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         self.logger.warning("post_streams() is deprecated, monitoring is now automatic via start_monitoring()")
         pass
 
+# Button view for role assignment
+class RoleButton(discord.ui.Button):
+    def __init__(self, role: discord.Role, emoji: str, label: str):
+        super().__init__(
+            style=discord.ButtonStyle.primary,
+            label=label,
+            emoji=emoji,
+            custom_id=f"role_{role.id}"
+        )
+        self.role = role
+
+    async def callback(self, interaction: discord.Interaction):
+        member = interaction.user
+        if self.role in member.roles:
+            await member.remove_roles(self.role)
+            await interaction.response.send_message(f"✅ Removed role **{self.role.name}**", ephemeral=True)
+        else:
+            await member.add_roles(self.role)
+            await interaction.response.send_message(f"✅ Added role **{self.role.name}**", ephemeral=True)
+
+class RoleButtonView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)  # No timeout - buttons persist forever
+
 # Server Management class for handling reaction roles and other server features
 class ServerManagement(commands.Cog, name='Server Management'):
     def __init__(self, bot: BotOfTheSpecter, logger=None):
@@ -4343,44 +4367,59 @@ class ServerManagement(commands.Cog, name='Server Management'):
             if not channel:
                 self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
                 return
-            # Send the message
+            # Create button view
+            view = RoleButtonView()
+            role_mappings = {}
+            # Parse mappings and create buttons
             self.logger.info(f"Attempting to send message to #{channel.name}: {message[:50]}...")
+            if mappings:
+                mapping_lines = mappings.strip().split('\n')
+                self.logger.info(f"Processing {len(mapping_lines)} role button mappings")
+                for line in mapping_lines:
+                    line = line.strip()
+                    if not line or '@' not in line:
+                        continue
+                    try:
+                        if line.startswith(':') and line.count(':') >= 2:
+                            # Extract emoji name and description
+                            first_colon = line.index(':', 1)
+                            emoji_name = line[1:first_colon]
+                            # Extract description and role name
+                            rest = line[first_colon+1:].strip()
+                            if '@' in rest:
+                                description, role_name = rest.rsplit('@', 1)
+                                description = description.strip()
+                                role_name = role_name.strip()
+                                # Find role by name
+                                role = discord.utils.get(guild.roles, name=role_name)
+                                if role:
+                                    # Find custom emoji or use emoji name
+                                    custom_emoji = discord.utils.get(guild.emojis, name=emoji_name)
+                                    emoji_to_use = custom_emoji if custom_emoji else emoji_name
+                                    # Create and add button
+                                    button = RoleButton(role, emoji_to_use, description)
+                                    view.add_item(button)
+                                    role_mappings[f':{emoji_name}:'] = str(role.id)
+                                    self.logger.info(f"Added button for role {role_name} with label '{description}'")
+                                else:
+                                    self.logger.warning(f"Role '{role_name}' not found in guild {guild.name}")
+                    except Exception as e:
+                        self.logger.error(f"Error processing mapping line '{line}': {e}")
             try:
-                sent_message = await channel.send(message)
+                # Send message with buttons
+                sent_message = await channel.send(message, view=view)
                 message_id = sent_message.id
-                self.logger.info(f"Successfully posted reaction roles message (ID: {message_id}) to #{channel.name} in guild {guild.name}")
+                self.logger.info(f"Successfully posted role selection message (ID: {message_id}) with {len(view.children)} buttons to #{channel.name}")
                 # Update database with message ID
                 try:
                     # Get existing configuration
-                    query = "SELECT reaction_roles_configuration FROM server_management WHERE server_id = ?"
+                    query = "SELECT reaction_roles_configuration FROM server_management WHERE server_id = %s"
                     result = await self.mysql.fetchone(query, params=(server_id,), database_name='specterdiscordbot')
                     if result and result[0]:
                         config = json.loads(result[0])
                     else:
                         config = {}
-                    # Parse mappings to create emoji-to-role mapping
-                    role_mappings = {}
-                    mapping_lines = mappings.strip().split('\n')
-                    for line in mapping_lines:
-                        line = line.strip()
-                        if not line or '@' not in line:
-                            continue
-                        try:
-                            # Extract emoji name and role name
-                            if line.startswith(':') and line.count(':') >= 2:
-                                first_colon = line.index(':', 1)
-                                emoji_name = line[1:first_colon]
-                                emoji = f':{emoji_name}:'
-                                role_name = line.split('@', 1)[1].strip()
-                                
-                                # Find role by name
-                                role = discord.utils.get(guild.roles, name=role_name)
-                                if role:
-                                    role_mappings[emoji] = str(role.id)
-                                    self.logger.debug(f"Mapped {emoji} to role {role_name} (ID: {role.id})")
-                        except Exception as e:
-                            self.logger.warning(f"Error parsing mapping line '{line}': {e}")
-                    # Update with message ID
+                    # Update configuration
                     config['message_id'] = str(message_id)
                     config['channel_id'] = channel_id
                     config['message'] = message
@@ -4388,9 +4427,9 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     config['role_mappings'] = role_mappings
                     config['allow_multiple'] = allow_multiple
                     # Save back to database
-                    update_query = "UPDATE server_management SET reaction_roles_configuration = ? WHERE server_id = ?"
+                    update_query = "UPDATE server_management SET reaction_roles_configuration = %s WHERE server_id = %s"
                     await self.mysql.execute(update_query, params=(json.dumps(config), server_id), database_name='specterdiscordbot')
-                    # Update cache with role IDs for quick lookup
+                    # Update cache
                     self.reaction_roles_cache[message_id] = {
                         'server_id': server_id,
                         'channel_id': channel_id,
@@ -4399,53 +4438,9 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         'role_mappings': role_mappings,
                         'allow_multiple': allow_multiple
                     }
-                    self.logger.info(f"Updated reaction roles configuration with message ID {message_id}")
+                    self.logger.info(f"Updated role button configuration with message ID {message_id}")
                 except Exception as e:
-                    self.logger.error(f"Error updating reaction roles configuration in database: {e}")
-                # Add reactions based on mappings
-                if mappings:
-                    try:
-                        # Parse mappings (format: ":emoji: Description @RoleName" per line)
-                        mapping_lines = mappings.strip().split('\n')
-                        self.logger.info(f"Processing {len(mapping_lines)} reaction role mappings")
-                        for line in mapping_lines:
-                            line = line.strip()
-                            if not line:
-                                continue
-                            try:
-                                if line.startswith(':') and line.count(':') >= 2:
-                                    # Find the second colon
-                                    first_colon = line.index(':', 1)
-                                    emoji_name = line[1:first_colon]
-                                    # Extract role name (after @ symbol)
-                                    if '@' in line:
-                                        role_name = line.split('@', 1)[1].strip()
-                                        # Find the role in the guild by name
-                                        role = discord.utils.get(guild.roles, name=role_name)
-                                        if role:
-                                            try:
-                                                # First, try to find custom emoji in the guild
-                                                custom_emoji = discord.utils.get(guild.emojis, name=emoji_name)
-                                                if custom_emoji:
-                                                    # Use the custom emoji object
-                                                    await sent_message.add_reaction(custom_emoji)
-                                                    self.logger.info(f"Added custom emoji reaction {custom_emoji.name} for role {role_name}")
-                                                else:
-                                                    # If not a custom emoji, treat as Unicode emoji
-                                                    # The dashboard should send the actual Unicode character
-                                                    self.logger.warning(f"Custom emoji '{emoji_name}' not found in guild. User should use Unicode emoji or ensure custom emoji exists in server.")
-                                            except discord.HTTPException as e:
-                                                self.logger.warning(f"Failed to add reaction for emoji '{emoji_name}': {e}")
-                                        else:
-                                            self.logger.warning(f"Role '{role_name}' not found in guild {guild.name}")
-                                    else:
-                                        self.logger.warning(f"No role specified in mapping line: {line}")
-                                else:
-                                    self.logger.warning(f"Invalid mapping format: {line}")
-                            except Exception as e:
-                                self.logger.error(f"Error processing mapping line '{line}': {e}")
-                    except Exception as e:
-                        self.logger.error(f"Error parsing reaction role mappings: {e}")
+                    self.logger.error(f"Error updating role button configuration in database: {e}")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
             except discord.HTTPException as e:
