@@ -4406,10 +4406,17 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     except Exception as e:
                         self.logger.error(f"Error processing mapping line '{line}': {e}")
             try:
-                # Send message with buttons
-                sent_message = await channel.send(message, view=view)
+                # Create embed for the message
+                embed = discord.Embed(
+                    title="Role Selection",
+                    description=message,
+                    color=config.bot_color
+                )
+                embed.set_footer(text=f"Click the buttons below to get or remove roles | {guild.name}")
+                # Send embed with buttons
+                sent_message = await channel.send(embed=embed, view=view)
                 message_id = sent_message.id
-                self.logger.info(f"Successfully posted role selection message (ID: {message_id}) with {len(view.children)} buttons to #{channel.name}")
+                self.logger.info(f"Successfully posted role selection embed (ID: {message_id}) with {len(view.children)} buttons to #{channel.name}")
                 # Update database with message ID
                 try:
                     # Get existing configuration
