@@ -4472,6 +4472,17 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.info(f"Successfully posted role selection embed (ID: {message_id}) with {len(view.children)} buttons to #{channel.name}")
                 # Save to database using INSERT ... ON DUPLICATE KEY UPDATE
                 try:
+                    self.logger.info(f"Preparing to save to database - server_id: {server_id}, channel_id: {channel_id}, message_id: {message_id}")
+                    self.logger.info(f"Message text: {message[:100] if message else 'None'}...")
+                    self.logger.info(f"Mappings: {mappings[:100] if mappings else 'None'}...")
+                    self.logger.info(f"Role mappings dict: {role_mappings}")
+                    self.logger.info(f"Allow multiple: {allow_multiple}")
+                    # Verify table exists first
+                    check_query = "SHOW TABLES LIKE 'role_selection_messages'"
+                    table_exists = await self.mysql.fetchone(check_query, database_name='specterdiscordbot')
+                    if not table_exists:
+                        self.logger.error("Table role_selection_messages does not exist! Creating it now...")
+                        await self._ensure_role_messages_table()
                     insert_query = """
                         INSERT INTO role_selection_messages 
                         (server_id, channel_id, message_id, message_text, mappings, role_mappings, allow_multiple)
@@ -4485,14 +4496,19 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         allow_multiple = %s
                     """
                     # For ON DUPLICATE KEY UPDATE, we need to provide values twice
-                    await self.mysql.execute(
+                    role_mappings_json = json.dumps(role_mappings)
+                    params = (
+                        str(server_id), str(channel_id), str(message_id), message, mappings, role_mappings_json, bool(allow_multiple),
+                        str(channel_id), str(message_id), message, mappings, role_mappings_json, bool(allow_multiple)
+                    )
+                    self.logger.info(f"Executing INSERT with {len(params)} parameters")
+                    self.logger.debug(f"Parameters: {params}")
+                    result = await self.mysql.execute(
                         insert_query, 
-                        params=(
-                            server_id, channel_id, str(message_id), message, mappings, json.dumps(role_mappings), allow_multiple,
-                            channel_id, str(message_id), message, mappings, json.dumps(role_mappings), allow_multiple
-                        ),
+                        params=params,
                         database_name='specterdiscordbot'
                     )
+                    self.logger.info(f"Successfully executed INSERT for message {message_id}, affected rows: {result}")
                     # Update cache
                     self.reaction_roles_cache[message_id] = {
                         'server_id': server_id,
@@ -4505,6 +4521,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     self.logger.info(f"Saved role selection message (ID: {message_id}) to database for server {server_id}")
                 except Exception as e:
                     self.logger.error(f"Error saving role selection message to database: {e}")
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
             except discord.HTTPException as e:
