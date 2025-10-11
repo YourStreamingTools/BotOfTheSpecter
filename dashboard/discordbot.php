@@ -2951,7 +2951,7 @@ function removeStreamer(username) {
     // Confirm before sending
     Swal.fire({
       title: 'Send Reaction Roles Message?',
-      html: `Are you sure you want to send the reaction roles message to the selected Discord channel?<br><br><strong>This will post the message and add reaction emojis for users to interact with.</strong>`,
+      html: `Are you sure you want to send the reaction roles message to the selected Discord channel?<br><br><span class="has-text-weight-bold">This will post the message and add reaction emojis for users to interact with.</span>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Send Message',
