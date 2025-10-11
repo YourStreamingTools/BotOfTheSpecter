@@ -4296,6 +4296,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                             'channel_id': config.get('channel_id'),
                             'message': config.get('message', ''),
                             'mappings': config.get('mappings', ''),
+                            'role_mappings': config.get('role_mappings', {}),
                             'allow_multiple': config.get('allow_multiple', False)
                         }
                         self.logger.debug(f"Cached reaction roles for message {message_id} in server {server_id}")
@@ -4353,21 +4354,45 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         config = json.loads(result[0])
                     else:
                         config = {}
+                    # Parse mappings to create emoji-to-role mapping
+                    role_mappings = {}
+                    mapping_lines = mappings.strip().split('\n')
+                    for line in mapping_lines:
+                        line = line.strip()
+                        if not line or '@' not in line:
+                            continue
+                        try:
+                            # Extract emoji name and role name
+                            if line.startswith(':') and line.count(':') >= 2:
+                                first_colon = line.index(':', 1)
+                                emoji_name = line[1:first_colon]
+                                emoji = f':{emoji_name}:'
+                                role_name = line.split('@', 1)[1].strip()
+                                
+                                # Find role by name
+                                role = discord.utils.get(guild.roles, name=role_name)
+                                if role:
+                                    role_mappings[emoji] = str(role.id)
+                                    self.logger.debug(f"Mapped {emoji} to role {role_name} (ID: {role.id})")
+                        except Exception as e:
+                            self.logger.warning(f"Error parsing mapping line '{line}': {e}")
                     # Update with message ID
                     config['message_id'] = str(message_id)
                     config['channel_id'] = channel_id
                     config['message'] = message
                     config['mappings'] = mappings
+                    config['role_mappings'] = role_mappings
                     config['allow_multiple'] = allow_multiple
                     # Save back to database
                     update_query = "UPDATE server_management SET reaction_roles_configuration = ? WHERE server_id = ?"
                     await self.mysql.execute(update_query, params=(json.dumps(config), server_id), database_name='specterdiscordbot')
-                    # Update cache
+                    # Update cache with role IDs for quick lookup
                     self.reaction_roles_cache[message_id] = {
                         'server_id': server_id,
                         'channel_id': channel_id,
                         'message': message,
                         'mappings': mappings,
+                        'role_mappings': role_mappings,
                         'allow_multiple': allow_multiple
                     }
                     self.logger.info(f"Updated reaction roles configuration with message ID {message_id}")
@@ -4376,22 +4401,39 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 # Add reactions based on mappings
                 if mappings:
                     try:
-                        # Parse mappings (format: "emoji:role_id,emoji2:role_id2")
-                        mapping_pairs = mappings.split(',')
-                        for mapping in mapping_pairs:
-                            if ':' in mapping:
-                                emoji, role_id = mapping.split(':', 1)
-                                emoji = emoji.strip()
-                                role_id = role_id.strip()
-                                # Validate emoji and role
-                                if emoji and role_id:
-                                    try:
-                                        await sent_message.add_reaction(emoji)
-                                        self.logger.debug(f"Added reaction {emoji} to reaction roles message")
-                                    except discord.HTTPException as e:
-                                        self.logger.warning(f"Failed to add reaction {emoji}: {e}")
-                                    except Exception as e:
-                                        self.logger.warning(f"Error adding reaction {emoji}: {e}")
+                        # Parse mappings (format: ":emoji: Description @RoleName" per line)
+                        mapping_lines = mappings.strip().split('\n')
+                        self.logger.info(f"Processing {len(mapping_lines)} reaction role mappings")
+                        for line in mapping_lines:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                if line.startswith(':') and line.count(':') >= 2:
+                                    # Find the second colon
+                                    first_colon = line.index(':', 1)
+                                    emoji_name = line[1:first_colon]
+                                    emoji = f':{emoji_name}:'
+                                    # Extract role name (after @ symbol)
+                                    if '@' in line:
+                                        role_name = line.split('@', 1)[1].strip()
+                                        # Find the role in the guild by name
+                                        role = discord.utils.get(guild.roles, name=role_name)
+                                        if role:
+                                            try:
+                                                # Try to add the custom emoji or Unicode emoji
+                                                await sent_message.add_reaction(emoji)
+                                                self.logger.info(f"Added reaction {emoji} for role {role_name}")
+                                            except discord.HTTPException as e:
+                                                self.logger.warning(f"Failed to add reaction {emoji}: {e}")
+                                        else:
+                                            self.logger.warning(f"Role '{role_name}' not found in guild {guild.name}")
+                                    else:
+                                        self.logger.warning(f"No role specified in mapping line: {line}")
+                                else:
+                                    self.logger.warning(f"Invalid mapping format: {line}")
+                            except Exception as e:
+                                self.logger.error(f"Error processing mapping line '{line}': {e}")
                     except Exception as e:
                         self.logger.error(f"Error parsing reaction role mappings: {e}")
             except discord.Forbidden:
@@ -4422,47 +4464,44 @@ class ServerManagement(commands.Cog, name='Server Management'):
             member = guild.get_member(payload.user_id)
             if not member:
                 return
-            # Parse mappings to find the role for this emoji
+            # Get role mappings
+            role_mappings = config.get('role_mappings', {})
+            if not role_mappings:
+                self.logger.warning(f"No role mappings found for message {message_id}")
+                return
+            # Get emoji string
             emoji_str = str(payload.emoji)
-            mappings = config['mappings']
-            mapping_pairs = mappings.split(',')
-            for mapping in mapping_pairs:
-                if ':' in mapping:
-                    emoji, role_id = mapping.split(':', 1)
-                    emoji = emoji.strip()
-                    role_id = role_id.strip()
-                    if emoji == emoji_str:
-                        # Found matching emoji, assign role
-                        try:
-                            role = guild.get_role(int(role_id))
-                            if role:
-                                # Check if allow_multiple is False
-                                if not config.get('allow_multiple', False):
-                                    # Remove all other reaction roles from this message
-                                    for other_mapping in mapping_pairs:
-                                        if ':' in other_mapping:
-                                            _, other_role_id = other_mapping.split(':', 1)
-                                            other_role_id = other_role_id.strip()
-                                            if other_role_id != role_id:
-                                                try:
-                                                    other_role = guild.get_role(int(other_role_id))
-                                                    if other_role and other_role in member.roles:
-                                                        await member.remove_roles(other_role, reason="Reaction role - single role mode")
-                                                        self.logger.debug(f"Removed role {other_role.name} from {member.name} (single role mode)")
-                                                except Exception as e:
-                                                    self.logger.error(f"Error removing other reaction role: {e}")
-                                # Add the new role
-                                await member.add_roles(role, reason="Reaction role")
-                                self.logger.info(f"Assigned role {role.name} to {member.name} via reaction roles")
-                            else:
-                                self.logger.warning(f"Role {role_id} not found in guild {guild.name}")
-                        except ValueError:
-                            self.logger.error(f"Invalid role_id: {role_id}")
-                        except discord.Forbidden:
-                            self.logger.error(f"Missing permissions to assign role {role_id} to {member.name}")
-                        except Exception as e:
-                            self.logger.error(f"Error assigning reaction role: {e}")
-                        break
+            # Check if this emoji is mapped to a role
+            if emoji_str not in role_mappings:
+                self.logger.debug(f"Emoji {emoji_str} not found in role mappings for message {message_id}")
+                return
+            role_id = role_mappings[emoji_str]
+            try:
+                role = guild.get_role(int(role_id))
+                if role:
+                    # Check if allow_multiple is False
+                    if not config.get('allow_multiple', False):
+                        # Remove all other reaction roles from this message
+                        for other_emoji, other_role_id in role_mappings.items():
+                            if other_role_id != role_id:
+                                try:
+                                    other_role = guild.get_role(int(other_role_id))
+                                    if other_role and other_role in member.roles:
+                                        await member.remove_roles(other_role, reason="Reaction role - single role mode")
+                                        self.logger.debug(f"Removed role {other_role.name} from {member.name} (single role mode)")
+                                except Exception as e:
+                                    self.logger.error(f"Error removing other reaction role: {e}")
+                    # Add the new role
+                    await member.add_roles(role, reason="Reaction role")
+                    self.logger.info(f"Assigned role {role.name} to {member.name} via reaction roles")
+                else:
+                    self.logger.warning(f"Role {role_id} not found in guild {guild.name}")
+            except ValueError:
+                self.logger.error(f"Invalid role_id: {role_id}")
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to assign role {role_id} to {member.name}")
+            except Exception as e:
+                self.logger.error(f"Error assigning reaction role: {e}")
         except Exception as e:
             self.logger.error(f"Error in on_raw_reaction_add: {e}")
 
@@ -4485,31 +4524,31 @@ class ServerManagement(commands.Cog, name='Server Management'):
             member = guild.get_member(payload.user_id)
             if not member:
                 return
-            # Parse mappings to find the role for this emoji
+            # Get role mappings
+            role_mappings = config.get('role_mappings', {})
+            if not role_mappings:
+                self.logger.warning(f"No role mappings found for message {message_id}")
+                return
+            # Get emoji string
             emoji_str = str(payload.emoji)
-            mappings = config['mappings']
-            mapping_pairs = mappings.split(',')
-            for mapping in mapping_pairs:
-                if ':' in mapping:
-                    emoji, role_id = mapping.split(':', 1)
-                    emoji = emoji.strip()
-                    role_id = role_id.strip()
-                    if emoji == emoji_str:
-                        # Found matching emoji, remove role
-                        try:
-                            role = guild.get_role(int(role_id))
-                            if role and role in member.roles:
-                                await member.remove_roles(role, reason="Reaction role removed")
-                                self.logger.info(f"Removed role {role.name} from {member.name} via reaction roles")
-                            else:
-                                self.logger.debug(f"Role {role_id} not found or member doesn't have it")
-                        except ValueError:
-                            self.logger.error(f"Invalid role_id: {role_id}")
-                        except discord.Forbidden:
-                            self.logger.error(f"Missing permissions to remove role {role_id} from {member.name}")
-                        except Exception as e:
-                            self.logger.error(f"Error removing reaction role: {e}")
-                        break
+            # Check if this emoji is mapped to a role
+            if emoji_str not in role_mappings:
+                self.logger.debug(f"Emoji {emoji_str} not found in role mappings for message {message_id}")
+                return
+            role_id = role_mappings[emoji_str]
+            try:
+                role = guild.get_role(int(role_id))
+                if role and role in member.roles:
+                    await member.remove_roles(role, reason="Reaction role removed")
+                    self.logger.info(f"Removed role {role.name} from {member.name} via reaction roles")
+                else:
+                    self.logger.debug(f"Role {role_id} not found or member doesn't have it")
+            except ValueError:
+                self.logger.error(f"Invalid role_id: {role_id}")
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to remove role {role_id} from {member.name}")
+            except Exception as e:
+                self.logger.error(f"Error removing reaction role: {e}")
         except Exception as e:
             self.logger.error(f"Error in on_raw_reaction_remove: {e}")
 
