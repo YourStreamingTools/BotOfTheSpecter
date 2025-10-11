@@ -217,7 +217,6 @@ try {
                             $alterStmt->close();
                         }
                         $columnCheckStmt->close();
-
                         // Insert new record
                         $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, reaction_roles_configuration) VALUES (?, ?)");
                         $insertStmt->bind_param("ss", $server_id, $reaction_roles_config);
@@ -226,6 +225,33 @@ try {
                     }
                     $checkStmt->close();
                     if ($success) {
+                        // Send websocket notification to post the message to Discord channel
+                        $websocket_url = 'https://websocket.botofthespecter.com/notify'; // Production websocket server
+                        $params = [
+                            'code' => $_SESSION['api_key'],
+                            'event' => 'post_reaction_roles_message',
+                            'server_id' => $server_id,
+                            'channel_id' => $reaction_roles_channel_id,
+                            'message' => $reaction_roles_message,
+                            'mappings' => $reaction_roles_mappings,
+                            'allow_multiple' => $allow_multiple_reactions ? 'true' : 'false'
+                        ];
+                        // Build query string
+                        $query_string = http_build_query($params);
+                        $full_url = $websocket_url . '?' . $query_string;
+                        // Send HTTP GET request to websocket server
+                        $ch = curl_init($full_url);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
+                        $response = curl_exec($ch);
+                        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+                        // Log websocket notification result (optional)
+                        if ($http_code !== 200) {
+                            error_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
+                        } else {
+                            error_log("Successfully sent websocket notification for reaction roles");
+                        }
                         echo json_encode([
                             'success' => true, 
                             'message' => 'Reaction roles configuration saved successfully',
