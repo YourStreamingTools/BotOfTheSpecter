@@ -2154,9 +2154,9 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
                     <div class="control">
-                      <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: @Role1&#10;:heart: @Role2&#10;:star: @Role3" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings); ?></textarea>
+                      <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: Thumbs Up @Role1&#10;:heart: Love @Role2&#10;:star: VIP @Role3" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings); ?></textarea>
                     </div>
-                    <p class="help has-text-grey-light">Format: :emoji: @RoleName (one per line)</p>
+                    <p class="help has-text-grey-light">Format: :emoji: Description @RoleName (one per line)</p>
                   </div>
                   <div class="field">
                     <div class="control">
@@ -2802,7 +2802,7 @@ function removeStreamer(username) {
             toast: true,
             position: 'top-end',
             icon: 'warning',
-            title: 'Invalid reaction role mapping format. Use: :emoji: @RoleName',
+            title: 'Invalid reaction role mapping format. Use: :emoji: Description @RoleName',
             showConfirmButton: false,
             timer: 4000,
             timerProgressBar: true
@@ -2874,7 +2874,7 @@ function removeStreamer(username) {
           toast: true,
           position: 'top-end',
           icon: 'warning',
-          title: 'Invalid reaction role mapping format. Use: :emoji: @RoleName',
+          title: 'Invalid reaction role mapping format. Use: :emoji: Description @RoleName',
           showConfirmButton: false,
           timer: 4000,
           timerProgressBar: true
