@@ -1,5 +1,6 @@
 # Standard library
 import asyncio
+import json
 import logging
 import os
 import re
@@ -309,7 +310,12 @@ class WebsocketListener:
         # Event handler for posting reaction roles message
         @self.specterSocket.event
         async def post_reaction_roles_message(data):
-            await self.bot.post_reaction_roles_message(data)
+            # Forward to ServerManagement cog if loaded
+            server_mgmt = self.bot.get_cog('Server Management')
+            if server_mgmt:
+                await server_mgmt.post_reaction_roles_message(data)
+            else:
+                self.logger.warning("ServerManagement cog not loaded, cannot handle reaction roles message")
         # Log all other events generically
         @self.specterSocket.on('*')
         async def catch_all(event, data):
@@ -863,6 +869,7 @@ class BotOfTheSpecter(commands.Bot):
         await ticket_cog.init_ticket_database()
         await self.add_cog(VoiceCog(self, self.logger))
         await self.add_cog(StreamerPostingCog(self, self.logger))
+        await self.add_cog(ServerManagement(self, self.logger))
         await self.add_cog(AdminCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
@@ -1771,68 +1778,6 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.info(f"Successfully sent stream alert for {account_username} to #{stream_channel.name}")
         except Exception as e:
             self.logger.error(f"Exception in _process_stream_alert for {code}: {e}")
-
-    async def post_reaction_roles_message(self, data):
-        try:
-            server_id = data.get('server_id')
-            channel_id = data.get('channel_id')
-            message = data.get('message', '')
-            mappings = data.get('mappings', '')
-            allow_multiple = data.get('allow_multiple', False)
-            if not server_id or not channel_id:
-                self.logger.error("Missing server_id or channel_id in reaction roles message data")
-                return
-            # Get the guild
-            try:
-                guild = self.get_guild(int(server_id))
-            except (ValueError, TypeError):
-                self.logger.error(f"Invalid server_id: {server_id}")
-                return
-            if not guild:
-                self.logger.error(f"Bot not in guild {server_id}")
-                return
-            # Get the channel
-            try:
-                channel = guild.get_channel(int(channel_id))
-            except (ValueError, TypeError):
-                self.logger.error(f"Invalid channel_id: {channel_id}")
-                return
-            if not channel:
-                self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
-                return
-            # Send the message
-            try:
-                sent_message = await channel.send(message)
-                self.logger.info(f"Successfully posted reaction roles message to #{channel.name} (ID: {channel_id}) in guild {guild.name}")
-                # Add reactions based on mappings
-                if mappings:
-                    try:
-                        # Parse mappings (assuming format like "emoji:role_id,emoji2:role_id2")
-                        mapping_pairs = mappings.split(',')
-                        for mapping in mapping_pairs:
-                            if ':' in mapping:
-                                emoji, role_id = mapping.split(':', 1)
-                                emoji = emoji.strip()
-                                role_id = role_id.strip()
-                                # Validate emoji and role
-                                if emoji and role_id:
-                                    try:
-                                        await sent_message.add_reaction(emoji)
-                                        self.logger.debug(f"Added reaction {emoji} to reaction roles message")
-                                    except discord.HTTPException as e:
-                                        self.logger.warning(f"Failed to add reaction {emoji}: {e}")
-                                    except Exception as e:
-                                        self.logger.warning(f"Error adding reaction {emoji}: {e}")
-                    except Exception as e:
-                        self.logger.error(f"Error parsing reaction role mappings: {e}")
-            except discord.Forbidden:
-                self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
-            except discord.HTTPException as e:
-                self.logger.error(f"Discord HTTP error sending reaction roles message: {e}")
-            except Exception as e:
-                self.logger.error(f"Unexpected error sending reaction roles message: {e}")
-        except Exception as e:
-            self.logger.error(f"Error in post_reaction_roles_message: {e}")
 
 # QuoteCog class for fetching and sending public quotes
 class QuoteCog(commands.Cog, name='Quote'):
@@ -4326,6 +4271,282 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
     async def post_streams(self):
         self.logger.warning("post_streams() is deprecated, monitoring is now automatic via start_monitoring()")
         pass
+
+# Server Management class for handling reaction roles and other server features
+class ServerManagement(commands.Cog, name='Server Management'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.mysql = MySQLHelper(logger)
+        # Cache for reaction role configurations: {message_id: {config}}
+        self.reaction_roles_cache = {}
+        # Start cache refresh task
+        asyncio.create_task(self._init_reaction_roles_cache())
+
+    async def _init_reaction_roles_cache(self):
+        try:
+            await self.bot.wait_until_ready()
+            await self._refresh_reaction_roles_cache()
+            self.logger.info("Reaction roles cache initialized")
+        except Exception as e:
+            self.logger.error(f"Error initializing reaction roles cache: {e}")
+
+    async def _refresh_reaction_roles_cache(self):
+        try:
+            query = """
+                SELECT server_id, reaction_roles_configuration 
+                FROM server_management 
+                WHERE reactionRoles = 1 
+                AND reaction_roles_configuration IS NOT NULL 
+                AND reaction_roles_configuration != ''
+            """
+            results = await self.mysql.fetchall(query, database_name='specterdiscordbot')
+            # Clear existing cache
+            self.reaction_roles_cache.clear()
+            for row in results:
+                try:
+                    server_id = str(row[0])
+                    config_json = row[1]
+                    # Parse JSON configuration
+                    config = json.loads(config_json)
+                    # Store in cache by message_id if we have it
+                    message_id = config.get('message_id')
+                    if message_id:
+                        self.reaction_roles_cache[int(message_id)] = {
+                            'server_id': server_id,
+                            'channel_id': config.get('channel_id'),
+                            'message': config.get('message', ''),
+                            'mappings': config.get('mappings', ''),
+                            'allow_multiple': config.get('allow_multiple', False)
+                        }
+                        self.logger.debug(f"Cached reaction roles for message {message_id} in server {server_id}")
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"Failed to parse reaction_roles_configuration for server {server_id}: {e}")
+                except Exception as e:
+                    self.logger.error(f"Error processing reaction roles config for server {server_id}: {e}")
+                    
+            self.logger.info(f"Reaction roles cache refreshed: {len(self.reaction_roles_cache)} configurations loaded")
+        except Exception as e:
+            self.logger.error(f"Error refreshing reaction roles cache: {e}")
+
+    async def post_reaction_roles_message(self, data):
+        try:
+            server_id = data.get('server_id')
+            channel_id = data.get('channel_id')
+            message = data.get('message', '')
+            mappings = data.get('mappings', '')
+            allow_multiple = data.get('allow_multiple', False)
+            
+            if not server_id or not channel_id:
+                self.logger.error("Missing server_id or channel_id in reaction roles message data")
+                return
+            # Get the guild
+            try:
+                guild = self.bot.get_guild(int(server_id))
+            except (ValueError, TypeError):
+                self.logger.error(f"Invalid server_id: {server_id}")
+                return
+            
+            if not guild:
+                self.logger.error(f"Bot not in guild {server_id}")
+                return
+            # Get the channel
+            try:
+                channel = guild.get_channel(int(channel_id))
+            except (ValueError, TypeError):
+                self.logger.error(f"Invalid channel_id: {channel_id}")
+                return
+            
+            if not channel:
+                self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
+                return
+            # Send the message
+            try:
+                sent_message = await channel.send(message)
+                message_id = sent_message.id
+                self.logger.info(f"Successfully posted reaction roles message (ID: {message_id}) to #{channel.name} in guild {guild.name}")
+                # Update database with message ID
+                try:
+                    # Get existing configuration
+                    query = "SELECT reaction_roles_configuration FROM server_management WHERE server_id = ?"
+                    result = await self.mysql.fetchone(query, params=(server_id,), database_name='specterdiscordbot')
+                    if result and result[0]:
+                        config = json.loads(result[0])
+                    else:
+                        config = {}
+                    # Update with message ID
+                    config['message_id'] = str(message_id)
+                    config['channel_id'] = channel_id
+                    config['message'] = message
+                    config['mappings'] = mappings
+                    config['allow_multiple'] = allow_multiple
+                    # Save back to database
+                    update_query = "UPDATE server_management SET reaction_roles_configuration = ? WHERE server_id = ?"
+                    await self.mysql.execute(update_query, params=(json.dumps(config), server_id), database_name='specterdiscordbot')
+                    # Update cache
+                    self.reaction_roles_cache[message_id] = {
+                        'server_id': server_id,
+                        'channel_id': channel_id,
+                        'message': message,
+                        'mappings': mappings,
+                        'allow_multiple': allow_multiple
+                    }
+                    self.logger.info(f"Updated reaction roles configuration with message ID {message_id}")
+                except Exception as e:
+                    self.logger.error(f"Error updating reaction roles configuration in database: {e}")
+                # Add reactions based on mappings
+                if mappings:
+                    try:
+                        # Parse mappings (format: "emoji:role_id,emoji2:role_id2")
+                        mapping_pairs = mappings.split(',')
+                        for mapping in mapping_pairs:
+                            if ':' in mapping:
+                                emoji, role_id = mapping.split(':', 1)
+                                emoji = emoji.strip()
+                                role_id = role_id.strip()
+                                # Validate emoji and role
+                                if emoji and role_id:
+                                    try:
+                                        await sent_message.add_reaction(emoji)
+                                        self.logger.debug(f"Added reaction {emoji} to reaction roles message")
+                                    except discord.HTTPException as e:
+                                        self.logger.warning(f"Failed to add reaction {emoji}: {e}")
+                                    except Exception as e:
+                                        self.logger.warning(f"Error adding reaction {emoji}: {e}")
+                    except Exception as e:
+                        self.logger.error(f"Error parsing reaction role mappings: {e}")
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
+            except discord.HTTPException as e:
+                self.logger.error(f"Discord HTTP error sending reaction roles message: {e}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error sending reaction roles message: {e}")
+        except Exception as e:
+            self.logger.error(f"Error in post_reaction_roles_message: {e}")
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        try:
+            # Ignore bot reactions
+            if payload.user_id == self.bot.user.id:
+                return
+            # Check if this message is a reaction roles message
+            message_id = payload.message_id
+            if message_id not in self.reaction_roles_cache:
+                return
+            config = self.reaction_roles_cache[message_id]
+            # Get the guild
+            guild = self.bot.get_guild(payload.guild_id)
+            if not guild:
+                return
+            # Get the member
+            member = guild.get_member(payload.user_id)
+            if not member:
+                return
+            # Parse mappings to find the role for this emoji
+            emoji_str = str(payload.emoji)
+            mappings = config['mappings']
+            mapping_pairs = mappings.split(',')
+            for mapping in mapping_pairs:
+                if ':' in mapping:
+                    emoji, role_id = mapping.split(':', 1)
+                    emoji = emoji.strip()
+                    role_id = role_id.strip()
+                    if emoji == emoji_str:
+                        # Found matching emoji, assign role
+                        try:
+                            role = guild.get_role(int(role_id))
+                            if role:
+                                # Check if allow_multiple is False
+                                if not config.get('allow_multiple', False):
+                                    # Remove all other reaction roles from this message
+                                    for other_mapping in mapping_pairs:
+                                        if ':' in other_mapping:
+                                            _, other_role_id = other_mapping.split(':', 1)
+                                            other_role_id = other_role_id.strip()
+                                            if other_role_id != role_id:
+                                                try:
+                                                    other_role = guild.get_role(int(other_role_id))
+                                                    if other_role and other_role in member.roles:
+                                                        await member.remove_roles(other_role, reason="Reaction role - single role mode")
+                                                        self.logger.debug(f"Removed role {other_role.name} from {member.name} (single role mode)")
+                                                except Exception as e:
+                                                    self.logger.error(f"Error removing other reaction role: {e}")
+                                # Add the new role
+                                await member.add_roles(role, reason="Reaction role")
+                                self.logger.info(f"Assigned role {role.name} to {member.name} via reaction roles")
+                            else:
+                                self.logger.warning(f"Role {role_id} not found in guild {guild.name}")
+                        except ValueError:
+                            self.logger.error(f"Invalid role_id: {role_id}")
+                        except discord.Forbidden:
+                            self.logger.error(f"Missing permissions to assign role {role_id} to {member.name}")
+                        except Exception as e:
+                            self.logger.error(f"Error assigning reaction role: {e}")
+                        break
+        except Exception as e:
+            self.logger.error(f"Error in on_raw_reaction_add: {e}")
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+        try:
+            # Ignore bot reactions
+            if payload.user_id == self.bot.user.id:
+                return
+            # Check if this message is a reaction roles message
+            message_id = payload.message_id
+            if message_id not in self.reaction_roles_cache:
+                return
+            config = self.reaction_roles_cache[message_id]
+            # Get the guild
+            guild = self.bot.get_guild(payload.guild_id)
+            if not guild:
+                return
+            # Get the member
+            member = guild.get_member(payload.user_id)
+            if not member:
+                return
+            # Parse mappings to find the role for this emoji
+            emoji_str = str(payload.emoji)
+            mappings = config['mappings']
+            mapping_pairs = mappings.split(',')
+            for mapping in mapping_pairs:
+                if ':' in mapping:
+                    emoji, role_id = mapping.split(':', 1)
+                    emoji = emoji.strip()
+                    role_id = role_id.strip()
+                    if emoji == emoji_str:
+                        # Found matching emoji, remove role
+                        try:
+                            role = guild.get_role(int(role_id))
+                            if role and role in member.roles:
+                                await member.remove_roles(role, reason="Reaction role removed")
+                                self.logger.info(f"Removed role {role.name} from {member.name} via reaction roles")
+                            else:
+                                self.logger.debug(f"Role {role_id} not found or member doesn't have it")
+                        except ValueError:
+                            self.logger.error(f"Invalid role_id: {role_id}")
+                        except discord.Forbidden:
+                            self.logger.error(f"Missing permissions to remove role {role_id} from {member.name}")
+                        except Exception as e:
+                            self.logger.error(f"Error removing reaction role: {e}")
+                        break
+        except Exception as e:
+            self.logger.error(f"Error in on_raw_reaction_remove: {e}")
+
+    @commands.command(name="refreshreactionroles")
+    @commands.has_permissions(administrator=True)
+    async def refresh_reaction_roles(self, ctx):
+        try:
+            await self._refresh_reaction_roles_cache()
+            await ctx.send("✅ Reaction roles cache has been refreshed!")
+            self.logger.info(f"Reaction roles cache refreshed by {ctx.author.name} in {ctx.guild.name}")
+        except Exception as e:
+            await ctx.send(f"❌ Error refreshing reaction roles cache: {e}")
+            self.logger.error(f"Error in refresh_reaction_roles command: {e}")
+
+    def cog_unload(self):
+        self.logger.info("ServerManagement cog unloaded")
 
 # Admin commands cog - restricted to bot owner
 class AdminCog(commands.Cog, name='Admin'):
