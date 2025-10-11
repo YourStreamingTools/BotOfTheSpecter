@@ -230,7 +230,7 @@ try {
                             echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare update']);
                             exit();
                         }
-                        $updateStmt->bind_param("sssds", $reaction_roles_channel_id, $reaction_roles_message, $reaction_roles_mappings, $allow_multiple_reactions, $server_id);
+                        $updateStmt->bind_param("sssis", $reaction_roles_channel_id, $reaction_roles_message, $reaction_roles_mappings, $allow_multiple_reactions, $server_id);
                         $success = $updateStmt->execute();
                         $updateStmt->close();
                     } else {
@@ -243,7 +243,7 @@ try {
                             echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare insert']);
                             exit();
                         }
-                        $insertStmt->bind_param("sssds", $server_id, $reaction_roles_channel_id, $reaction_roles_message, $reaction_roles_mappings, $allow_multiple_reactions);
+                        $insertStmt->bind_param("sssis", $server_id, $reaction_roles_channel_id, $reaction_roles_message, $reaction_roles_mappings, $allow_multiple_reactions);
                         $success = $insertStmt->execute();
                         $insertStmt->close();
                     }
