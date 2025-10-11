@@ -4417,7 +4417,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
                                     # Find the second colon
                                     first_colon = line.index(':', 1)
                                     emoji_name = line[1:first_colon]
-                                    emoji = f':{emoji_name}:'
                                     # Extract role name (after @ symbol)
                                     if '@' in line:
                                         role_name = line.split('@', 1)[1].strip()
@@ -4425,11 +4424,18 @@ class ServerManagement(commands.Cog, name='Server Management'):
                                         role = discord.utils.get(guild.roles, name=role_name)
                                         if role:
                                             try:
-                                                # Try to add the custom emoji or Unicode emoji
-                                                await sent_message.add_reaction(emoji)
-                                                self.logger.info(f"Added reaction {emoji} for role {role_name}")
+                                                # First, try to find custom emoji in the guild
+                                                custom_emoji = discord.utils.get(guild.emojis, name=emoji_name)
+                                                if custom_emoji:
+                                                    # Use the custom emoji object
+                                                    await sent_message.add_reaction(custom_emoji)
+                                                    self.logger.info(f"Added custom emoji reaction {custom_emoji.name} for role {role_name}")
+                                                else:
+                                                    # If not a custom emoji, treat as Unicode emoji
+                                                    # The dashboard should send the actual Unicode character
+                                                    self.logger.warning(f"Custom emoji '{emoji_name}' not found in guild. User should use Unicode emoji or ensure custom emoji exists in server.")
                                             except discord.HTTPException as e:
-                                                self.logger.warning(f"Failed to add reaction {emoji}: {e}")
+                                                self.logger.warning(f"Failed to add reaction for emoji '{emoji_name}': {e}")
                                         else:
                                             self.logger.warning(f"Role '{role_name}' not found in guild {guild.name}")
                                     else:
@@ -4473,8 +4479,13 @@ class ServerManagement(commands.Cog, name='Server Management'):
             if not role_mappings:
                 self.logger.warning(f"No role mappings found for message {message_id}")
                 return
-            # Get emoji string
-            emoji_str = str(payload.emoji)
+            # Get emoji string - handle both custom and Unicode emoji
+            if payload.emoji.id:
+                # Custom emoji - use name with colons to match stored format
+                emoji_str = f':{payload.emoji.name}:'
+            else:
+                # Unicode emoji - use the actual character
+                emoji_str = str(payload.emoji)
             # Check if this emoji is mapped to a role
             if emoji_str not in role_mappings:
                 self.logger.debug(f"Emoji {emoji_str} not found in role mappings for message {message_id}")
@@ -4533,8 +4544,13 @@ class ServerManagement(commands.Cog, name='Server Management'):
             if not role_mappings:
                 self.logger.warning(f"No role mappings found for message {message_id}")
                 return
-            # Get emoji string
-            emoji_str = str(payload.emoji)
+            # Get emoji string - handle both custom and Unicode emoji
+            if payload.emoji.id:
+                # Custom emoji - use name with colons to match stored format
+                emoji_str = f':{payload.emoji.name}:'
+            else:
+                # Unicode emoji - use the actual character
+                emoji_str = str(payload.emoji)
             # Check if this emoji is mapped to a role
             if emoji_str not in role_mappings:
                 self.logger.debug(f"Emoji {emoji_str} not found in role mappings for message {message_id}")
