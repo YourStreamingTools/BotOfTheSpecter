@@ -2125,15 +2125,15 @@ ob_start();
                   Reaction Roles Configuration
                 </p>
                 <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span>Coming Soon</span>
+                  <span class="tag is-success is-light">
+                    <span class="icon"><i class="fas fa-flask"></i></span>
+                    <span>BETA</span>
                   </span>
                 </div>
               </header>
               <div class="card-content">
-                <div class="notification is-warning is-light mb-1">
-                  <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                <div class="notification is-info is-light mb-1">
+                  <p class="has-text-dark"><strong>Reaction Roles:</strong> Configure self-assignable roles via reactions in your Discord server.</p>
                 </div>
                 <p class="has-text-white-ter mb-1">Configure self-assignable roles via reactions in your Discord server.</p>
                 <form action="" method="post">
@@ -2147,21 +2147,21 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Message</label>
                     <div class="control">
-                      <textarea class="textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3" placeholder="To join any of the following roles, use the icons below. Click on the boxes below to get the roles!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
+                      <textarea class="textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3" placeholder="To join any of the following roles, use the icons below. Click on the boxes below to get the roles!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
                     </div>
                     <p class="help has-text-grey-light">Message to display above the reaction roles. Leave empty for no message.</p>
                   </div>
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
                     <div class="control">
-                      <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: @Role1&#10;:heart: @Role2&#10;:star: @Role3" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled><?php echo htmlspecialchars($existingReactionRolesMappings); ?></textarea>
+                      <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: @Role1&#10;:heart: @Role2&#10;:star: @Role3" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings); ?></textarea>
                     </div>
                     <p class="help has-text-grey-light">Format: :emoji: @RoleName (one per line)</p>
                   </div>
                   <div class="field">
                     <div class="control">
                       <label class="checkbox has-text-white">
-                        <input type="checkbox" id="allow_multiple_reactions" name="allow_multiple_reactions" style="margin-right: 8px;"<?php echo $existingAllowMultipleReactions ? ' checked' : ''; ?> disabled>
+                        <input type="checkbox" id="allow_multiple_reactions" name="allow_multiple_reactions" style="margin-right: 8px;"<?php echo $existingAllowMultipleReactions ? ' checked' : ''; ?>>
                         Allow users to select multiple roles
                       </label>
                     </div>
@@ -2169,11 +2169,20 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;">
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Reaction Roles Settings</span>
                       </button>
                     </div>
+                  </div>
+                  <div class="field">
+                    <div class="control">
+                      <button class="button is-success is-fullwidth" type="button" onclick="sendReactionRolesMessage()" id="send_reaction_roles_message" name="send_reaction_roles_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                        <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                        <span>Send Message to Channel</span>
+                      </button>
+                    </div>
+                    <p class="help has-text-grey-light has-text-centered mt-2">Posts the reaction roles message to Discord and adds the reaction emojis</p>
                   </div>
                 </form>
               </div>
@@ -2369,6 +2378,34 @@ function removeStreamer(username) {
   validateDropdownSelection('server_mgmt_log_channel_id', 'save_server_role_management');
   validateDropdownSelection('user_log_channel_id', 'save_user_tracking');
   validateDropdownSelection('reaction_roles_channel_id', 'save_reaction_roles');
+  
+  // Validation for send reaction roles message button
+  function validateSendReactionRolesButton() {
+    const channelId = $('#reaction_roles_channel_id').val();
+    const message = $('#reaction_roles_message').val().trim();
+    const mappings = $('#reaction_roles_mappings').val().trim();
+    
+    let hasChannel = false;
+    if ($('#reaction_roles_channel_id').is('select')) {
+      hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
+    } else {
+      hasChannel = channelId && channelId.trim() !== '';
+    }
+    
+    const hasMessage = message !== '';
+    const hasMappings = mappings !== '';
+    
+    const sendButton = $('#send_reaction_roles_message');
+    if (hasChannel && hasMessage && hasMappings) {
+      sendButton.prop('disabled', false);
+    } else {
+      sendButton.prop('disabled', true);
+    }
+  }
+  
+  // Check validation on page load and when inputs change
+  validateSendReactionRolesButton();
+  $('#reaction_roles_channel_id, #reaction_roles_message, #reaction_roles_mappings').on('change input', validateSendReactionRolesButton);
 });
 </script>
 <?php if (!$is_linked) { ?>
@@ -2780,6 +2817,91 @@ function removeStreamer(username) {
       reaction_roles_message: reactionRolesMessage,
       reaction_roles_mappings: reactionRolesMappings,
       allow_multiple_reactions: allowMultipleReactions
+    });
+  }
+
+  function sendReactionRolesMessage() {
+    const reactionRolesChannelId = document.getElementById('reaction_roles_channel_id').value;
+    const reactionRolesMessage = document.getElementById('reaction_roles_message').value;
+    const reactionRolesMappings = document.getElementById('reaction_roles_mappings').value;
+    const allowMultipleReactions = document.getElementById('allow_multiple_reactions').checked;
+    
+    // Validate required fields
+    if (!reactionRolesChannelId || reactionRolesChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a reaction roles channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
+    if (!reactionRolesMessage || reactionRolesMessage.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter a reaction roles message',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
+    if (!reactionRolesMappings || reactionRolesMappings.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter reaction role mappings',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
+    // Validate mapping format
+    const lines = reactionRolesMappings.trim().split('\n');
+    for (let line of lines) {
+      if (line.trim() && !line.includes('@')) {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'warning',
+          title: 'Invalid reaction role mapping format. Use: :emoji: @RoleName',
+          showConfirmButton: false,
+          timer: 4000,
+          timerProgressBar: true
+        });
+        return;
+      }
+    }
+    
+    // Confirm before sending
+    Swal.fire({
+      title: 'Send Reaction Roles Message?',
+      html: `Are you sure you want to send the reaction roles message to the selected Discord channel?<br><br><strong>This will post the message and add reaction emojis for users to interact with.</strong>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Send Message',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#28a745',
+      cancelButtonColor: '#6c757d'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        saveChannelConfig('send_reaction_roles_message', {
+          reaction_roles_channel_id: reactionRolesChannelId,
+          reaction_roles_message: reactionRolesMessage,
+          reaction_roles_mappings: reactionRolesMappings,
+          allow_multiple_reactions: allowMultipleReactions
+        });
+      }
     });
   }
   
