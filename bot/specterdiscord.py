@@ -4285,55 +4285,76 @@ class ServerManagement(commands.Cog, name='Server Management'):
         self.mysql = MySQLHelper(logger)
         # Cache for reaction role configurations: {message_id: {config}}
         self.reaction_roles_cache = {}
-        # Start cache refresh task
+        # Start initialization tasks
         asyncio.create_task(self._init_reaction_roles_cache())
 
     async def _init_reaction_roles_cache(self):
         try:
             await self.bot.wait_until_ready()
+            await self._ensure_role_messages_table()
             await self._refresh_reaction_roles_cache()
             self.logger.info("Reaction roles cache initialized")
         except Exception as e:
             self.logger.error(f"Error initializing reaction roles cache: {e}")
+    
+    async def _ensure_role_messages_table(self):
+        try:
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS role_selection_messages (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    server_id VARCHAR(255) NOT NULL UNIQUE,
+                    channel_id VARCHAR(255) NOT NULL,
+                    message_id VARCHAR(255) NOT NULL,
+                    message_text TEXT NOT NULL,
+                    mappings TEXT NOT NULL,
+                    role_mappings JSON NOT NULL,
+                    allow_multiple BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_server_id (server_id),
+                    INDEX idx_message_id (message_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """
+            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
+            self.logger.info("Ensured role_selection_messages table exists")
+        except Exception as e:
+            self.logger.error(f"Error creating role_selection_messages table: {e}")
 
     async def _refresh_reaction_roles_cache(self):
         try:
-            query = """
-                SELECT server_id, reaction_roles_configuration 
-                FROM server_management 
-                WHERE reactionRoles = 1 
-                AND reaction_roles_configuration IS NOT NULL 
-                AND reaction_roles_configuration != ''
-            """
+            query = "SELECT server_id, channel_id, message_id, message_text, mappings, role_mappings, allow_multiple FROM role_selection_messages"
             results = await self.mysql.fetchall(query, database_name='specterdiscordbot')
             # Clear existing cache
             self.reaction_roles_cache.clear()
             for row in results:
                 try:
                     server_id = str(row[0])
-                    config_json = row[1]
-                    # Parse JSON configuration
-                    config = json.loads(config_json)
-                    # Store in cache by message_id if we have it
-                    message_id = config.get('message_id')
-                    if message_id:
-                        self.reaction_roles_cache[int(message_id)] = {
-                            'server_id': server_id,
-                            'channel_id': config.get('channel_id'),
-                            'message': config.get('message', ''),
-                            'mappings': config.get('mappings', ''),
-                            'role_mappings': config.get('role_mappings', {}),
-                            'allow_multiple': config.get('allow_multiple', False)
-                        }
-                        self.logger.debug(f"Cached reaction roles for message {message_id} in server {server_id}")
-                except json.JSONDecodeError as e:
-                    self.logger.error(f"Failed to parse reaction_roles_configuration for server {server_id}: {e}")
+                    channel_id = str(row[1])
+                    message_id = str(row[2])
+                    message_text = row[3]
+                    mappings = row[4]
+                    role_mappings_json = row[5]
+                    allow_multiple = bool(row[6])
+                    # Parse role_mappings JSON
+                    if isinstance(role_mappings_json, str):
+                        role_mappings = json.loads(role_mappings_json)
+                    else:
+                        role_mappings = role_mappings_json
+                    # Store in cache by message_id
+                    self.reaction_roles_cache[int(message_id)] = {
+                        'server_id': server_id,
+                        'channel_id': channel_id,
+                        'message': message_text,
+                        'mappings': mappings,
+                        'role_mappings': role_mappings,
+                        'allow_multiple': allow_multiple
+                    }
+                    self.logger.debug(f"Cached role selection message {message_id} for server {server_id}")
                 except Exception as e:
-                    self.logger.error(f"Error processing reaction roles config for server {server_id}: {e}")
-                    
-            self.logger.info(f"Reaction roles cache refreshed: {len(self.reaction_roles_cache)} configurations loaded")
+                    self.logger.error(f"Error processing role selection message for server {row[0]}: {e}")
+            self.logger.info(f"Role selection cache refreshed: {len(self.reaction_roles_cache)} messages loaded")
         except Exception as e:
-            self.logger.error(f"Error refreshing reaction roles cache: {e}")
+            self.logger.error(f"Error refreshing role selection cache: {e}")
 
     async def post_reaction_roles_message(self, data):
         try:
@@ -4406,9 +4427,40 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     except Exception as e:
                         self.logger.error(f"Error processing mapping line '{line}': {e}")
             try:
+                # Check for existing message and delete it before sending new one
+                try:
+                    query = "SELECT channel_id, message_id FROM role_selection_messages WHERE server_id = %s"
+                    result = await self.mysql.fetchone(query, params=(server_id,), database_name='specterdiscordbot')
+                    if result:
+                        old_channel_id = result[0]
+                        old_message_id = result[1]
+                        if old_message_id and old_channel_id:
+                            try:
+                                # Try to get the old channel (it might be different from current)
+                                old_channel = guild.get_channel(int(old_channel_id))
+                                if old_channel:
+                                    try:
+                                        # Fetch and delete the old message
+                                        old_message = await old_channel.fetch_message(int(old_message_id))
+                                        await old_message.delete()
+                                        self.logger.info(f"Deleted old role selection message (ID: {old_message_id}) from #{old_channel.name}")
+                                    except discord.NotFound:
+                                        self.logger.info(f"Old message (ID: {old_message_id}) no longer exists, proceeding with new message")
+                                    except discord.Forbidden:
+                                        self.logger.warning(f"Missing permissions to delete old message (ID: {old_message_id})")
+                                    except Exception as e:
+                                        self.logger.error(f"Error deleting old message: {e}")
+                                # Remove old message from cache if it exists
+                                if int(old_message_id) in self.reaction_roles_cache:
+                                    del self.reaction_roles_cache[int(old_message_id)]
+                                    self.logger.debug(f"Removed old message {old_message_id} from cache")
+                            except Exception as e:
+                                self.logger.error(f"Error cleaning up old message: {e}")
+                except Exception as e:
+                    self.logger.error(f"Error checking for existing message: {e}")
                 # Create embed for the message
                 embed = discord.Embed(
-                    title="Role Selection",
+                    title="🎭 Role Selection",
                     description=message,
                     color=config.bot_color
                 )
@@ -4417,25 +4469,26 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 sent_message = await channel.send(embed=embed, view=view)
                 message_id = sent_message.id
                 self.logger.info(f"Successfully posted role selection embed (ID: {message_id}) with {len(view.children)} buttons to #{channel.name}")
-                # Update database with message ID
+                # Save to database using INSERT ... ON DUPLICATE KEY UPDATE
                 try:
-                    # Get existing configuration
-                    query = "SELECT reaction_roles_configuration FROM server_management WHERE server_id = %s"
-                    result = await self.mysql.fetchone(query, params=(server_id,), database_name='specterdiscordbot')
-                    if result and result[0]:
-                        config = json.loads(result[0])
-                    else:
-                        config = {}
-                    # Update configuration
-                    config['message_id'] = str(message_id)
-                    config['channel_id'] = channel_id
-                    config['message'] = message
-                    config['mappings'] = mappings
-                    config['role_mappings'] = role_mappings
-                    config['allow_multiple'] = allow_multiple
-                    # Save back to database
-                    update_query = "UPDATE server_management SET reaction_roles_configuration = %s WHERE server_id = %s"
-                    await self.mysql.execute(update_query, params=(json.dumps(config), server_id), database_name='specterdiscordbot')
+                    insert_query = """
+                        INSERT INTO role_selection_messages 
+                        (server_id, channel_id, message_id, message_text, mappings, role_mappings, allow_multiple, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        ON DUPLICATE KEY UPDATE
+                        channel_id = VALUES(channel_id),
+                        message_id = VALUES(message_id),
+                        message_text = VALUES(message_text),
+                        mappings = VALUES(mappings),
+                        role_mappings = VALUES(role_mappings),
+                        allow_multiple = VALUES(allow_multiple),
+                        updated_at = NOW()
+                    """
+                    await self.mysql.execute(
+                        insert_query, 
+                        params=(server_id, channel_id, str(message_id), message, mappings, json.dumps(role_mappings), allow_multiple),
+                        database_name='specterdiscordbot'
+                    )
                     # Update cache
                     self.reaction_roles_cache[message_id] = {
                         'server_id': server_id,
@@ -4445,9 +4498,9 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         'role_mappings': role_mappings,
                         'allow_multiple': allow_multiple
                     }
-                    self.logger.info(f"Updated role button configuration with message ID {message_id}")
+                    self.logger.info(f"Saved role selection message (ID: {message_id}) to database for server {server_id}")
                 except Exception as e:
-                    self.logger.error(f"Error updating role button configuration in database: {e}")
+                    self.logger.error(f"Error saving role selection message to database: {e}")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
             except discord.HTTPException as e:
