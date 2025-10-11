@@ -480,7 +480,8 @@ $serverManagementSettings = [
   'messageTracking' => false,
   'roleTracking' => false,
   'serverRoleManagement' => false,
-  'userTracking' => false
+  'userTracking' => false,
+  'reactionRoles' => false
 ];
 
 if ($is_linked && $hasGuildId) {
@@ -590,7 +591,7 @@ function updateExistingDiscordValues() {
   global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
-  global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID;
+  global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMappings, $existingAllowMultipleReactions;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -616,6 +617,9 @@ function updateExistingDiscordValues() {
   $existingRoleLogChannelID = "";
   $existingServerMgmtLogChannelID = "";
   $existingUserLogChannelID = "";
+  $existingReactionRolesChannelID = "";
+  $existingReactionRolesMappings = "";
+  $existingAllowMultipleReactions = false;
   $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
   // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
   $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -640,7 +644,8 @@ function updateExistingDiscordValues() {
           'messageTracking' => (bool)$serverMgmtData['messageTracking'],
           'roleTracking' => (bool)$serverMgmtData['roleTracking'],
           'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
-          'userTracking' => (bool)$serverMgmtData['userTracking']
+          'userTracking' => (bool)$serverMgmtData['userTracking'],
+          'reactionRoles' => (bool)$serverMgmtData['reactionRoles']
         ];
         // Override channel IDs with values from server_management table if they exist
         if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
@@ -661,6 +666,14 @@ function updateExistingDiscordValues() {
         }
         if (!empty($serverMgmtData['user_tracking_configuration_channel'])) {
           $existingUserLogChannelID = $serverMgmtData['user_tracking_configuration_channel'];
+        }
+        if (!empty($serverMgmtData['reaction_roles_configuration'])) {
+          $reactionRolesConfig = json_decode($serverMgmtData['reaction_roles_configuration'], true);
+          if ($reactionRolesConfig) {
+            $existingReactionRolesChannelID = $reactionRolesConfig['channel_id'] ?? '';
+            $existingReactionRolesMappings = $reactionRolesConfig['mappings'] ?? '';
+            $existingAllowMultipleReactions = $reactionRolesConfig['allow_multiple'] ?? false;
+          }
         }
       }
       $serverMgmtStmt->close();
@@ -1707,6 +1720,12 @@ ob_start();
                         <label for="userTracking" class="has-text-white">User Tracking (Nickname, profile picture, status changes)</label>
                       </div>
                     </div>
+                    <div class="field">
+                      <div class="control">
+                        <input id="reactionRoles" type="checkbox" name="reactionRoles" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                        <label for="reactionRoles" class="has-text-white">Reaction Roles (Self-assignable roles via reactions)</label>
+                      </div>
+                    </div>
                   </div>
                 </form>
               </div>
@@ -2094,6 +2113,63 @@ ob_start();
             </div>
           </div>
           <?php endif; ?>
+          <?php if ($serverManagementSettings['reactionRoles']): ?>
+          <div class="column is-half mb-1">
+            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                <p class="card-header-title has-text-white" style="font-weight: 600;">
+                  <span class="icon mr-2 has-text-purple"><i class="fas fa-hand-paper"></i></span>
+                  Reaction Roles Configuration
+                </p>
+                <div class="card-header-icon">
+                  <span class="tag is-warning is-light">
+                    <span class="icon"><i class="fas fa-clock"></i></span>
+                    <span>Coming Soon</span>
+                  </span>
+                </div>
+              </header>
+              <div class="card-content">
+                <div class="notification is-warning is-light mb-1">
+                  <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                </div>
+                <p class="has-text-white-ter mb-1">Configure self-assignable roles via reactions in your Discord server.</p>
+                <form action="" method="post">
+                  <div class="field">
+                    <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Channel ID</label>
+                    <div class="control has-icons-left">
+                      <?php echo generateChannelInput('reaction_roles_channel_id', 'reaction_roles_channel_id', $existingReactionRolesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                    </div>
+                    <p class="help has-text-grey-light">Channel where reaction roles messages will be posted</p>
+                  </div>
+                  <div class="field">
+                    <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
+                    <div class="control">
+                      <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: @Role1&#10;:heart: @Role2&#10;:star: @Role3" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled><?php echo htmlspecialchars($existingReactionRolesMappings); ?></textarea>
+                    </div>
+                    <p class="help has-text-grey-light">Format: :emoji: @RoleName (one per line)</p>
+                  </div>
+                  <div class="field">
+                    <div class="control">
+                      <label class="checkbox has-text-white">
+                        <input type="checkbox" id="allow_multiple_reactions" name="allow_multiple_reactions" style="margin-right: 8px;"<?php echo $existingAllowMultipleReactions ? ' checked' : ''; ?> disabled>
+                        Allow users to select multiple roles
+                      </label>
+                    </div>
+                    <p class="help has-text-grey-light">If unchecked, users can only have one role from this reaction role set</p>
+                  </div>
+                  <div class="field">
+                    <div class="control">
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;" disabled>
+                        <span class="icon"><i class="fas fa-save"></i></span>
+                        <span>Save Reaction Roles Settings</span>
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
       </div>
@@ -2282,6 +2358,7 @@ function removeStreamer(username) {
   validateDropdownSelection('role_log_channel_id', 'save_role_tracking');
   validateDropdownSelection('server_mgmt_log_channel_id', 'save_server_role_management');
   validateDropdownSelection('user_log_channel_id', 'save_user_tracking');
+  validateDropdownSelection('reaction_roles_channel_id', 'save_reaction_roles');
 });
 </script>
 <?php if (!$is_linked) { ?>
@@ -2650,6 +2727,49 @@ function removeStreamer(username) {
       user_log_channel_id: userLogChannelId
     });
   }
+
+  function saveReactionRoles() {
+    const reactionRolesChannelId = document.getElementById('reaction_roles_channel_id').value;
+    const reactionRolesMappings = document.getElementById('reaction_roles_mappings').value;
+    const allowMultipleReactions = document.getElementById('allow_multiple_reactions').checked;
+    // Always require a channel
+    if (!reactionRolesChannelId || reactionRolesChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a reaction roles channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    // If mappings are provided, validate format
+    if (reactionRolesMappings && reactionRolesMappings.trim() !== '') {
+      const lines = reactionRolesMappings.trim().split('\n');
+      for (let line of lines) {
+        if (line.trim() && !line.includes('@')) {
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'warning',
+            title: 'Invalid reaction role mapping format. Use: :emoji: @RoleName',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true
+          });
+          return;
+        }
+      }
+    }
+    
+    saveChannelConfig('save_reaction_roles', {
+      reaction_roles_channel_id: reactionRolesChannelId,
+      reaction_roles_mappings: reactionRolesMappings,
+      allow_multiple_reactions: allowMultipleReactions
+    });
+  }
   
   // Add event listeners to all Discord setting toggles
   document.addEventListener('DOMContentLoaded', function() {
@@ -2665,7 +2785,8 @@ function removeStreamer(username) {
       'messageTracking',
       'roleTracking',
       'serverRoleManagement',
-      'userTracking'
+      'userTracking',
+      'reactionRoles'
     ];
     // Set initial toggle states based on saved settings
     settingToggles.forEach(settingName => {
