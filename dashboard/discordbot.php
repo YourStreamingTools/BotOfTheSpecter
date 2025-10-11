@@ -2664,10 +2664,14 @@ function removeStreamer(username) {
           timer: 2000,
           timerProgressBar: true
         });
-        // Refresh the page after a short delay to update the values
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+        // Update the form fields with the saved values (if returned in response)
+        if (data.channel_id) {
+          const channelInput = document.getElementById('reaction_roles_channel_id');
+          if (channelInput && channelInput.value !== data.channel_id) {
+            channelInput.value = data.channel_id;
+          }
+        }
+        // Note: No page reload - data is already saved and displayed in the form
       } else {
         // Show error
         Swal.fire({
