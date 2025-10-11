@@ -2169,7 +2169,7 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;">
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;" disabled>
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Reaction Roles Settings</span>
                       </button>
@@ -2569,6 +2569,8 @@ function removeStreamer(username) {
   function saveChannelConfig(action, formData) {
     const guildIdElement = document.getElementById('guild_id_config');
     const guildId = guildIdElement ? guildIdElement.value.trim() : '';
+    // Debug logging
+    console.log('saveChannelConfig called with:', { action, formData, guildId });
     // Validate that we have a guild ID
     if (!guildId) {
       Swal.fire({
@@ -2776,10 +2778,17 @@ function removeStreamer(username) {
   }
 
   function saveReactionRoles() {
-    const reactionRolesChannelId = document.getElementById('reaction_roles_channel_id').value;
+    const reactionRolesChannelId = document.getElementById('reaction_roles_channel_id').value.trim();
     const reactionRolesMessage = document.getElementById('reaction_roles_message').value;
     const reactionRolesMappings = document.getElementById('reaction_roles_mappings').value;
     const allowMultipleReactions = document.getElementById('allow_multiple_reactions').checked;
+    // Debug logging
+    console.log('saveReactionRoles called with:', {
+      reactionRolesChannelId,
+      reactionRolesMessage,
+      reactionRolesMappings,
+      allowMultipleReactions
+    });
     // Always require a channel
     if (!reactionRolesChannelId || reactionRolesChannelId === '') {
       Swal.fire({
@@ -2821,7 +2830,7 @@ function removeStreamer(username) {
   }
 
   function sendReactionRolesMessage() {
-    const reactionRolesChannelId = document.getElementById('reaction_roles_channel_id').value;
+    const reactionRolesChannelId = document.getElementById('reaction_roles_channel_id').value.trim();
     const reactionRolesMessage = document.getElementById('reaction_roles_message').value;
     const reactionRolesMappings = document.getElementById('reaction_roles_mappings').value;
     const allowMultipleReactions = document.getElementById('allow_multiple_reactions').checked;

@@ -30,6 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Get JSON input
 $input = json_decode(file_get_contents('php://input'), true);
 
+// Debug logging
+error_log('save_discord_channel_config received: ' . json_encode($input));
+
 if (!isset($input['action']) || !isset($input['server_id'])) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
@@ -54,6 +57,8 @@ try {
         case 'save_role_tracking':
         case 'save_server_role_management':
         case 'save_user_tracking':
+        case 'save_reaction_roles':
+        case 'send_reaction_roles_message':
             // These are server management features that go to the Discord bot database
             // Connect to specterdiscordbot database
             $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
@@ -158,22 +163,21 @@ try {
                     }
                     break;
                 case 'save_reaction_roles':
+                    error_log('Processing save_reaction_roles with input: ' . json_encode($input));
                     if (!isset($input['reaction_roles_channel_id'])) {
                         http_response_code(400);
                         echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required']);
                         exit();
                     }
-                    $reaction_roles_channel_id = $input['reaction_roles_channel_id'];
+                    $reaction_roles_channel_id = trim($input['reaction_roles_channel_id']);
                     $reaction_roles_message = isset($input['reaction_roles_message']) ? trim($input['reaction_roles_message']) : '';
                     $reaction_roles_mappings = isset($input['reaction_roles_mappings']) ? trim($input['reaction_roles_mappings']) : '';
                     $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool)$input['allow_multiple_reactions'] : false;
-
                     if (empty($reaction_roles_channel_id)) {
                         http_response_code(400);
                         echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty']);
                         exit();
                     }
-
                     // Structure the data as JSON
                     $reaction_roles_config = json_encode([
                         'channel_id' => $reaction_roles_channel_id,
@@ -269,7 +273,7 @@ try {
                         echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required']);
                         exit();
                     }
-                    $reaction_roles_channel_id = $input['reaction_roles_channel_id'];
+                    $reaction_roles_channel_id = trim($input['reaction_roles_channel_id']);
                     $reaction_roles_message = isset($input['reaction_roles_message']) ? trim($input['reaction_roles_message']) : '';
                     $reaction_roles_mappings = isset($input['reaction_roles_mappings']) ? trim($input['reaction_roles_mappings']) : '';
                     $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool)$input['allow_multiple_reactions'] : false;
