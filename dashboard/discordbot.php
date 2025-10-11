@@ -32,6 +32,9 @@ date_default_timezone_set($timezone);
 // Initialize Discord Bot Database Tables
 include '/var/www/config/database.php';
 
+// Initialize console logs array
+$consoleLogs = array();
+
 // Initialize Discord Bot Database Connection
 $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
 if ($discord_conn->connect_error) {
@@ -455,7 +458,7 @@ $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
 // Debug logging to help track down the issue (can be removed once issue is resolved)
-error_log("Discord Data Debug for user_id $user_id: " . json_encode([
+$debugData = json_encode([
   'has_discord_record' => $has_discord_record,
   'is_linked' => $is_linked,
   'needs_relink' => $needs_relink,
@@ -470,7 +473,8 @@ error_log("Discord Data Debug for user_id $user_id: " . json_encode([
   'existingLiveChannelId' => $existingLiveChannelId,
   'existingOnlineText' => $existingOnlineText,
   'existingOfflineText' => $existingOfflineText
-]));
+]);
+$consoleLogs[] = "console.log('Discord Data Debug for user_id $user_id:', " . $debugData . ");";
 
 // Fetch server management settings from Discord bot database
 $serverManagementSettings = [
@@ -536,7 +540,7 @@ $userAdminGuilds = array();
 if ($is_linked && !$needs_relink && !empty($discordData['access_token'])) {
   $userAdminGuilds = getUserAdminGuilds($discordData['access_token']);
   // Debug logging for guild fetching
-  error_log("Guild Fetch Debug for user_id $user_id: " . json_encode([
+  $guildDebugData = json_encode([
     'is_linked' => $is_linked,
     'needs_relink' => $needs_relink,
     'has_access_token' => !empty($discordData['access_token']),
@@ -549,7 +553,8 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token'])) {
         'permissions' => $guild['permissions'] ?? 0
       ];
     }, $userAdminGuilds)
-  ]));
+  ]);
+  $consoleLogs[] = "console.log('Guild Fetch Debug for user_id $user_id:', " . $guildDebugData . ");";
 }
 
 // Fetch guild channels if user has a guild selected and is not using manual IDs
@@ -557,11 +562,12 @@ $guildChannels = array();
 if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
   $guildChannels = fetchGuildChannels($discordData['access_token'], $existingGuildId);
   // Debug logging for channel fetching
-  error_log("Text Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId: " . json_encode([
+  $channelDebugData = json_encode([
     'text_channel_count' => is_array($guildChannels) ? count($guildChannels) : 0,
     'text_channels_available' => !empty($guildChannels),
     'use_manual_ids' => $useManualIds
-  ]));
+  ]);
+  $consoleLogs[] = "console.log('Text Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId:', " . $channelDebugData . ");";
 }
 
 // Fetch guild roles if user has a guild selected and is not using manual IDs
@@ -569,11 +575,12 @@ $guildRoles = array();
 if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
   $guildRoles = fetchGuildRoles($existingGuildId, $discordData['access_token']);
   // Debug logging for role fetching
-  error_log("Role Fetch Debug for user_id $user_id, guild_id $existingGuildId: " . json_encode([
+  $roleDebugData = json_encode([
     'role_count' => is_array($guildRoles) ? count($guildRoles) : 0,
     'roles_available' => !empty($guildRoles),
     'use_manual_ids' => $useManualIds
-  ]));
+  ]);
+  $consoleLogs[] = "console.log('Role Fetch Debug for user_id $user_id, guild_id $existingGuildId:', " . $roleDebugData . ");";
 }
 
 // Fetch guild voice channels if user has a guild selected and is not using manual IDs
@@ -581,15 +588,16 @@ $guildVoiceChannels = array();
 if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$useManualIds && !empty($existingGuildId)) {
   $guildVoiceChannels = fetchGuildVoiceChannels($discordData['access_token'], $existingGuildId);
   // Debug logging for voice channel fetching
-  error_log("Voice Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId: " . json_encode([
+  $voiceChannelDebugData = json_encode([
     'voice_channel_count' => is_array($guildVoiceChannels) ? count($guildVoiceChannels) : 0,
     'voice_channels_available' => !empty($guildVoiceChannels),
     'use_manual_ids' => $useManualIds
-  ]));
+  ]);
+  $consoleLogs[] = "console.log('Voice Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId:', " . $voiceChannelDebugData . ");";
 }
 
 function updateExistingDiscordValues() {
-  global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData;
+  global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData, $consoleLogs;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
   global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
@@ -743,6 +751,7 @@ function revokeDiscordToken($token, $client_id, $client_secret, $token_type_hint
 }
 // Helper function to fetch user's Discord guilds
 function fetchUserGuilds($access_token) {
+  global $consoleLogs;
   $guilds_url = 'https://discord.com/api/v10/users/@me/guilds';
   $options = array(
     'http' => array(
@@ -757,15 +766,16 @@ function fetchUserGuilds($access_token) {
     if (is_array($guilds)) {
       return $guilds;
     } else {
-      error_log("Discord API Error - fetchUserGuilds: Invalid JSON response");
+      $consoleLogs[] = "console.error('Discord API Error - fetchUserGuilds: Invalid JSON response');";
     }
   } else {
-    error_log("Discord API Error - fetchUserGuilds: Failed to fetch guilds");
+    $consoleLogs[] = "console.error('Discord API Error - fetchUserGuilds: Failed to fetch guilds');";
   }
   return false;
 }
 // Helper function to check if user is admin/owner of a specific guild
 function checkGuildPermissions($access_token, $guild_id) {
+  global $consoleLogs;
   $member_url = "https://discord.com/api/v10/users/@me/guilds/$guild_id/member";
   $options = array(
     'http' => array(
@@ -780,15 +790,16 @@ function checkGuildPermissions($access_token, $guild_id) {
     if (is_array($member_data)) {
       return $member_data;
     } else {
-      error_log("Discord API Error - checkGuildPermissions: Invalid JSON response for guild $guild_id");
+      $consoleLogs[] = "console.error('Discord API Error - checkGuildPermissions: Invalid JSON response for guild $guild_id');";
     }
   } else {
-    error_log("Discord API Error - checkGuildPermissions: Failed to fetch member data for guild $guild_id");
+    $consoleLogs[] = "console.error('Discord API Error - checkGuildPermissions: Failed to fetch member data for guild $guild_id');";
   }
   return false;
 }
 // Helper function to get user's administrative guilds
 function getUserAdminGuilds($access_token) {
+  global $consoleLogs;
   $guilds = fetchUserGuilds($access_token);
   $admin_guilds = array();
   if ($guilds && is_array($guilds)) {
@@ -804,7 +815,7 @@ function getUserAdminGuilds($access_token) {
       }
     }
   } else {
-    error_log("Discord API Error - getUserAdminGuilds: No guilds returned or invalid format");
+    $consoleLogs[] = "console.error('Discord API Error - getUserAdminGuilds: No guilds returned or invalid format');";
   }
   return $admin_guilds;
 }
@@ -813,7 +824,7 @@ function getUserAdminGuilds($access_token) {
 function fetchGuildChannels($access_token, $guild_id) {
   // Load Discord bot token for guild API calls
   require_once '../config/discord.php';
-  global $bot_token;
+  global $bot_token, $consoleLogs;
   if (empty($guild_id)) {
     return false;
   }
@@ -842,15 +853,15 @@ function fetchGuildChannels($access_token, $guild_id) {
         return ($a['position'] ?? 0) - ($b['position'] ?? 0);
       });
       // Log successful channel fetch
-      error_log("Discord API Success - fetchGuildChannels: Fetched " . count($text_channels) . " text channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token"));
+      $consoleLogs[] = "console.log('Discord API Success - fetchGuildChannels: Fetched " . count($text_channels) . " text channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token") . "');";
       return $text_channels;
     } else {
-      error_log("Discord API Error - fetchGuildChannels: Invalid JSON response for guild $guild_id");
+      $consoleLogs[] = "console.error('Discord API Error - fetchGuildChannels: Invalid JSON response for guild $guild_id');";
     }
   } else {
     // Get more detailed error information
     $error_info = error_get_last();
-    error_log("Discord API Error - fetchGuildChannels: Failed to fetch channels for guild $guild_id. Error: " . ($error_info['message'] ?? 'Unknown error'));
+    $consoleLogs[] = "console.error('Discord API Error - fetchGuildChannels: Failed to fetch channels for guild $guild_id. Error: " . addslashes($error_info['message'] ?? 'Unknown error') . "');";
   }
   return false;
 }
@@ -859,7 +870,7 @@ function fetchGuildChannels($access_token, $guild_id) {
 function fetchGuildVoiceChannels($access_token, $guild_id) {
   // Load Discord bot token for guild API calls
   require_once '../config/discord.php';
-  global $bot_token;
+  global $bot_token, $consoleLogs;
   if (empty($guild_id)) {
     return false;
   }
@@ -887,15 +898,15 @@ function fetchGuildVoiceChannels($access_token, $guild_id) {
         return ($a['position'] ?? 0) - ($b['position'] ?? 0);
       });
       // Log successful voice channel fetch
-      error_log("Discord API Success - fetchGuildVoiceChannels: Fetched " . count($voice_channels) . " voice channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token"));
+      $consoleLogs[] = "console.log('Discord API Success - fetchGuildVoiceChannels: Fetched " . count($voice_channels) . " voice channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token") . "');";
       return $voice_channels;
     } else {
-      error_log("Discord API Error - fetchGuildVoiceChannels: Invalid JSON response for guild $guild_id");
+      $consoleLogs[] = "console.error('Discord API Error - fetchGuildVoiceChannels: Invalid JSON response for guild $guild_id');";
     }
   } else {
     // Get more detailed error information
     $error_info = error_get_last();
-    error_log("Discord API Error - fetchGuildVoiceChannels: Failed to fetch voice channels for guild $guild_id. Error: " . ($error_info['message'] ?? 'Unknown error'));
+    $consoleLogs[] = "console.error('Discord API Error - fetchGuildVoiceChannels: Failed to fetch voice channels for guild $guild_id. Error: " . addslashes($error_info['message'] ?? 'Unknown error') . "');";
   }
   return false;
 }
@@ -904,7 +915,7 @@ function fetchGuildVoiceChannels($access_token, $guild_id) {
 function fetchGuildRoles($guild_id, $access_token) {
   // Load Discord bot token for guild API calls
   require_once '../config/discord.php';
-  global $bot_token;
+  global $bot_token, $consoleLogs;
   if (empty($guild_id)) {
     return false;
   }
@@ -934,15 +945,15 @@ function fetchGuildRoles($guild_id, $access_token) {
         return ($b['position'] ?? 0) - ($a['position'] ?? 0);
       });
       // Log successful role fetch
-      error_log("Discord API Success - fetchGuildRoles: Fetched " . count($assignable_roles) . " roles for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token"));
+      $consoleLogs[] = "console.log('Discord API Success - fetchGuildRoles: Fetched " . count($assignable_roles) . " roles for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token") . "');";
       return $assignable_roles;
     } else {
-      error_log("Discord API Error - fetchGuildRoles: Invalid JSON response for guild $guild_id");
+      $consoleLogs[] = "console.error('Discord API Error - fetchGuildRoles: Invalid JSON response for guild $guild_id');";
     }
   } else {
     // Get more detailed error information
     $error_info = error_get_last();
-    error_log("Discord API Error - fetchGuildRoles: Failed to fetch roles for guild $guild_id. Error: " . ($error_info['message'] ?? 'Unknown error'));
+    $consoleLogs[] = "console.error('Discord API Error - fetchGuildRoles: Failed to fetch roles for guild $guild_id. Error: " . addslashes($error_info['message'] ?? 'Unknown error') . "');";
   }
   return false;
 }
@@ -2990,6 +3001,16 @@ function removeStreamer(username) {
   });
 </script>
 <?php } ?>
+<script>
+<?php
+// Output all console logs at once
+if (!empty($consoleLogs)) {
+  foreach ($consoleLogs as $log) {
+    echo $log . "\n";
+  }
+}
+?>
+</script>
 <?php
 $scripts = ob_get_clean();
 
