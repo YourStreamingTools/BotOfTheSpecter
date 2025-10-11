@@ -308,11 +308,13 @@ class WebsocketListener:
         async def STREAM_OFFLINE(data):
             await self.bot.handle_stream_event("OFFLINE", data)
         # Event handler for posting reaction roles message
-        @self.specterSocket.event
+        @self.specterSocket.on('POST_REACTION_ROLES_MESSAGE')
         async def post_reaction_roles_message(data):
+            self.logger.info("POST_REACTION_ROLES_MESSAGE event handler called!")
             # Forward to ServerManagement cog if loaded
             server_mgmt = self.bot.get_cog('Server Management')
             if server_mgmt:
+                self.logger.info("Forwarding to ServerManagement cog")
                 await server_mgmt.post_reaction_roles_message(data)
             else:
                 self.logger.warning("ServerManagement cog not loaded, cannot handle reaction roles message")
@@ -4311,36 +4313,38 @@ class ServerManagement(commands.Cog, name='Server Management'):
 
     async def post_reaction_roles_message(self, data):
         try:
+            self.logger.info(f"post_reaction_roles_message called with data: {data}")
             server_id = data.get('server_id')
             channel_id = data.get('channel_id')
             message = data.get('message', '')
             mappings = data.get('mappings', '')
             allow_multiple = data.get('allow_multiple', False)
-            
+            self.logger.info(f"Parsed data - server_id: {server_id}, channel_id: {channel_id}, message length: {len(message)}, mappings length: {len(mappings)}")
             if not server_id or not channel_id:
                 self.logger.error("Missing server_id or channel_id in reaction roles message data")
                 return
             # Get the guild
             try:
                 guild = self.bot.get_guild(int(server_id))
-            except (ValueError, TypeError):
-                self.logger.error(f"Invalid server_id: {server_id}")
+                self.logger.info(f"Got guild: {guild.name if guild else 'None'} (ID: {server_id})")
+            except (ValueError, TypeError) as e:
+                self.logger.error(f"Invalid server_id: {server_id}, error: {e}")
                 return
-            
             if not guild:
                 self.logger.error(f"Bot not in guild {server_id}")
                 return
             # Get the channel
             try:
                 channel = guild.get_channel(int(channel_id))
-            except (ValueError, TypeError):
-                self.logger.error(f"Invalid channel_id: {channel_id}")
+                self.logger.info(f"Got channel: #{channel.name if channel else 'None'} (ID: {channel_id})")
+            except (ValueError, TypeError) as e:
+                self.logger.error(f"Invalid channel_id: {channel_id}, error: {e}")
                 return
-            
             if not channel:
                 self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
                 return
             # Send the message
+            self.logger.info(f"Attempting to send message to #{channel.name}: {message[:50]}...")
             try:
                 sent_message = await channel.send(message)
                 message_id = sent_message.id
