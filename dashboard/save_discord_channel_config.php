@@ -157,6 +157,84 @@ try {
                         echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
                     }
                     break;
+                case 'save_reaction_roles':
+                    if (!isset($input['reaction_roles_channel_id'])) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required']);
+                        exit();
+                    }
+                    $reaction_roles_channel_id = $input['reaction_roles_channel_id'];
+                    $reaction_roles_mappings = isset($input['reaction_roles_mappings']) ? trim($input['reaction_roles_mappings']) : '';
+                    $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool)$input['allow_multiple_reactions'] : false;
+
+                    if (empty($reaction_roles_channel_id)) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty']);
+                        exit();
+                    }
+
+                    // Structure the data as JSON
+                    $reaction_roles_config = json_encode([
+                        'channel_id' => $reaction_roles_channel_id,
+                        'mappings' => $reaction_roles_mappings,
+                        'allow_multiple' => $allow_multiple_reactions
+                    ]);
+
+                    // Check if record exists for this server
+                    $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
+                    $checkStmt->bind_param("s", $server_id);
+                    $checkStmt->execute();
+                    $result = $checkStmt->get_result();
+                    if ($result->num_rows > 0) {
+                        // Update existing record - first check if column exists, if not add it
+                        $columnCheckStmt = $discord_conn->prepare("SHOW COLUMNS FROM server_management LIKE 'reaction_roles_configuration'");
+                        $columnCheckStmt->execute();
+                        $columnResult = $columnCheckStmt->get_result();
+                        if ($columnResult->num_rows == 0) {
+                            // Add the column if it doesn't exist
+                            $alterStmt = $discord_conn->prepare("ALTER TABLE server_management ADD COLUMN reaction_roles_configuration JSON DEFAULT NULL");
+                            $alterStmt->execute();
+                            $alterStmt->close();
+                        }
+                        $columnCheckStmt->close();
+
+                        // Update existing record
+                        $updateStmt = $discord_conn->prepare("UPDATE server_management SET reaction_roles_configuration = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                        $updateStmt->bind_param("ss", $reaction_roles_config, $server_id);
+                        $success = $updateStmt->execute();
+                        $updateStmt->close();
+                    } else {
+                        // Insert new record - first check if column exists, if not add it
+                        $columnCheckStmt = $discord_conn->prepare("SHOW COLUMNS FROM server_management LIKE 'reaction_roles_configuration'");
+                        $columnCheckStmt->execute();
+                        $columnResult = $columnCheckStmt->get_result();
+                        if ($columnResult->num_rows == 0) {
+                            // Add the column if it doesn't exist
+                            $alterStmt = $discord_conn->prepare("ALTER TABLE server_management ADD COLUMN reaction_roles_configuration JSON DEFAULT NULL");
+                            $alterStmt->execute();
+                            $alterStmt->close();
+                        }
+                        $columnCheckStmt->close();
+
+                        // Insert new record
+                        $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, reaction_roles_configuration) VALUES (?, ?)");
+                        $insertStmt->bind_param("ss", $server_id, $reaction_roles_config);
+                        $success = $insertStmt->execute();
+                        $insertStmt->close();
+                    }
+                    $checkStmt->close();
+                    if ($success) {
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Reaction roles configuration saved successfully',
+                            'channel_id' => $reaction_roles_channel_id,
+                            'allow_multiple' => $allow_multiple_reactions
+                        ]);
+                    } else {
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
+                    }
+                    break;
                 // Add other server management cases here if needed
             }
             $discord_conn->close();
