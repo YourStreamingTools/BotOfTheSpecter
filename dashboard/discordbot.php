@@ -592,7 +592,7 @@ function updateExistingDiscordValues() {
   global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
-  global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMappings, $existingAllowMultipleReactions;
+  global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -619,6 +619,7 @@ function updateExistingDiscordValues() {
   $existingServerMgmtLogChannelID = "";
   $existingUserLogChannelID = "";
   $existingReactionRolesChannelID = "";
+  $existingReactionRolesMessage = "";
   $existingReactionRolesMappings = "";
   $existingAllowMultipleReactions = false;
   $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
@@ -672,6 +673,7 @@ function updateExistingDiscordValues() {
           $reactionRolesConfig = json_decode($serverMgmtData['reaction_roles_configuration'], true);
           if ($reactionRolesConfig) {
             $existingReactionRolesChannelID = $reactionRolesConfig['channel_id'] ?? '';
+            $existingReactionRolesMessage = $reactionRolesConfig['message'] ?? '';
             $existingReactionRolesMappings = $reactionRolesConfig['mappings'] ?? '';
             $existingAllowMultipleReactions = $reactionRolesConfig['allow_multiple'] ?? false;
           }
@@ -2143,6 +2145,13 @@ ob_start();
                     <p class="help has-text-grey-light">Channel where reaction roles messages will be posted</p>
                   </div>
                   <div class="field">
+                    <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Message</label>
+                    <div class="control">
+                      <textarea class="textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3" placeholder="To join any of the following roles, use the icons below. Click on the boxes below to get the roles!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
+                    </div>
+                    <p class="help has-text-grey-light">Message to display above the reaction roles. Leave empty for no message.</p>
+                  </div>
+                  <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
                     <div class="control">
                       <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: @Role1&#10;:heart: @Role2&#10;:star: @Role3" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled><?php echo htmlspecialchars($existingReactionRolesMappings); ?></textarea>
@@ -2731,6 +2740,7 @@ function removeStreamer(username) {
 
   function saveReactionRoles() {
     const reactionRolesChannelId = document.getElementById('reaction_roles_channel_id').value;
+    const reactionRolesMessage = document.getElementById('reaction_roles_message').value;
     const reactionRolesMappings = document.getElementById('reaction_roles_mappings').value;
     const allowMultipleReactions = document.getElementById('allow_multiple_reactions').checked;
     // Always require a channel
@@ -2767,6 +2777,7 @@ function removeStreamer(username) {
     
     saveChannelConfig('save_reaction_roles', {
       reaction_roles_channel_id: reactionRolesChannelId,
+      reaction_roles_message: reactionRolesMessage,
       reaction_roles_mappings: reactionRolesMappings,
       allow_multiple_reactions: allowMultipleReactions
     });
