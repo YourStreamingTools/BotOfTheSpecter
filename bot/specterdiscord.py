@@ -306,6 +306,10 @@ class WebsocketListener:
         @self.specterSocket.event
         async def STREAM_OFFLINE(data):
             await self.bot.handle_stream_event("OFFLINE", data)
+        # Event handler for posting reaction roles message
+        @self.specterSocket.event
+        async def post_reaction_roles_message(data):
+            await self.bot.post_reaction_roles_message(data)
         # Log all other events generically
         @self.specterSocket.on('*')
         async def catch_all(event, data):
@@ -1767,6 +1771,68 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.info(f"Successfully sent stream alert for {account_username} to #{stream_channel.name}")
         except Exception as e:
             self.logger.error(f"Exception in _process_stream_alert for {code}: {e}")
+
+    async def post_reaction_roles_message(self, data):
+        try:
+            server_id = data.get('server_id')
+            channel_id = data.get('channel_id')
+            message = data.get('message', '')
+            mappings = data.get('mappings', '')
+            allow_multiple = data.get('allow_multiple', False)
+            if not server_id or not channel_id:
+                self.logger.error("Missing server_id or channel_id in reaction roles message data")
+                return
+            # Get the guild
+            try:
+                guild = self.get_guild(int(server_id))
+            except (ValueError, TypeError):
+                self.logger.error(f"Invalid server_id: {server_id}")
+                return
+            if not guild:
+                self.logger.error(f"Bot not in guild {server_id}")
+                return
+            # Get the channel
+            try:
+                channel = guild.get_channel(int(channel_id))
+            except (ValueError, TypeError):
+                self.logger.error(f"Invalid channel_id: {channel_id}")
+                return
+            if not channel:
+                self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
+                return
+            # Send the message
+            try:
+                sent_message = await channel.send(message)
+                self.logger.info(f"Successfully posted reaction roles message to #{channel.name} (ID: {channel_id}) in guild {guild.name}")
+                # Add reactions based on mappings
+                if mappings:
+                    try:
+                        # Parse mappings (assuming format like "emoji:role_id,emoji2:role_id2")
+                        mapping_pairs = mappings.split(',')
+                        for mapping in mapping_pairs:
+                            if ':' in mapping:
+                                emoji, role_id = mapping.split(':', 1)
+                                emoji = emoji.strip()
+                                role_id = role_id.strip()
+                                # Validate emoji and role
+                                if emoji and role_id:
+                                    try:
+                                        await sent_message.add_reaction(emoji)
+                                        self.logger.debug(f"Added reaction {emoji} to reaction roles message")
+                                    except discord.HTTPException as e:
+                                        self.logger.warning(f"Failed to add reaction {emoji}: {e}")
+                                    except Exception as e:
+                                        self.logger.warning(f"Error adding reaction {emoji}: {e}")
+                    except Exception as e:
+                        self.logger.error(f"Error parsing reaction role mappings: {e}")
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
+            except discord.HTTPException as e:
+                self.logger.error(f"Discord HTTP error sending reaction roles message: {e}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error sending reaction roles message: {e}")
+        except Exception as e:
+            self.logger.error(f"Error in post_reaction_roles_message: {e}")
 
 # QuoteCog class for fetching and sending public quotes
 class QuoteCog(commands.Cog, name='Quote'):
