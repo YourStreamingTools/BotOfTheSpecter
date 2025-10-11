@@ -2646,13 +2646,35 @@ function removeStreamer(username) {
       },
       body: JSON.stringify(formData)
     })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    .then(async response => {
+      const contentType = response.headers.get('content-type');
+      console.log('Response status:', response.status);
+      console.log('Response content-type:', contentType);
+      // Try to get the response body regardless of status
+      let responseData;
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
+        responseData = { success: false, message: 'Server returned non-JSON response' };
       }
-      return response.json();
+      if (!response.ok) {
+        console.error('HTTP error response data:', responseData);
+        throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+      }
+      return responseData;
     })
     .then(data => {
+      console.log('Server response:', data);
+      // Display debug logs if present
+      if (data.debug_logs && Array.isArray(data.debug_logs)) {
+        console.group('🔍 PHP Debug Logs from save_discord_channel_config.php');
+        data.debug_logs.forEach((log, index) => {
+          console.log(`[${index + 1}]`, log);
+        });
+        console.groupEnd();
+      }
       if (data.success) {
         // Show success notification
         Swal.fire({
@@ -2674,6 +2696,7 @@ function removeStreamer(username) {
         // Note: No page reload - data is already saved and displayed in the form
       } else {
         // Show error
+        console.error('Server returned error:', data.message);
         Swal.fire({
           toast: true,
           position: 'top-end',
@@ -2686,12 +2709,14 @@ function removeStreamer(username) {
       }
     })
     .catch(error => {
-      console.error('Error:', error);
+      console.error('Error details:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       Swal.fire({
         toast: true,
         position: 'top-end',
         icon: 'error',
-        title: 'Network error occurred. Please try again.',
+        title: 'Network error: ' + error.message,
         showConfirmButton: false,
         timer: 4000,
         timerProgressBar: true
@@ -2960,6 +2985,12 @@ function removeStreamer(username) {
       cancelButtonColor: '#6c757d'
     }).then((result) => {
       if (result.isConfirmed) {
+        console.log('Sending reaction roles message with data:', {
+          channel_id: reactionRolesChannelId,
+          message: reactionRolesMessage,
+          mappings: reactionRolesMappings,
+          allow_multiple: allowMultipleReactions
+        });
         saveChannelConfig('send_reaction_roles_message', {
           reaction_roles_channel_id: reactionRolesChannelId,
           reaction_roles_message: reactionRolesMessage,

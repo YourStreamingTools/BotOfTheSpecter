@@ -20,6 +20,32 @@ if (!isset($_SESSION['user_id'])) {
 }
 $user_id = $_SESSION['user_id'];
 
+// Debug log collection for browser console
+$debug_logs = [];
+function debug_log($message) {
+    global $debug_logs;
+    $debug_logs[] = $message;
+    error_log($message); // Also log to server
+}
+
+// Get API key from session or fetch from database
+$api_key = null;
+if (isset($_SESSION['api_key'])) {
+    $api_key = $_SESSION['api_key'];
+} else {
+    // Fetch api_key from database if not in session
+    $userSTMT = $conn->prepare("SELECT api_key FROM users WHERE id = ?");
+    $userSTMT->bind_param("i", $user_id);
+    if ($userSTMT->execute()) {
+        $userResult = $userSTMT->get_result();
+        if ($userRow = $userResult->fetch_assoc()) {
+            $api_key = $userRow['api_key'];
+            $_SESSION['api_key'] = $api_key; // Cache it in session
+        }
+    }
+    $userSTMT->close();
+}
+
 // Check if request is POST and has the required data
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -31,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $input = json_decode(file_get_contents('php://input'), true);
 
 // Debug logging
-error_log('save_discord_channel_config received: ' . json_encode($input));
+debug_log('save_discord_channel_config received: ' . json_encode($input));
 
 if (!isset($input['action']) || !isset($input['server_id'])) {
     http_response_code(400);
@@ -163,10 +189,10 @@ try {
                     }
                     break;
                 case 'save_reaction_roles':
-                    error_log('Processing save_reaction_roles with input: ' . json_encode($input));
+                    debug_log('Processing save_reaction_roles with input: ' . json_encode($input));
                     if (!isset($input['reaction_roles_channel_id'])) {
                         http_response_code(400);
-                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required']);
+                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required', 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $reaction_roles_channel_id = trim($input['reaction_roles_channel_id']);
@@ -175,7 +201,7 @@ try {
                     $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool)$input['allow_multiple_reactions'] : false;
                     if (empty($reaction_roles_channel_id)) {
                         http_response_code(400);
-                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty']);
+                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty', 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Build the JSON configuration object
@@ -187,25 +213,25 @@ try {
                     ];
                     $reaction_roles_json = json_encode($reaction_roles_config);
                     if ($reaction_roles_json === false) {
-                        error_log('Failed to encode reaction roles JSON: ' . json_last_error_msg());
+                        debug_log('Failed to encode reaction roles JSON: ' . json_last_error_msg());
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Failed to encode configuration data']);
+                        echo json_encode(['success' => false, 'message' => 'Failed to encode configuration data', 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Check if record exists for this server
                     $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
                     if (!$checkStmt) {
-                        error_log('Failed to prepare record check statement: ' . $discord_conn->error);
+                        debug_log('Failed to prepare record check statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error: Failed to check record existence']);
+                        echo json_encode(['success' => false, 'message' => 'Database error: Failed to check record existence', 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $checkStmt->bind_param("s", $server_id);
                     if (!$checkStmt->execute()) {
-                        error_log('Failed to execute record check: ' . $checkStmt->error);
+                        debug_log('Failed to execute record check: ' . $checkStmt->error);
                         $checkStmt->close();
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error: Failed to check record']);
+                        echo json_encode(['success' => false, 'message' => 'Database error: Failed to check record', 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $result = $checkStmt->get_result();
@@ -213,38 +239,38 @@ try {
                         // Update existing record with JSON configuration
                         $updateStmt = $discord_conn->prepare("UPDATE server_management SET reaction_roles_configuration = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
                         if (!$updateStmt) {
-                            error_log('Failed to prepare update statement: ' . $discord_conn->error);
+                            debug_log('Failed to prepare update statement: ' . $discord_conn->error);
                             $checkStmt->close();
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare update']);
+                            echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare update', 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $updateStmt->bind_param("ss", $reaction_roles_json, $server_id);
                         $success = $updateStmt->execute();
                         if (!$success) {
-                            error_log('Update failed: ' . $updateStmt->error);
+                            debug_log('Update failed: ' . $updateStmt->error);
                         }
                         $updateStmt->close();
                     } else {
                         // Insert new record with JSON configuration
                         $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, reaction_roles_configuration) VALUES (?, ?)");
                         if (!$insertStmt) {
-                            error_log('Failed to prepare insert statement: ' . $discord_conn->error);
+                            debug_log('Failed to prepare insert statement: ' . $discord_conn->error);
                             $checkStmt->close();
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare insert']);
+                            echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare insert', 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $insertStmt->bind_param("ss", $server_id, $reaction_roles_json);
                         $success = $insertStmt->execute();
                         if (!$success) {
-                            error_log('Insert failed: ' . $insertStmt->error);
+                            debug_log('Insert failed: ' . $insertStmt->error);
                         }
                         $insertStmt->close();
                     }
                     $checkStmt->close();
                     if ($success) {
-                        error_log('Successfully saved reaction roles configuration: ' . $reaction_roles_json);
+                        debug_log('Successfully saved reaction roles configuration: ' . $reaction_roles_json);
                         // Send success response immediately before websocket notification
                         http_response_code(200);
                         header('Content-Type: application/json');
@@ -252,9 +278,9 @@ try {
                             'success' => true,
                             'message' => 'Reaction roles configuration saved successfully',
                             'channel_id' => $reaction_roles_channel_id,
-                            'allow_multiple' => $allow_multiple_reactions
+                            'allow_multiple' => $allow_multiple_reactions,
+                            'debug_logs' => $debug_logs
                         ]);
-                        
                         // Flush the output to send the response to the client
                         if (function_exists('fastcgi_finish_request')) {
                             fastcgi_finish_request();
@@ -282,20 +308,22 @@ try {
                         curl_close($ch);
                         // Log websocket notification result
                         if ($http_code !== 200) {
-                            error_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
+                            debug_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
                         } else {
-                            error_log("Successfully sent websocket notification for reaction roles");
+                            debug_log("Successfully sent websocket notification for reaction roles");
                         }
                         // Exit to prevent any further output
                         exit();
                     } else {
-                        error_log('Database operation failed: ' . $discord_conn->error);
+                        debug_log('Database operation failed: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
+                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'send_reaction_roles_message':
+                    debug_log('send_reaction_roles_message case entered with input: ' . json_encode($input));
                     if (!isset($input['reaction_roles_channel_id'])) {
+                        debug_log('Missing reaction_roles_channel_id in input');
                         http_response_code(400);
                         echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required']);
                         exit();
@@ -304,6 +332,7 @@ try {
                     $reaction_roles_message = isset($input['reaction_roles_message']) ? trim($input['reaction_roles_message']) : '';
                     $reaction_roles_mappings = isset($input['reaction_roles_mappings']) ? trim($input['reaction_roles_mappings']) : '';
                     $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool)$input['allow_multiple_reactions'] : false;
+                    debug_log('Extracted values - channel_id: ' . $reaction_roles_channel_id . ', message: ' . $reaction_roles_message . ', mappings: ' . $reaction_roles_mappings);
                     if (empty($reaction_roles_channel_id)) {
                         http_response_code(400);
                         echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty']);
@@ -321,8 +350,16 @@ try {
                     }
                     // Send websocket notification to post the message to Discord channel
                     $websocket_url = 'https://websocket.botofthespecter.com/notify'; // Production websocket server
+                    // Check if api_key exists
+                    if (empty($api_key)) {
+                        debug_log('api_key not found for user_id: ' . $user_id);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
                     $params = [
-                        'code' => $_SESSION['api_key'],
+                        'code' => $api_key,
                         'event' => 'post_reaction_roles_message',
                         'server_id' => $server_id,
                         'channel_id' => $reaction_roles_channel_id,
@@ -333,26 +370,43 @@ try {
                     // Build query string
                     $query_string = http_build_query($params);
                     $full_url = $websocket_url . '?' . $query_string;
+                    debug_log('Sending websocket request to: ' . $full_url);
                     // Send HTTP GET request to websocket server
                     $ch = curl_init($full_url);
+                    if ($ch === false) {
+                        debug_log('Failed to initialize cURL');
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Failed to initialize HTTP request']);
+                        exit();
+                    }
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
                     $response = curl_exec($ch);
+                    if ($response === false) {
+                        $curl_error = curl_error($ch);
+                        debug_log('cURL error: ' . $curl_error);
+                        curl_close($ch);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'HTTP request failed: ' . $curl_error, 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
                     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                     curl_close($ch);
+                    debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                     // Check if websocket notification was successful
                     if ($http_code !== 200) {
-                        error_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
+                        debug_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Failed to send message to Discord channel']);
+                        echo json_encode(['success' => false, 'message' => 'Failed to send message to Discord channel', 'debug_logs' => $debug_logs]);
                         exit();
                     } else {
-                        error_log("Successfully sent websocket notification for reaction roles");
+                        debug_log("Successfully sent websocket notification for reaction roles");
                         echo json_encode([
                             'success' => true, 
                             'message' => 'Reaction roles message sent to Discord channel successfully',
                             'channel_id' => $reaction_roles_channel_id,
-                            'allow_multiple' => $allow_multiple_reactions
+                            'allow_multiple' => $allow_multiple_reactions,
+                            'debug_logs' => $debug_logs
                         ]);
                     }
                     break;
@@ -407,8 +461,10 @@ try {
             break;
     }
 } catch (Exception $e) {
+    debug_log('Exception caught in save_discord_channel_config.php: ' . $e->getMessage());
+    debug_log('Exception trace: ' . $e->getTraceAsString());
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage(), 'debug_logs' => $debug_logs]);
 } finally {
     // Close database connections if they exist
     if (isset($discord_conn)) { $discord_conn->close(); }
