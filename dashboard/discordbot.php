@@ -252,137 +252,166 @@ if (isset($_GET['code']) && !$is_linked) {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   try {
-    if (isset($_POST['guild_id']) && !isset($_POST['live_channel_id'])) {
-      // Server Configuration: Save only guild_id to discord_users table
-      $guild_id = $_POST['guild_id'];
-      $stmt = $conn->prepare("UPDATE discord_users SET guild_id = ? WHERE user_id = ?");
-      $stmt->bind_param("si", $guild_id, $user_id);
-      if ($stmt->execute()) {
-        $buildStatus = "Discord Server configuration saved successfully";
-      } else {
-        $errorMsg = "Error saving Discord Server configuration: " . $stmt->error;
+    // Handle JSON POST requests for server management settings
+    $content = file_get_contents('php://input');
+    $data = json_decode($content, true);
+    if ($data && isset($data['action'])) {
+      $action = $data['action'];
+      $server_id = $data['server_id'] ?? null;
+      if (!$server_id) {
+        echo json_encode(['success' => false, 'message' => 'Server ID required']);
+        exit;
       }
-      $stmt->close();
-      updateExistingDiscordValues(); // Refresh existing values after update
-    } elseif (isset($_POST['live_channel_id']) && isset($_POST['guild_id']) && isset($_POST['online_text']) && isset($_POST['offline_text'])) {
-      // Update live_channel_id and guild_id
-      $guild_id = $_POST['guild_id'];
-      $live_channel_id = $_POST['live_channel_id'] ?? null;
-      $onlineText = !empty($live_channel_id) ? $_POST['online_text'] : null;
-      $offlineText = !empty($live_channel_id) ? $_POST['offline_text'] : null;
-      if (!empty($_POST['stream_channel_id'])) { $streamChannelID = $_POST['stream_channel_id']; } 
-      else { $streamChannelID = null; }
-      $streamAlertEveryone = isset($_POST['stream_alert_everyone']) ? 1 : 0;
-      $streamAlertCustomRole = !empty($_POST['stream_alert_custom_role']) ? $_POST['stream_alert_custom_role'] : null;
-      if (!empty($_POST['mod_channel_id'])) { $moderationChannelID = $_POST['mod_channel_id']; }
-      else { $moderationChannelID = null; }
-      if (!empty($_POST['alert_channel_id'])) { $alertChannelID = $_POST['alert_channel_id']; }
-      else { $alertChannelID = null; }
-      if (!empty($_POST['twitch_stream_monitor_id'])) { $memberStreamsID = $_POST['twitch_stream_monitor_id']; }
-      else { $memberStreamsID = null; }
-      $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
-      $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
-      if ($stmt->execute()) { $buildStatus .= "Live Channel ID and Guild ID updated successfully<br>"; }
-      else { $errorMsg .= "Error updating Live Channel ID and Guild ID: " . $stmt->error . "<br>"; }
-      if (strlen($onlineText) > 20) { // Validate character limits (max 20 characters each)
-        $errorMsg .= "Online text cannot exceed 20 characters. Current length: " . strlen($onlineText) ."<br>";
-      } elseif (strlen($offlineText) > 20) {
-        $errorMsg .= "Offline text cannot exceed 20 characters. Current length: " . strlen($offlineText) ."<br>";
-      } else {
-        $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
-        $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
+      if ($action === 'save_auto_role') {
+        $auto_role_id = $data['auto_role_id'] ?? null;
+        if (!$auto_role_id) {
+          echo json_encode(['success' => false, 'message' => 'Auto role ID required']);
+          exit;
+        }
+        // Update server_management table
+        $stmt = $discord_conn->prepare("UPDATE server_management SET auto_role_assignment_configuration_role_id = ? WHERE server_id = ?");
+        $stmt->bind_param("ss", $auto_role_id, $server_id);
         if ($stmt->execute()) {
-          $buildStatus .= "Online and Offline Text has been updated successfully<br>";
+          echo json_encode(['success' => true, 'message' => 'Auto role saved successfully']);
         } else {
-          $errorMsg .= "Error updating Online and Offline Text: " . $stmt->error . "<br>";
+          echo json_encode(['success' => false, 'message' => 'Failed to save auto role']);
         }
+        $stmt->close();
       }
-      $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, moderation_channel_id = ?, alert_channel_id = ?, member_streams_id = ?, stream_alert_everyone = ?, stream_alert_custom_role = ? WHERE user_id = ?");
-      $stmt->bind_param("iiiiisi", $streamChannelID, $moderationChannelID, $alertChannelID, $memberStreamsID, $streamAlertEveryone, $streamAlertCustomRole, $user_id);
-      if ($stmt->execute()) {
-        $buildStatus .= "Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID updated successfully<br>";
-      } else {
-        $errorMsg .= "Error updating Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID: " . $stmt->error . "<br>";
-      }
-      $stmt->close();
-      updateExistingDiscordValues(); // Refresh existing values after update
-    } elseif (isset($_POST['disconnect_discord'])) {
-      $discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token FROM discord_users WHERE user_id = ?");
-      $discord_userSTMT->bind_param("i", $user_id);
-      $discord_userSTMT->execute();
-      $discord_userResult = $discord_userSTMT->get_result();
-      $discord_user_data = $discord_userResult->fetch_assoc();
-      $discord_userSTMT->close();
-      if ($discord_user_data) {
-        if (!empty($discord_user_data['refresh_token'])) {
-          $revoke_success = revokeDiscordToken($discord_user_data['refresh_token'], $client_id, $client_secret, 'refresh_token');
-        } elseif (!empty($discord_user_data['access_token'])) {
-          $revoke_success = revokeDiscordToken($discord_user_data['access_token'], $client_id, $client_secret, 'access_token');
-        }
-      }
-      $deleteStmt = $conn->prepare("DELETE FROM discord_users WHERE user_id = ?");
-      $deleteStmt->bind_param("i", $user_id);
-      if ($deleteStmt->execute()) {
-        $buildStatus = "Discord account successfully disconnected and tokens revoked";
-        $is_linked = false; // Update the linked status
-      } else {
-        $errorMsg = "Error disconnecting Discord account: " . $deleteStmt->error;
-      }
-      $deleteStmt->close();
-    } elseif (isset($_POST['monitor_username'])) {
-      // Add Twitch streamer monitoring (URL is auto-generated)
-      $monitor_username = trim(str_replace(' ', '', $_POST['monitor_username']));
-      if (empty($monitor_username)) {
-        $errorMsg = "Twitch Username cannot be empty.";
-      } elseif (strtolower($monitor_username) === strtolower($username)) {
-        $errorMsg = "You cannot track your own channel.";
-      } else {
-        $monitor_url = "https://www.twitch.tv/" . $monitor_username;
-        // Check if the streamer already exists
-        $checkStmt = $db->prepare("SELECT * FROM member_streams WHERE username = ?");
-        $checkStmt->bind_param("s", $monitor_username);
-        $checkStmt->execute();
-        $checkResult = $checkStmt->get_result();
-        if ($checkResult->num_rows > 0) {
-          $buildStatus .= "Streamer already exists in the database.<br>";
+    } else {
+      // Handle form POST requests
+      if (isset($_POST['guild_id']) && !isset($_POST['live_channel_id'])) {
+        // Server Configuration: Save only guild_id to discord_users table
+        $guild_id = $_POST['guild_id'];
+        $stmt = $conn->prepare("UPDATE discord_users SET guild_id = ? WHERE user_id = ?");
+        $stmt->bind_param("si", $guild_id, $user_id);
+        if ($stmt->execute()) {
+          $buildStatus = "Discord Server configuration saved successfully";
         } else {
-          // Insert new streamer
-          $insertStmt = $db->prepare("INSERT INTO member_streams (username, stream_url) VALUES (?, ?)");
-          $insertStmt->bind_param("ss", $monitor_username, $monitor_url);
-          if ($insertStmt->execute()) {
-            $buildStatus .= "Streamer added successfully.<br>";
+          $errorMsg = "Error saving Discord Server configuration: " . $stmt->error;
+        }
+        $stmt->close();
+        updateExistingDiscordValues(); // Refresh existing values after update
+      } elseif (isset($_POST['live_channel_id']) && isset($_POST['guild_id']) && isset($_POST['online_text']) && isset($_POST['offline_text'])) {
+        // Update live_channel_id and guild_id
+        $guild_id = $_POST['guild_id'];
+        $live_channel_id = $_POST['live_channel_id'] ?? null;
+        $onlineText = !empty($live_channel_id) ? $_POST['online_text'] : null;
+        $offlineText = !empty($live_channel_id) ? $_POST['offline_text'] : null;
+        if (!empty($_POST['stream_channel_id'])) { $streamChannelID = $_POST['stream_channel_id']; }
+        else { $streamChannelID = null; }
+        $streamAlertEveryone = isset($_POST['stream_alert_everyone']) ? 1 : 0;
+        $streamAlertCustomRole = !empty($_POST['stream_alert_custom_role']) ? $_POST['stream_alert_custom_role'] : null;
+        if (!empty($_POST['mod_channel_id'])) { $moderationChannelID = $_POST['mod_channel_id']; }
+        else { $moderationChannelID = null; }
+        if (!empty($_POST['alert_channel_id'])) { $alertChannelID = $_POST['alert_channel_id']; }
+        else { $alertChannelID = null; }
+        if (!empty($_POST['twitch_stream_monitor_id'])) { $memberStreamsID = $_POST['twitch_stream_monitor_id']; }
+        else { $memberStreamsID = null; }
+        $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
+        $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
+        if ($stmt->execute()) { $buildStatus .= "Live Channel ID and Guild ID updated successfully<br>"; }
+        else { $errorMsg .= "Error updating Live Channel ID and Guild ID: " . $stmt->error . "<br>"; }
+        if (strlen($onlineText) > 20) { // Validate character limits (max 20 characters each)
+          $errorMsg .= "Online text cannot exceed 20 characters. Current length: " . strlen($onlineText) ."<br>";
+        } elseif (strlen($offlineText) > 20) {
+          $errorMsg .= "Offline text cannot exceed 20 characters. Current length: " . strlen($offlineText) ."<br>";
+        } else {
+          $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
+          $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
+          if ($stmt->execute()) {
+            $buildStatus .= "Online and Offline Text has been updated successfully<br>";
           } else {
-            $errorMsg .= "Error adding streamer: " . $insertStmt->error . "<br>";
+            $errorMsg .= "Error updating Online and Offline Text: " . $stmt->error . "<br>";
           }
-          $insertStmt->close();
         }
-        $checkStmt->close();
-      }
-    } elseif (isset($_POST['remove_streamer'])) {
-      // Remove Twitch streamer monitoring
-      $remove_username = trim($_POST['remove_streamer']);
-      if (empty($remove_username)) {
-        $errorMsg = "Twitch Username cannot be empty.";
-      } else {
-        // Check if the streamer exists
-        $checkStmt = $db->prepare("SELECT * FROM member_streams WHERE username = ?");
-        $checkStmt->bind_param("s", $remove_username);
-        $checkStmt->execute();
-        $checkResult = $checkStmt->get_result();
-        if ($checkResult->num_rows === 0) {
-          $errorMsg .= "Streamer not found in the database.<br>";
+        $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, moderation_channel_id = ?, alert_channel_id = ?, member_streams_id = ?, stream_alert_everyone = ?, stream_alert_custom_role = ? WHERE user_id = ?");
+        $stmt->bind_param("iiiiisi", $streamChannelID, $moderationChannelID, $alertChannelID, $memberStreamsID, $streamAlertEveryone, $streamAlertCustomRole, $user_id);
+        if ($stmt->execute()) {
+          $buildStatus .= "Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID updated successfully<br>";
         } else {
-          // Delete the streamer
-          $deleteStmt = $db->prepare("DELETE FROM member_streams WHERE username = ?");
-          $deleteStmt->bind_param("s", $remove_username);
-          if ($deleteStmt->execute()) {
-            $buildStatus .= "Streamer removed successfully.<br>";
-          } else {
-            $errorMsg .= "Error removing streamer: " . $deleteStmt->error . "<br>";
-          }
-          $deleteStmt->close();
+          $errorMsg .= "Error updating Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID: " . $stmt->error . "<br>";
         }
-        $checkStmt->close();
+        $stmt->close();
+        updateExistingDiscordValues(); // Refresh existing values after update
+      } elseif (isset($_POST['disconnect_discord'])) {
+        $discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token FROM discord_users WHERE user_id = ?");
+        $discord_userSTMT->bind_param("i", $user_id);
+        $discord_userSTMT->execute();
+        $discord_userResult = $discord_userSTMT->get_result();
+        $discord_user_data = $discord_userResult->fetch_assoc();
+        $discord_userSTMT->close();
+        if ($discord_user_data) {
+          if (!empty($discord_user_data['refresh_token'])) {
+            $revoke_success = revokeDiscordToken($discord_user_data['refresh_token'], $client_id, $client_secret, 'refresh_token');
+          } elseif (!empty($discord_user_data['access_token'])) {
+            $revoke_success = revokeDiscordToken($discord_user_data['access_token'], $client_id, $client_secret, 'access_token');
+          }
+        }
+        $deleteStmt = $conn->prepare("DELETE FROM discord_users WHERE user_id = ?");
+        $deleteStmt->bind_param("i", $user_id);
+        if ($deleteStmt->execute()) {
+          $buildStatus = "Discord account successfully disconnected and tokens revoked";
+          $is_linked = false; // Update the linked status
+        } else {
+          $errorMsg = "Error disconnecting Discord account: " . $deleteStmt->error;
+        }
+        $deleteStmt->close();
+      } elseif (isset($_POST['monitor_username'])) {
+        // Add Twitch streamer monitoring (URL is auto-generated)
+        $monitor_username = trim(str_replace(' ', '', $_POST['monitor_username']));
+        if (empty($monitor_username)) {
+          $errorMsg = "Twitch Username cannot be empty.";
+        } elseif (strtolower($monitor_username) === strtolower($username)) {
+          $errorMsg = "You cannot track your own channel.";
+        } else {
+          $monitor_url = "https://www.twitch.tv/" . $monitor_username;
+          // Check if the streamer already exists
+          $checkStmt = $db->prepare("SELECT * FROM member_streams WHERE username = ?");
+          $checkStmt->bind_param("s", $monitor_username);
+          $checkStmt->execute();
+          $checkResult = $checkStmt->get_result();
+          if ($checkResult->num_rows > 0) {
+            $buildStatus .= "Streamer already exists in the database.<br>";
+          } else {
+            // Insert new streamer
+            $insertStmt = $db->prepare("INSERT INTO member_streams (username, stream_url) VALUES (?, ?)");
+            $insertStmt->bind_param("ss", $monitor_username, $monitor_url);
+            if ($insertStmt->execute()) {
+              $buildStatus .= "Streamer added successfully.<br>";
+            } else {
+              $errorMsg .= "Error adding streamer: " . $insertStmt->error . "<br>";
+            }
+            $insertStmt->close();
+          }
+          $checkStmt->close();
+        }
+      } elseif (isset($_POST['remove_streamer'])) {
+        // Remove Twitch streamer monitoring
+        $remove_username = trim($_POST['remove_streamer']);
+        if (empty($remove_username)) {
+          $errorMsg = "Twitch Username cannot be empty.";
+        } else {
+          // Check if the streamer exists
+          $checkStmt = $db->prepare("SELECT * FROM member_streams WHERE username = ?");
+          $checkStmt->bind_param("s", $remove_username);
+          $checkStmt->execute();
+          $checkResult = $checkStmt->get_result();
+          if ($checkResult->num_rows === 0) {
+            $errorMsg .= "Streamer not found in the database.<br>";
+          } else {
+            // Delete the streamer
+            $deleteStmt = $db->prepare("DELETE FROM member_streams WHERE username = ?");
+            $deleteStmt->bind_param("s", $remove_username);
+            if ($deleteStmt->execute()) {
+              $buildStatus .= "Streamer removed successfully.<br>";
+            } else {
+              $errorMsg .= "Error removing streamer: " . $deleteStmt->error . "<br>";
+            }
+            $deleteStmt->close();
+          }
+          $checkStmt->close();
+        }
       }
     }
   } catch (mysqli_sql_exception $e) {
@@ -1610,9 +1639,9 @@ ob_start();
                   Discord Server Management
                 </p>
                 <div class="card-header-icon" style="cursor: default;">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-hourglass-half"></i></span>
-                    <span>COMING SOON</span>
+                  <span class="tag is-success is-light">
+                    <span class="icon"><i class="fas fa-flask"></i></span>
+                    <span>PARTIAL BETA</span>
                   </span>
                 </div>
               </header>
@@ -1753,9 +1782,9 @@ ob_start();
                   Auto Role Assignment Configuration
                 </p>
                 <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span>Coming Soon</span>
+                  <span class="tag is-success is-light">
+                    <span class="icon"><i class="fas fa-flask"></i></span>
+                    <span>PARTIAL BETA</span>
                   </span>
                 </div>
               </header>
@@ -1783,7 +1812,7 @@ ob_start();
                   </div>
                   <div class="field">
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveAutoRole()" name="save_auto_role" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveAutoRole()" name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save Auto Role Settings</span>
                       </button>

@@ -115,6 +115,48 @@ try {
                         echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
                     }
                     break;
+                case 'save_auto_role':
+                    if (!isset($input['auto_role_id'])) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Auto role ID is required']);
+                        exit();
+                    }
+                    $auto_role_id = $input['auto_role_id'];
+                    if (empty($auto_role_id)) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Auto role ID cannot be empty']);
+                        exit();
+                    }
+                    // Check if record exists for this server
+                    $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
+                    $checkStmt->bind_param("s", $server_id);
+                    $checkStmt->execute();
+                    $result = $checkStmt->get_result();
+                    if ($result->num_rows > 0) {
+                        // Update existing record
+                        $updateStmt = $discord_conn->prepare("UPDATE server_management SET auto_role_assignment_configuration_role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                        $updateStmt->bind_param("ss", $auto_role_id, $server_id);
+                        $success = $updateStmt->execute();
+                        $updateStmt->close();
+                    } else {
+                        // Insert new record
+                        $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, auto_role_assignment_configuration_role_id) VALUES (?, ?)");
+                        $insertStmt->bind_param("ss", $server_id, $auto_role_id);
+                        $success = $insertStmt->execute();
+                        $insertStmt->close();
+                    }
+                    $checkStmt->close();
+                    if ($success) {
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Auto role configuration saved successfully',
+                            'role_id' => $auto_role_id
+                        ]);
+                    } else {
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
+                    }
+                    break;
                 // Add other server management cases here if needed
             }
             $discord_conn->close();
