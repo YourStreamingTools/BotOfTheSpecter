@@ -4461,7 +4461,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     self.logger.error(f"Error checking for existing message: {e}")
                 # Create embed for the message
                 embed = discord.Embed(
-                    title="🎭 Role Selection",
+                    title="Role Selection",
                     description=message,
                     color=config.bot_color
                 )
