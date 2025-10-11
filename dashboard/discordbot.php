@@ -1784,7 +1784,7 @@ ob_start();
                 <div class="card-header-icon">
                   <span class="tag is-success is-light">
                     <span class="icon"><i class="fas fa-flask"></i></span>
-                    <span>PARTIAL BETA</span>
+                    <span>BETA</span>
                   </span>
                 </div>
               </header>
