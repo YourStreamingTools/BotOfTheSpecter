@@ -178,30 +178,19 @@ try {
                         echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty']);
                         exit();
                     }
-                    // Check if required columns exist and create them if they don't
-                    $required_columns = [
-                        'reaction_roles_configuration_channel' => 'VARCHAR(255) DEFAULT NULL',
-                        'reaction_roles_configuration_message' => 'TEXT DEFAULT NULL',
-                        'reaction_roles_configuration_mappings' => 'TEXT DEFAULT NULL',
-                        'reaction_roles_configuration_allow_multiple' => 'TINYINT(1) DEFAULT 0'
+                    // Build the JSON configuration object
+                    $reaction_roles_config = [
+                        'channel_id' => $reaction_roles_channel_id,
+                        'message' => $reaction_roles_message,
+                        'mappings' => $reaction_roles_mappings,
+                        'allow_multiple' => $allow_multiple_reactions
                     ];
-                    foreach ($required_columns as $column_name => $column_definition) {
-                        $column_check = $discord_conn->prepare("SHOW COLUMNS FROM server_management LIKE ?");
-                        $column_check->bind_param("s", $column_name);
-                        $column_check->execute();
-                        $column_result = $column_check->get_result();
-                        
-                        if ($column_result->num_rows == 0) {
-                            // Column doesn't exist, create it
-                            $alter_sql = "ALTER TABLE server_management ADD COLUMN `$column_name` $column_definition";
-                            if (!$discord_conn->query($alter_sql)) {
-                                error_log("Failed to add column $column_name: " . $discord_conn->error);
-                                http_response_code(500);
-                                echo json_encode(['success' => false, 'message' => 'Database schema error: Failed to create required columns']);
-                                exit();
-                            }
-                        }
-                        $column_check->close();
+                    $reaction_roles_json = json_encode($reaction_roles_config);
+                    if ($reaction_roles_json === false) {
+                        error_log('Failed to encode reaction roles JSON: ' . json_last_error_msg());
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Failed to encode configuration data']);
+                        exit();
                     }
                     // Check if record exists for this server
                     $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
@@ -221,8 +210,8 @@ try {
                     }
                     $result = $checkStmt->get_result();
                     if ($result->num_rows > 0) {
-                        // Update existing record using separate columns
-                        $updateStmt = $discord_conn->prepare("UPDATE server_management SET reaction_roles_configuration_channel = ?, reaction_roles_configuration_message = ?, reaction_roles_configuration_mappings = ?, reaction_roles_configuration_allow_multiple = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                        // Update existing record with JSON configuration
+                        $updateStmt = $discord_conn->prepare("UPDATE server_management SET reaction_roles_configuration = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
                         if (!$updateStmt) {
                             error_log('Failed to prepare update statement: ' . $discord_conn->error);
                             $checkStmt->close();
@@ -230,12 +219,15 @@ try {
                             echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare update']);
                             exit();
                         }
-                        $updateStmt->bind_param("sssis", $reaction_roles_channel_id, $reaction_roles_message, $reaction_roles_mappings, $allow_multiple_reactions, $server_id);
+                        $updateStmt->bind_param("ss", $reaction_roles_json, $server_id);
                         $success = $updateStmt->execute();
+                        if (!$success) {
+                            error_log('Update failed: ' . $updateStmt->error);
+                        }
                         $updateStmt->close();
                     } else {
-                        // Insert new record using separate columns
-                        $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, reaction_roles_configuration_channel, reaction_roles_configuration_message, reaction_roles_configuration_mappings, reaction_roles_configuration_allow_multiple) VALUES (?, ?, ?, ?, ?)");
+                        // Insert new record with JSON configuration
+                        $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, reaction_roles_configuration) VALUES (?, ?)");
                         if (!$insertStmt) {
                             error_log('Failed to prepare insert statement: ' . $discord_conn->error);
                             $checkStmt->close();
@@ -243,24 +235,40 @@ try {
                             echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare insert']);
                             exit();
                         }
-                        $insertStmt->bind_param("sssis", $server_id, $reaction_roles_channel_id, $reaction_roles_message, $reaction_roles_mappings, $allow_multiple_reactions);
+                        $insertStmt->bind_param("ss", $server_id, $reaction_roles_json);
                         $success = $insertStmt->execute();
+                        if (!$success) {
+                            error_log('Insert failed: ' . $insertStmt->error);
+                        }
                         $insertStmt->close();
                     }
                     $checkStmt->close();
                     if ($success) {
-                        // Send websocket notification to update the bot
+                        error_log('Successfully saved reaction roles configuration: ' . $reaction_roles_json);
+                        // Send success response immediately before websocket notification
+                        http_response_code(200);
+                        header('Content-Type: application/json');
+                        echo json_encode([
+                            'success' => true,
+                            'message' => 'Reaction roles configuration saved successfully',
+                            'channel_id' => $reaction_roles_channel_id,
+                            'allow_multiple' => $allow_multiple_reactions
+                        ]);
+                        
+                        // Flush the output to send the response to the client
+                        if (function_exists('fastcgi_finish_request')) {
+                            fastcgi_finish_request();
+                        } else {
+                            ob_end_flush();
+                            flush();
+                        }
+                        // Now send websocket notification in the background
                         $websocket_url = 'https://websocket.botofthespecter.com/notify'; // Production websocket server
                         $params = [
                             'action' => 'update_reaction_roles',
                             'server_id' => $server_id,
                             'user_id' => $user_id,
-                            'reaction_roles_config' => json_encode([
-                                'channel_id' => $reaction_roles_channel_id,
-                                'message' => $reaction_roles_message,
-                                'mappings' => $reaction_roles_mappings,
-                                'allow_multiple' => $allow_multiple_reactions
-                            ])
+                            'reaction_roles_config' => $reaction_roles_json
                         ];
                         // Build query string
                         $query_string = http_build_query($params);
@@ -272,18 +280,14 @@ try {
                         $response = curl_exec($ch);
                         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                         curl_close($ch);
-                        // Log websocket notification result (optional)
+                        // Log websocket notification result
                         if ($http_code !== 200) {
                             error_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
                         } else {
                             error_log("Successfully sent websocket notification for reaction roles");
                         }
-                        echo json_encode([
-                            'success' => true,
-                            'message' => 'Reaction roles configuration saved successfully',
-                            'channel_id' => $reaction_roles_channel_id,
-                            'allow_multiple' => $allow_multiple_reactions
-                        ]);
+                        // Exit to prevent any further output
+                        exit();
                     } else {
                         error_log('Database operation failed: ' . $discord_conn->error);
                         http_response_code(500);
