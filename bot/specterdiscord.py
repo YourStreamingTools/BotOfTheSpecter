@@ -884,8 +884,30 @@ class BotOfTheSpecter(commands.Bot):
 
     async def on_member_join(self, member):
         self.logger.info(f"Member joined: {member.name}#{member.discriminator} (ID: {member.id}) in guild {member.guild.name}")
-        # Get the channel_code for this guild to use as API token
+        # Auto role assignment - do this first to ensure it happens regardless of websocket status
         mysql_helper = MySQLHelper(self.logger)
+        try:
+            auto_role_row = await mysql_helper.fetchone("SELECT auto_role_assignment_configuration_role_id FROM server_management WHERE server_id = %s", (str(member.guild.id),), database_name='website', dict_cursor=True)
+            if auto_role_row and auto_role_row['auto_role_assignment_configuration_role_id']:
+                auto_role_id = auto_role_row['auto_role_assignment_configuration_role_id']
+                try:
+                    auto_role = member.guild.get_role(int(auto_role_id))
+                    if auto_role:
+                        await member.add_roles(auto_role, reason="Auto role assignment on member join")
+                        self.logger.info(f"Successfully assigned auto role '{auto_role.name}' to {member.name} in guild {member.guild.name}")
+                    else:
+                        self.logger.warning(f"Auto role with ID {auto_role_id} not found in guild {member.guild.name}")
+                except discord.Forbidden:
+                    self.logger.error(f"Missing permissions to assign auto role in guild {member.guild.name}")
+                except discord.HTTPException as e:
+                    self.logger.error(f"Failed to assign auto role due to HTTP error: {e}")
+                except Exception as e:
+                    self.logger.error(f"Unexpected error assigning auto role: {e}")
+            else:
+                self.logger.debug(f"No auto role configured for guild {member.guild.name}")
+        except Exception as e:
+            self.logger.error(f"Error checking auto role configuration: {e}")
+        # Get the channel_code for this guild to use as API token for websocket notification
         channel_code_row = await mysql_helper.fetchone("SELECT channel_code FROM channel_mappings WHERE guild_id = %s", (str(member.guild.id),), database_name='specterdiscordbot', dict_cursor=True)
         if not channel_code_row:
             self.logger.warning(f"No channel_code found for guild {member.guild.id}, skipping websocket notification")
