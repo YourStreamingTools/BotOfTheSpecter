@@ -159,22 +159,37 @@ function setActiveMenuItem() {
     const currentPath = window.location.pathname;
     const fileName = currentPath.split('/').pop();
     const menuLinks = document.querySelectorAll('.sidebar-menu-link:not([onclick]), .sidebar-submenu-link');
-    
+    // Remove all active classes first
+    menuLinks.forEach(link => link.classList.remove('active'));
+    // Find the best matching link
+    let bestMatch = null;
+    let bestMatchLength = 0;
     menuLinks.forEach(link => {
         const href = link.getAttribute('href');
-        if (href && (href === fileName || currentPath.includes(href))) {
-            link.classList.add('active');
-            
-            // If it's a submenu link, expand the parent
-            const submenu = link.closest('.sidebar-submenu');
-            if (submenu) {
-                const parentItem = submenu.closest('.sidebar-menu-item');
-                if (parentItem) {
-                    parentItem.classList.add('expanded');
-                }
+        if (!href) return;
+        // Extract just the filename from href (remove any query parameters or paths)
+        const hrefFileName = href.split('/').pop().split('?')[0];
+        // Exact match for the filename
+        if (hrefFileName === fileName) {
+            // Prefer longer matches (more specific)
+            if (hrefFileName.length > bestMatchLength) {
+                bestMatch = link;
+                bestMatchLength = hrefFileName.length;
             }
         }
     });
+    // Apply active state to the best match
+    if (bestMatch) {
+        bestMatch.classList.add('active');
+        // If it's a submenu link, expand the parent
+        const submenu = bestMatch.closest('.sidebar-submenu');
+        if (submenu) {
+            const parentItem = submenu.closest('.sidebar-menu-item');
+            if (parentItem) {
+                parentItem.classList.add('expanded');
+            }
+        }
+    }
 }
 
 // Helper function to get cookie value
