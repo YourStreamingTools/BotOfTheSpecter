@@ -325,6 +325,7 @@ try {
                     if (!isset($input['reaction_roles_channel_id'])) {
                         debug_log('Missing reaction_roles_channel_id in input');
                         http_response_code(400);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required']);
                         exit();
                     }
@@ -335,16 +336,19 @@ try {
                     debug_log('Extracted values - channel_id: ' . $reaction_roles_channel_id . ', message: ' . $reaction_roles_message . ', mappings: ' . $reaction_roles_mappings);
                     if (empty($reaction_roles_channel_id)) {
                         http_response_code(400);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty']);
                         exit();
                     }
                     if (empty($reaction_roles_message)) {
                         http_response_code(400);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Reaction roles message cannot be empty']);
                         exit();
                     }
                     if (empty($reaction_roles_mappings)) {
                         http_response_code(400);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Reaction roles mappings cannot be empty']);
                         exit();
                     }
@@ -354,6 +358,7 @@ try {
                     if (empty($api_key)) {
                         debug_log('api_key not found for user_id: ' . $user_id);
                         http_response_code(500);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
                         exit();
                     }
@@ -376,6 +381,7 @@ try {
                     if ($ch === false) {
                         debug_log('Failed to initialize cURL');
                         http_response_code(500);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Failed to initialize HTTP request']);
                         exit();
                     }
@@ -387,6 +393,7 @@ try {
                         debug_log('cURL error: ' . $curl_error);
                         curl_close($ch);
                         http_response_code(500);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'HTTP request failed: ' . $curl_error, 'debug_logs' => $debug_logs]);
                         exit();
                     }
@@ -397,10 +404,13 @@ try {
                     if ($http_code !== 200) {
                         debug_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
                         http_response_code(500);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Failed to send message to Discord channel', 'debug_logs' => $debug_logs]);
                         exit();
                     } else {
                         debug_log("Successfully sent websocket notification for reaction roles");
+                        http_response_code(200);
+                        header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true, 
                             'message' => 'Reaction roles message sent to Discord channel successfully',
@@ -408,6 +418,7 @@ try {
                             'allow_multiple' => $allow_multiple_reactions,
                             'debug_logs' => $debug_logs
                         ]);
+                        exit();
                     }
                     break;
             }
