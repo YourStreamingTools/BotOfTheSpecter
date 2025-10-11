@@ -669,15 +669,16 @@ function updateExistingDiscordValues() {
         if (!empty($serverMgmtData['user_tracking_configuration_channel'])) {
           $existingUserLogChannelID = $serverMgmtData['user_tracking_configuration_channel'];
         }
-        if (!empty($serverMgmtData['reaction_roles_configuration'])) {
-          $reactionRolesConfig = json_decode($serverMgmtData['reaction_roles_configuration'], true);
-          if ($reactionRolesConfig) {
-            $existingReactionRolesChannelID = $reactionRolesConfig['channel_id'] ?? '';
-            $existingReactionRolesMessage = $reactionRolesConfig['message'] ?? '';
-            $existingReactionRolesMappings = $reactionRolesConfig['mappings'] ?? '';
-            $existingAllowMultipleReactions = $reactionRolesConfig['allow_multiple'] ?? false;
-          }
+        if (!empty($serverMgmtData['reaction_roles_configuration_channel'])) {
+          $existingReactionRolesChannelID = $serverMgmtData['reaction_roles_configuration_channel'];
         }
+        if (!empty($serverMgmtData['reaction_roles_configuration_message'])) {
+          $existingReactionRolesMessage = $serverMgmtData['reaction_roles_configuration_message'];
+        }
+        if (!empty($serverMgmtData['reaction_roles_configuration_mappings'])) {
+          $existingReactionRolesMappings = $serverMgmtData['reaction_roles_configuration_mappings'];
+        }
+        $existingAllowMultipleReactions = (int)($serverMgmtData['reaction_roles_configuration_allow_multiple'] ?? 0) === 1;
       }
       $serverMgmtStmt->close();
     }
