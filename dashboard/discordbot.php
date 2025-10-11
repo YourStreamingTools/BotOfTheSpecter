@@ -1594,8 +1594,7 @@ ob_start();
                     <?php endif; ?>
                   </div>
                 </form>
-                <br>
-                <div>
+                <div class="mt-3">
                   <button class="button is-link is-fullwidth modal-button" style="border-radius: 6px; font-weight: 600;" data-target="savedStreamersModal">
                     <span class="icon"><i class="fa-solid fa-people-group"></i></span>
                     <span>View Tracked Streamers</span>
