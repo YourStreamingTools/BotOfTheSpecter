@@ -20,6 +20,7 @@ import aiomysql
 import socketio
 import yt_dlp
 import pytz
+import urllib.parse
 
 # Global configuration class
 class Config:
@@ -880,6 +881,33 @@ class BotOfTheSpecter(commands.Bot):
             return
         # Log other errors as usual
         self.logger.error(f"Error in application command: {str(error)}")
+
+    async def on_member_join(self, member):
+        self.logger.info(f"Member joined: {member.name}#{member.discriminator} (ID: {member.id}) in guild {member.guild.name}")
+        # Get the channel_code for this guild to use as API token
+        mysql_helper = MySQLHelper(self.logger)
+        channel_code_row = await mysql_helper.fetchone("SELECT channel_code FROM channel_mappings WHERE guild_id = %s", (str(member.guild.id),), database_name='specterdiscordbot', dict_cursor=True)
+        if not channel_code_row:
+            self.logger.warning(f"No channel_code found for guild {member.guild.id}, skipping websocket notification")
+            return
+        channel_code = channel_code_row['channel_code']
+        # Prepare params for websocket server notification
+        params = {
+            'code': channel_code,
+            'event': 'DISCORD_JOIN',
+            'member': member.name
+        }
+        # Send notification to websocket server
+        try:
+            url = f"https://websocket.botofthespecter.com/notify?{urllib.parse.urlencode(params)}"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        self.logger.info(f"Successfully sent member join notification for {member.name} in guild {member.guild.name}")
+                    else:
+                        self.logger.error(f"Failed to send member join notification: HTTP {response.status}")
+        except Exception as e:
+            self.logger.error(f"Failed to send member join notification to websocket server: {e}")
 
     async def get_ai_response(self, user_message, channel_name):
         try:
