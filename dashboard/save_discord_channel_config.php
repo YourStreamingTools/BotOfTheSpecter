@@ -164,6 +164,7 @@ try {
                         exit();
                     }
                     $reaction_roles_channel_id = $input['reaction_roles_channel_id'];
+                    $reaction_roles_message = isset($input['reaction_roles_message']) ? trim($input['reaction_roles_message']) : '';
                     $reaction_roles_mappings = isset($input['reaction_roles_mappings']) ? trim($input['reaction_roles_mappings']) : '';
                     $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool)$input['allow_multiple_reactions'] : false;
 
@@ -176,6 +177,7 @@ try {
                     // Structure the data as JSON
                     $reaction_roles_config = json_encode([
                         'channel_id' => $reaction_roles_channel_id,
+                        'message' => $reaction_roles_message,
                         'mappings' => $reaction_roles_mappings,
                         'allow_multiple' => $allow_multiple_reactions
                     ]);
