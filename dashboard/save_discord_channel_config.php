@@ -263,7 +263,68 @@ try {
                         echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
                     }
                     break;
-                // Add other server management cases here if needed
+                case 'send_reaction_roles_message':
+                    if (!isset($input['reaction_roles_channel_id'])) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required']);
+                        exit();
+                    }
+                    $reaction_roles_channel_id = $input['reaction_roles_channel_id'];
+                    $reaction_roles_message = isset($input['reaction_roles_message']) ? trim($input['reaction_roles_message']) : '';
+                    $reaction_roles_mappings = isset($input['reaction_roles_mappings']) ? trim($input['reaction_roles_mappings']) : '';
+                    $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool)$input['allow_multiple_reactions'] : false;
+                    if (empty($reaction_roles_channel_id)) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty']);
+                        exit();
+                    }
+                    if (empty($reaction_roles_message)) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Reaction roles message cannot be empty']);
+                        exit();
+                    }
+                    if (empty($reaction_roles_mappings)) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'message' => 'Reaction roles mappings cannot be empty']);
+                        exit();
+                    }
+                    // Send websocket notification to post the message to Discord channel
+                    $websocket_url = 'https://websocket.botofthespecter.com/notify'; // Production websocket server
+                    $params = [
+                        'code' => $_SESSION['api_key'],
+                        'event' => 'post_reaction_roles_message',
+                        'server_id' => $server_id,
+                        'channel_id' => $reaction_roles_channel_id,
+                        'message' => $reaction_roles_message,
+                        'mappings' => $reaction_roles_mappings,
+                        'allow_multiple' => $allow_multiple_reactions ? 'true' : 'false'
+                    ];
+                    // Build query string
+                    $query_string = http_build_query($params);
+                    $full_url = $websocket_url . '?' . $query_string;
+                    // Send HTTP GET request to websocket server
+                    $ch = curl_init($full_url);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
+                    $response = curl_exec($ch);
+                    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+                    // Check if websocket notification was successful
+                    if ($http_code !== 200) {
+                        error_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Failed to send message to Discord channel']);
+                        exit();
+                    } else {
+                        error_log("Successfully sent websocket notification for reaction roles");
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Reaction roles message sent to Discord channel successfully',
+                            'channel_id' => $reaction_roles_channel_id,
+                            'allow_multiple' => $allow_multiple_reactions
+                        ]);
+                    }
+                    break;
             }
             $discord_conn->close();
             break;
