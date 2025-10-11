@@ -4298,22 +4298,23 @@ class ServerManagement(commands.Cog, name='Server Management'):
             self.logger.error(f"Error initializing reaction roles cache: {e}")
     
     async def _ensure_role_messages_table(self):
+        """Create the role_selection_messages table if it doesn't exist"""
         try:
             create_table_query = """
                 CREATE TABLE IF NOT EXISTS role_selection_messages (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    server_id VARCHAR(255) NOT NULL UNIQUE,
+                    server_id VARCHAR(255) NOT NULL,
                     channel_id VARCHAR(255) NOT NULL,
                     message_id VARCHAR(255) NOT NULL,
-                    message_text TEXT NOT NULL,
-                    mappings TEXT NOT NULL,
-                    role_mappings JSON NOT NULL,
+                    message_text TEXT,
+                    mappings TEXT,
+                    role_mappings JSON,
                     allow_multiple BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_server_id (server_id),
-                    INDEX idx_message_id (message_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    UNIQUE KEY unique_server (server_id),
+                    KEY idx_message_id (message_id)
+                )
             """
             await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
             self.logger.info("Ensured role_selection_messages table exists")
@@ -4473,20 +4474,23 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 try:
                     insert_query = """
                         INSERT INTO role_selection_messages 
-                        (server_id, channel_id, message_id, message_text, mappings, role_mappings, allow_multiple, created_at, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        (server_id, channel_id, message_id, message_text, mappings, role_mappings, allow_multiple)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON DUPLICATE KEY UPDATE
-                        channel_id = VALUES(channel_id),
-                        message_id = VALUES(message_id),
-                        message_text = VALUES(message_text),
-                        mappings = VALUES(mappings),
-                        role_mappings = VALUES(role_mappings),
-                        allow_multiple = VALUES(allow_multiple),
-                        updated_at = NOW()
+                        channel_id = %s,
+                        message_id = %s,
+                        message_text = %s,
+                        mappings = %s,
+                        role_mappings = %s,
+                        allow_multiple = %s
                     """
+                    # For ON DUPLICATE KEY UPDATE, we need to provide values twice
                     await self.mysql.execute(
                         insert_query, 
-                        params=(server_id, channel_id, str(message_id), message, mappings, json.dumps(role_mappings), allow_multiple),
+                        params=(
+                            server_id, channel_id, str(message_id), message, mappings, json.dumps(role_mappings), allow_multiple,
+                            channel_id, str(message_id), message, mappings, json.dumps(role_mappings), allow_multiple
+                        ),
                         database_name='specterdiscordbot'
                     )
                     # Update cache
