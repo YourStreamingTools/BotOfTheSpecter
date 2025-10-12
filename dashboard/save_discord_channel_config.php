@@ -152,10 +152,12 @@ try {
                             'channel_id' => $welcome_channel_id,
                             'use_default' => $welcome_use_default
                         ]);
+                        exit(); // Add exit to prevent further execution
                     } else {
                         http_response_code(500);
                         header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
+                        exit(); // Add exit to prevent further execution
                     }
                     break;
                 case 'save_auto_role':
