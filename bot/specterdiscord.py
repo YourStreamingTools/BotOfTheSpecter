@@ -4660,6 +4660,65 @@ class ServerManagement(commands.Cog, name='Server Management'):
             await ctx.send(f"❌ Error refreshing reaction roles cache: {e}")
             self.logger.error(f"Error in refresh_reaction_roles command: {e}")
 
+    async def handle_welcome_message(self, member: discord.Member):
+        try:
+            # Query the database for welcome message configuration
+            query = """
+                SELECT welcome_message_configuration_channel, 
+                       welcome_message_configuration_message, 
+                       welcome_message_configuration_default,
+                       welcome_message_configuration_embed
+                FROM server_management 
+                WHERE server_id = ?
+            """
+            result = await self.mysql.fetchone(query, params=(str(member.guild.id),), database_name='specterdiscordbot')
+            if not result or not result[0]:
+                self.logger.debug(f"No welcome message configured for guild {member.guild.name}")
+                return False
+            welcome_channel_id, custom_message, use_default, use_embed = result
+            # Get the welcome channel
+            try:
+                welcome_channel = member.guild.get_channel(int(welcome_channel_id))
+                if not welcome_channel:
+                    self.logger.warning(f"Welcome channel with ID {welcome_channel_id} not found in guild {member.guild.name}")
+                    return False
+                # Determine the message text
+                if use_default == 1:
+                    # Default welcome message
+                    message_text = f"Welcome {member.name} to **{member.guild.name}**! We're glad to have you here!"
+                else:
+                    message_text = custom_message.replace("{user}", member.name)
+                # Send as embed or plain text based on configuration
+                if use_embed == 1:
+                    # Send as rich embed
+                    embed = discord.Embed(
+                        title="Welcome!",
+                        description=message_text,
+                        color=discord.Color.green()
+                    )
+                    embed.set_thumbnail(url=member.display_avatar.url)
+                    embed.set_footer(text=f"Member #{member.guild.member_count}")
+                    await welcome_channel.send(embed=embed)
+                    self.logger.info(f"Sent welcome embed to {member.name} in {welcome_channel.name} (guild: {member.guild.name})")
+                else:
+                    # Send as plain text
+                    await welcome_channel.send(message_text)
+                    self.logger.info(f"Sent welcome message to {member.name} in {welcome_channel.name} (guild: {member.guild.name})")
+                return True
+            except ValueError:
+                self.logger.error(f"Invalid welcome channel ID: {welcome_channel_id}")
+                return False
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to send welcome message in guild {member.guild.name}")
+                return False
+            except discord.HTTPException as e:
+                self.logger.error(f"Failed to send welcome message due to HTTP error: {e}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error in handle_welcome_message: {e}")
+            return False
+
     async def handle_auto_role_assignment(self, member: discord.Member):
         try:
             # Query the database for auto role configuration
@@ -4695,6 +4754,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         self.logger.info(f"ServerManagement: Member joined {member.name}#{member.discriminator} in guild {member.guild.name}")
+        # Handle welcome message
+        await self.handle_welcome_message(member)
         # Handle auto role assignment
         await self.handle_auto_role_assignment(member)
 
