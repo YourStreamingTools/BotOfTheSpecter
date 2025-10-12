@@ -2184,8 +2184,8 @@ ob_start();
                 </p>
                 <div class="card-header-icon">
                   <span class="tag is-success is-light">
-                    <span class="icon"><i class="fas fa-flask"></i></span>
-                    <span>BETA</span>
+                    <span class="icon"><i class="fas fa-check-circle"></i></span>
+                    <span>COMPLETED</span>
                   </span>
                 </div>
               </header>
