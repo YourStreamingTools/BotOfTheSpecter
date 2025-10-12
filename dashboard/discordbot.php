@@ -448,6 +448,7 @@ $existingStreamAlertEveryone = $discordData['stream_alert_everyone'] ?? false;
 $existingStreamAlertCustomRole = $discordData['stream_alert_custom_role'] ?? "";
 // Initialize server management log channel IDs as empty (will be loaded from server_management table)
 $existingWelcomeChannelID = "";
+$existingWelcomeMessage = "";
 $existingWelcomeUseDefault = false;
 $existingAutoRoleID = "";
 $existingMessageLogChannelID = "";
@@ -513,7 +514,8 @@ if ($is_linked && $hasGuildId) {
       if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
         $existingWelcomeChannelID = $serverMgmtData['welcome_message_configuration_channel'];
       }
-      $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 0) === 1;
+      $existingWelcomeMessage = $serverMgmtData['welcome_message_configuration_message'] ?? "";
+      $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
       if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
         $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
       }
@@ -627,7 +629,7 @@ function updateExistingDiscordValues() {
   global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData, $consoleLogs;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
-  global $existingWelcomeChannelID, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
+  global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -647,6 +649,7 @@ function updateExistingDiscordValues() {
   $existingStreamAlertCustomRole = $discordData['stream_alert_custom_role'] ?? "";
   // Initialize server management log channel IDs as empty (will be loaded from server_management table)
   $existingWelcomeChannelID = "";
+  $existingWelcomeMessage = "";
   $existingWelcomeUseDefault = false;
   $existingAutoRoleID = "";
   $existingMessageLogChannelID = "";
@@ -688,7 +691,8 @@ function updateExistingDiscordValues() {
         if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
           $existingWelcomeChannelID = $serverMgmtData['welcome_message_configuration_channel'];
         }
-        $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 0) === 1;
+        $existingWelcomeMessage = $serverMgmtData['welcome_message_configuration_message'] ?? "";
+        $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
         if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
           $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
         }

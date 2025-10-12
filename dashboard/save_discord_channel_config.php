@@ -4,6 +4,7 @@ session_start();
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
     http_response_code(401);
+    header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'Not authenticated']);
     exit();
 }
@@ -15,6 +16,7 @@ include '/var/www/config/database.php';
 // Get user_id from session (simplified approach)
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
+    header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'User session not found']);
     exit();
 }
@@ -49,6 +51,7 @@ if (isset($_SESSION['api_key'])) {
 // Check if request is POST and has the required data
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
+    header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'Method not allowed']);
     exit();
 }
@@ -61,6 +64,7 @@ debug_log('save_discord_channel_config received: ' . json_encode($input));
 
 if (!isset($input['action']) || !isset($input['server_id'])) {
     http_response_code(400);
+    header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
     exit();
 }
@@ -71,6 +75,7 @@ $server_id = $input['server_id'];
 // Validate server_id is not empty
 if (empty($server_id)) {
     http_response_code(400);
+    header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'Server ID is required']);
     exit();
 }
@@ -90,6 +95,7 @@ try {
             $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
             if ($discord_conn->connect_error) {
                 http_response_code(500);
+                header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'message' => 'Discord database connection failed']);
                 exit();
             }
@@ -98,6 +104,7 @@ try {
                 case 'save_welcome_message':
                     if (!isset($input['welcome_channel_id'])) {
                         http_response_code(400);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Welcome channel ID is required']);
                         exit();
                     }
@@ -106,12 +113,14 @@ try {
                     $welcome_use_default = isset($input['welcome_message_configuration_default']) ? 1 : 0;
                     if (empty($welcome_channel_id)) {
                         http_response_code(400);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Welcome channel ID cannot be empty']);
                         exit();
                     }
                     // If not using default message, require custom welcome message text
                     if (!$welcome_use_default && empty($welcome_message)) {
                         http_response_code(400);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Please enter a welcome message or enable "Use default welcome message"']);
                         exit();
                     }
@@ -135,6 +144,8 @@ try {
                     }
                     $checkStmt->close();
                     if ($success) {
+                        http_response_code(200);
+                        header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true, 
                             'message' => 'Welcome message configuration saved successfully',
@@ -143,6 +154,7 @@ try {
                         ]);
                     } else {
                         http_response_code(500);
+                        header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
                     }
                     break;
