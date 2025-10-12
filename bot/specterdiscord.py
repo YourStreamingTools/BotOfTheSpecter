@@ -4697,7 +4697,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         color=discord.Color.green()
                     )
                     embed.set_thumbnail(url=member.display_avatar.url)
-                    embed.set_footer(text=f"Member #{member.guild.member_count}")
+                    embed.set_footer(text=f"{member.guild.name} | Member #{member.guild.member_count}")
                     await welcome_channel.send(embed=embed)
                     self.logger.info(f"Sent welcome embed to {member.name} in {welcome_channel.name} (guild: {member.guild.name})")
                 else:
