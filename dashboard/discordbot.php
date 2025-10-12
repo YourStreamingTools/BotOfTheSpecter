@@ -1855,7 +1855,7 @@ ob_start();
                     <div class="control">
                       <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"<?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
                     </div>
-                    <p class="help has-text-grey-light">Use {user} to mention the new member, {server} for server name</p>
+                    <p class="help has-text-grey-light">Use (user) to insert the member's username</p>
                   </div>
                   <div class="field">
                     <div class="control">
