@@ -111,6 +111,7 @@ try {
                     $welcome_channel_id = $input['welcome_channel_id'];
                     $welcome_message = isset($input['welcome_message']) ? trim($input['welcome_message']) : '';
                     $welcome_use_default = isset($input['welcome_message_configuration_default']) ? 1 : 0;
+                    $welcome_enable_embed = isset($input['welcome_message_configuration_embed']) ? 1 : 0;
                     if (empty($welcome_channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
@@ -131,14 +132,14 @@ try {
                     $result = $checkStmt->get_result();
                     if ($result->num_rows > 0) {
                         // Update existing record
-                        $updateStmt = $discord_conn->prepare("UPDATE server_management SET welcome_message_configuration_channel = ?, welcome_message_configuration_message = ?, welcome_message_configuration_default = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
-                        $updateStmt->bind_param("ssis", $welcome_channel_id, $welcome_message, $welcome_use_default, $server_id);
+                        $updateStmt = $discord_conn->prepare("UPDATE server_management SET welcome_message_configuration_channel = ?, welcome_message_configuration_message = ?, welcome_message_configuration_default = ?, welcome_message_configuration_embed = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                        $updateStmt->bind_param("ssiis", $welcome_channel_id, $welcome_message, $welcome_use_default, $welcome_enable_embed, $server_id);
                         $success = $updateStmt->execute();
                         $updateStmt->close();
                     } else {
                         // Insert new record
-                        $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, welcome_message_configuration_channel, welcome_message_configuration_message, welcome_message_configuration_default) VALUES (?, ?, ?, ?)");
-                        $insertStmt->bind_param("sssi", $server_id, $welcome_channel_id, $welcome_message, $welcome_use_default);
+                        $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, welcome_message_configuration_channel, welcome_message_configuration_message, welcome_message_configuration_default, welcome_message_configuration_embed) VALUES (?, ?, ?, ?, ?)");
+                        $insertStmt->bind_param("sssii", $server_id, $welcome_channel_id, $welcome_message, $welcome_use_default, $welcome_enable_embed);
                         $success = $insertStmt->execute();
                         $insertStmt->close();
                     }
@@ -150,7 +151,8 @@ try {
                             'success' => true, 
                             'message' => 'Welcome message configuration saved successfully',
                             'channel_id' => $welcome_channel_id,
-                            'use_default' => $welcome_use_default
+                            'use_default' => $welcome_use_default,
+                            'enable_embed' => $welcome_enable_embed
                         ]);
                         exit(); // Add exit to prevent further execution
                     } else {
