@@ -1484,9 +1484,9 @@ ob_start();
                   Discord Event Channels
                 </p>
                 <div class="card-header-icon" style="cursor: default;">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-wrench"></i></span>
-                    <span>IN TESTING!</span>
+                  <span class="tag is-success is-light">
+                    <span class="icon"><i class="fas fa-check-circle"></i></span>
+                    <span>COMPLETED</span>
                   </span>
                 </div>
               </header>
