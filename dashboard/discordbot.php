@@ -450,6 +450,7 @@ $existingStreamAlertCustomRole = $discordData['stream_alert_custom_role'] ?? "";
 $existingWelcomeChannelID = "";
 $existingWelcomeMessage = "";
 $existingWelcomeUseDefault = false;
+$existingWelcomeEmbed = false;
 $existingAutoRoleID = "";
 $existingMessageLogChannelID = "";
 $existingRoleLogChannelID = "";
@@ -516,6 +517,7 @@ if ($is_linked && $hasGuildId) {
       }
       $existingWelcomeMessage = $serverMgmtData['welcome_message_configuration_message'] ?? "";
       $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
+      $existingWelcomeEmbed = (int)($serverMgmtData['welcome_message_configuration_embed'] ?? 0) === 1;
       if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
         $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
       }
@@ -629,7 +631,7 @@ function updateExistingDiscordValues() {
   global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData, $consoleLogs;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
-  global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
+  global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -651,6 +653,7 @@ function updateExistingDiscordValues() {
   $existingWelcomeChannelID = "";
   $existingWelcomeMessage = "";
   $existingWelcomeUseDefault = false;
+  $existingWelcomeEmbed = false;
   $existingAutoRoleID = "";
   $existingMessageLogChannelID = "";
   $existingRoleLogChannelID = "";
@@ -693,6 +696,7 @@ function updateExistingDiscordValues() {
         }
         $existingWelcomeMessage = $serverMgmtData['welcome_message_configuration_message'] ?? "";
         $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
+        $existingWelcomeEmbed = (int)($serverMgmtData['welcome_message_configuration_embed'] ?? 0) === 1;
         if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
           $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
         }
@@ -1838,6 +1842,15 @@ ob_start();
                     <p class="help has-text-grey-light">Enable this to use the bot's default welcome message instead of a custom one</p>
                   </div>
                   <div class="field">
+                    <div class="control">
+                      <label class="checkbox has-text-white">
+                        <input type="checkbox" id="enable_embed_message" name="enable_embed_message" style="margin-right: 8px;"<?php echo $existingWelcomeEmbed ? ' checked' : ''; ?>>
+                        Enable Embed Message
+                      </label>
+                    </div>
+                    <p class="help has-text-grey-light">Send the welcome message as a rich embed with formatting and colors</p>
+                  </div>
+                  <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Custom Welcome Message</label>
                     <div class="control">
                       <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"<?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
@@ -2739,6 +2752,7 @@ function removeStreamer(username) {
     const welcomeChannelId = document.getElementById('welcome_channel_id').value;
     const welcomeMessage = document.getElementById('welcome_message').value;
     const useDefault = document.getElementById('use_default_welcome_message').checked;
+    const enableEmbed = document.getElementById('enable_embed_message').checked;
     // Always require a channel
     if (!welcomeChannelId || welcomeChannelId === '') {
       Swal.fire({
@@ -2769,7 +2783,8 @@ function removeStreamer(username) {
     saveChannelConfig('save_welcome_message', {
       welcome_channel_id: welcomeChannelId,
       welcome_message: useDefault ? '' : welcomeMessage,
-      welcome_message_configuration_default: useDefault
+      welcome_message_configuration_default: useDefault,
+      welcome_message_configuration_embed: enableEmbed
     });
   }
 
