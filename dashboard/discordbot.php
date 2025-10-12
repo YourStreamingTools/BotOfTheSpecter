@@ -1809,46 +1809,46 @@ ob_start();
                   Welcome Message Configuration
                 </p>
                 <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span>Coming Soon</span>
+                  <span class="tag is-success is-light">
+                    <span class="icon"><i class="fas fa-check-circle"></i></span>
+                    <span>COMPLETED</span>
                   </span>
                 </div>
               </header>
               <div class="card-content">
-                <div class="notification is-warning is-light mb-1">
-                  <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+                <div class="notification is-info is-light mb-1">
+                  <p class="has-text-dark"><strong>Welcome Message:</strong> Send automated welcome messages when new members join your Discord server.</p>
                 </div>
                 <p class="has-text-white-ter mb-1">Configure automated welcome messages for new members joining your Discord server.</p>
                 <form action="" method="post">
                   <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Welcome Channel ID</label>
+                    <label class="label has-text-white" style="font-weight: 500;">Welcome Channel</label>
                     <div class="control has-icons-left">
                       <?php echo generateChannelInput('welcome_channel_id', 'welcome_channel_id', $existingWelcomeChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                     </div>
                     <p class="help has-text-grey-light">Channel where welcome messages will be sent</p>
                   </div>
                   <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Welcome Message</label>
-                    <div class="control">
-                      <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled></textarea>
-                    </div>
-                    <p class="help has-text-grey-light">Use {user} to mention the new member</p>
-                  </div>
-                  <div class="field">
                     <div class="control">
                       <label class="checkbox has-text-white">
-                        <input type="checkbox" id="use_default_welcome_message" name="use_default_welcome_message" style="margin-right: 8px;"<?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?> disabled>
+                        <input type="checkbox" id="use_default_welcome_message" name="use_default_welcome_message" style="margin-right: 8px;"<?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?>>
                         Use default welcome message
                       </label>
                     </div>
                     <p class="help has-text-grey-light">Enable this to use the bot's default welcome message instead of a custom one</p>
                   </div>
                   <div class="field">
+                    <label class="label has-text-white" style="font-weight: 500;">Custom Welcome Message</label>
                     <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveWelcomeMessage()" name="save_welcome_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                      <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"<?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
+                    </div>
+                    <p class="help has-text-grey-light">Use {user} to mention the new member, {server} for server name</p>
+                  </div>
+                  <div class="field">
+                    <div class="control">
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveWelcomeMessage()" name="save_welcome_message" style="border-radius: 6px; font-weight: 600;">
                         <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Welcome Message Settings</span>
+                        <span>Save Welcome Message Configuration</span>
                       </button>
                     </div>
                   </div>
@@ -3070,15 +3070,18 @@ function removeStreamer(username) {
     if (useDefaultCheckbox && welcomeMessageTextarea) {
       function toggleWelcomeMessage() {
         if (useDefaultCheckbox.checked) {
+          // Using default message - disable custom textarea
           welcomeMessageTextarea.disabled = true;
           welcomeMessageTextarea.style.opacity = '0.5';
-          welcomeMessageTextarea.value = ''; // Clear custom message when using default
+          welcomeMessageTextarea.style.cursor = 'not-allowed';
         } else {
+          // Using custom message - enable textarea
           welcomeMessageTextarea.disabled = false;
           welcomeMessageTextarea.style.opacity = '1';
+          welcomeMessageTextarea.style.cursor = 'text';
         }
       }
-      // Set initial state
+      // Set initial state on page load
       toggleWelcomeMessage();
       // Add event listener for checkbox changes
       useDefaultCheckbox.addEventListener('change', toggleWelcomeMessage);
