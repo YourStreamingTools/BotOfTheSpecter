@@ -23,6 +23,9 @@ import yt_dlp
 import pytz
 import urllib.parse
 
+# Bot version
+VERSION = "5.6"
+
 # Global configuration class
 class Config:
     def __init__(self):
@@ -40,7 +43,7 @@ class Config:
         self.discord_application_id = os.getenv('DISCORD_APPLICATION_ID')
         # Bot information
         self.bot_color = 0x001C1D
-        self.bot_version = "5.4"
+        self.bot_version = VERSION
         # File paths
         self.discord_version_file = "/var/www/logs/version/discord_version_control.txt"
         self.logs_directory = "/home/botofthespecter/logs/"
