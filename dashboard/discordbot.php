@@ -2673,18 +2673,22 @@ function removeStreamer(username) {
       const contentType = response.headers.get('content-type');
       console.log('Response status:', response.status);
       console.log('Response content-type:', contentType);
-      // Try to get the response body regardless of status
       let responseData;
-      if (contentType && contentType.includes('application/json')) {
-        responseData = await response.json();
-      } else {
+      try {
         const text = await response.text();
-        console.error('Non-JSON response:', text);
+        console.log('Raw response text:', text);
+        responseData = JSON.parse(text);
+        console.log('Successfully parsed JSON response:', responseData);
+      } catch (jsonError) {
+        console.error('Failed to parse JSON. Error:', jsonError);
         responseData = { success: false, message: 'Server returned non-JSON response' };
       }
-      if (!response.ok) {
+      if (!response.ok && (!responseData || !responseData.success)) {
         console.error('HTTP error response data:', responseData);
-        throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+        // Only throw if we don't have a valid error message in the response
+        if (!responseData || !responseData.message) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
       }
       return responseData;
     })
