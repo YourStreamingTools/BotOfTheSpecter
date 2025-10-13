@@ -1853,7 +1853,7 @@ ob_start();
                   <div class="field">
                     <label class="label has-text-white" style="font-weight: 500;">Custom Welcome Message</label>
                     <div class="control">
-                      <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome {user} to our Discord server!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"<?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
+                      <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome (user) to our server, we're so glad you joined us!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"<?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
                     </div>
                     <p class="help has-text-grey-light">Use (user) to insert the member's username</p>
                   </div>

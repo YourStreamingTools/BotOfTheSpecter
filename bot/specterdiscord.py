@@ -4729,7 +4729,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 # Determine the message text
                 if use_default == 1:
                     # Default welcome message
-                    message_text = f"Welcome {member.name} to **{member.guild.name}**! We're glad to have you here!"
+                    message_text = f"Welcome {member.name} to our server, we're so glad you joined us!"
                 else:
                     message_text = custom_message.replace("{user}", member.name)
                 # Send as embed or plain text based on configuration
