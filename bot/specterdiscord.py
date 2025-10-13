@@ -4418,14 +4418,14 @@ class ServerManagement(commands.Cog, name='Server Management'):
                                 # Find role by name
                                 role = discord.utils.get(guild.roles, name=role_name)
                                 if role:
-                                    # Find custom emoji or use emoji name
+                                    # Find custom emoji or use the full emoji format for Discord built-in emojis
                                     custom_emoji = discord.utils.get(guild.emojis, name=emoji_name)
-                                    emoji_to_use = custom_emoji if custom_emoji else emoji_name
+                                    emoji_to_use = custom_emoji if custom_emoji else f':{emoji_name}:'
                                     # Create and add button
                                     button = RoleButton(role, emoji_to_use, description)
                                     view.add_item(button)
                                     role_mappings[f':{emoji_name}:'] = str(role.id)
-                                    self.logger.info(f"Added button for role {role_name} with label '{description}'")
+                                    self.logger.info(f"Added button for role {role_name} with label '{description}' and emoji {emoji_to_use}")
                                 else:
                                     self.logger.warning(f"Role '{role_name}' not found in guild {guild.name}")
                     except Exception as e:
