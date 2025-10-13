@@ -4258,18 +4258,18 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
 
 # Button view for role assignment
 class RoleButton(discord.ui.Button):
-    def __init__(self, role: discord.Role, emoji, label: str):
+    def __init__(self, role: discord.Role, emoji, label: str, button_style=discord.ButtonStyle.primary):
         # Only pass emoji if it's not None
         if emoji:
             super().__init__(
-                style=discord.ButtonStyle.primary,
+                style=button_style,
                 label=label,
                 emoji=emoji,
                 custom_id=f"role_{role.id}"
             )
         else:
             super().__init__(
-                style=discord.ButtonStyle.primary,
+                style=button_style,
                 label=label,
                 custom_id=f"role_{role.id}"
             )
@@ -4416,8 +4416,9 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         # Parse format: either ":emoji: Description @Role" or "Description @Role"
                         emoji_to_use = None
                         emoji_name = None
+                        button_style = discord.ButtonStyle.primary  # Default style
                         if line.startswith(':') and line.count(':') >= 2:
-                            # Format with emoji: ":emoji_name: Description @Role"
+                            # Format with emoji: ":emoji_name: Description @Role [color]"
                             first_colon = line.index(':', 1)
                             emoji_name = line[1:first_colon]
                             rest = line[first_colon+1:].strip()
@@ -4425,18 +4426,39 @@ class ServerManagement(commands.Cog, name='Server Management'):
                             custom_emoji = discord.utils.get(guild.emojis, name=emoji_name)
                             emoji_to_use = custom_emoji if custom_emoji else None
                         else:
-                            # Format without emoji: "Description @Role"
+                            # Format without emoji: "Description @Role [color]"
                             rest = line
-                        # Extract description and role name
+                        # Extract description, role name, and optional color
                         if '@' in rest:
-                            description, role_name = rest.rsplit('@', 1)
+                            description, role_part = rest.rsplit('@', 1)
                             description = description.strip()
-                            role_name = role_name.strip()
+                            # Check for optional color in square brackets
+                            if '[' in role_part and ']' in role_part:
+                                # Extract role name and color
+                                role_name = role_part[:role_part.index('[')].strip()
+                                color_spec = role_part[role_part.index('[')+1:role_part.index(']')].strip().lower()
+                                # Map color names to Discord button styles
+                                color_map = {
+                                    'primary': discord.ButtonStyle.primary,
+                                    'blue': discord.ButtonStyle.primary,
+                                    'blurple': discord.ButtonStyle.primary,
+                                    'secondary': discord.ButtonStyle.secondary,
+                                    'gray': discord.ButtonStyle.secondary,
+                                    'grey': discord.ButtonStyle.secondary,
+                                    'success': discord.ButtonStyle.success,
+                                    'green': discord.ButtonStyle.success,
+                                    'danger': discord.ButtonStyle.danger,
+                                    'red': discord.ButtonStyle.danger
+                                }
+                                button_style = color_map.get(color_spec, discord.ButtonStyle.primary)
+                                self.logger.info(f"Color specified: {color_spec} -> {button_style.name}")
+                            else:
+                                role_name = role_part.strip()
                             # Find role by name
                             role = discord.utils.get(guild.roles, name=role_name)
                             if role:
-                                # Create and add button (with or without emoji)
-                                button = RoleButton(role, emoji_to_use, description)
+                                # Create and add button (with or without emoji, with specified color)
+                                button = RoleButton(role, emoji_to_use, description, button_style)
                                 view.add_item(button)
                                 # Store mapping
                                 if emoji_name:
@@ -4444,7 +4466,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                                 else:
                                     role_mappings[description] = str(role.id)
                                 emoji_status = "with emoji" if emoji_to_use else "text-only"
-                                self.logger.info(f"Added {emoji_status} button for role {role_name} with label '{description}'")
+                                self.logger.info(f"Added {emoji_status} {button_style.name} button for role {role_name} with label '{description}'")
                             else:
                                 self.logger.warning(f"Role '{role_name}' not found in guild {guild.name}")
                     except Exception as e:
