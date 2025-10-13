@@ -2296,7 +2296,7 @@ ob_start();
                         <span>Send Message to Channel</span>
                       </button>
                     </div>
-                    <p class="help has-text-grey-light has-text-centered mt-2">Posts the reaction roles message to Discord and adds the reaction emojis</p>
+                    <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the reaction roles message in Discord and applies the emoji mappings</p>
                   </div>
                 </form>
               </div>
@@ -2367,7 +2367,7 @@ ob_start();
                         <span>Send Rules to Channel</span>
                       </button>
                     </div>
-                    <p class="help has-text-grey-light has-text-centered mt-2">Posts the rules embed message to the selected Discord channel</p>
+                    <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the rules embed in the selected Discord channel with the latest configuration</p>
                   </div>
                 </form>
               </div>
