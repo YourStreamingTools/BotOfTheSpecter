@@ -460,6 +460,10 @@ $existingReactionRolesChannelID = "";
 $existingReactionRolesMessage = "";
 $existingReactionRolesMappings = "";
 $existingAllowMultipleReactions = false;
+$existingRulesChannelID = "";
+$existingRulesTitle = "";
+$existingRulesContent = "";
+$existingRulesColor = "";
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -491,7 +495,8 @@ $serverManagementSettings = [
   'roleTracking' => false,
   'serverRoleManagement' => false,
   'userTracking' => false,
-  'reactionRoles' => false
+  'reactionRoles' => false,
+  'rulesConfiguration' => false
 ];
 
 if ($is_linked && $hasGuildId) {
@@ -509,7 +514,8 @@ if ($is_linked && $hasGuildId) {
         'roleTracking' => (bool)$serverMgmtData['roleTracking'],
         'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
         'userTracking' => (bool)$serverMgmtData['userTracking'],
-        'reactionRoles' => (bool)$serverMgmtData['reactionRoles']
+        'reactionRoles' => (bool)$serverMgmtData['reactionRoles'],
+        'rulesConfiguration' => (bool)$serverMgmtData['rulesConfiguration']
       ];
       // Override channel IDs with values from server_management table if they exist
       if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
@@ -554,6 +560,16 @@ if ($is_linked && $hasGuildId) {
           $consoleLogs[] = "console.log('Reaction Roles Configuration Debug for guild $existingGuildId:', " . $reactionRolesDebugData . ");";
         } else {
           $consoleLogs[] = "console.error('Failed to parse reaction_roles_configuration JSON for guild $existingGuildId');";
+        }
+      }
+      // Parse rules_configuration JSON
+      if (!empty($serverMgmtData['rules_configuration'])) {
+        $rulesConfig = json_decode($serverMgmtData['rules_configuration'], true);
+        if ($rulesConfig && is_array($rulesConfig)) {
+          $existingRulesChannelID = $rulesConfig['channel_id'] ?? "";
+          $existingRulesTitle = $rulesConfig['title'] ?? "";
+          $existingRulesContent = $rulesConfig['rules'] ?? "";
+          $existingRulesColor = $rulesConfig['color'] ?? "#5865f2";
         }
       }
     }
@@ -632,6 +648,7 @@ function updateExistingDiscordValues() {
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
   global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
+  global $existingRulesChannelID, $existingRulesTitle, $existingRulesContent, $existingRulesColor;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -663,6 +680,10 @@ function updateExistingDiscordValues() {
   $existingReactionRolesMessage = "";
   $existingReactionRolesMappings = "";
   $existingAllowMultipleReactions = false;
+  $existingRulesChannelID = "";
+  $existingRulesTitle = "";
+  $existingRulesContent = "";
+  $existingRulesColor = "";
   $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
   // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
   $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -688,7 +709,8 @@ function updateExistingDiscordValues() {
           'roleTracking' => (bool)$serverMgmtData['roleTracking'],
           'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
           'userTracking' => (bool)$serverMgmtData['userTracking'],
-          'reactionRoles' => (bool)$serverMgmtData['reactionRoles']
+          'reactionRoles' => (bool)$serverMgmtData['reactionRoles'],
+          'rulesConfiguration' => (bool)$serverMgmtData['rulesConfiguration']
         ];
         // Override channel IDs with values from server_management table if they exist
         if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
@@ -733,6 +755,16 @@ function updateExistingDiscordValues() {
             $consoleLogs[] = "console.log('Reaction Roles Configuration Debug (refresh) for guild $existingGuildId:', " . $reactionRolesDebugData . ");";
           } else {
             $consoleLogs[] = "console.error('Failed to parse reaction_roles_configuration JSON (refresh) for guild $existingGuildId');";
+          }
+        }
+        // Parse rules_configuration JSON
+        if (!empty($serverMgmtData['rules_configuration'])) {
+          $rulesConfig = json_decode($serverMgmtData['rules_configuration'], true);
+          if ($rulesConfig && is_array($rulesConfig)) {
+            $existingRulesChannelID = $rulesConfig['channel_id'] ?? "";
+            $existingRulesTitle = $rulesConfig['title'] ?? "";
+            $existingRulesContent = $rulesConfig['rules'] ?? "";
+            $existingRulesColor = $rulesConfig['color'] ?? "#5865f2";
           }
         }
       }
@@ -1795,6 +1827,12 @@ ob_start();
                         <label for="reactionRoles" class="has-text-white">Reaction Roles (Self-assignable roles via reactions)</label>
                       </div>
                     </div>
+                    <div class="field">
+                      <div class="control">
+                        <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                        <label for="rulesConfiguration" class="has-text-white">Rules Configuration (Post server rules embed)</label>
+                      </div>
+                    </div>
                   </div>
                 </form>
               </div>
@@ -2265,6 +2303,77 @@ ob_start();
             </div>
           </div>
           <?php endif; ?>
+          <?php if ($serverManagementSettings['rulesConfiguration']): ?>
+          <div class="column is-half mb-1">
+            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                <p class="card-header-title has-text-white" style="font-weight: 600;">
+                  <span class="icon mr-2 has-text-info"><i class="fas fa-gavel"></i></span>
+                  Rules Configuration
+                </p>
+                <div class="card-header-icon">
+                  <span class="tag is-success is-light">
+                    <span class="icon"><i class="fas fa-check-circle"></i></span>
+                    <span>COMPLETED</span>
+                  </span>
+                </div>
+              </header>
+              <div class="card-content">
+                <div class="notification is-info is-light mb-1">
+                  <p class="has-text-dark"><strong>Rules:</strong> Post an embed with your server rules to keep your community informed.</p>
+                </div>
+                <p class="has-text-white-ter mb-1">Configure and post an embed message with your server rules.</p>
+                <form action="" method="post">
+                  <div class="field">
+                    <label class="label has-text-white" style="font-weight: 500;">Rules Channel</label>
+                    <div class="control has-icons-left">
+                      <?php echo generateChannelInput('rules_channel_id', 'rules_channel_id', $existingRulesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                    </div>
+                    <p class="help has-text-grey-light">Channel where the rules message will be posted</p>
+                  </div>
+                  <div class="field">
+                    <label class="label has-text-white" style="font-weight: 500;">Rules Title</label>
+                    <div class="control">
+                      <input class="input" type="text" id="rules_title" name="rules_title" value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="e.g. Server Rules" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                    </div>
+                    <p class="help has-text-grey-light">Title for the rules embed (appears at the top)</p>
+                  </div>
+                  <div class="field">
+                    <label class="label has-text-white" style="font-weight: 500;">Rules Content</label>
+                    <div class="control">
+                      <textarea class="textarea" id="rules_content" name="rules_content" rows="8" placeholder="Enter your server rules (one per line or formatted as you prefer)&#10;&#10;Example:&#10;1. Be respectful to all members&#10;2. No spamming or advertising&#10;3. Keep content appropriate&#10;4. Follow Discord's Terms of Service" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingRulesContent ?? ''); ?></textarea>
+                    </div>
+                    <p class="help has-text-grey-light">Enter your server rules. You can use numbered lists, bullet points, or any format you prefer. Discord markdown is supported.</p>
+                  </div>
+                  <div class="field">
+                    <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
+                    <div class="control">
+                      <input class="input" type="color" id="rules_color" name="rules_color" value="<?php echo htmlspecialchars($existingRulesColor ?: '#5865f2'); ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
+                    </div>
+                    <p class="help has-text-grey-light">Choose a color for the rules embed border (default is Discord blue)</p>
+                  </div>
+                  <div class="field">
+                    <div class="control">
+                      <button class="button is-primary is-fullwidth" type="button" onclick="saveRules()" name="save_rules" style="border-radius: 6px; font-weight: 600;" disabled>
+                        <span class="icon"><i class="fas fa-save"></i></span>
+                        <span>Save Rules Configuration</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <div class="control">
+                      <button class="button is-success is-fullwidth" type="button" onclick="sendRulesMessage()" id="send_rules_message" name="send_rules_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                        <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                        <span>Send Rules to Channel</span>
+                      </button>
+                    </div>
+                    <p class="help has-text-grey-light has-text-centered mt-2">Posts the rules embed message to the selected Discord channel</p>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
       </div>
@@ -2454,6 +2563,7 @@ function removeStreamer(username) {
   validateDropdownSelection('server_mgmt_log_channel_id', 'save_server_role_management');
   validateDropdownSelection('user_log_channel_id', 'save_user_tracking');
   validateDropdownSelection('reaction_roles_channel_id', 'save_reaction_roles');
+  validateDropdownSelection('rules_channel_id', 'save_rules');
   
   // Validation for send reaction roles message button
   function validateSendReactionRolesButton() {
@@ -2482,6 +2592,34 @@ function removeStreamer(username) {
   // Check validation on page load and when inputs change
   validateSendReactionRolesButton();
   $('#reaction_roles_channel_id, #reaction_roles_message, #reaction_roles_mappings').on('change input', validateSendReactionRolesButton);
+  
+  // Validation for send rules message button
+  function validateSendRulesButton() {
+    const channelId = $('#rules_channel_id').val();
+    const title = $('#rules_title').val().trim();
+    const rules = $('#rules_content').val().trim();
+    
+    let hasChannel = false;
+    if ($('#rules_channel_id').is('select')) {
+      hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
+    } else {
+      hasChannel = channelId && channelId.trim() !== '';
+    }
+    
+    const hasTitle = title !== '';
+    const hasRules = rules !== '';
+    
+    const sendButton = $('#send_rules_message');
+    if (hasChannel && hasTitle && hasRules) {
+      sendButton.prop('disabled', false);
+    } else {
+      sendButton.prop('disabled', true);
+    }
+  }
+  
+  // Check validation on page load and when inputs change
+  validateSendRulesButton();
+  $('#rules_channel_id, #rules_title, #rules_content').on('change input', validateSendRulesButton);
 });
 </script>
 <?php if (!$is_linked) { ?>
@@ -3030,6 +3168,144 @@ function removeStreamer(username) {
       }
     });
   }
+
+  function saveRules() {
+    const rulesChannelId = document.getElementById('rules_channel_id').value.trim();
+    const rulesTitle = document.getElementById('rules_title').value;
+    const rulesContent = document.getElementById('rules_content').value;
+    const rulesColor = document.getElementById('rules_color').value;
+    
+    // Debug logging
+    console.log('saveRules called with:', {
+      rulesChannelId,
+      rulesTitle,
+      rulesContent,
+      rulesColor
+    });
+    
+    // Always require a channel
+    if (!rulesChannelId || rulesChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a rules channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
+    // Require title
+    if (!rulesTitle || rulesTitle.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter a rules title',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
+    // Require rules content
+    if (!rulesContent || rulesContent.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter at least one rule',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
+    saveChannelConfig('save_rules', {
+      rules_channel_id: rulesChannelId,
+      rules_title: rulesTitle,
+      rules_content: rulesContent,
+      rules_color: rulesColor
+    });
+  }
+
+  function sendRulesMessage() {
+    const rulesChannelId = document.getElementById('rules_channel_id').value.trim();
+    const rulesTitle = document.getElementById('rules_title').value;
+    const rulesContent = document.getElementById('rules_content').value;
+    const rulesColor = document.getElementById('rules_color').value;
+    
+    // Validate required fields
+    if (!rulesChannelId || rulesChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a rules channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
+    if (!rulesTitle || rulesTitle.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter a rules title',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
+    if (!rulesContent || rulesContent.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter at least one rule',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
+    // Confirm before sending
+    Swal.fire({
+      title: 'Send Rules Message?',
+      html: `Are you sure you want to send the rules message to the selected Discord channel?<br><br><span class="has-text-weight-bold">This will post an embed with your server rules.</span>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Send Rules',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#28a745',
+      cancelButtonColor: '#6c757d'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        console.log('Sending rules message with data:', {
+          channel_id: rulesChannelId,
+          title: rulesTitle,
+          rules: rulesContent,
+          color: rulesColor
+        });
+        saveChannelConfig('send_rules_message', {
+          rules_channel_id: rulesChannelId,
+          rules_title: rulesTitle,
+          rules_content: rulesContent,
+          rules_color: rulesColor
+        });
+      }
+    });
+  }
   
   // Add event listeners to all Discord setting toggles
   document.addEventListener('DOMContentLoaded', function() {
@@ -3046,7 +3322,8 @@ function removeStreamer(username) {
       'roleTracking',
       'serverRoleManagement',
       'userTracking',
-      'reactionRoles'
+      'reactionRoles',
+      'rulesConfiguration'
     ];
     // Set initial toggle states based on saved settings
     settingToggles.forEach(settingName => {
