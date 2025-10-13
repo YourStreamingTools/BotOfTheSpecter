@@ -2312,13 +2312,16 @@ ob_start();
                   Rules Configuration
                 </p>
                 <div class="card-header-icon">
-                  <span class="tag is-success is-light">
-                    <span class="icon"><i class="fas fa-check-circle"></i></span>
-                    <span>COMPLETED</span>
+                  <span class="tag is-warning is-light">
+                    <span class="icon"><i class="fas fa-clock"></i></span>
+                    <span>COMING SOON</span>
                   </span>
                 </div>
               </header>
               <div class="card-content">
+                <div class="notification is-warning is-light mb-1">
+                  <p class="has-text-dark"><strong>⚠️ Coming Soon:</strong> This feature is currently in development. The UI is complete but backend integration is pending.</p>
+                </div>
                 <div class="notification is-info is-light mb-1">
                   <p class="has-text-dark"><strong>Rules:</strong> Post an embed with your server rules to keep your community informed.</p>
                 </div>
