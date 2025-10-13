@@ -4418,9 +4418,13 @@ class ServerManagement(commands.Cog, name='Server Management'):
                                 # Find role by name
                                 role = discord.utils.get(guild.roles, name=role_name)
                                 if role:
-                                    # Find custom emoji or use the full emoji format for Discord built-in emojis
+                                    # Find custom emoji or create PartialEmoji from emoji name
                                     custom_emoji = discord.utils.get(guild.emojis, name=emoji_name)
-                                    emoji_to_use = custom_emoji if custom_emoji else f':{emoji_name}:'
+                                    if custom_emoji:
+                                        emoji_to_use = custom_emoji
+                                    else:
+                                        # Use PartialEmoji for Discord built-in emojis
+                                        emoji_to_use = discord.PartialEmoji.from_str(f':{emoji_name}:')
                                     # Create and add button
                                     button = RoleButton(role, emoji_to_use, description)
                                     view.add_item(button)
