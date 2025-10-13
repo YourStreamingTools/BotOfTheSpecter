@@ -4258,13 +4258,21 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
 
 # Button view for role assignment
 class RoleButton(discord.ui.Button):
-    def __init__(self, role: discord.Role, emoji: str, label: str):
-        super().__init__(
-            style=discord.ButtonStyle.primary,
-            label=label,
-            emoji=emoji,
-            custom_id=f"role_{role.id}"
-        )
+    def __init__(self, role: discord.Role, emoji, label: str):
+        # Only pass emoji if it's not None
+        if emoji:
+            super().__init__(
+                style=discord.ButtonStyle.primary,
+                label=label,
+                emoji=emoji,
+                custom_id=f"role_{role.id}"
+            )
+        else:
+            super().__init__(
+                style=discord.ButtonStyle.primary,
+                label=label,
+                custom_id=f"role_{role.id}"
+            )
         self.role = role
 
     async def callback(self, interaction: discord.Interaction):
@@ -4418,18 +4426,14 @@ class ServerManagement(commands.Cog, name='Server Management'):
                                 # Find role by name
                                 role = discord.utils.get(guild.roles, name=role_name)
                                 if role:
-                                    # Find custom emoji or create PartialEmoji from emoji name
+                                    # Check if there's a custom server emoji, otherwise skip emoji
                                     custom_emoji = discord.utils.get(guild.emojis, name=emoji_name)
-                                    if custom_emoji:
-                                        emoji_to_use = custom_emoji
-                                    else:
-                                        # Use PartialEmoji for Discord built-in emojis
-                                        emoji_to_use = discord.PartialEmoji.from_str(f':{emoji_name}:')
-                                    # Create and add button
+                                    emoji_to_use = custom_emoji if custom_emoji else None
+                                    # Create and add button (text only if no custom emoji found)
                                     button = RoleButton(role, emoji_to_use, description)
                                     view.add_item(button)
                                     role_mappings[f':{emoji_name}:'] = str(role.id)
-                                    self.logger.info(f"Added button for role {role_name} with label '{description}' and emoji {emoji_to_use}")
+                                    self.logger.info(f"Added button for role {role_name} with label '{description}'")
                                 else:
                                     self.logger.warning(f"Role '{role_name}' not found in guild {guild.name}")
                     except Exception as e:
