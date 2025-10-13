@@ -47,7 +47,8 @@ $allowed_settings = [
     'roleTracking',
     'serverRoleManagement',
     'userTracking',
-    'reactionRoles'
+    'reactionRoles',
+    'rulesConfiguration'
 ];
 
 if (!in_array($setting, $allowed_settings)) {
