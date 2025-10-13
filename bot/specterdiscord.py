@@ -4396,7 +4396,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
             view = RoleButtonView()
             role_mappings = {}
             # Parse mappings and create buttons
-            self.logger.info(f"Attempting to send message to #{channel.name}: {message[:50]}...")
+            self.logger.info(f"Attempting to send message to #{channel.name}: {message}")
             if mappings:
                 mapping_lines = mappings.strip().split('\n')
                 self.logger.info(f"Processing {len(mapping_lines)} role button mappings")
