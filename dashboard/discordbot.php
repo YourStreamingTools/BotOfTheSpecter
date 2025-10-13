@@ -2231,7 +2231,7 @@ ob_start();
                     <div class="control">
                       <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: Thumbs Up @Role1 [green]&#10;:heart: Love @Role2 [red]&#10;:star: VIP @Role3 [blue]&#10;Member Role @Role4 [gray]" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings ?? ''); ?></textarea>
                     </div>
-                    <p class="help has-text-grey-light">Format: [:emoji:] Description @RoleName [color] (one per line)<br>
+                    <p class="help has-text-grey-light">Format: :emoji: Description @RoleName [color] (one per line)<br>
                     Colors: blue/primary, gray/secondary, green/success, red/danger (optional, defaults to blue)</p>
                   </div>
                   <div class="field">
