@@ -4413,29 +4413,40 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     if not line or '@' not in line:
                         continue
                     try:
+                        # Parse format: either ":emoji: Description @Role" or "Description @Role"
+                        emoji_to_use = None
+                        emoji_name = None
                         if line.startswith(':') and line.count(':') >= 2:
-                            # Extract emoji name and description
+                            # Format with emoji: ":emoji_name: Description @Role"
                             first_colon = line.index(':', 1)
                             emoji_name = line[1:first_colon]
-                            # Extract description and role name
                             rest = line[first_colon+1:].strip()
-                            if '@' in rest:
-                                description, role_name = rest.rsplit('@', 1)
-                                description = description.strip()
-                                role_name = role_name.strip()
-                                # Find role by name
-                                role = discord.utils.get(guild.roles, name=role_name)
-                                if role:
-                                    # Check if there's a custom server emoji, otherwise skip emoji
-                                    custom_emoji = discord.utils.get(guild.emojis, name=emoji_name)
-                                    emoji_to_use = custom_emoji if custom_emoji else None
-                                    # Create and add button (text only if no custom emoji found)
-                                    button = RoleButton(role, emoji_to_use, description)
-                                    view.add_item(button)
+                            # Check for custom server emoji
+                            custom_emoji = discord.utils.get(guild.emojis, name=emoji_name)
+                            emoji_to_use = custom_emoji if custom_emoji else None
+                        else:
+                            # Format without emoji: "Description @Role"
+                            rest = line
+                        # Extract description and role name
+                        if '@' in rest:
+                            description, role_name = rest.rsplit('@', 1)
+                            description = description.strip()
+                            role_name = role_name.strip()
+                            # Find role by name
+                            role = discord.utils.get(guild.roles, name=role_name)
+                            if role:
+                                # Create and add button (with or without emoji)
+                                button = RoleButton(role, emoji_to_use, description)
+                                view.add_item(button)
+                                # Store mapping
+                                if emoji_name:
                                     role_mappings[f':{emoji_name}:'] = str(role.id)
-                                    self.logger.info(f"Added button for role {role_name} with label '{description}'")
                                 else:
-                                    self.logger.warning(f"Role '{role_name}' not found in guild {guild.name}")
+                                    role_mappings[description] = str(role.id)
+                                emoji_status = "with emoji" if emoji_to_use else "text-only"
+                                self.logger.info(f"Added {emoji_status} button for role {role_name} with label '{description}'")
+                            else:
+                                self.logger.warning(f"Role '{role_name}' not found in guild {guild.name}")
                     except Exception as e:
                         self.logger.error(f"Error processing mapping line '{line}': {e}")
             try:
