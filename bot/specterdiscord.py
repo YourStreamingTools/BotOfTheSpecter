@@ -24,7 +24,7 @@ import pytz
 import urllib.parse
 
 # Bot version
-VERSION = "5.6"
+VERSION = "5.7"
 
 # Global configuration class
 class Config:
