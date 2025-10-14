@@ -48,7 +48,8 @@ $allowed_settings = [
     'serverRoleManagement',
     'userTracking',
     'reactionRoles',
-    'rulesConfiguration'
+    'rulesConfiguration',
+    'streamSchedule'
 ];
 
 if (!in_array($setting, $allowed_settings)) {

@@ -466,6 +466,11 @@ $existingRulesContent = "";
 $existingRulesColor = "";
 $existingRulesAcceptRoleID = "";
 $existingWelcomeColour = "";
+$existingStreamScheduleChannelID = "";
+$existingStreamScheduleTitle = "";
+$existingStreamScheduleContent = "";
+$existingStreamScheduleColor = "";
+$existingStreamScheduleTimezone = "";
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -498,7 +503,8 @@ $serverManagementSettings = [
   'serverRoleManagement' => false,
   'userTracking' => false,
   'reactionRoles' => false,
-  'rulesConfiguration' => false
+  'rulesConfiguration' => false,
+  'streamSchedule' => false
 ];
 
 if ($is_linked && $hasGuildId) {
@@ -517,7 +523,8 @@ if ($is_linked && $hasGuildId) {
         'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
         'userTracking' => (bool)$serverMgmtData['userTracking'],
         'reactionRoles' => (bool)$serverMgmtData['reactionRoles'],
-        'rulesConfiguration' => (bool)$serverMgmtData['rulesConfiguration']
+        'rulesConfiguration' => (bool)$serverMgmtData['rulesConfiguration'],
+        'streamSchedule' => (bool)$serverMgmtData['streamSchedule']
       ];
       // Override channel IDs with values from server_management table if they exist
       if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
@@ -574,6 +581,17 @@ if ($is_linked && $hasGuildId) {
           $existingRulesContent = $rulesConfig['rules'] ?? "";
           $existingRulesColor = $rulesConfig['color'] ?? "#5865f2";
           $existingRulesAcceptRoleID = $rulesConfig['accept_role_id'] ?? "";
+        }
+      }
+      // Parse stream_schedule_configuration JSON
+      if (!empty($serverMgmtData['stream_schedule_configuration'])) {
+        $streamScheduleConfig = json_decode($serverMgmtData['stream_schedule_configuration'], true);
+        if ($streamScheduleConfig && is_array($streamScheduleConfig)) {
+          $existingStreamScheduleChannelID = $streamScheduleConfig['channel_id'] ?? "";
+          $existingStreamScheduleTitle = $streamScheduleConfig['title'] ?? "";
+          $existingStreamScheduleContent = $streamScheduleConfig['schedule'] ?? "";
+          $existingStreamScheduleColor = $streamScheduleConfig['color'] ?? "#9146ff";
+          $existingStreamScheduleTimezone = $streamScheduleConfig['timezone'] ?? "";
         }
       }
     }
@@ -653,6 +671,7 @@ function updateExistingDiscordValues() {
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
   global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingWelcomeColour, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
   global $existingRulesChannelID, $existingRulesTitle, $existingRulesContent, $existingRulesColor, $existingRulesAcceptRoleID;
+  global $existingStreamScheduleChannelID, $existingStreamScheduleTitle, $existingStreamScheduleContent, $existingStreamScheduleColor, $existingStreamScheduleTimezone;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -690,6 +709,11 @@ function updateExistingDiscordValues() {
   $existingRulesContent = "";
   $existingRulesColor = "";
   $existingRulesAcceptRoleID = "";
+  $existingStreamScheduleChannelID = "";
+  $existingStreamScheduleTitle = "";
+  $existingStreamScheduleContent = "";
+  $existingStreamScheduleColor = "";
+  $existingStreamScheduleTimezone = "";
   $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
   // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
   $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -716,7 +740,8 @@ function updateExistingDiscordValues() {
           'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
           'userTracking' => (bool)$serverMgmtData['userTracking'],
           'reactionRoles' => (bool)$serverMgmtData['reactionRoles'],
-          'rulesConfiguration' => (bool)$serverMgmtData['rulesConfiguration']
+          'rulesConfiguration' => (bool)$serverMgmtData['rulesConfiguration'],
+          'streamSchedule' => (bool)$serverMgmtData['streamSchedule']
         ];
         // Override channel IDs with values from server_management table if they exist
         if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
@@ -773,6 +798,17 @@ function updateExistingDiscordValues() {
             $existingRulesContent = $rulesConfig['rules'] ?? "";
             $existingRulesColor = $rulesConfig['color'] ?? "#5865f2";
             $existingRulesAcceptRoleID = $rulesConfig['accept_role_id'] ?? "";
+          }
+        }
+        // Parse stream_schedule_configuration JSON
+        if (!empty($serverMgmtData['stream_schedule_configuration'])) {
+          $streamScheduleConfig = json_decode($serverMgmtData['stream_schedule_configuration'], true);
+          if ($streamScheduleConfig && is_array($streamScheduleConfig)) {
+            $existingStreamScheduleChannelID = $streamScheduleConfig['channel_id'] ?? "";
+            $existingStreamScheduleTitle = $streamScheduleConfig['title'] ?? "";
+            $existingStreamScheduleContent = $streamScheduleConfig['schedule'] ?? "";
+            $existingStreamScheduleColor = $streamScheduleConfig['color'] ?? "#9146ff";
+            $existingStreamScheduleTimezone = $streamScheduleConfig['timezone'] ?? "";
           }
         }
       }
@@ -1841,6 +1877,12 @@ ob_start();
                     <label for="rulesConfiguration" class="has-text-white">Rules Configuration (Post server rules embed)</label>
                   </div>
                 </div>
+                <div class="field">
+                  <div class="control">
+                    <input id="streamSchedule" type="checkbox" name="streamSchedule" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="streamSchedule" class="has-text-white">Stream Schedule (Post your streaming schedule)</label>
+                  </div>
+                </div>
               </div>
             </form>
           </div>
@@ -2402,6 +2444,84 @@ ob_start();
                   </button>
                 </div>
                 <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the rules embed in the selected Discord channel with the latest configuration</p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      <?php if ($serverManagementSettings['streamSchedule']): ?>
+      <div class="column is-6 is-flex">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-primary"><i class="fas fa-calendar-alt"></i></span>
+              Stream Schedule Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-warning is-light">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <span>Coming Soon</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-warning is-light mb-1">
+              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure and post an embed message with your stream schedule.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Schedule Channel</label>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('stream_schedule_channel_id', 'stream_schedule_channel_id', $existingStreamScheduleChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+                <p class="help has-text-grey-light">Channel where the stream schedule message will be posted</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Schedule Title</label>
+                <div class="control">
+                  <input class="input" type="text" id="stream_schedule_title" name="stream_schedule_title" value="<?php echo htmlspecialchars($existingStreamScheduleTitle ?? ''); ?>" placeholder="e.g. Weekly Stream Schedule" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                </div>
+                <p class="help has-text-grey-light">Title for the stream schedule embed (appears at the top)</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Stream Schedule Content</label>
+                <div class="control">
+                  <textarea class="textarea" id="stream_schedule_content" name="stream_schedule_content" rows="10" placeholder="Enter your stream schedule (one per line or formatted as you prefer)&#10;&#10;Example:&#10;🎮 Monday: 7:00 PM - 10:00 PM EST - Variety Gaming&#10;🎮 Wednesday: 8:00 PM - 11:00 PM EST - Just Chatting&#10;🎮 Friday: 7:00 PM - 12:00 AM EST - Game Night&#10;🎮 Saturday: 3:00 PM - 7:00 PM EST - Community Games&#10;&#10;Or use Discord markdown:&#10;**Monday** - 7:00 PM EST&#10;**Wednesday** - 8:00 PM EST" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingStreamScheduleContent ?? ''); ?></textarea>
+                </div>
+                <p class="help has-text-grey-light">Enter your stream schedule. You can use emojis, bullet points, or any format you prefer. Discord markdown is supported.</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Timezone (Optional)</label>
+                <div class="control">
+                  <input class="input" type="text" id="stream_schedule_timezone" name="stream_schedule_timezone" value="<?php echo htmlspecialchars($existingStreamScheduleTimezone ?? ''); ?>" placeholder="e.g. EST, PST, UTC, etc." style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                </div>
+                <p class="help has-text-grey-light">Specify your timezone for clarity (will be shown in the footer)</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
+                <div class="control">
+                  <input class="input" type="color" id="stream_schedule_color" name="stream_schedule_color" value="<?php echo htmlspecialchars($existingStreamScheduleColor ?: '#9146ff'); ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
+                </div>
+                <p class="help has-text-grey-light">Choose a color for the schedule embed border (default is Twitch purple)</p>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveStreamSchedule()" name="save_stream_schedule" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save Schedule Configuration</span>
+                  </button>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-success is-fullwidth" type="button" onclick="sendStreamScheduleMessage()" id="send_stream_schedule_message" name="send_stream_schedule_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                    <span>Send Schedule to Channel</span>
+                  </button>
+                </div>
+                <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the stream schedule embed in the selected Discord channel with the latest configuration</p>
               </div>
             </form>
           </div>
@@ -3376,7 +3496,138 @@ function removeStreamer(username) {
       }
     });
   }
-  
+
+  function saveStreamSchedule() {
+    const scheduleChannelId = document.getElementById('stream_schedule_channel_id').value.trim();
+    const scheduleTitle = document.getElementById('stream_schedule_title').value;
+    const scheduleContent = document.getElementById('stream_schedule_content').value;
+    const scheduleColor = document.getElementById('stream_schedule_color').value;
+    const scheduleTimezone = document.getElementById('stream_schedule_timezone').value.trim();
+    // Validate required fields
+    if (!scheduleChannelId || scheduleChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a schedule channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    if (!scheduleTitle || scheduleTitle.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter a schedule title',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    if (!scheduleContent || scheduleContent.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter your stream schedule',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    console.log('Saving stream schedule configuration with data:', {
+      channel_id: scheduleChannelId,
+      title: scheduleTitle,
+      content: scheduleContent,
+      color: scheduleColor,
+      timezone: scheduleTimezone
+    });
+    saveChannelConfig('save_stream_schedule', {
+      stream_schedule_channel_id: scheduleChannelId,
+      stream_schedule_title: scheduleTitle,
+      stream_schedule_content: scheduleContent,
+      stream_schedule_color: scheduleColor,
+      stream_schedule_timezone: scheduleTimezone
+    });
+  }
+
+  function sendStreamScheduleMessage() {
+    const scheduleChannelId = document.getElementById('stream_schedule_channel_id').value.trim();
+    const scheduleTitle = document.getElementById('stream_schedule_title').value;
+    const scheduleContent = document.getElementById('stream_schedule_content').value;
+    const scheduleColor = document.getElementById('stream_schedule_color').value;
+    const scheduleTimezone = document.getElementById('stream_schedule_timezone').value.trim();
+    // Validate required fields
+    if (!scheduleChannelId || scheduleChannelId === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a schedule channel',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    if (!scheduleTitle || scheduleTitle.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter a schedule title',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    if (!scheduleContent || scheduleContent.trim() === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter your stream schedule',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    // Confirm before sending
+    Swal.fire({
+      title: 'Send Stream Schedule?',
+      html: `Are you sure you want to send the stream schedule to the selected Discord channel?<br><br><span class="has-text-weight-bold">This will post an embed with your streaming schedule.</span>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Send Schedule',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#28a745',
+      cancelButtonColor: '#6c757d'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        console.log('Sending stream schedule message with data:', {
+          channel_id: scheduleChannelId,
+          title: scheduleTitle,
+          schedule: scheduleContent,
+          color: scheduleColor,
+          timezone: scheduleTimezone
+        });
+        saveChannelConfig('send_stream_schedule_message', {
+          stream_schedule_channel_id: scheduleChannelId,
+          stream_schedule_title: scheduleTitle,
+          stream_schedule_content: scheduleContent,
+          stream_schedule_color: scheduleColor,
+          stream_schedule_timezone: scheduleTimezone
+        });
+      }
+    });
+  }
   // Add event listeners to all Discord setting toggles
   document.addEventListener('DOMContentLoaded', function() {
     // Initialize server management settings from PHP
@@ -3393,7 +3644,8 @@ function removeStreamer(username) {
       'serverRoleManagement',
       'userTracking',
       'reactionRoles',
-      'rulesConfiguration'
+      'rulesConfiguration',
+      'streamSchedule'
     ];
     // Set initial toggle states based on saved settings
     settingToggles.forEach(settingName => {

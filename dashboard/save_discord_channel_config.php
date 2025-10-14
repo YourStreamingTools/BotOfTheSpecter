@@ -92,6 +92,8 @@ try {
         case 'send_reaction_roles_message':
         case 'save_rules':
         case 'send_rules_message':
+        case 'save_stream_schedule':
+        case 'send_stream_schedule_message':
             // These are server management features that go to the Discord bot database
             // Connect to specterdiscordbot database
             $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
@@ -662,6 +664,228 @@ try {
                             'channel_id' => $rules_channel_id,
                             'title' => $rules_title,
                             'color' => $rules_color,
+                            'debug_logs' => $debug_logs
+                        ]);
+                        exit();
+                    }
+                    break;
+                case 'save_stream_schedule':
+                    debug_log('Processing save_stream_schedule with input: ' . json_encode($input));
+                    if (!isset($input['stream_schedule_channel_id'])) {
+                        debug_log('Missing stream_schedule_channel_id in input');
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Stream schedule channel ID is required', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    $schedule_channel_id = trim($input['stream_schedule_channel_id']);
+                    $schedule_title = isset($input['stream_schedule_title']) ? trim($input['stream_schedule_title']) : '';
+                    $schedule_content = isset($input['stream_schedule_content']) ? trim($input['stream_schedule_content']) : '';
+                    $schedule_color = isset($input['stream_schedule_color']) ? trim($input['stream_schedule_color']) : '#9146ff';
+                    $schedule_timezone = isset($input['stream_schedule_timezone']) ? trim($input['stream_schedule_timezone']) : '';
+                    if (empty($schedule_channel_id)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Stream schedule channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    if (empty($schedule_title)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Stream schedule title cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    if (empty($schedule_content)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Stream schedule content cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    // Build the JSON configuration object
+                    $schedule_config = [
+                        'channel_id' => $schedule_channel_id,
+                        'title' => $schedule_title,
+                        'schedule' => $schedule_content,
+                        'color' => $schedule_color,
+                        'timezone' => $schedule_timezone
+                    ];
+                    $schedule_json = json_encode($schedule_config);
+                    if ($schedule_json === false) {
+                        debug_log('Failed to encode stream schedule configuration to JSON');
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Failed to encode stream schedule configuration', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    // Check if record exists for this server
+                    $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
+                    if (!$checkStmt) {
+                        debug_log('Failed to prepare check statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    $checkStmt->bind_param("s", $server_id);
+                    if (!$checkStmt->execute()) {
+                        debug_log('Failed to execute check statement: ' . $checkStmt->error);
+                        $checkStmt->close();
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Database error: ' . $checkStmt->error, 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    $result = $checkStmt->get_result();
+                    if ($result->num_rows > 0) {
+                        debug_log('Updating existing stream schedule configuration for server_id: ' . $server_id);
+                        $updateSQL = "UPDATE server_management SET stream_schedule_configuration = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?";
+                        $updateStmt = $discord_conn->prepare($updateSQL);
+                        if (!$updateStmt) {
+                            debug_log('Failed to prepare update statement: ' . $discord_conn->error);
+                            $checkStmt->close();
+                            http_response_code(500);
+                            header('Content-Type: application/json');
+                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            exit();
+                        }
+                        $updateStmt->bind_param("ss", $schedule_json, $server_id);
+                        $success = $updateStmt->execute();
+                        $updateStmt->close();
+                    } else {
+                        debug_log('Creating new stream schedule configuration record for server_id: ' . $server_id);
+                        $insertSQL = "INSERT INTO server_management (server_id, stream_schedule_configuration, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)";
+                        $insertStmt = $discord_conn->prepare($insertSQL);
+                        if (!$insertStmt) {
+                            debug_log('Failed to prepare insert statement: ' . $discord_conn->error);
+                            $checkStmt->close();
+                            http_response_code(500);
+                            header('Content-Type: application/json');
+                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            exit();
+                        }
+                        $insertStmt->bind_param("ss", $server_id, $schedule_json);
+                        $success = $insertStmt->execute();
+                        $insertStmt->close();
+                    }
+                    $checkStmt->close();
+                    if ($success) {
+                        debug_log('Successfully saved stream schedule configuration');
+                        http_response_code(200);
+                        header('Content-Type: application/json');
+                        echo json_encode([
+                            'success' => true,
+                            'message' => 'Stream schedule configuration saved successfully',
+                            'debug_logs' => $debug_logs
+                        ]);
+                        exit();
+                    } else {
+                        debug_log('Failed to save stream schedule configuration: ' . $discord_conn->error);
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    break;
+                case 'send_stream_schedule_message':
+                    debug_log('send_stream_schedule_message case entered with input: ' . json_encode($input));
+                    if (!isset($input['stream_schedule_channel_id'])) {
+                        debug_log('Missing stream_schedule_channel_id in input');
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Stream schedule channel ID is required', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    $schedule_channel_id = trim($input['stream_schedule_channel_id']);
+                    $schedule_title = isset($input['stream_schedule_title']) ? trim($input['stream_schedule_title']) : '';
+                    $schedule_content = isset($input['stream_schedule_content']) ? trim($input['stream_schedule_content']) : '';
+                    $schedule_color = isset($input['stream_schedule_color']) ? trim($input['stream_schedule_color']) : '#9146ff';
+                    $schedule_timezone = isset($input['stream_schedule_timezone']) ? trim($input['stream_schedule_timezone']) : '';
+                    debug_log('Extracted values - channel_id: ' . $schedule_channel_id . ', title: ' . $schedule_title . ', color: ' . $schedule_color . ', timezone: ' . $schedule_timezone);
+                    if (empty($schedule_channel_id)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Stream schedule channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    if (empty($schedule_title)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Stream schedule title cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    if (empty($schedule_content)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Stream schedule content cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    // Send websocket notification to post the stream schedule message to Discord channel
+                    $websocket_url = 'https://websocket.botofthespecter.com/notify'; // Production websocket server
+                    // Check if api_key exists
+                    if (empty($api_key)) {
+                        debug_log('api_key not found for user_id: ' . $user_id);
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
+                    $params = [
+                        'code' => $api_key,
+                        'event' => 'post_stream_schedule_message',
+                        'server_id' => $server_id,
+                        'channel_id' => $schedule_channel_id,
+                        'title' => $schedule_title,
+                        'schedule' => $schedule_content,
+                        'color' => $schedule_color,
+                        'timezone' => $schedule_timezone
+                    ];
+                    // Build query string
+                    $query_string = http_build_query($params);
+                    $full_url = $websocket_url . '?' . $query_string;
+                    debug_log('Sending websocket request to: ' . $full_url);
+                    // Send HTTP GET request to websocket server
+                    $ch = curl_init($full_url);
+                    if ($ch === false) {
+                        debug_log('Failed to initialize cURL');
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Failed to initialize HTTP request', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
+                    $response = curl_exec($ch);
+                    if ($response === false) {
+                        $curl_error = curl_error($ch);
+                        debug_log('cURL error: ' . $curl_error);
+                        curl_close($ch);
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'HTTP request failed: ' . $curl_error, 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+                    debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
+                    // Check if websocket notification was successful
+                    if ($http_code !== 200) {
+                        debug_log("Failed to send websocket notification for stream schedule message: HTTP $http_code, Response: $response");
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Failed to send stream schedule message to Discord channel', 'debug_logs' => $debug_logs]);
+                        exit();
+                    } else {
+                        debug_log("Successfully sent websocket notification for stream schedule message");
+                        http_response_code(200);
+                        header('Content-Type: application/json');
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Stream schedule message sent to Discord channel successfully',
+                            'channel_id' => $schedule_channel_id,
+                            'title' => $schedule_title,
+                            'color' => $schedule_color,
+                            'timezone' => $schedule_timezone,
                             'debug_logs' => $debug_logs
                         ]);
                         exit();
