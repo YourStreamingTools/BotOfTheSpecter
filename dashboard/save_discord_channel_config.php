@@ -91,6 +91,7 @@ try {
         case 'save_reaction_roles':
         case 'send_reaction_roles_message':
         case 'save_rules':
+        case 'send_rules_message':
             // These are server management features that go to the Discord bot database
             // Connect to specterdiscordbot database
             $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
@@ -555,6 +556,108 @@ try {
                         http_response_code(500);
                         header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    break;
+                case 'send_rules_message':
+                    debug_log('send_rules_message case entered with input: ' . json_encode($input));
+                    if (!isset($input['rules_channel_id'])) {
+                        debug_log('Missing rules_channel_id in input');
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Rules channel ID is required', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    $rules_channel_id = trim($input['rules_channel_id']);
+                    $rules_title = isset($input['rules_title']) ? trim($input['rules_title']) : '';
+                    $rules_content = isset($input['rules_content']) ? trim($input['rules_content']) : '';
+                    $rules_color = isset($input['rules_color']) ? trim($input['rules_color']) : '#5865f2';
+                    debug_log('Extracted values - channel_id: ' . $rules_channel_id . ', title: ' . $rules_title . ', color: ' . $rules_color);
+                    if (empty($rules_channel_id)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Rules channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    if (empty($rules_title)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Rules title cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    if (empty($rules_content)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Rules content cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    // Send websocket notification to post the rules message to Discord channel
+                    $websocket_url = 'https://websocket.botofthespecter.com/notify'; // Production websocket server
+                    // Check if api_key exists
+                    if (empty($api_key)) {
+                        debug_log('api_key not found for user_id: ' . $user_id);
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
+                    $params = [
+                        'code' => $api_key,
+                        'event' => 'post_rules_message',
+                        'server_id' => $server_id,
+                        'channel_id' => $rules_channel_id,
+                        'title' => $rules_title,
+                        'rules' => $rules_content,
+                        'color' => $rules_color
+                    ];
+                    // Build query string
+                    $query_string = http_build_query($params);
+                    $full_url = $websocket_url . '?' . $query_string;
+                    debug_log('Sending websocket request to: ' . $full_url);
+                    // Send HTTP GET request to websocket server
+                    $ch = curl_init($full_url);
+                    if ($ch === false) {
+                        debug_log('Failed to initialize cURL');
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Failed to initialize HTTP request', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
+                    $response = curl_exec($ch);
+                    if ($response === false) {
+                        $curl_error = curl_error($ch);
+                        debug_log('cURL error: ' . $curl_error);
+                        curl_close($ch);
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'HTTP request failed: ' . $curl_error, 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+                    debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
+                    // Check if websocket notification was successful
+                    if ($http_code !== 200) {
+                        debug_log("Failed to send websocket notification for rules message: HTTP $http_code, Response: $response");
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Failed to send rules message to Discord channel', 'debug_logs' => $debug_logs]);
+                        exit();
+                    } else {
+                        debug_log("Successfully sent websocket notification for rules message");
+                        http_response_code(200);
+                        header('Content-Type: application/json');
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Rules message sent to Discord channel successfully',
+                            'channel_id' => $rules_channel_id,
+                            'title' => $rules_title,
+                            'color' => $rules_color,
+                            'debug_logs' => $debug_logs
+                        ]);
                         exit();
                     }
                     break;
