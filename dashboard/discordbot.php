@@ -2565,23 +2565,19 @@ function removeStreamer(username) {
   validateDropdownSelection('user_log_channel_id', 'save_user_tracking');
   validateDropdownSelection('reaction_roles_channel_id', 'save_reaction_roles');
   validateDropdownSelection('rules_channel_id', 'save_rules');
-  
   // Validation for send reaction roles message button
   function validateSendReactionRolesButton() {
     const channelId = $('#reaction_roles_channel_id').val();
     const message = $('#reaction_roles_message').val().trim();
     const mappings = $('#reaction_roles_mappings').val().trim();
-    
     let hasChannel = false;
     if ($('#reaction_roles_channel_id').is('select')) {
       hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
     } else {
       hasChannel = channelId && channelId.trim() !== '';
     }
-    
     const hasMessage = message !== '';
     const hasMappings = mappings !== '';
-    
     const sendButton = $('#send_reaction_roles_message');
     if (hasChannel && hasMessage && hasMappings) {
       sendButton.prop('disabled', false);
@@ -2589,27 +2585,22 @@ function removeStreamer(username) {
       sendButton.prop('disabled', true);
     }
   }
-  
   // Check validation on page load and when inputs change
   validateSendReactionRolesButton();
   $('#reaction_roles_channel_id, #reaction_roles_message, #reaction_roles_mappings').on('change input', validateSendReactionRolesButton);
-  
   // Validation for send rules message button
   function validateSendRulesButton() {
     const channelId = $('#rules_channel_id').val();
     const title = $('#rules_title').val().trim();
     const rules = $('#rules_content').val().trim();
-    
     let hasChannel = false;
     if ($('#rules_channel_id').is('select')) {
       hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
     } else {
       hasChannel = channelId && channelId.trim() !== '';
     }
-    
     const hasTitle = title !== '';
     const hasRules = rules !== '';
-    
     const sendButton = $('#send_rules_message');
     if (hasChannel && hasTitle && hasRules) {
       sendButton.prop('disabled', false);
@@ -2617,7 +2608,6 @@ function removeStreamer(username) {
       sendButton.prop('disabled', true);
     }
   }
-  
   // Check validation on page load and when inputs change
   validateSendRulesButton();
   $('#rules_channel_id, #rules_title, #rules_content').on('change input', validateSendRulesButton);
