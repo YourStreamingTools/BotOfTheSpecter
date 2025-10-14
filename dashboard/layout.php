@@ -42,6 +42,7 @@ function uuidv4() {
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
     <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/bulma-responsive-tables.css">
     <link rel="stylesheet" href="css/custom.css?v=<?php echo uuidv4(); ?>">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
