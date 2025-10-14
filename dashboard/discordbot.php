@@ -1895,7 +1895,7 @@ ob_start();
     <div class="columns is-multiline">
       <?php if ($serverManagementSettings['welcomeMessage']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-success"><i class="fas fa-door-open"></i></span>
@@ -1971,7 +1971,7 @@ ob_start();
       <?php endif; ?>
       <?php if ($serverManagementSettings['autoRole']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-info"><i class="fas fa-user-plus"></i></span>
@@ -2021,7 +2021,7 @@ ob_start();
       <?php endif; ?>
       <?php if ($serverManagementSettings['roleHistory']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-warning"><i class="fas fa-history"></i></span>
@@ -2072,7 +2072,7 @@ ob_start();
       <?php endif; ?>
       <?php if ($serverManagementSettings['messageTracking']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-danger"><i class="fas fa-eye"></i></span>
@@ -2126,7 +2126,7 @@ ob_start();
       <?php endif; ?>
       <?php if ($serverManagementSettings['roleTracking']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-primary"><i class="fas fa-users-cog"></i></span>
@@ -2180,7 +2180,7 @@ ob_start();
       <?php endif; ?>
       <?php if ($serverManagementSettings['serverRoleManagement']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-link"><i class="fas fa-cogs"></i></span>
@@ -2234,7 +2234,7 @@ ob_start();
       <?php endif; ?>
       <?php if ($serverManagementSettings['userTracking']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-info"><i class="fas fa-user-edit"></i></span>
@@ -2292,7 +2292,7 @@ ob_start();
       <?php endif; ?>
       <?php if ($serverManagementSettings['reactionRoles']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-purple"><i class="fas fa-hand-paper"></i></span>
@@ -2366,7 +2366,7 @@ ob_start();
       <?php endif; ?>
       <?php if ($serverManagementSettings['rulesConfiguration']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-info"><i class="fas fa-gavel"></i></span>
@@ -2453,7 +2453,7 @@ ob_start();
       <?php endif; ?>
       <?php if ($serverManagementSettings['streamSchedule']): ?>
       <div class="column is-6 is-flex">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-primary"><i class="fas fa-calendar-alt"></i></span>
