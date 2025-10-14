@@ -4299,6 +4299,58 @@ class RoleButtonView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)  # No timeout - buttons persist forever
 
+# Button for rules acceptance
+class RulesAcceptButton(discord.ui.Button):
+    def __init__(self, role: discord.Role, logger=None):
+        super().__init__(
+            style=discord.ButtonStyle.success,
+            label="ACCEPT RULES",
+            emoji="✅",
+            custom_id=f"rules_accept_{role.id}"
+        )
+        self.role = role
+        self.logger = logger
+
+    async def callback(self, interaction: discord.Interaction):
+        user = interaction.user
+        # Check if user already has the role
+        if self.role in user.roles:
+            await interaction.response.send_message(
+                "✅ You have already accepted the rules!",
+                ephemeral=True
+            )
+            if self.logger:
+                self.logger.info(f"User {user.name} ({user.id}) tried to accept rules again - already has role")
+            return
+        # Assign the role
+        try:
+            await user.add_roles(self.role, reason="Accepted server rules via button")
+            await interaction.response.send_message(
+                "✅ Thank you for accepting the rules! You now have access to the server. 🎉",
+                ephemeral=True
+            )
+            if self.logger:
+                self.logger.info(f"Assigned rules acceptance role {self.role.name} to {user.name} via button")
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                "❌ I don't have permission to assign roles. Please contact a server administrator.",
+                ephemeral=True
+            )
+            if self.logger:
+                self.logger.error(f"Failed to assign rules role to {user.name} - missing permissions")
+        except Exception as e:
+            await interaction.response.send_message(
+                "❌ An error occurred while assigning your role. Please contact a server administrator.",
+                ephemeral=True
+            )
+            if self.logger:
+                self.logger.error(f"Error assigning rules role to {user.name}: {e}")
+
+class RulesButtonView(discord.ui.View):
+    def __init__(self, role: discord.Role, logger=None):
+        super().__init__(timeout=None)
+        self.add_item(RulesAcceptButton(role, logger))
+
 # Server Management class for handling reaction roles and other server features
 class ServerManagement(commands.Cog, name='Server Management'):
     def __init__(self, bot: BotOfTheSpecter, logger=None):
@@ -4686,19 +4738,33 @@ class ServerManagement(commands.Cog, name='Server Management'):
             )
             embed.set_footer(text=f"Server Rules | {guild.name}")
             try:
-                # Send the embed
-                sent_message = await channel.send(embed=embed)
-                message_id = sent_message.id
-                self.logger.info(f"Successfully posted rules embed (ID: {message_id}) to #{channel.name}")
-                # Add check mark reaction if accept_role_id is set
+                # Send the embed with button if accept_role_id is set
                 if accept_role_id:
                     try:
-                        await sent_message.add_reaction('✅')
-                        self.logger.info(f"Added ✅ reaction to rules message (ID: {message_id})")
-                    except discord.Forbidden:
-                        self.logger.warning(f"Missing permissions to add reactions to rules message (ID: {message_id})")
+                        # Get the role object
+                        accept_role = guild.get_role(int(accept_role_id))
+                        if not accept_role:
+                            self.logger.error(f"Accept role {accept_role_id} not found in guild {guild.name}")
+                            # Send without button
+                            sent_message = await channel.send(embed=embed)
+                        else:
+                            # Create button view with the role
+                            view = RulesButtonView(accept_role, self.logger)
+                            sent_message = await channel.send(embed=embed, view=view)
+                            self.logger.info(f"Successfully posted rules embed with ACCEPT RULES button to #{channel.name}")
+                    except (ValueError, TypeError) as e:
+                        self.logger.error(f"Invalid accept_role_id: {accept_role_id}, error: {e}")
+                        # Send without button
+                        sent_message = await channel.send(embed=embed)
                     except Exception as e:
-                        self.logger.error(f"Error adding reaction to rules message: {e}")
+                        self.logger.error(f"Error creating rules button: {e}")
+                        # Send without button as fallback
+                        sent_message = await channel.send(embed=embed)
+                else:
+                    # No accept role, send without button
+                    sent_message = await channel.send(embed=embed)
+                message_id = sent_message.id
+                self.logger.info(f"Successfully posted rules embed (ID: {message_id}) to #{channel.name}")
                 # Save to database using INSERT ... ON DUPLICATE KEY UPDATE
                 try:
                     self.logger.info(f"Preparing to save to database - server_id: {server_id}, channel_id: {channel_id}, message_id: {message_id}")
@@ -4753,55 +4819,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
             # Ignore bot reactions
             if payload.user_id == self.bot.user.id:
                 return
-            
-            # Check if this is a rules acceptance reaction (✅)
-            if str(payload.emoji) == '✅':
-                message_id = payload.message_id
-                # Check if this message is a rules message with role assignment enabled
-                try:
-                    query = "SELECT server_id, accept_role_id FROM rules_messages WHERE message_id = %s AND accept_role_id != ''"
-                    rules_data = await self.mysql.fetchone(query, params=(str(message_id),), database_name='specterdiscordbot', dict_cursor=True)
-                    if rules_data:
-                        server_id = rules_data['server_id']
-                        accept_role_id = rules_data['accept_role_id']
-                        self.logger.info(f"Rules acceptance reaction detected - message: {message_id}, server: {server_id}, role: {accept_role_id}")
-                        # Get the guild
-                        guild = self.bot.get_guild(payload.guild_id)
-                        if not guild:
-                            self.logger.error(f"Guild {payload.guild_id} not found")
-                            return
-                        # Verify this is the correct server
-                        if str(guild.id) != str(server_id):
-                            self.logger.warning(f"Guild mismatch: {guild.id} != {server_id}")
-                            return
-                        # Get the member
-                        member = guild.get_member(payload.user_id)
-                        if not member:
-                            self.logger.error(f"Member {payload.user_id} not found in guild {guild.name}")
-                            return
-                        # Get the role
-                        try:
-                            role = guild.get_role(int(accept_role_id))
-                            if role:
-                                # Check if member already has the role
-                                if role in member.roles:
-                                    self.logger.debug(f"Member {member.name} already has role {role.name}")
-                                else:
-                                    # Assign the role
-                                    await member.add_roles(role, reason="Accepted server rules")
-                                    self.logger.info(f"Assigned rules acceptance role {role.name} to {member.name}")
-                            else:
-                                self.logger.warning(f"Role {accept_role_id} not found in guild {guild.name}")
-                        except ValueError:
-                            self.logger.error(f"Invalid accept_role_id: {accept_role_id}")
-                        except discord.Forbidden:
-                            self.logger.error(f"Missing permissions to assign role {accept_role_id} to {member.name}")
-                        except Exception as e:
-                            self.logger.error(f"Error assigning rules acceptance role: {e}")
-                        # Return after handling rules reaction to prevent it from being processed as a reaction role
-                        return
-                except Exception as e:
-                    self.logger.error(f"Error checking for rules message: {e}")
             
             # Check if this message is a reaction roles message
             message_id = payload.message_id
