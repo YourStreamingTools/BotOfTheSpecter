@@ -2380,7 +2380,7 @@ ob_start();
     </div>
     <?php endif; ?>
   </div>
-</section>
+</div>
 
 <div id="savedStreamersModal" class="modal">
   <div class="modal-background"></div>
