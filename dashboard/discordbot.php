@@ -921,20 +921,16 @@ function checkGuildPermissions($access_token, $guild_id) {
   }
   return false;
 }
-// Helper function to get user's administrative guilds
+// Helper function to get user's owned guilds
 function getUserAdminGuilds($access_token) {
   global $consoleLogs;
   $guilds = fetchUserGuilds($access_token);
   $admin_guilds = array();
   if ($guilds && is_array($guilds)) {
     foreach ($guilds as $guild) {
-      // Check if user is owner or has admin permissions
-      // Permissions field contains bitwise permissions
-      $permissions = intval($guild['permissions'] ?? 0);
+      // Check if user is owner only
       $is_owner = isset($guild['owner']) && $guild['owner'] === true;
-      $has_admin = ($permissions & 0x8) === 0x8; // ADMINISTRATOR permission bit
-      
-      if ($is_owner || $has_admin) {
+      if ($is_owner) {
         $admin_guilds[] = $guild;
       }
     }
