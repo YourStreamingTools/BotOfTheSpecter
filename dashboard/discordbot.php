@@ -464,6 +464,7 @@ $existingRulesChannelID = "";
 $existingRulesTitle = "";
 $existingRulesContent = "";
 $existingRulesColor = "";
+$existingRulesAcceptRoleID = "";
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -570,6 +571,7 @@ if ($is_linked && $hasGuildId) {
           $existingRulesTitle = $rulesConfig['title'] ?? "";
           $existingRulesContent = $rulesConfig['rules'] ?? "";
           $existingRulesColor = $rulesConfig['color'] ?? "#5865f2";
+          $existingRulesAcceptRoleID = $rulesConfig['accept_role_id'] ?? "";
         }
       }
     }
@@ -648,7 +650,7 @@ function updateExistingDiscordValues() {
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
   global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
-  global $existingRulesChannelID, $existingRulesTitle, $existingRulesContent, $existingRulesColor;
+  global $existingRulesChannelID, $existingRulesTitle, $existingRulesContent, $existingRulesColor, $existingRulesAcceptRoleID;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -684,6 +686,7 @@ function updateExistingDiscordValues() {
   $existingRulesTitle = "";
   $existingRulesContent = "";
   $existingRulesColor = "";
+  $existingRulesAcceptRoleID = "";
   $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
   // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
   $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -765,6 +768,7 @@ function updateExistingDiscordValues() {
             $existingRulesTitle = $rulesConfig['title'] ?? "";
             $existingRulesContent = $rulesConfig['rules'] ?? "";
             $existingRulesColor = $rulesConfig['color'] ?? "#5865f2";
+            $existingRulesAcceptRoleID = $rulesConfig['accept_role_id'] ?? "";
           }
         }
       }
@@ -2357,6 +2361,22 @@ ob_start();
               </div>
               <div class="field">
                 <div class="control">
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" id="rules_assign_role_on_accept" name="rules_assign_role_on_accept" style="margin-right: 8px;"<?php echo !empty($existingRulesAcceptRoleID) ? ' checked' : ''; ?>>
+                    Assign role on rule acceptance
+                  </label>
+                </div>
+                <p class="help has-text-grey-light">When enabled, users who react with ✅ to the rules will be assigned the selected role</p>
+              </div>
+              <div class="field" id="rules_accept_role_field" style="<?php echo empty($existingRulesAcceptRoleID) ? 'display: none;' : ''; ?>">
+                <label class="label has-text-white" style="font-weight: 500;">Rules Acceptance Role</label>
+                <div class="control has-icons-left">
+                  <?php echo generateRoleInput('rules_accept_role_id', 'rules_accept_role_id', $existingRulesAcceptRoleID ?? '', 'e.g. 123456789123456789', $useManualIds, $guildRoles); ?>
+                </div>
+                <p class="help has-text-grey-light">Role to assign when users react with ✅ to accept the rules</p>
+              </div>
+              <div class="field">
+                <div class="control">
                   <button class="button is-primary is-fullwidth" type="button" onclick="saveRules()" name="save_rules" style="border-radius: 6px; font-weight: 600;" disabled>
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Save Rules Configuration</span>
@@ -2611,6 +2631,15 @@ function removeStreamer(username) {
   // Check validation on page load and when inputs change
   validateSendRulesButton();
   $('#rules_channel_id, #rules_title, #rules_content').on('change input', validateSendRulesButton);
+  // Toggle rules accept role field based on checkbox
+  $('#rules_assign_role_on_accept').on('change', function() {
+    if ($(this).is(':checked')) {
+      $('#rules_accept_role_field').slideDown();
+    } else {
+      $('#rules_accept_role_field').slideUp();
+      $('#rules_accept_role_id').val('');
+    }
+  });
 });
 </script>
 <?php if (!$is_linked) { ?>
@@ -3165,13 +3194,17 @@ function removeStreamer(username) {
     const rulesTitle = document.getElementById('rules_title').value;
     const rulesContent = document.getElementById('rules_content').value;
     const rulesColor = document.getElementById('rules_color').value;
+    const assignRoleOnAccept = document.getElementById('rules_assign_role_on_accept').checked;
+    const acceptRoleId = assignRoleOnAccept ? document.getElementById('rules_accept_role_id').value.trim() : '';
     
     // Debug logging
     console.log('saveRules called with:', {
       rulesChannelId,
       rulesTitle,
       rulesContent,
-      rulesColor
+      rulesColor,
+      assignRoleOnAccept,
+      acceptRoleId
     });
     
     // Always require a channel
@@ -3216,11 +3249,26 @@ function removeStreamer(username) {
       return;
     }
     
+    // If assign role is checked, require a role ID
+    if (assignRoleOnAccept && (!acceptRoleId || acceptRoleId === '')) {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a role for rule acceptance',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
     saveChannelConfig('save_rules', {
       rules_channel_id: rulesChannelId,
       rules_title: rulesTitle,
       rules_content: rulesContent,
-      rules_color: rulesColor
+      rules_color: rulesColor,
+      rules_accept_role_id: acceptRoleId
     });
   }
 
@@ -3229,6 +3277,8 @@ function removeStreamer(username) {
     const rulesTitle = document.getElementById('rules_title').value;
     const rulesContent = document.getElementById('rules_content').value;
     const rulesColor = document.getElementById('rules_color').value;
+    const assignRoleOnAccept = document.getElementById('rules_assign_role_on_accept').checked;
+    const acceptRoleId = assignRoleOnAccept ? document.getElementById('rules_accept_role_id').value.trim() : '';
     
     // Validate required fields
     if (!rulesChannelId || rulesChannelId === '') {
@@ -3270,6 +3320,20 @@ function removeStreamer(username) {
       return;
     }
     
+    // If assign role is checked, require a role ID
+    if (assignRoleOnAccept && (!acceptRoleId || acceptRoleId === '')) {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a role for rule acceptance',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    
     // Confirm before sending
     Swal.fire({
       title: 'Send Rules Message?',
@@ -3286,13 +3350,15 @@ function removeStreamer(username) {
           channel_id: rulesChannelId,
           title: rulesTitle,
           rules: rulesContent,
-          color: rulesColor
+          color: rulesColor,
+          accept_role_id: acceptRoleId
         });
         saveChannelConfig('send_rules_message', {
           rules_channel_id: rulesChannelId,
           rules_title: rulesTitle,
           rules_content: rulesContent,
-          rules_color: rulesColor
+          rules_color: rulesColor,
+          rules_accept_role_id: acceptRoleId
         });
       }
     });

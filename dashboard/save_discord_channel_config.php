@@ -451,6 +451,7 @@ try {
                     $rules_title = isset($input['rules_title']) ? trim($input['rules_title']) : '';
                     $rules_content = isset($input['rules_content']) ? trim($input['rules_content']) : '';
                     $rules_color = isset($input['rules_color']) ? trim($input['rules_color']) : '#5865f2';
+                    $rules_accept_role_id = isset($input['rules_accept_role_id']) ? trim($input['rules_accept_role_id']) : '';
                     if (empty($rules_channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
@@ -474,7 +475,8 @@ try {
                         'channel_id' => $rules_channel_id,
                         'title' => $rules_title,
                         'rules' => $rules_content,
-                        'color' => $rules_color
+                        'color' => $rules_color,
+                        'accept_role_id' => $rules_accept_role_id
                     ];
                     $rules_json = json_encode($rules_config);
                     if ($rules_json === false) {
@@ -572,7 +574,8 @@ try {
                     $rules_title = isset($input['rules_title']) ? trim($input['rules_title']) : '';
                     $rules_content = isset($input['rules_content']) ? trim($input['rules_content']) : '';
                     $rules_color = isset($input['rules_color']) ? trim($input['rules_color']) : '#5865f2';
-                    debug_log('Extracted values - channel_id: ' . $rules_channel_id . ', title: ' . $rules_title . ', color: ' . $rules_color);
+                    $rules_accept_role_id = isset($input['rules_accept_role_id']) ? trim($input['rules_accept_role_id']) : '';
+                    debug_log('Extracted values - channel_id: ' . $rules_channel_id . ', title: ' . $rules_title . ', color: ' . $rules_color . ', accept_role_id: ' . $rules_accept_role_id);
                     if (empty($rules_channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
@@ -609,7 +612,8 @@ try {
                         'channel_id' => $rules_channel_id,
                         'title' => $rules_title,
                         'rules' => $rules_content,
-                        'color' => $rules_color
+                        'color' => $rules_color,
+                        'accept_role_id' => $rules_accept_role_id
                     ];
                     // Build query string
                     $query_string = http_build_query($params);
