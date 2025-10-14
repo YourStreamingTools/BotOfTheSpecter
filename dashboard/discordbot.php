@@ -2035,7 +2035,7 @@ ob_start();
           </header>
           <div class="card-content">
             <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
             </div>
             <p class="has-text-white-ter mb-1">Configure role restoration settings for members who rejoin your Discord server.</p>
             <form action="" method="post">
@@ -2086,7 +2086,7 @@ ob_start();
           </header>
           <div class="card-content">
             <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
             </div>
             <p class="has-text-white-ter mb-1">Configure message tracking for edited and deleted messages in your Discord server.</p>
             <form action="" method="post">
@@ -2140,7 +2140,7 @@ ob_start();
           </header>
           <div class="card-content">
             <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
             </div>
             <p class="has-text-white-ter mb-1">Configure role change tracking for audit purposes in your Discord server.</p>
             <form action="" method="post">
@@ -2194,7 +2194,7 @@ ob_start();
           </header>
           <div class="card-content">
             <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
             </div>
             <p class="has-text-white-ter mb-1">Configure tracking for role creation and deletion within your Discord server.</p>
             <form action="" method="post">
@@ -2248,7 +2248,7 @@ ob_start();
           </header>
           <div class="card-content">
             <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
             </div>
             <p class="has-text-white-ter mb-1">Configure user profile change tracking for your Discord server.</p>
             <form action="" method="post">
@@ -2467,7 +2467,7 @@ ob_start();
           </header>
           <div class="card-content">
             <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
             </div>
             <p class="has-text-white-ter mb-1">Configure and post an embed message with your stream schedule.</p>
             <form action="" method="post">
