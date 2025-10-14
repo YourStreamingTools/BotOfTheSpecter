@@ -1747,7 +1747,8 @@ ob_start();
       </div>
       <!-- Right Column -->
       <div class="column is-6">
-        <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
+        <!-- Twitch Stream Monitoring Card -->
+        <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-primary"><i class="fa-brands fa-twitch"></i></span>
@@ -1760,8 +1761,8 @@ ob_start();
               </span>
             </div>
           </header>
-          <div class="card-content">
-            <form action="" method="post">
+          <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
               <div class="field">
                 <label class="label has-text-white" for="option" style="font-weight: 500;">Twitch Username</label>
                 <div class="control has-icons-left">
@@ -1789,8 +1790,8 @@ ob_start();
             </div>
           </div>
         </div>
-        <!-- Discord Server Management Box -->
-        <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
+        <!-- Discord Server Management Card -->
+        <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
@@ -1803,7 +1804,7 @@ ob_start();
               </span>
             </div>
           </header>
-          <div class="card-content">
+          <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
             <?php if (!$is_linked || $needs_relink): ?>
             <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
               <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
@@ -1820,7 +1821,7 @@ ob_start();
               <strong>Comprehensive Discord server management and moderation tools. Features include welcome messages, auto-role assignment, role history tracking, message monitoring (edited/deleted messages), and role change tracking for complete server oversight.</strong>
             </div>
             <?php endif; ?>
-            <form action="" method="post">
+            <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
                 <div class="field" style="margin-bottom: 0.75rem;">
