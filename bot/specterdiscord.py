@@ -4932,7 +4932,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 SELECT welcome_message_configuration_channel, 
                        welcome_message_configuration_message, 
                        welcome_message_configuration_default,
-                       welcome_message_configuration_embed
+                       welcome_message_configuration_embed,
+                       welcome_message_configuration_colour
                 FROM server_management 
                 WHERE server_id = ?
             """
@@ -4940,7 +4941,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
             if not result or not result[0]:
                 self.logger.debug(f"No welcome message configured for guild {member.guild.name}")
                 return False
-            welcome_channel_id, custom_message, use_default, use_embed = result
+            welcome_channel_id, custom_message, use_default, use_embed, embed_colour = result
             # Get the welcome channel
             try:
                 welcome_channel = member.guild.get_channel(int(welcome_channel_id))
@@ -4955,16 +4956,24 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     message_text = custom_message.replace("{user}", member.name)
                 # Send as embed or plain text based on configuration
                 if use_embed == 1:
-                    # Send as rich embed
+                    # Send as rich embed with custom colour
+                    # Convert hex colour to integer
+                    try:
+                        colour_hex = embed_colour if embed_colour else "#00d1b2"
+                        colour_int = int(colour_hex.replace("#", ""), 16)
+                    except (ValueError, AttributeError):
+                        self.logger.warning(f"Invalid colour format '{embed_colour}', using default")
+                        colour_int = 0x00d1b2  # Default turquoise colour
+                    
                     embed = discord.Embed(
                         title="Welcome!",
                         description=message_text,
-                        color=discord.Color.green()
+                        color=colour_int
                     )
                     embed.set_thumbnail(url=member.display_avatar.url)
                     embed.set_footer(text=f"{member.guild.name} | Member #{member.guild.member_count}")
                     await welcome_channel.send(embed=embed)
-                    self.logger.info(f"Sent welcome embed to {member.name} in {welcome_channel.name} (guild: {member.guild.name})")
+                    self.logger.info(f"Sent welcome embed to {member.name} in {welcome_channel.name} (guild: {member.guild.name}) with colour {colour_hex}")
                 else:
                     # Send as plain text
                     await welcome_channel.send(message_text)

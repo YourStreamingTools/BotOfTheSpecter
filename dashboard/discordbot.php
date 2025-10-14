@@ -465,6 +465,7 @@ $existingRulesTitle = "";
 $existingRulesContent = "";
 $existingRulesColor = "";
 $existingRulesAcceptRoleID = "";
+$existingWelcomeColour = "";
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -525,6 +526,7 @@ if ($is_linked && $hasGuildId) {
       $existingWelcomeMessage = $serverMgmtData['welcome_message_configuration_message'] ?? "";
       $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
       $existingWelcomeEmbed = (int)($serverMgmtData['welcome_message_configuration_embed'] ?? 0) === 1;
+      $existingWelcomeColour = $serverMgmtData['welcome_message_configuration_colour'] ?? "#00d1b2";
       if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
         $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
       }
@@ -649,7 +651,7 @@ function updateExistingDiscordValues() {
   global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData, $consoleLogs;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
-  global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
+  global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingWelcomeColour, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
   global $existingRulesChannelID, $existingRulesTitle, $existingRulesContent, $existingRulesColor, $existingRulesAcceptRoleID;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
@@ -673,6 +675,7 @@ function updateExistingDiscordValues() {
   $existingWelcomeMessage = "";
   $existingWelcomeUseDefault = false;
   $existingWelcomeEmbed = false;
+  $existingWelcomeColour = "";
   $existingAutoRoleID = "";
   $existingMessageLogChannelID = "";
   $existingRoleLogChannelID = "";
@@ -722,6 +725,7 @@ function updateExistingDiscordValues() {
         $existingWelcomeMessage = $serverMgmtData['welcome_message_configuration_message'] ?? "";
         $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
         $existingWelcomeEmbed = (int)($serverMgmtData['welcome_message_configuration_embed'] ?? 0) === 1;
+        $existingWelcomeColour = $serverMgmtData['welcome_message_configuration_colour'] ?? "#00d1b2";
         if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
           $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
         }
@@ -1892,6 +1896,16 @@ ob_start();
                 </div>
                 <p class="help has-text-grey-light">Send the welcome message as a rich embed with formatting and colors</p>
               </div>
+              <div class="field" id="welcome_colour_field" style="<?php echo $existingWelcomeEmbed ? '' : 'display: none;'; ?>">
+                <label class="label has-text-white" style="font-weight: 500;">
+                  <span class="icon is-small mr-1"><i class="fas fa-palette"></i></span>
+                  Embed Colour
+                </label>
+                <div class="control">
+                  <input class="input" type="color" id="welcome_colour" name="welcome_colour" value="<?php echo htmlspecialchars($existingWelcomeColour ?: '#00d1b2'); ?>" style="height: 40px; cursor: pointer;">
+                </div>
+                <p class="help has-text-grey-light">Choose the colour for the embed border and accent</p>
+              </div>
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Custom Welcome Message</label>
                 <div class="control">
@@ -2916,6 +2930,7 @@ function removeStreamer(username) {
     const welcomeMessage = document.getElementById('welcome_message').value;
     const useDefault = document.getElementById('use_default_welcome_message').checked;
     const enableEmbed = document.getElementById('enable_embed_message').checked;
+    const welcomeColour = document.getElementById('welcome_colour').value;
     // Always require a channel
     if (!welcomeChannelId || welcomeChannelId === '') {
       Swal.fire({
@@ -2947,7 +2962,8 @@ function removeStreamer(username) {
       welcome_channel_id: welcomeChannelId,
       welcome_message: useDefault ? '' : welcomeMessage,
       welcome_message_configuration_default: useDefault,
-      welcome_message_configuration_embed: enableEmbed
+      welcome_message_configuration_embed: enableEmbed,
+      welcome_message_configuration_colour: welcomeColour
     });
   }
 
@@ -3439,6 +3455,19 @@ function removeStreamer(username) {
       toggleWelcomeMessage();
       // Add event listener for checkbox changes
       useDefaultCheckbox.addEventListener('change', toggleWelcomeMessage);
+    }
+
+    // Handle enable embed checkbox to show/hide colour field
+    const enableEmbedCheckbox = document.getElementById('enable_embed_message');
+    const welcomeColourField = document.getElementById('welcome_colour_field');
+    if (enableEmbedCheckbox && welcomeColourField) {
+      enableEmbedCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+          welcomeColourField.style.display = '';
+        } else {
+          welcomeColourField.style.display = 'none';
+        }
+      });
     }
   });
 </script>
