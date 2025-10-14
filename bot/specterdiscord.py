@@ -321,6 +321,17 @@ class WebsocketListener:
                 await server_mgmt.post_reaction_roles_message(data)
             else:
                 self.logger.warning("ServerManagement cog not loaded, cannot handle reaction roles message")
+        # Event handler for posting rules message
+        @self.specterSocket.on('POST_RULES_MESSAGE')
+        async def post_rules_message(data):
+            self.logger.info("POST_RULES_MESSAGE event handler called!")
+            # Forward to ServerManagement cog if loaded
+            server_mgmt = self.bot.get_cog('Server Management')
+            if server_mgmt:
+                self.logger.info("Forwarding to ServerManagement cog")
+                await server_mgmt.post_rules_message(data)
+            else:
+                self.logger.warning("ServerManagement cog not loaded, cannot handle rules message")
         # Log all other events generically
         @self.specterSocket.on('*')
         async def catch_all(event, data):
@@ -4303,13 +4314,13 @@ class ServerManagement(commands.Cog, name='Server Management'):
         try:
             await self.bot.wait_until_ready()
             await self._ensure_role_messages_table()
+            await self._ensure_rules_messages_table()
             await self._refresh_reaction_roles_cache()
             self.logger.info("Reaction roles cache initialized")
         except Exception as e:
             self.logger.error(f"Error initializing reaction roles cache: {e}")
     
     async def _ensure_role_messages_table(self):
-        """Create the role_selection_messages table if it doesn't exist"""
         try:
             create_table_query = """
                 CREATE TABLE IF NOT EXISTS role_selection_messages (
@@ -4331,6 +4342,28 @@ class ServerManagement(commands.Cog, name='Server Management'):
             self.logger.info("Ensured role_selection_messages table exists")
         except Exception as e:
             self.logger.error(f"Error creating role_selection_messages table: {e}")
+
+    async def _ensure_rules_messages_table(self):
+        try:
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS rules_messages (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    server_id VARCHAR(255) NOT NULL,
+                    channel_id VARCHAR(255) NOT NULL,
+                    message_id VARCHAR(255) NOT NULL,
+                    title TEXT,
+                    rules_content TEXT,
+                    color VARCHAR(7),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_server (server_id),
+                    KEY idx_message_id (message_id)
+                )
+            """
+            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
+            self.logger.info("Ensured rules_messages table exists")
+        except Exception as e:
+            self.logger.error(f"Error creating rules_messages table: {e}")
 
     async def _refresh_reaction_roles_cache(self):
         try:
@@ -4575,6 +4608,132 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.error(f"Unexpected error sending reaction roles message: {e}")
         except Exception as e:
             self.logger.error(f"Error in post_reaction_roles_message: {e}")
+
+    async def post_rules_message(self, data):
+        try:
+            self.logger.info(f"post_rules_message called with data: {data}")
+            server_id = data.get('server_id')
+            channel_id = data.get('channel_id')
+            title = data.get('title', 'Server Rules')
+            rules = data.get('rules', '')
+            color_hex = data.get('color', '#5865f2')
+            self.logger.info(f"Parsed data - server_id: {server_id}, channel_id: {channel_id}, title: {title}, color: {color_hex}")
+            if not server_id or not channel_id:
+                self.logger.error("Missing server_id or channel_id in rules message data")
+                return
+            # Get the guild
+            try:
+                guild = self.bot.get_guild(int(server_id))
+                self.logger.info(f"Got guild: {guild.name if guild else 'None'} (ID: {server_id})")
+            except (ValueError, TypeError) as e:
+                self.logger.error(f"Invalid server_id: {server_id}, error: {e}")
+                return
+            if not guild:
+                self.logger.error(f"Bot not in guild {server_id}")
+                return
+            # Get the channel
+            try:
+                channel = guild.get_channel(int(channel_id))
+                self.logger.info(f"Got channel: #{channel.name if channel else 'None'} (ID: {channel_id})")
+            except (ValueError, TypeError) as e:
+                self.logger.error(f"Invalid channel_id: {channel_id}, error: {e}")
+                return
+            if not channel:
+                self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
+                return
+            # Check for existing rules message and delete it
+            try:
+                query = "SELECT channel_id, message_id FROM rules_messages WHERE server_id = %s"
+                existing_message = await self.mysql.fetchone(query, params=(str(server_id),), database_name='specterdiscordbot', dict_cursor=True)
+                if existing_message:
+                    old_channel_id = existing_message['channel_id']
+                    old_message_id = existing_message['message_id']
+                    self.logger.info(f"Found existing rules message (ID: {old_message_id}) in channel {old_channel_id}")
+                    try:
+                        # Try to delete the old message
+                        old_channel = guild.get_channel(int(old_channel_id))
+                        if old_channel:
+                            try:
+                                old_message = await old_channel.fetch_message(int(old_message_id))
+                                await old_message.delete()
+                                self.logger.info(f"Deleted old rules message (ID: {old_message_id}) from #{old_channel.name}")
+                            except discord.NotFound:
+                                self.logger.info(f"Old rules message (ID: {old_message_id}) no longer exists, proceeding with new message")
+                            except discord.Forbidden:
+                                self.logger.warning(f"Missing permissions to delete old rules message (ID: {old_message_id})")
+                            except Exception as e:
+                                self.logger.error(f"Error deleting old rules message: {e}")
+                    except Exception as e:
+                        self.logger.error(f"Error cleaning up old rules message: {e}")
+            except Exception as e:
+                self.logger.error(f"Error checking for existing rules message: {e}")
+            # Convert hex color to Discord color
+            try:
+                # Remove # if present and convert to integer
+                color_int = int(color_hex.replace('#', ''), 16)
+                embed_color = discord.Color(color_int)
+                self.logger.info(f"Converted color {color_hex} to Discord color")
+            except (ValueError, TypeError) as e:
+                self.logger.warning(f"Invalid color {color_hex}, using default Discord blurple: {e}")
+                embed_color = discord.Color.blurple()
+            # Create embed for the rules
+            embed = discord.Embed(
+                title=title,
+                description=rules,
+                color=embed_color
+            )
+            embed.set_footer(text=f"Server Rules | {guild.name}")
+            try:
+                # Send the embed
+                sent_message = await channel.send(embed=embed)
+                message_id = sent_message.id
+                self.logger.info(f"Successfully posted rules embed (ID: {message_id}) to #{channel.name}")
+                # Save to database using INSERT ... ON DUPLICATE KEY UPDATE
+                try:
+                    self.logger.info(f"Preparing to save to database - server_id: {server_id}, channel_id: {channel_id}, message_id: {message_id}")
+                    # Verify table exists first
+                    check_query = "SHOW TABLES LIKE 'rules_messages'"
+                    table_exists = await self.mysql.fetchone(check_query, database_name='specterdiscordbot')
+                    if not table_exists:
+                        self.logger.error("Table rules_messages does not exist! Creating it now...")
+                        await self._ensure_rules_messages_table()
+                    insert_query = """
+                        INSERT INTO rules_messages 
+                        (server_id, channel_id, message_id, title, rules_content, color)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                        channel_id = %s,
+                        message_id = %s,
+                        title = %s,
+                        rules_content = %s,
+                        color = %s
+                    """
+                    # For ON DUPLICATE KEY UPDATE, we need to provide values twice
+                    params = (
+                        str(server_id), str(channel_id), str(message_id), title, rules, color_hex,
+                        str(channel_id), str(message_id), title, rules, color_hex
+                    )
+                    self.logger.info(f"Executing INSERT with {len(params)} parameters")
+                    result = await self.mysql.execute(
+                        insert_query, 
+                        params=params,
+                        database_name='specterdiscordbot'
+                    )
+                    self.logger.info(f"Successfully saved rules message (ID: {message_id}) to database for server {server_id}, affected rows: {result}")
+                except Exception as e:
+                    self.logger.error(f"Error saving rules message to database: {e}")
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
+            except discord.HTTPException as e:
+                self.logger.error(f"Discord HTTP error sending rules message: {e}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error sending rules message: {e}")
+        except Exception as e:
+            self.logger.error(f"Error in post_rules_message: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
