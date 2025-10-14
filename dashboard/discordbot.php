@@ -1799,7 +1799,7 @@ ob_start();
             <div class="card-header-icon" style="cursor: default;">
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-flask"></i></span>
-                <span>PARTIAL BETA</span>
+                <span>PARTIAL COMPLETED</span>
               </span>
             </div>
           </header>
