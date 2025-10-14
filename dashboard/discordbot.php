@@ -1540,7 +1540,7 @@ ob_start();
           </header>
           <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
             <p class="has-text-grey-light mb-4">
-              Configure Discord channels for different bot events. This new system will replace webhook URLs with direct channel integration.
+              Configure Discord channels for different bot events.
             </p>
             <!-- Channel Input Mode Notification -->
             <?php if ($useManualIds): ?>
