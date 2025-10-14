@@ -4354,6 +4354,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     title TEXT,
                     rules_content TEXT,
                     color VARCHAR(7),
+                    accept_role_id VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     UNIQUE KEY unique_server (server_id),
@@ -4617,7 +4618,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
             title = data.get('title', 'Server Rules')
             rules = data.get('rules', '')
             color_hex = data.get('color', '#5865f2')
-            self.logger.info(f"Parsed data - server_id: {server_id}, channel_id: {channel_id}, title: {title}, color: {color_hex}")
+            accept_role_id = data.get('accept_role_id', '')
+            self.logger.info(f"Parsed data - server_id: {server_id}, channel_id: {channel_id}, title: {title}, color: {color_hex}, accept_role_id: {accept_role_id}")
             if not server_id or not channel_id:
                 self.logger.error("Missing server_id or channel_id in rules message data")
                 return
@@ -4688,6 +4690,15 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 sent_message = await channel.send(embed=embed)
                 message_id = sent_message.id
                 self.logger.info(f"Successfully posted rules embed (ID: {message_id}) to #{channel.name}")
+                # Add check mark reaction if accept_role_id is set
+                if accept_role_id:
+                    try:
+                        await sent_message.add_reaction('✅')
+                        self.logger.info(f"Added ✅ reaction to rules message (ID: {message_id})")
+                    except discord.Forbidden:
+                        self.logger.warning(f"Missing permissions to add reactions to rules message (ID: {message_id})")
+                    except Exception as e:
+                        self.logger.error(f"Error adding reaction to rules message: {e}")
                 # Save to database using INSERT ... ON DUPLICATE KEY UPDATE
                 try:
                     self.logger.info(f"Preparing to save to database - server_id: {server_id}, channel_id: {channel_id}, message_id: {message_id}")
@@ -4699,19 +4710,20 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         await self._ensure_rules_messages_table()
                     insert_query = """
                         INSERT INTO rules_messages 
-                        (server_id, channel_id, message_id, title, rules_content, color)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        (server_id, channel_id, message_id, title, rules_content, color, accept_role_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON DUPLICATE KEY UPDATE
                         channel_id = %s,
                         message_id = %s,
                         title = %s,
                         rules_content = %s,
-                        color = %s
+                        color = %s,
+                        accept_role_id = %s
                     """
                     # For ON DUPLICATE KEY UPDATE, we need to provide values twice
                     params = (
-                        str(server_id), str(channel_id), str(message_id), title, rules, color_hex,
-                        str(channel_id), str(message_id), title, rules, color_hex
+                        str(server_id), str(channel_id), str(message_id), title, rules, color_hex, str(accept_role_id) if accept_role_id else '',
+                        str(channel_id), str(message_id), title, rules, color_hex, str(accept_role_id) if accept_role_id else ''
                     )
                     self.logger.info(f"Executing INSERT with {len(params)} parameters")
                     result = await self.mysql.execute(
@@ -4741,6 +4753,56 @@ class ServerManagement(commands.Cog, name='Server Management'):
             # Ignore bot reactions
             if payload.user_id == self.bot.user.id:
                 return
+            
+            # Check if this is a rules acceptance reaction (✅)
+            if str(payload.emoji) == '✅':
+                message_id = payload.message_id
+                # Check if this message is a rules message with role assignment enabled
+                try:
+                    query = "SELECT server_id, accept_role_id FROM rules_messages WHERE message_id = %s AND accept_role_id != ''"
+                    rules_data = await self.mysql.fetchone(query, params=(str(message_id),), database_name='specterdiscordbot', dict_cursor=True)
+                    if rules_data:
+                        server_id = rules_data['server_id']
+                        accept_role_id = rules_data['accept_role_id']
+                        self.logger.info(f"Rules acceptance reaction detected - message: {message_id}, server: {server_id}, role: {accept_role_id}")
+                        # Get the guild
+                        guild = self.bot.get_guild(payload.guild_id)
+                        if not guild:
+                            self.logger.error(f"Guild {payload.guild_id} not found")
+                            return
+                        # Verify this is the correct server
+                        if str(guild.id) != str(server_id):
+                            self.logger.warning(f"Guild mismatch: {guild.id} != {server_id}")
+                            return
+                        # Get the member
+                        member = guild.get_member(payload.user_id)
+                        if not member:
+                            self.logger.error(f"Member {payload.user_id} not found in guild {guild.name}")
+                            return
+                        # Get the role
+                        try:
+                            role = guild.get_role(int(accept_role_id))
+                            if role:
+                                # Check if member already has the role
+                                if role in member.roles:
+                                    self.logger.debug(f"Member {member.name} already has role {role.name}")
+                                else:
+                                    # Assign the role
+                                    await member.add_roles(role, reason="Accepted server rules")
+                                    self.logger.info(f"Assigned rules acceptance role {role.name} to {member.name}")
+                            else:
+                                self.logger.warning(f"Role {accept_role_id} not found in guild {guild.name}")
+                        except ValueError:
+                            self.logger.error(f"Invalid accept_role_id: {accept_role_id}")
+                        except discord.Forbidden:
+                            self.logger.error(f"Missing permissions to assign role {accept_role_id} to {member.name}")
+                        except Exception as e:
+                            self.logger.error(f"Error assigning rules acceptance role: {e}")
+                        # Return after handling rules reaction to prevent it from being processed as a reaction role
+                        return
+                except Exception as e:
+                    self.logger.error(f"Error checking for rules message: {e}")
+            
             # Check if this message is a reaction roles message
             message_id = payload.message_id
             if message_id not in self.reaction_roles_cache:
