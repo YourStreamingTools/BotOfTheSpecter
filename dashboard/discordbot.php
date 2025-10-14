@@ -1514,875 +1514,873 @@ ob_start();
         <?php endif; ?>
         <?php endif; ?>
     </div>
-        <div class="columns is-variable is-6">
-          <!-- Left Column: New Discord Channel IDs Form -->
-          <div class="column is-6">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
-                  Discord Event Channels
-                </p>
-                <div class="card-header-icon" style="cursor: default;">
-                  <span class="tag is-success is-light">
-                    <span class="icon"><i class="fas fa-check-circle"></i></span>
-                    <span>COMPLETED</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
-                <p class="has-text-grey-light mb-4">
-                  Configure Discord channels for different bot events. This new system will replace webhook URLs with direct channel integration.
-                </p>
-                <!-- Channel Input Mode Notification -->
-                <?php if ($useManualIds): ?>
-                  <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                    <span class="icon"><i class="fas fa-keyboard"></i></span>
-                    <strong>Manual Input Mode:</strong> You are in manual ID mode. Enter channel IDs directly.
-                  </div>
-                <?php elseif (!empty($guildChannels)): ?>
-                  <div class="notification is-success is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                    <span class="icon"><i class="fas fa-list"></i></span>
-                    <strong>Channel Selector Mode:</strong> Select channels from your Discord server dropdowns.
-                  </div>
-                <?php elseif (!empty($existingGuildId)): ?>
-                  <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                    <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                    <strong>Loading Channels:</strong> Unable to load channels. You may need to re-authorize your Discord account or check server permissions.
-                  </div>
-                <?php else: ?>
-                  <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                    <span class="icon"><i class="fas fa-server"></i></span>
-                    <strong>Server Required:</strong> Please configure your Discord Server above to enable channel selection.
-                  </div>
-                <?php endif; ?>
-                <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
-                  <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
-                  <div class="field">
-                    <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
-                      <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>
-                      Stream Online Alerts Channel
-                    </label>
-                    <p class="help has-text-grey-light mb-2">For stream online notifications of your channel</p>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('stream_channel_id', 'stream_channel_id', $existingStreamAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                  </div>
-                  <div class="field" id="stream_everyone_field" style="display: none;">
-                    <label class="label has-text-white" style="font-weight: 500;">
-                      <span class="icon mr-1 has-text-warning"><i class="fas fa-at"></i></span>
-                      @everyone Mention for Stream Alerts
-                    </label>
-                    <p class="help has-text-grey-light mb-2">Mention @everyone when posting stream online alerts</p>
-                    <div class="control">
-                      <input type="checkbox" id="stream_alert_everyone" name="stream_alert_everyone" class="switch is-rounded" value="1"<?php echo $existingStreamAlertEveryone ? ' checked' : ''; ?>>
-                      <label for="stream_alert_everyone" class="has-text-white">Enable @everyone mention</label>
-                    </div>
-                  </div>
-                  <div class="field" id="stream_custom_role_field" style="display: none;">
-                    <label class="label has-text-white" style="font-weight: 500;">
-                      <span class="icon mr-1 has-text-info"><i class="fas fa-user-tag"></i></span>
-                      Custom Role Mention for Stream Alerts
-                    </label>
-                    <p class="help has-text-grey-light mb-2">Select a custom role to mention instead of @everyone</p>
-                    <div class="control has-icons-left">
-                      <?php echo generateRoleInput(
-                        'stream_alert_custom_role', 
-                        'stream_alert_custom_role', 
-                        $existingStreamAlertCustomRole, 
-                        'e.g. 123456789123456789', 
-                        $useManualIds, 
-                        $guildRoles, 
-                        'fas fa-user-tag', 
-                        false
-                      ); ?>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" for="mod_channel_id" style="font-weight: 500;">
-                      <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
-                      Twitch Moderation Actions Channel
-                    </label>
-                    <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g. bans, timeouts, message deletions</p>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
-                      <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
-                      Twitch Event Alerts Channel
-                    </label>
-                    <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g. Followers, Subscriptions, Bits</p>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" for="twitch_stream_monitor_id" style="font-weight: 500;">
-                      <span class="icon mr-1 has-text-info"><i class="fab fa-twitch"></i></span>
-                      Twitch Stream Monitoring Channel
-                    </label>
-                    <p class="help has-text-grey-light mb-2">For our Twitch Stream Monitoring system, this channel will be used to post when the users you're tracking goes live.</p>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('twitch_stream_monitor_id', 'twitch_stream_monitor_id', $existingTwitchStreamMonitoringID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" for="live_channel_id" style="font-weight: 500;">
-                      <span class="icon mr-1 has-text-info"><i class="fa-solid fa-volume-high"></i></span>
-                      Live Status Channel
-                    </label>
-                    <p class="help has-text-grey-light mb-2">The voice channel to update with live status</p>
-                    <div class="control has-icons-left">
-                      <?php echo generateVoiceChannelInput('live_channel_id', 'live_channel_id', $existingLiveChannelId, 'e.g. 123456789123456789', $useManualIds, $guildVoiceChannels, 'fas fa-volume-up', true); ?>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" for="online_text" style="font-weight: 500;">
-                      <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
-                      Online Text
-                    </label>
-                    <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is online</p>
-                    <div class="control has-icons-left">
-                      <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>"<?php if (empty($existingOnlineText)) { echo ' placeholder="e.g. Stream Online"'; } ?> maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                      <span class="icon is-small is-left has-text-success"><i class="fa-solid fa-comment"></i></span>
-                    </div>
-                    <p class="help has-text-grey-light">
-                      <span id="online_text_counter"><?php echo strlen($existingOnlineText); ?></span>/20 characters
-                    </p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" for="offline_text" style="font-weight: 500;">
-                      <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
-                      Offline Text
-                    </label>
-                    <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is offline</p>
-                    <div class="control has-icons-left">
-                      <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>"<?php if (empty($existingOfflineText)) { echo ' placeholder="e.g. Stream Offline"'; } ?> maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                      <span class="icon is-small is-left has-text-danger"><i class="fa-solid fa-comment"></i></span>
-                    </div>
-                    <p class="help has-text-grey-light">
-                      <span id="offline_text_counter"><?php echo strlen($existingOfflineText); ?></span>/20 characters
-                    </p>
-                  </div>
-                  <div style="flex-grow: 1;"></div>
-                  <?php if ($useManualIds): ?>
-                  <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                    <div class="content">
-                      <p><strong>How to get Channel IDs:</strong></p>
-                      <ol class="mb-2">
-                        <li>Enable Developer Mode in Discord (User Settings → Advanced → Developer Mode)</li>
-                        <li>Right-click on the desired channel</li>
-                        <li>Select "Copy Channel ID"</li>
-                        <li>Paste the ID into the appropriate field above</li>
-                      </ol>
-                    </div>
-                  </div>
-                  <?php endif; ?>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <span class="icon"><i class="fas fa-cog"></i></span>
-                        <span>Save Channel Configuration</span>
-                      </button>
-                    </div>
-                    <?php if (!$is_linked || $needs_relink): ?>
-                    <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
-                    <?php elseif (!$hasGuildId): ?>
-                    <p class="help has-text-warning has-text-centered mt-2">Guild ID not setup</p>
-                    <?php else: ?>
-                    <p class="help has-text-grey-light has-text-centered mt-2">
-                      Most of these features are currently under development. You can still set the channel IDs and text for future use.
-                    </p>
-                    <?php endif; ?>
-                  </div>
-                </form>
+    <!-- Discord Event Channels Configuration Cards -->
+    <div class="columns is-variable is-6">
+      <div class="column is-6">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
+              Discord Event Channels
+            </p>
+            <div class="card-header-icon" style="cursor: default;">
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>COMPLETED</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <p class="has-text-grey-light mb-4">
+              Configure Discord channels for different bot events. This new system will replace webhook URLs with direct channel integration.
+            </p>
+            <!-- Channel Input Mode Notification -->
+            <?php if ($useManualIds): ?>
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <span class="icon"><i class="fas fa-keyboard"></i></span>
+                <strong>Manual Input Mode:</strong> You are in manual ID mode. Enter channel IDs directly.
               </div>
+            <?php elseif (!empty($guildChannels)): ?>
+              <div class="notification is-success is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <span class="icon"><i class="fas fa-list"></i></span>
+                <strong>Channel Selector Mode:</strong> Select channels from your Discord server dropdowns.
+              </div>
+            <?php elseif (!empty($existingGuildId)): ?>
+              <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                <strong>Loading Channels:</strong> Unable to load channels. You may need to re-authorize your Discord account or check server permissions.
+              </div>
+            <?php else: ?>
+              <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <span class="icon"><i class="fas fa-server"></i></span>
+                <strong>Server Required:</strong> Please configure your Discord Server above to enable channel selection.
+              </div>
+            <?php endif; ?>
+            <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
+              <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
+              <div class="field">
+                <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>
+                  Stream Online Alerts Channel
+                </label>
+                <p class="help has-text-grey-light mb-2">For stream online notifications of your channel</p>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('stream_channel_id', 'stream_channel_id', $existingStreamAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+              </div>
+              <div class="field" id="stream_everyone_field" style="display: none;">
+                <label class="label has-text-white" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-warning"><i class="fas fa-at"></i></span>
+                  @everyone Mention for Stream Alerts
+                </label>
+                <p class="help has-text-grey-light mb-2">Mention @everyone when posting stream online alerts</p>
+                <div class="control">
+                  <input type="checkbox" id="stream_alert_everyone" name="stream_alert_everyone" class="switch is-rounded" value="1"<?php echo $existingStreamAlertEveryone ? ' checked' : ''; ?>>
+                  <label for="stream_alert_everyone" class="has-text-white">Enable @everyone mention</label>
+                </div>
+              </div>
+              <div class="field" id="stream_custom_role_field" style="display: none;">
+                <label class="label has-text-white" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-info"><i class="fas fa-user-tag"></i></span>
+                  Custom Role Mention for Stream Alerts
+                </label>
+                <p class="help has-text-grey-light mb-2">Select a custom role to mention instead of @everyone</p>
+                <div class="control has-icons-left">
+                  <?php echo generateRoleInput(
+                    'stream_alert_custom_role', 
+                    'stream_alert_custom_role', 
+                    $existingStreamAlertCustomRole, 
+                    'e.g. 123456789123456789', 
+                    $useManualIds, 
+                    $guildRoles, 
+                    'fas fa-user-tag', 
+                    false
+                  ); ?>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" for="mod_channel_id" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
+                  Twitch Moderation Actions Channel
+                </label>
+                <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g. bans, timeouts, message deletions</p>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
+                  Twitch Event Alerts Channel
+                </label>
+                <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g. Followers, Subscriptions, Bits</p>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" for="twitch_stream_monitor_id" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-info"><i class="fab fa-twitch"></i></span>
+                  Twitch Stream Monitoring Channel
+                </label>
+                <p class="help has-text-grey-light mb-2">For our Twitch Stream Monitoring system, this channel will be used to post when the users you're tracking goes live.</p>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('twitch_stream_monitor_id', 'twitch_stream_monitor_id', $existingTwitchStreamMonitoringID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" for="live_channel_id" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-info"><i class="fa-solid fa-volume-high"></i></span>
+                  Live Status Channel
+                </label>
+                <p class="help has-text-grey-light mb-2">The voice channel to update with live status</p>
+                <div class="control has-icons-left">
+                  <?php echo generateVoiceChannelInput('live_channel_id', 'live_channel_id', $existingLiveChannelId, 'e.g. 123456789123456789', $useManualIds, $guildVoiceChannels, 'fas fa-volume-up', true); ?>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" for="online_text" style="font-weight: 500;">
+                  <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
+                  Online Text
+                </label>
+                <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is online</p>
+                <div class="control has-icons-left">
+                  <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>"<?php if (empty($existingOnlineText)) { echo ' placeholder="e.g. Stream Online"'; } ?> maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                  <span class="icon is-small is-left has-text-success"><i class="fa-solid fa-comment"></i></span>
+                </div>
+                <p class="help has-text-grey-light">
+                  <span id="online_text_counter"><?php echo strlen($existingOnlineText); ?></span>/20 characters
+                </p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" for="offline_text" style="font-weight: 500;">
+                  <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
+                  Offline Text
+                </label>
+                <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is offline</p>
+                <div class="control has-icons-left">
+                  <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>"<?php if (empty($existingOfflineText)) { echo ' placeholder="e.g. Stream Offline"'; } ?> maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                  <span class="icon is-small is-left has-text-danger"><i class="fa-solid fa-comment"></i></span>
+                </div>
+                <p class="help has-text-grey-light">
+                  <span id="offline_text_counter"><?php echo strlen($existingOfflineText); ?></span>/20 characters
+                </p>
+              </div>
+              <div style="flex-grow: 1;"></div>
+              <?php if ($useManualIds): ?>
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <div class="content">
+                  <p><strong>How to get Channel IDs:</strong></p>
+                  <ol class="mb-2">
+                    <li>Enable Developer Mode in Discord (User Settings → Advanced → Developer Mode)</li>
+                    <li>Right-click on the desired channel</li>
+                    <li>Select "Copy Channel ID"</li>
+                    <li>Paste the ID into the appropriate field above</li>
+                  </ol>
+                </div>
+              </div>
+              <?php endif; ?>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="icon"><i class="fas fa-cog"></i></span>
+                    <span>Save Channel Configuration</span>
+                  </button>
+                </div>
+                <?php if (!$is_linked || $needs_relink): ?>
+                <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                <?php elseif (!$hasGuildId): ?>
+                <p class="help has-text-warning has-text-centered mt-2">Guild ID not setup</p>
+                <?php else: ?>
+                <p class="help has-text-grey-light has-text-centered mt-2">
+                  Most of these features are currently under development. You can still set the channel IDs and text for future use.
+                </p>
+                <?php endif; ?>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <!-- Right Column -->
+      <div class="column is-6">
+        <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-primary"><i class="fa-brands fa-twitch"></i></span>
+              Twitch Stream Monitoring
+            </p>
+            <div class="card-header-icon" style="cursor: default;">
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>COMPLETED</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" for="option" style="font-weight: 500;">Twitch Username</label>
+                <div class="control has-icons-left">
+                  <input class="input" type="text" id="monitor_username" name="monitor_username" placeholder="e.g. botofthespecter" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                  <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-person"></i></span>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Add Streamer</span>
+                  </button>
+                </div>
+                <?php if (!$is_linked || $needs_relink): ?>
+                <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                <?php endif; ?>
+              </div>
+            </form>
+            <div class="mt-3">
+              <button class="button is-link is-fullwidth modal-button" style="border-radius: 6px; font-weight: 600;" data-target="savedStreamersModal">
+                <span class="icon"><i class="fa-solid fa-people-group"></i></span>
+                <span>View Tracked Streamers</span>
+              </button>
             </div>
           </div>
-          <!-- Right Column -->
-          <div class="column is-6">
-            <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-primary"><i class="fa-brands fa-twitch"></i></span>
-                  Twitch Stream Monitoring
-                </p>
-                <div class="card-header-icon" style="cursor: default;">
-                  <span class="tag is-success is-light">
-                    <span class="icon"><i class="fas fa-check-circle"></i></span>
-                    <span>COMPLETED</span>
-                  </span>
+        </div>
+        <!-- Discord Server Management Box -->
+        <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
+              Discord Server Management
+            </p>
+            <div class="card-header-icon" style="cursor: default;">
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-flask"></i></span>
+                <span>PARTIAL BETA</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <?php if (!$is_linked || $needs_relink): ?>
+            <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+              <strong>Account Not Linked:</strong> Please link your Discord account to access server management features.
+            </div>
+            <?php elseif (!$hasGuildId): ?>
+            <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+              <strong>Guild ID Required:</strong> Please configure your Discord Server ID above to enable server management features.
+            </div>
+            <?php else: ?>
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <span class="icon"><i class="fas fa-info-circle"></i></span>
+              <strong>Comprehensive Discord server management and moderation tools. Features include welcome messages, auto-role assignment, role history tracking, message monitoring (edited/deleted messages), and role change tracking for complete server oversight.</strong>
+            </div>
+            <?php endif; ?>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <div class="control">
+                    <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="welcomeMessage" class="has-text-white">Welcome Message</label>
+                  </div>
                 </div>
-              </header>
-              <div class="card-content">
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" for="option" style="font-weight: 500;">Twitch Username</label>
-                    <div class="control has-icons-left">
-                      <input class="input" type="text" id="monitor_username" name="monitor_username" placeholder="e.g. botofthespecter" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-person"></i></span>
-                    </div>
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <div class="control">
+                    <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="autoRole" class="has-text-white">Auto Role on Join</label>
                   </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Add Streamer</span>
-                      </button>
-                    </div>
-                    <?php if (!$is_linked || $needs_relink): ?>
-                    <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
-                    <?php endif; ?>
+                </div>
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <div class="control">
+                    <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="roleHistory" class="has-text-white">Role History (Restore roles on rejoin)</label>
                   </div>
-                </form>
-                <div class="mt-3">
-                  <button class="button is-link is-fullwidth modal-button" style="border-radius: 6px; font-weight: 600;" data-target="savedStreamersModal">
-                    <span class="icon"><i class="fa-solid fa-people-group"></i></span>
-                    <span>View Tracked Streamers</span>
+                </div>
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <div class="control">
+                    <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="messageTracking" class="has-text-white">Message Tracking (Edited/Deleted messages)</label>
+                  </div>
+                </div>
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <div class="control">
+                    <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="roleTracking" class="has-text-white">Role Tracking (User added/removed from roles)</label>
+                  </div>
+                </div>
+                <div class="field" style="margin-bottom: 0.75rem;">
+                  <div class="control">
+                    <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="serverRoleManagement" class="has-text-white">Server Role Management (Track role creation/deletion)</label>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="userTracking" class="has-text-white">User Tracking (Nickname, profile picture, status changes)</label>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <input id="reactionRoles" type="checkbox" name="reactionRoles" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="reactionRoles" class="has-text-white">Reaction Roles (Self-assignable roles via reactions)</label>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <label for="rulesConfiguration" class="has-text-white">Rules Configuration (Post server rules embed)</label>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Individual Management Feature Cards -->
+    <?php if ($hasEnabledFeatures && $is_linked && !$needs_relink && $hasGuildId): ?>
+    <div class="columns is-multiline is-variable is-3">
+      <?php if ($serverManagementSettings['welcomeMessage']): ?>
+      <div class="column is-half mb-1">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-success"><i class="fas fa-door-open"></i></span>
+              Welcome Message Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>COMPLETED</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-info is-light mb-1">
+              <p class="has-text-dark"><strong>Welcome Message:</strong> Send automated welcome messages when new members join your Discord server.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure automated welcome messages for new members joining your Discord server.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Welcome Channel</label>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('welcome_channel_id', 'welcome_channel_id', $existingWelcomeChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+                <p class="help has-text-grey-light">Channel where welcome messages will be sent</p>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" id="use_default_welcome_message" name="use_default_welcome_message" style="margin-right: 8px;"<?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?>>
+                    Use default welcome message
+                  </label>
+                </div>
+                <p class="help has-text-grey-light">Enable this to use the bot's default welcome message instead of a custom one</p>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" id="enable_embed_message" name="enable_embed_message" style="margin-right: 8px;"<?php echo $existingWelcomeEmbed ? ' checked' : ''; ?>>
+                    Enable Embed Message
+                  </label>
+                </div>
+                <p class="help has-text-grey-light">Send the welcome message as a rich embed with formatting and colors</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Custom Welcome Message</label>
+                <div class="control">
+                  <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome (user) to our server, we're so glad you joined us!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"<?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
+                </div>
+                <p class="help has-text-grey-light">Use (user) to insert the member's username</p>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveWelcomeMessage()" name="save_welcome_message" style="border-radius: 6px; font-weight: 600;">
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save Welcome Message Configuration</span>
                   </button>
                 </div>
               </div>
-            </div>
-            <!-- Discord Server Management Box -->
-            <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
-                  Discord Server Management
-                </p>
-                <div class="card-header-icon" style="cursor: default;">
-                  <span class="tag is-success is-light">
-                    <span class="icon"><i class="fas fa-flask"></i></span>
-                    <span>PARTIAL BETA</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <?php if (!$is_linked || $needs_relink): ?>
-                <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                  <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                  <strong>Account Not Linked:</strong> Please link your Discord account to access server management features.
-                </div>
-                <?php elseif (!$hasGuildId): ?>
-                <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                  <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                  <strong>Guild ID Required:</strong> Please configure your Discord Server ID above to enable server management features.
-                </div>
-                <?php else: ?>
-                <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                  <span class="icon"><i class="fas fa-info-circle"></i></span>
-                  <strong>Comprehensive Discord server management and moderation tools. Features include welcome messages, auto-role assignment, role history tracking, message monitoring (edited/deleted messages), and role change tracking for complete server oversight.</strong>
-                </div>
-                <?php endif; ?>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
-                    <div class="field" style="margin-bottom: 0.75rem;">
-                      <div class="control">
-                        <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <label for="welcomeMessage" class="has-text-white">Welcome Message</label>
-                      </div>
-                    </div>
-                    <div class="field" style="margin-bottom: 0.75rem;">
-                      <div class="control">
-                        <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <label for="autoRole" class="has-text-white">Auto Role on Join</label>
-                      </div>
-                    </div>
-                    <div class="field" style="margin-bottom: 0.75rem;">
-                      <div class="control">
-                        <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <label for="roleHistory" class="has-text-white">Role History (Restore roles on rejoin)</label>
-                      </div>
-                    </div>
-                    <div class="field" style="margin-bottom: 0.75rem;">
-                      <div class="control">
-                        <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <label for="messageTracking" class="has-text-white">Message Tracking (Edited/Deleted messages)</label>
-                      </div>
-                    </div>
-                    <div class="field" style="margin-bottom: 0.75rem;">
-                      <div class="control">
-                        <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <label for="roleTracking" class="has-text-white">Role Tracking (User added/removed from roles)</label>
-                      </div>
-                    </div>
-                    <div class="field" style="margin-bottom: 0.75rem;">
-                      <div class="control">
-                        <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <label for="serverRoleManagement" class="has-text-white">Server Role Management (Track role creation/deletion)</label>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <label for="userTracking" class="has-text-white">User Tracking (Nickname, profile picture, status changes)</label>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <input id="reactionRoles" type="checkbox" name="reactionRoles" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <label for="reactionRoles" class="has-text-white">Reaction Roles (Self-assignable roles via reactions)</label>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                        <label for="rulesConfiguration" class="has-text-white">Rules Configuration (Post server rules embed)</label>
-                      </div>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
+            </form>
           </div>
         </div>
-        <!-- Individual Management Feature Cards -->
-        <?php if ($hasEnabledFeatures && $is_linked && !$needs_relink && $hasGuildId): ?>
-        <div class="columns is-multiline is-variable is-3">
-          <?php if ($serverManagementSettings['welcomeMessage']): ?>
-          <div class="column is-half mb-1">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-success"><i class="fas fa-door-open"></i></span>
-                  Welcome Message Configuration
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-success is-light">
-                    <span class="icon"><i class="fas fa-check-circle"></i></span>
-                    <span>COMPLETED</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <div class="notification is-info is-light mb-1">
-                  <p class="has-text-dark"><strong>Welcome Message:</strong> Send automated welcome messages when new members join your Discord server.</p>
-                </div>
-                <p class="has-text-white-ter mb-1">Configure automated welcome messages for new members joining your Discord server.</p>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Welcome Channel</label>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('welcome_channel_id', 'welcome_channel_id', $existingWelcomeChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                    <p class="help has-text-grey-light">Channel where welcome messages will be sent</p>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <label class="checkbox has-text-white">
-                        <input type="checkbox" id="use_default_welcome_message" name="use_default_welcome_message" style="margin-right: 8px;"<?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?>>
-                        Use default welcome message
-                      </label>
-                    </div>
-                    <p class="help has-text-grey-light">Enable this to use the bot's default welcome message instead of a custom one</p>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <label class="checkbox has-text-white">
-                        <input type="checkbox" id="enable_embed_message" name="enable_embed_message" style="margin-right: 8px;"<?php echo $existingWelcomeEmbed ? ' checked' : ''; ?>>
-                        Enable Embed Message
-                      </label>
-                    </div>
-                    <p class="help has-text-grey-light">Send the welcome message as a rich embed with formatting and colors</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Custom Welcome Message</label>
-                    <div class="control">
-                      <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome (user) to our server, we're so glad you joined us!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"<?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
-                    </div>
-                    <p class="help has-text-grey-light">Use (user) to insert the member's username</p>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveWelcomeMessage()" name="save_welcome_message" style="border-radius: 6px; font-weight: 600;">
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Welcome Message Configuration</span>
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-          <?php if ($serverManagementSettings['autoRole']): ?>
-          <div class="column is-half mb-1">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-info"><i class="fas fa-user-plus"></i></span>
-                  Auto Role Assignment Configuration
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-success is-light">
-                    <span class="icon"><i class="fas fa-check-circle"></i></span>
-                    <span>COMPLETED</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <div class="notification is-info is-light mb-1">
-                  <p class="has-text-dark"><strong>Auto Role Assignment:</strong> Automatically assign a role to new members when they join your Discord server.</p>
-                </div>
-                <p class="has-text-white-ter mb-1">Configure automatic role assignment for new members joining your Discord server.</p>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Auto Role</label>
-                    <div class="control has-icons-left">
-                      <?php echo generateRoleInput(
-                        'auto_role_id', 
-                        'auto_role_id', 
-                        $existingAutoRoleID, // Current value from database 
-                        'e.g. 123456789123456789', 
-                        $useManualIds, 
-                        $guildRoles, 
-                        'fas fa-user-tag', 
-                        false
-                      ); ?>
-                    </div>
-                    <p class="help has-text-grey-light">Role to automatically assign to new members</p>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveAutoRole()" name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Auto Role Settings</span>
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-          <?php if ($serverManagementSettings['roleHistory']): ?>
-          <div class="column is-half mb-1">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-warning"><i class="fas fa-history"></i></span>
-                  Role History Configuration
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span>Coming Soon</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <div class="notification is-warning is-light mb-1">
-                  <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
-                </div>
-                <p class="has-text-white-ter mb-1">Configure role restoration settings for members who rejoin your Discord server.</p>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Role History Settings</label>
-                    <div class="control">
-                      <label class="checkbox has-text-white">
-                        <input type="checkbox" name="restore_all_roles" style="margin-right: 8px;" disabled>
-                        Restore all previous roles when member rejoins
-                      </label>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">History Retention (Days)</label>
-                    <div class="control has-icons-left">
-                      <input class="input" type="number" name="history_retention_days" value="30" min="1" max="365" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
-                      <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-calendar"></i></span>
-                    </div>
-                    <p class="help has-text-grey-light">How long to keep role history data</p>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="submit" name="save_role_history" style="border-radius: 6px; font-weight: 600;" disabled>
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Role History Settings</span>
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-          <?php if ($serverManagementSettings['messageTracking']): ?>
-          <div class="column is-half mb-1">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-danger"><i class="fas fa-eye"></i></span>
-                  Message Tracking Configuration
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span>Coming Soon</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <div class="notification is-warning is-light mb-1">
-                  <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
-                </div>
-                <p class="has-text-white-ter mb-1">Configure message tracking for edited and deleted messages in your Discord server.</p>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Message Log Channel ID</label>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('message_log_channel_id', 'message_log_channel_id', $existingMessageLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                    <p class="help has-text-grey-light">Channel where message edit/delete logs will be sent</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
-                    <div class="control">
-                      <label class="checkbox has-text-white mb-2" style="display: block;">
-                        <input type="checkbox" name="track_edits" style="margin-right: 8px;" disabled>
-                        Track message edits
-                      </label>
-                      <label class="checkbox has-text-white">
-                        <input type="checkbox" name="track_deletes" style="margin-right: 8px;" disabled>
-                        Track message deletions
-                      </label>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveMessageTracking()" name="save_message_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Message Tracking Settings</span>
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-          <?php if ($serverManagementSettings['roleTracking']): ?>
-          <div class="column is-half mb-1">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-primary"><i class="fas fa-users-cog"></i></span>
-                  Role Tracking Configuration
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span>Coming Soon</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <div class="notification is-warning is-light mb-1">
-                  <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
-                </div>
-                <p class="has-text-white-ter mb-1">Configure role change tracking for audit purposes in your Discord server.</p>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Role Log Channel ID</label>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('role_log_channel_id', 'role_log_channel_id', $existingRoleLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                    <p class="help has-text-grey-light">Channel where role change logs will be sent</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
-                    <div class="control">
-                      <label class="checkbox has-text-white mb-2" style="display: block;">
-                        <input type="checkbox" name="track_role_additions" style="margin-right: 8px;" disabled>
-                        Track role additions
-                      </label>
-                      <label class="checkbox has-text-white">
-                        <input type="checkbox" name="track_role_removals" style="margin-right: 8px;" disabled>
-                        Track role removals
-                      </label>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveRoleTracking()" name="save_role_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Role Tracking Settings</span>
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-          <?php if ($serverManagementSettings['serverRoleManagement']): ?>
-          <div class="column is-half mb-1">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-link"><i class="fas fa-cogs"></i></span>
-                  Server Role Management Configuration
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span>Coming Soon</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <div class="notification is-warning is-light mb-1">
-                  <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
-                </div>
-                <p class="has-text-white-ter mb-1">Configure tracking for role creation and deletion within your Discord server.</p>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Server Management Log Channel ID</label>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('server_mgmt_log_channel_id', 'server_mgmt_log_channel_id', $existingServerMgmtLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                    <p class="help has-text-grey-light">Channel where server role management logs will be sent</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Management Options</label>
-                    <div class="control">
-                      <label class="checkbox has-text-white mb-2" style="display: block;">
-                        <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" disabled>
-                        Track role creation
-                      </label>
-                      <label class="checkbox has-text-white">
-                        <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" disabled>
-                        Track role deletion
-                      </label>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveServerRoleManagement()" name="save_server_role_management" style="border-radius: 6px; font-weight: 600;" disabled>
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Server Role Management Settings</span>
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-          <?php if ($serverManagementSettings['userTracking']): ?>
-          <div class="column is-half mb-1">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-info"><i class="fas fa-user-edit"></i></span>
-                  User Tracking Configuration
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span>Coming Soon</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <div class="notification is-warning is-light mb-1">
-                  <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
-                </div>
-                <p class="has-text-white-ter mb-1">Configure user profile change tracking for your Discord server.</p>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">User Log Channel ID</label>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('user_log_channel_id', 'user_log_channel_id', $existingUserLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                    <p class="help has-text-grey-light">Channel where user change logs will be sent</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
-                    <div class="control">
-                      <label class="checkbox has-text-white mb-2" style="display: block;">
-                        <input type="checkbox" name="track_nickname_changes" style="margin-right: 8px;" disabled>
-                        Track nickname changes
-                      </label>
-                      <label class="checkbox has-text-white mb-2" style="display: block;">
-                        <input type="checkbox" name="track_avatar_changes" style="margin-right: 8px;" disabled>
-                        Track avatar changes
-                      </label>
-                      <label class="checkbox has-text-white">
-                        <input type="checkbox" name="track_status_changes" style="margin-right: 8px;" disabled>
-                        Track status changes
-                      </label>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveUserTracking()" name="save_user_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save User Tracking Settings</span>
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-          <?php if ($serverManagementSettings['reactionRoles']): ?>
-          <div class="column is-half mb-1">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-purple"><i class="fas fa-hand-paper"></i></span>
-                  Reaction Roles Configuration
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-success is-light">
-                    <span class="icon"><i class="fas fa-check-circle"></i></span>
-                    <span>COMPLETED</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <div class="notification is-info is-light mb-1">
-                  <p class="has-text-dark"><strong>Reaction Roles:</strong> Configure self-assignable roles via reactions in your Discord server.</p>
-                </div>
-                <p class="has-text-white-ter mb-1">Configure self-assignable roles via reactions in your Discord server.</p>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Channel ID</label>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('reaction_roles_channel_id', 'reaction_roles_channel_id', $existingReactionRolesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                    <p class="help has-text-grey-light">Channel where reaction roles messages will be posted</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Message</label>
-                    <div class="control">
-                      <textarea class="textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3" placeholder="To join any of the following roles, use the icons below. Click on the boxes below to get the roles!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
-                    </div>
-                    <p class="help has-text-grey-light">Message to display above the reaction roles. Leave empty for no message.</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
-                    <div class="control">
-                      <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: Thumbs Up @Role1 [green]&#10;:heart: Love @Role2 [red]&#10;:star: VIP @Role3 [blue]&#10;Member Role @Role4 [gray]" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings ?? ''); ?></textarea>
-                    </div>
-                    <p class="help has-text-grey-light">Format: :emoji: Description @RoleName [color] (one per line)<br>
-                    Colors: blue/primary, gray/secondary, green/success, red/danger (optional, defaults to blue)</p>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <label class="checkbox has-text-white">
-                        <input type="checkbox" id="allow_multiple_reactions" name="allow_multiple_reactions" style="margin-right: 8px;"<?php echo $existingAllowMultipleReactions ? ' checked' : ''; ?>>
-                        Allow users to select multiple roles
-                      </label>
-                    </div>
-                    <p class="help has-text-grey-light">If unchecked, users can only have one role from this reaction role set</p>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;" disabled>
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Reaction Roles Settings</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-success is-fullwidth" type="button" onclick="sendReactionRolesMessage()" id="send_reaction_roles_message" name="send_reaction_roles_message" style="border-radius: 6px; font-weight: 600;" disabled>
-                        <span class="icon"><i class="fas fa-paper-plane"></i></span>
-                        <span>Send Message to Channel</span>
-                      </button>
-                    </div>
-                    <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the reaction roles message in Discord and applies the emoji mappings</p>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-          <?php if ($serverManagementSettings['rulesConfiguration']): ?>
-          <div class="column is-half mb-1">
-            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-              <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                <p class="card-header-title has-text-white" style="font-weight: 600;">
-                  <span class="icon mr-2 has-text-info"><i class="fas fa-gavel"></i></span>
-                  Rules Configuration
-                </p>
-                <div class="card-header-icon">
-                  <span class="tag is-warning is-light">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span>COMING SOON</span>
-                  </span>
-                </div>
-              </header>
-              <div class="card-content">
-                <div class="notification is-warning is-light mb-1">
-                  <p class="has-text-dark"><strong>⚠️ Coming Soon:</strong> This feature is currently in development. The UI is complete but backend integration is pending.</p>
-                </div>
-                <div class="notification is-info is-light mb-1">
-                  <p class="has-text-dark"><strong>Rules:</strong> Post an embed with your server rules to keep your community informed.</p>
-                </div>
-                <p class="has-text-white-ter mb-1">Configure and post an embed message with your server rules.</p>
-                <form action="" method="post">
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Rules Channel</label>
-                    <div class="control has-icons-left">
-                      <?php echo generateChannelInput('rules_channel_id', 'rules_channel_id', $existingRulesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                    </div>
-                    <p class="help has-text-grey-light">Channel where the rules message will be posted</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Rules Title</label>
-                    <div class="control">
-                      <input class="input" type="text" id="rules_title" name="rules_title" value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="e.g. Server Rules" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                    </div>
-                    <p class="help has-text-grey-light">Title for the rules embed (appears at the top)</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Rules Content</label>
-                    <div class="control">
-                      <textarea class="textarea" id="rules_content" name="rules_content" rows="8" placeholder="Enter your server rules (one per line or formatted as you prefer)&#10;&#10;Example:&#10;1. Be respectful to all members&#10;2. No spamming or advertising&#10;3. Keep content appropriate&#10;4. Follow Discord's Terms of Service" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingRulesContent ?? ''); ?></textarea>
-                    </div>
-                    <p class="help has-text-grey-light">Enter your server rules. You can use numbered lists, bullet points, or any format you prefer. Discord markdown is supported.</p>
-                  </div>
-                  <div class="field">
-                    <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
-                    <div class="control">
-                      <input class="input" type="color" id="rules_color" name="rules_color" value="<?php echo htmlspecialchars($existingRulesColor ?: '#5865f2'); ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
-                    </div>
-                    <p class="help has-text-grey-light">Choose a color for the rules embed border (default is Discord blue)</p>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-primary is-fullwidth" type="button" onclick="saveRules()" name="save_rules" style="border-radius: 6px; font-weight: 600;" disabled>
-                        <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Rules Configuration</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <div class="control">
-                      <button class="button is-success is-fullwidth" type="button" onclick="sendRulesMessage()" id="send_rules_message" name="send_rules_message" style="border-radius: 6px; font-weight: 600;" disabled>
-                        <span class="icon"><i class="fas fa-paper-plane"></i></span>
-                        <span>Send Rules to Channel</span>
-                      </button>
-                    </div>
-                    <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the rules embed in the selected Discord channel with the latest configuration</p>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-        </div>
-        <?php endif; ?>
       </div>
+      <?php endif; ?>
+      <?php if ($serverManagementSettings['autoRole']): ?>
+      <div class="column is-half mb-1">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-info"><i class="fas fa-user-plus"></i></span>
+              Auto Role Assignment Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>COMPLETED</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-info is-light mb-1">
+              <p class="has-text-dark"><strong>Auto Role Assignment:</strong> Automatically assign a role to new members when they join your Discord server.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure automatic role assignment for new members joining your Discord server.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Auto Role</label>
+                <div class="control has-icons-left">
+                  <?php echo generateRoleInput(
+                    'auto_role_id', 
+                    'auto_role_id', 
+                    $existingAutoRoleID, // Current value from database 
+                    'e.g. 123456789123456789', 
+                    $useManualIds, 
+                    $guildRoles, 
+                    'fas fa-user-tag', 
+                    false
+                  ); ?>
+                </div>
+                <p class="help has-text-grey-light">Role to automatically assign to new members</p>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveAutoRole()" name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save Auto Role Settings</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      <?php if ($serverManagementSettings['roleHistory']): ?>
+      <div class="column is-half mb-1">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-warning"><i class="fas fa-history"></i></span>
+              Role History Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-warning is-light">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <span>Coming Soon</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-warning is-light mb-1">
+              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure role restoration settings for members who rejoin your Discord server.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Role History Settings</label>
+                <div class="control">
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" name="restore_all_roles" style="margin-right: 8px;" disabled>
+                    Restore all previous roles when member rejoins
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">History Retention (Days)</label>
+                <div class="control has-icons-left">
+                  <input class="input" type="number" name="history_retention_days" value="30" min="1" max="365" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
+                  <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-calendar"></i></span>
+                </div>
+                <p class="help has-text-grey-light">How long to keep role history data</p>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_role_history" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save Role History Settings</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      <?php if ($serverManagementSettings['messageTracking']): ?>
+      <div class="column is-half mb-1">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-danger"><i class="fas fa-eye"></i></span>
+              Message Tracking Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-warning is-light">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <span>Coming Soon</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-warning is-light mb-1">
+              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure message tracking for edited and deleted messages in your Discord server.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Message Log Channel ID</label>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('message_log_channel_id', 'message_log_channel_id', $existingMessageLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+                <p class="help has-text-grey-light">Channel where message edit/delete logs will be sent</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
+                <div class="control">
+                  <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <input type="checkbox" name="track_edits" style="margin-right: 8px;" disabled>
+                    Track message edits
+                  </label>
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" name="track_deletes" style="margin-right: 8px;" disabled>
+                    Track message deletions
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveMessageTracking()" name="save_message_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save Message Tracking Settings</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      <?php if ($serverManagementSettings['roleTracking']): ?>
+      <div class="column is-half mb-1">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-primary"><i class="fas fa-users-cog"></i></span>
+              Role Tracking Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-warning is-light">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <span>Coming Soon</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-warning is-light mb-1">
+              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure role change tracking for audit purposes in your Discord server.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Role Log Channel ID</label>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('role_log_channel_id', 'role_log_channel_id', $existingRoleLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+                <p class="help has-text-grey-light">Channel where role change logs will be sent</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
+                <div class="control">
+                  <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <input type="checkbox" name="track_role_additions" style="margin-right: 8px;" disabled>
+                    Track role additions
+                  </label>
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" name="track_role_removals" style="margin-right: 8px;" disabled>
+                    Track role removals
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveRoleTracking()" name="save_role_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save Role Tracking Settings</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      <?php if ($serverManagementSettings['serverRoleManagement']): ?>
+      <div class="column is-half mb-1">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-link"><i class="fas fa-cogs"></i></span>
+              Server Role Management Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-warning is-light">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <span>Coming Soon</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-warning is-light mb-1">
+              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure tracking for role creation and deletion within your Discord server.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Server Management Log Channel ID</label>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('server_mgmt_log_channel_id', 'server_mgmt_log_channel_id', $existingServerMgmtLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+                <p class="help has-text-grey-light">Channel where server role management logs will be sent</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Management Options</label>
+                <div class="control">
+                  <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" disabled>
+                    Track role creation
+                  </label>
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" disabled>
+                    Track role deletion
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveServerRoleManagement()" name="save_server_role_management" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save Server Role Management Settings</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      <?php if ($serverManagementSettings['userTracking']): ?>
+      <div class="column is-half mb-1">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-info"><i class="fas fa-user-edit"></i></span>
+              User Tracking Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-warning is-light">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <span>Coming Soon</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-warning is-light mb-1">
+              <p class="has-text-dark"><strong>Coming Soon:</strong> This feature is currently in development and will be available in a future update.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure user profile change tracking for your Discord server.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">User Log Channel ID</label>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('user_log_channel_id', 'user_log_channel_id', $existingUserLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+                <p class="help has-text-grey-light">Channel where user change logs will be sent</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
+                <div class="control">
+                  <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <input type="checkbox" name="track_nickname_changes" style="margin-right: 8px;" disabled>
+                    Track nickname changes
+                  </label>
+                  <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <input type="checkbox" name="track_avatar_changes" style="margin-right: 8px;" disabled>
+                    Track avatar changes
+                  </label>
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" name="track_status_changes" style="margin-right: 8px;" disabled>
+                    Track status changes
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveUserTracking()" name="save_user_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save User Tracking Settings</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      <?php if ($serverManagementSettings['reactionRoles']): ?>
+      <div class="column is-half mb-1">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-purple"><i class="fas fa-hand-paper"></i></span>
+              Reaction Roles Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>COMPLETED</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-info is-light mb-1">
+              <p class="has-text-dark"><strong>Reaction Roles:</strong> Configure self-assignable roles via reactions in your Discord server.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure self-assignable roles via reactions in your Discord server.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Channel ID</label>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('reaction_roles_channel_id', 'reaction_roles_channel_id', $existingReactionRolesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+                <p class="help has-text-grey-light">Channel where reaction roles messages will be posted</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Message</label>
+                <div class="control">
+                  <textarea class="textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3" placeholder="To join any of the following roles, use the icons below. Click on the boxes below to get the roles!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
+                </div>
+                <p class="help has-text-grey-light">Message to display above the reaction roles. Leave empty for no message.</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
+                <div class="control">
+                  <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: Thumbs Up @Role1 [green]&#10;:heart: Love @Role2 [red]&#10;:star: VIP @Role3 [blue]&#10;Member Role @Role4 [gray]" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings ?? ''); ?></textarea>
+                </div>
+                <p class="help has-text-grey-light">Format: :emoji: Description @RoleName [color] (one per line)<br>
+                Colors: blue/primary, gray/secondary, green/success, red/danger (optional, defaults to blue)</p>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" id="allow_multiple_reactions" name="allow_multiple_reactions" style="margin-right: 8px;"<?php echo $existingAllowMultipleReactions ? ' checked' : ''; ?>>
+                    Allow users to select multiple roles
+                  </label>
+                </div>
+                <p class="help has-text-grey-light">If unchecked, users can only have one role from this reaction role set</p>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save Reaction Roles Settings</span>
+                  </button>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-success is-fullwidth" type="button" onclick="sendReactionRolesMessage()" id="send_reaction_roles_message" name="send_reaction_roles_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                    <span>Send Message to Channel</span>
+                  </button>
+                </div>
+                <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the reaction roles message in Discord and applies the emoji mappings</p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      <?php if ($serverManagementSettings['rulesConfiguration']): ?>
+      <div class="column is-half mb-1">
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-info"><i class="fas fa-gavel"></i></span>
+              Rules Configuration
+            </p>
+            <div class="card-header-icon">
+              <span class="tag is-warning is-light">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <span>COMING SOON</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content">
+            <div class="notification is-warning is-light mb-1">
+              <p class="has-text-dark"><strong>⚠️ Coming Soon:</strong> This feature is currently in development. The UI is complete but backend integration is pending.</p>
+            </div>
+            <div class="notification is-info is-light mb-1">
+              <p class="has-text-dark"><strong>Rules:</strong> Post an embed with your server rules to keep your community informed.</p>
+            </div>
+            <p class="has-text-white-ter mb-1">Configure and post an embed message with your server rules.</p>
+            <form action="" method="post">
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Rules Channel</label>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('rules_channel_id', 'rules_channel_id', $existingRulesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+                <p class="help has-text-grey-light">Channel where the rules message will be posted</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Rules Title</label>
+                <div class="control">
+                  <input class="input" type="text" id="rules_title" name="rules_title" value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="e.g. Server Rules" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                </div>
+                <p class="help has-text-grey-light">Title for the rules embed (appears at the top)</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Rules Content</label>
+                <div class="control">
+                  <textarea class="textarea" id="rules_content" name="rules_content" rows="8" placeholder="Enter your server rules (one per line or formatted as you prefer)&#10;&#10;Example:&#10;1. Be respectful to all members&#10;2. No spamming or advertising&#10;3. Keep content appropriate&#10;4. Follow Discord's Terms of Service" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingRulesContent ?? ''); ?></textarea>
+                </div>
+                <p class="help has-text-grey-light">Enter your server rules. You can use numbered lists, bullet points, or any format you prefer. Discord markdown is supported.</p>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
+                <div class="control">
+                  <input class="input" type="color" id="rules_color" name="rules_color" value="<?php echo htmlspecialchars($existingRulesColor ?: '#5865f2'); ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
+                </div>
+                <p class="help has-text-grey-light">Choose a color for the rules embed border (default is Discord blue)</p>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveRules()" name="save_rules" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>Save Rules Configuration</span>
+                  </button>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-success is-fullwidth" type="button" onclick="sendRulesMessage()" id="send_rules_message" name="send_rules_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                    <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                    <span>Send Rules to Channel</span>
+                  </button>
+                </div>
+                <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the rules embed in the selected Discord channel with the latest configuration</p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
     </div>
+    <?php endif; ?>
   </div>
-</div>
+</section>
 
 <div id="savedStreamersModal" class="modal">
   <div class="modal-background"></div>
