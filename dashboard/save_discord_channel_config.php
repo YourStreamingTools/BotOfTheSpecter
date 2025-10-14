@@ -90,6 +90,7 @@ try {
         case 'save_user_tracking':
         case 'save_reaction_roles':
         case 'send_reaction_roles_message':
+        case 'save_rules':
             // These are server management features that go to the Discord bot database
             // Connect to specterdiscordbot database
             $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
@@ -434,6 +435,126 @@ try {
                             'allow_multiple' => $allow_multiple_reactions,
                             'debug_logs' => $debug_logs
                         ]);
+                        exit();
+                    }
+                    break;
+                case 'save_rules':
+                    debug_log('Processing save_rules with input: ' . json_encode($input));
+                    if (!isset($input['rules_channel_id'])) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Rules channel ID is required', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    $rules_channel_id = trim($input['rules_channel_id']);
+                    $rules_title = isset($input['rules_title']) ? trim($input['rules_title']) : '';
+                    $rules_content = isset($input['rules_content']) ? trim($input['rules_content']) : '';
+                    $rules_color = isset($input['rules_color']) ? trim($input['rules_color']) : '#5865f2';
+                    if (empty($rules_channel_id)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Rules channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    if (empty($rules_title)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Rules title cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    if (empty($rules_content)) {
+                        http_response_code(400);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Rules content cannot be empty', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    // Build the JSON configuration object
+                    $rules_config = [
+                        'channel_id' => $rules_channel_id,
+                        'title' => $rules_title,
+                        'rules' => $rules_content,
+                        'color' => $rules_color
+                    ];
+                    $rules_json = json_encode($rules_config);
+                    if ($rules_json === false) {
+                        debug_log('Failed to encode rules configuration as JSON');
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Failed to encode rules configuration', 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    // Check if record exists for this server
+                    $checkStmt = $discord_conn->prepare("SELECT id FROM server_management WHERE server_id = ?");
+                    if (!$checkStmt) {
+                        debug_log('Failed to prepare SELECT statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        exit();
+                    }
+                    $checkStmt->bind_param("s", $server_id);
+                    if (!$checkStmt->execute()) {
+                        debug_log('Failed to execute SELECT statement: ' . $checkStmt->error);
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Database query failed: ' . $checkStmt->error, 'debug_logs' => $debug_logs]);
+                        $checkStmt->close();
+                        exit();
+                    }
+                    $result = $checkStmt->get_result();
+                    if ($result->num_rows > 0) {
+                        // Update existing record
+                        $updateStmt = $discord_conn->prepare("UPDATE server_management SET rules_configuration = ?, updated_at = CURRENT_TIMESTAMP WHERE server_id = ?");
+                        if (!$updateStmt) {
+                            debug_log('Failed to prepare UPDATE statement: ' . $discord_conn->error);
+                            http_response_code(500);
+                            header('Content-Type: application/json');
+                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            $checkStmt->close();
+                            exit();
+                        }
+                        $updateStmt->bind_param("ss", $rules_json, $server_id);
+                        $success = $updateStmt->execute();
+                        if (!$success) {
+                            debug_log('Failed to execute UPDATE statement: ' . $updateStmt->error);
+                        }
+                        $updateStmt->close();
+                    } else {
+                        // Insert new record
+                        $insertStmt = $discord_conn->prepare("INSERT INTO server_management (server_id, rules_configuration) VALUES (?, ?)");
+                        if (!$insertStmt) {
+                            debug_log('Failed to prepare INSERT statement: ' . $discord_conn->error);
+                            http_response_code(500);
+                            header('Content-Type: application/json');
+                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            $checkStmt->close();
+                            exit();
+                        }
+                        $insertStmt->bind_param("ss", $server_id, $rules_json);
+                        $success = $insertStmt->execute();
+                        if (!$success) {
+                            debug_log('Failed to execute INSERT statement: ' . $insertStmt->error);
+                        }
+                        $insertStmt->close();
+                    }
+                    $checkStmt->close();
+                    if ($success) {
+                        debug_log('Successfully saved rules configuration');
+                        http_response_code(200);
+                        header('Content-Type: application/json');
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'Rules configuration saved successfully',
+                            'channel_id' => $rules_channel_id,
+                            'title' => $rules_title,
+                            'color' => $rules_color,
+                            'debug_logs' => $debug_logs
+                        ]);
+                        exit();
+                    } else {
+                        http_response_code(500);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     break;
