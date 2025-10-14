@@ -1475,7 +1475,6 @@ ob_start();
                                 <?php 
                                   $isSelected = ($existingGuildId === $guild['id']) ? 'selected' : '';
                                   $guildName = htmlspecialchars($guild['name']);
-                                  $ownerBadge = (isset($guild['owner']) && $guild['owner']) ? ' 👑' : ' 🛡️';
                                 ?>
                                 <option value="<?php echo htmlspecialchars($guild['id']); ?>" <?php echo $isSelected; ?>>
                                   <?php echo $guildName . $ownerBadge; ?>
@@ -1484,10 +1483,6 @@ ob_start();
                             </select>
                           </div>
                           <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
-                          <p class="help has-text-grey-light">
-                            Only servers where you have Administrator permissions are shown. 
-                            👑 = Owner, 🛡️ = Administrator
-                          </p>
                         <?php else: ?>
                           <!-- Fallback/Loading Mode -->
                           <input class="input" type="text" id="guild_id_config" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" placeholder="Loading servers..." disabled style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
@@ -1496,7 +1491,7 @@ ob_start();
                             <?php if (!$is_linked || $needs_relink): ?>
                               Please link your Discord account to view available servers.
                             <?php else: ?>
-                              No servers found where you have Administrator permissions, or servers are still loading.
+                              No servers found where you have Owner permissions, or servers are still loading.
                             <?php endif; ?>
                           </p>
                         <?php endif; ?>
