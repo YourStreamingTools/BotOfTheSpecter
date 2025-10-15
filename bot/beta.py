@@ -4903,10 +4903,6 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('removetypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-                    if mentioned_username is None:
-                        chat_logger.error("Command missing username parameter.")
-                        await send_chat_message(f"Usage: !removetypos @username")
-                        return
                     mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
                     target_user = mentioned_username_lower.lstrip('@')
                     chat_logger.info(f"Remove Typos Command ran with params: {target_user}, decrease_amount: {decrease_amount}")
