@@ -2802,11 +2802,24 @@ class TwitchBot(commands.Bot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         if timezone:
+                            # Validate input format (should contain a comma for location,country)
+                            if ',' not in timezone:
+                                await send_chat_message(f"Please use the format: Location,Country (e.g., 'NewYork,US' or 'Sydney,AU')")
+                                chat_logger.info(f"Invalid time format provided: '{timezone}' - missing country code")
+                                return
                             geolocator = Nominatim(user_agent="BotOfTheSpecter")
-                            location_data = geolocator.geocode(timezone)
+                            location_data = geolocator.geocode(timezone, addressdetails=True)
                             if not location_data:
-                                await send_chat_message(f"Could not find the time location that you requested.")
-                                chat_logger.info(f"Could not find the time location that you requested.")
+                                await send_chat_message(f"Could not find the location '{timezone}'. Please use the format: Location,Country (e.g., 'California,US' or 'Sydney,AU')")
+                                chat_logger.info(f"Could not find the time location that you requested: '{timezone}'")
+                                return
+                            # Validate that we got a meaningful location (city, state, or country)
+                            address = location_data.raw.get('address', {})
+                            valid_location_types = ['city', 'town', 'village', 'state', 'country', 'county', 'municipality']
+                            has_valid_location = any(key in address for key in valid_location_types)
+                            if not has_valid_location:
+                                await send_chat_message(f"Could not find a valid location for '{timezone}'. Please provide a valid city and country code.")
+                                chat_logger.info(f"Invalid location type for '{timezone}': {address}")
                                 return
                             timezone_api_key = os.getenv('TIMEZONE_API')
                             timezone_url = f"http://api.timezonedb.com/v2.1/get-time-zone?key={timezone_api_key}&format=json&by=position&lat={location_data.latitude}&lng={location_data.longitude}"
@@ -2821,14 +2834,16 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message(f"Could not find the time location that you requested.")
                                 chat_logger.info(f"Could not find the time location that you requested.")
                                 return
+                            # Get a user-friendly location name from the geocoding result
+                            display_location = address.get('city') or address.get('town') or address.get('village') or address.get('state') or address.get('country') or timezone.split(',')[0]
                             timezone_str = timezone_data["zoneName"]
                             tz = pytz_timezone(timezone_str)
-                            chat_logger.info(f"TZ: {tz} | Timezone: {timezone_str}")
+                            chat_logger.info(f"TZ: {tz} | Timezone: {timezone_str} | Location: {display_location}")
                             current_time = time_right_now(tz)
                             time_format_date = current_time.strftime("%B %d, %Y")
                             time_format_time = current_time.strftime("%I:%M %p")
                             time_format_week = current_time.strftime("%A")
-                            time_format = f"The time for {timezone} is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+                            time_format = f"The time for {display_location} is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
                         else:
                             await cursor.execute("SELECT timezone FROM profile")
                             result = await cursor.fetchone()
