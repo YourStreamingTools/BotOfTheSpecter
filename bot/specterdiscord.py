@@ -5026,7 +5026,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                        welcome_message_configuration_embed,
                        welcome_message_configuration_colour
                 FROM server_management 
-                WHERE server_id = ?
+                WHERE server_id = %s
             """
             result = await self.mysql.fetchone(query, params=(str(member.guild.id),), database_name='specterdiscordbot')
             if not result or not result[0]:
@@ -5087,7 +5087,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
     async def handle_auto_role_assignment(self, member: discord.Member):
         try:
             # Query the database for auto role configuration
-            query = "SELECT auto_role_assignment_configuration_role_id FROM server_management WHERE server_id = ?"
+            query = "SELECT auto_role_assignment_configuration_role_id FROM server_management WHERE server_id = %s"
             result = await self.mysql.fetchone(query, params=(str(member.guild.id),), database_name='specterdiscordbot')
             if not result or not result[0]:
                 self.logger.debug(f"No auto role configured for guild {member.guild.name}")
