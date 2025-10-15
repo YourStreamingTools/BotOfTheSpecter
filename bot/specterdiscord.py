@@ -4269,7 +4269,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
 
 # Button view for role assignment
 class RoleButton(discord.ui.Button):
-    def __init__(self, role: discord.Role, emoji, label: str, button_style=discord.ButtonStyle.primary):
+    def __init__(self, role: discord.Role, emoji, label: str, button_style=discord.ButtonStyle.primary, logger=None):
         # Only pass emoji if it's not None
         if emoji:
             super().__init__(
@@ -4285,15 +4285,61 @@ class RoleButton(discord.ui.Button):
                 custom_id=f"role_{role.id}"
             )
         self.role = role
+        self.logger = logger
 
     async def callback(self, interaction: discord.Interaction):
-        member = interaction.user
-        if self.role in member.roles:
-            await member.remove_roles(self.role)
-            await interaction.response.send_message(f"✅ Removed role **{self.role.name}**", ephemeral=True)
-        else:
-            await member.add_roles(self.role)
-            await interaction.response.send_message(f"✅ Added role **{self.role.name}**", ephemeral=True)
+        try:
+            member = interaction.user
+            guild_name = interaction.guild.name if interaction.guild else "DM"
+            self.logger.info(f"[ROLE_BUTTON] Role button clicked by {member.name}#{member.discriminator} ({member.id}) for role '{self.role.name}' in {guild_name}")
+            self.logger.info(f"[ROLE_BUTTON] Interaction ID: {interaction.id}, Guild ID: {interaction.guild_id}, Channel ID: {interaction.channel_id}")
+            self.logger.info(f"[ROLE_BUTTON] Bot permissions in channel: {interaction.app_permissions if interaction.app_permissions else 'Unknown'}")
+            self.logger.info(f"[ROLE_BUTTON] Role hierarchy - Target role position: {self.role.position}, Bot top role position: {interaction.guild.me.top_role.position}")
+            if self.role in member.roles:
+                try:
+                    self.logger.info(f"[ROLE_BUTTON] User has role, attempting to remove...")
+                    await member.remove_roles(self.role, reason="Role button - user requested removal")
+                    self.logger.info(f"[ROLE_BUTTON] Role removed, sending response...")
+                    await interaction.response.send_message(f"✅ Removed role **{self.role.name}**", ephemeral=True)
+                    self.logger.info(f"[ROLE_BUTTON] Response sent - Successfully removed role '{self.role.name}' from {member.name}#{member.discriminator}")
+                except discord.Forbidden as e:
+                    self.logger.error(f"[ROLE_BUTTON] Forbidden error when removing role: {e}")
+                    await interaction.response.send_message("❌ I don't have permission to remove this role. Please contact a server administrator.", ephemeral=True)
+                    self.logger.error(f"[ROLE_BUTTON] Missing permissions to remove role '{self.role.name}' from {member.name}#{member.discriminator}")
+                except Exception as e:
+                    self.logger.error(f"[ROLE_BUTTON] Exception when removing role: {type(e).__name__} - {e}")
+                    import traceback
+                    self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
+                    await interaction.response.send_message("❌ An error occurred while removing the role. Please try again or contact a server administrator.", ephemeral=True)
+                    self.logger.error(f"[ROLE_BUTTON] Error removing role '{self.role.name}' from {member.name}#{member.discriminator}: {e}")
+            else:
+                try:
+                    self.logger.info(f"[ROLE_BUTTON] User doesn't have role, attempting to add...")
+                    await member.add_roles(self.role, reason="Role button - user requested assignment")
+                    self.logger.info(f"[ROLE_BUTTON] Role added, sending response...")
+                    await interaction.response.send_message(f"✅ Added role **{self.role.name}**", ephemeral=True)
+                    self.logger.info(f"[ROLE_BUTTON] Response sent - Successfully added role '{self.role.name}' to {member.name}#{member.discriminator}")
+                except discord.Forbidden as e:
+                    self.logger.error(f"[ROLE_BUTTON] Forbidden error when adding role: {e}")
+                    await interaction.response.send_message("❌ I don't have permission to assign this role. Please contact a server administrator.", ephemeral=True)
+                    self.logger.error(f"[ROLE_BUTTON] Missing permissions to assign role '{self.role.name}' to {member.name}#{member.discriminator}")
+                except Exception as e:
+                    self.logger.error(f"[ROLE_BUTTON] Exception when adding role: {type(e).__name__} - {e}")
+                    import traceback
+                    self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
+                    await interaction.response.send_message("❌ An error occurred while assigning the role. Please try again or contact a server administrator.", ephemeral=True)
+                    self.logger.error(f"[ROLE_BUTTON] Error assigning role '{self.role.name}' to {member.name}#{member.discriminator}: {e}")
+        except Exception as e:
+            self.logger.error(f"[ROLE_BUTTON] Unexpected error in RoleButton callback for user {interaction.user.name}#{interaction.user.discriminator}: {type(e).__name__} - {e}")
+            import traceback
+            self.logger.error(f"[ROLE_BUTTON] Full traceback: {traceback.format_exc()}")
+            try:
+                await interaction.response.send_message("❌ An unexpected error occurred. Please try again or contact a server administrator.", ephemeral=True)
+                self.logger.info(f"[ROLE_BUTTON] Error response sent successfully")
+            except discord.InteractionResponded:
+                self.logger.warning(f"[ROLE_BUTTON] Interaction already responded for role button error with {interaction.user.name}#{interaction.user.discriminator}")
+            except Exception as response_error:
+                self.logger.error(f"[ROLE_BUTTON] Failed to send error response for role button: {type(response_error).__name__} - {response_error}")
 
 class RoleButtonView(discord.ui.View):
     def __init__(self):
@@ -4312,39 +4358,59 @@ class RulesAcceptButton(discord.ui.Button):
         self.logger = logger
 
     async def callback(self, interaction: discord.Interaction):
-        user = interaction.user
-        # Check if user already has the role
-        if self.role in user.roles:
-            await interaction.response.send_message(
-                "✅ You have already accepted the rules!",
-                ephemeral=True
-            )
-            if self.logger:
-                self.logger.info(f"User {user.name} ({user.id}) tried to accept rules again - already has role")
-            return
-        # Assign the role
         try:
-            await user.add_roles(self.role, reason="Accepted server rules via button")
-            await interaction.response.send_message(
-                "✅ Thank you for accepting the rules! You now have access to the server. 🎉",
-                ephemeral=True
-            )
-            if self.logger:
-                self.logger.info(f"Assigned rules acceptance role {self.role.name} to {user.name} via button")
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "❌ I don't have permission to assign roles. Please contact a server administrator.",
-                ephemeral=True
-            )
-            if self.logger:
-                self.logger.error(f"Failed to assign rules role to {user.name} - missing permissions")
+            user = interaction.user
+            guild_name = interaction.guild.name if interaction.guild else "DM"
+            self.logger.info(f"[RULES_ACCEPT] Rules accept button clicked by {user.name}#{user.discriminator} ({user.id}) for role '{self.role.name}' in {guild_name}")
+            self.logger.info(f"[RULES_ACCEPT] Interaction ID: {interaction.id}, Guild ID: {interaction.guild_id}, Channel ID: {interaction.channel_id}")
+            self.logger.info(f"[RULES_ACCEPT] Bot permissions in channel: {interaction.app_permissions if interaction.app_permissions else 'Unknown'}")
+            self.logger.info(f"[RULES_ACCEPT] Role hierarchy - Target role position: {self.role.position}, Bot top role position: {interaction.guild.me.top_role.position}")
+            # Check if user already has the role
+            if self.role in user.roles:
+                self.logger.info(f"[RULES_ACCEPT] User already has role, sending response...")
+                await interaction.response.send_message(
+                    "✅ You have already accepted the rules!",
+                    ephemeral=True
+                )
+                self.logger.info(f"[RULES_ACCEPT] Response sent successfully - User {user.name}#{user.discriminator} tried to accept rules again - already has role '{self.role.name}'")
+                return
+            # Assign the role
+            try:
+                self.logger.info(f"[RULES_ACCEPT] Attempting to add role '{self.role.name}' to user...")
+                await user.add_roles(self.role, reason="Accepted server rules via button")
+                self.logger.info(f"[RULES_ACCEPT] Role added successfully, sending response...")
+                await interaction.response.send_message(
+                    "✅ Thank you for accepting the rules! You now have access to the server. 🎉",
+                    ephemeral=True
+                )
+                self.logger.info(f"[RULES_ACCEPT] Response sent successfully - assigned rules acceptance role '{self.role.name}' to {user.name}#{user.discriminator}")
+            except discord.Forbidden as e:
+                self.logger.error(f"[RULES_ACCEPT] Forbidden error when assigning role: {e}")
+                await interaction.response.send_message(
+                    "❌ I don't have permission to assign roles. Please contact a server administrator.",
+                    ephemeral=True
+                )
+                self.logger.error(f"[RULES_ACCEPT] Missing permissions to assign rules role '{self.role.name}' to {user.name}#{user.discriminator}")
+            except Exception as e:
+                self.logger.error(f"[RULES_ACCEPT] Exception when assigning role: {type(e).__name__} - {e}")
+                import traceback
+                self.logger.error(f"[RULES_ACCEPT] Traceback: {traceback.format_exc()}")
+                await interaction.response.send_message(
+                    "❌ An error occurred while assigning your role. Please contact a server administrator.",
+                    ephemeral=True
+                )
+                self.logger.error(f"[RULES_ACCEPT] Error assigning rules role '{self.role.name}' to {user.name}#{user.discriminator}: {e}")
         except Exception as e:
-            await interaction.response.send_message(
-                "❌ An error occurred while assigning your role. Please contact a server administrator.",
-                ephemeral=True
-            )
-            if self.logger:
-                self.logger.error(f"Error assigning rules role to {user.name}: {e}")
+            self.logger.error(f"[RULES_ACCEPT] Unexpected error in RulesAcceptButton callback for user {interaction.user.name}#{interaction.user.discriminator}: {type(e).__name__} - {e}")
+            import traceback
+            self.logger.error(f"[RULES_ACCEPT] Full traceback: {traceback.format_exc()}")
+            try:
+                await interaction.response.send_message("❌ An unexpected error occurred. Please try again or contact a server administrator.", ephemeral=True)
+                self.logger.info(f"[RULES_ACCEPT] Error response sent successfully")
+            except discord.InteractionResponded:
+                self.logger.warning(f"[RULES_ACCEPT] Interaction already responded for rules button error with {interaction.user.name}#{interaction.user.discriminator}")
+            except Exception as response_error:
+                self.logger.error(f"[RULES_ACCEPT] Failed to send error response for rules button: {type(response_error).__name__} - {response_error}")
 
 class RulesButtonView(discord.ui.View):
     def __init__(self, role: discord.Role, logger=None):
@@ -4544,7 +4610,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                             role = discord.utils.get(guild.roles, name=role_name)
                             if role:
                                 # Create and add button (with or without emoji, with specified color)
-                                button = RoleButton(role, emoji_to_use, description, button_style)
+                                button = RoleButton(role, emoji_to_use, description, button_style, self.logger)
                                 view.add_item(button)
                                 # Store mapping
                                 if emoji_name:
@@ -4741,27 +4807,35 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 # Send the embed with button if accept_role_id is set
                 if accept_role_id:
                     try:
+                        self.logger.info(f"[POST_RULES] Accept role ID provided: {accept_role_id}, attempting to get role object...")
                         # Get the role object
                         accept_role = guild.get_role(int(accept_role_id))
                         if not accept_role:
-                            self.logger.error(f"Accept role {accept_role_id} not found in guild {guild.name}")
+                            self.logger.error(f"[POST_RULES] Accept role {accept_role_id} not found in guild {guild.name}")
                             # Send without button
                             sent_message = await channel.send(embed=embed)
                         else:
+                            self.logger.info(f"[POST_RULES] Found accept role: {accept_role.name} (ID: {accept_role.id}, Position: {accept_role.position})")
+                            self.logger.info(f"[POST_RULES] Bot's highest role: {guild.me.top_role.name} (Position: {guild.me.top_role.position})")
                             # Create button view with the role
+                            self.logger.info(f"[POST_RULES] Creating RulesButtonView...")
                             view = RulesButtonView(accept_role, self.logger)
+                            self.logger.info(f"[POST_RULES] Sending message with embed and view...")
                             sent_message = await channel.send(embed=embed, view=view)
-                            self.logger.info(f"Successfully posted rules embed with ACCEPT RULES button to #{channel.name}")
+                            self.logger.info(f"[POST_RULES] Successfully posted rules embed with ACCEPT RULES button to #{channel.name} (Message ID: {sent_message.id})")
                     except (ValueError, TypeError) as e:
-                        self.logger.error(f"Invalid accept_role_id: {accept_role_id}, error: {e}")
+                        self.logger.error(f"[POST_RULES] Invalid accept_role_id: {accept_role_id}, error: {type(e).__name__} - {e}")
                         # Send without button
                         sent_message = await channel.send(embed=embed)
                     except Exception as e:
-                        self.logger.error(f"Error creating rules button: {e}")
+                        self.logger.error(f"[POST_RULES] Error creating rules button: {type(e).__name__} - {e}")
+                        import traceback
+                        self.logger.error(f"[POST_RULES] Traceback: {traceback.format_exc()}")
                         # Send without button as fallback
                         sent_message = await channel.send(embed=embed)
                 else:
                     # No accept role, send without button
+                    self.logger.info(f"[POST_RULES] No accept_role_id provided, sending without button")
                     sent_message = await channel.send(embed=embed)
                 message_id = sent_message.id
                 self.logger.info(f"Successfully posted rules embed (ID: {message_id}) to #{channel.name}")
