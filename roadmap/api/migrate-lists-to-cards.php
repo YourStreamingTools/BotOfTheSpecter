@@ -52,13 +52,13 @@ try {
                 $section = 'Completed';
             }
             // Insert as card
-            $insert_sql = "INSERT INTO cards (board_id, title, description, section, position) VALUES (?, ?, ?, ?, ?)";
+            $insert_sql = "INSERT INTO cards (board_id, title, section, position) VALUES (?, ?, ?, ?)";
             $stmt = $conn->prepare($insert_sql);
             if (!$stmt) {
                 $errors[] = "Failed to prepare insert for list '$title': " . $conn->error;
                 continue;
             }
-            $stmt->bind_param("isssi", $board_id, $title, $description, $section, $position);
+            $stmt->bind_param("issi", $board_id, $title, $section, $position);
             if ($stmt->execute()) {
                 $migrated++;
             } else {
