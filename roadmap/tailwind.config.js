@@ -1,8 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./**/*.php",
-    "./api/**/*.php"
+    "./views/**/*.ejs",
+    "./routes/**/*.js",
+    "./public/**/*.js",
+    "./app.js"
   ],
   theme: {
     extend: {

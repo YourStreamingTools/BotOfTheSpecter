@@ -1,0 +1,143 @@
+<%- include('header') %>
+
+    <div class="board" id="board">
+        <!-- Board content will be loaded dynamically -->
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>
+        let currentBoard = null;
+
+        function loadBoard() {
+            const boardId = window.location.pathname.split('/').pop();
+
+            $.get('/api/boards/' + boardId, function(board) {
+                currentBoard = board;
+                renderBoard(board);
+                initializeSortable();
+            }).fail(function() {
+                toastr.error('Failed to load board');
+            });
+        }
+
+        function renderBoard(board) {
+            const container = $('#board');
+            container.empty();
+
+            // Define sections order
+            const sections = ['Upcoming', 'In Progress', 'Review', 'Completed'];
+
+            sections.forEach(section => {
+                const sectionCards = board.sections[section] || [];
+                const listHtml = `
+                    <div class="list" data-section="${section}">
+                        <h5 class="mb-4 text-lg font-semibold">${section}</h5>
+                        <div class="cards-container" data-section="${section}">
+                            ${sectionCards.map(card => `
+                                <div class="card mb-3" data-card-id="${card.id}">
+                                    <div class="font-medium mb-2">${card.title}</div>
+                                    ${card.description ? `<div class="text-sm text-gray-600 mb-2">${card.description}</div>` : ''}
+                                    <div class="text-xs text-gray-500">ID: ${card.id}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <% if (user && user.admin) { %>
+                            <div class="add-card" onclick="addCard('${section}')">
+                                <i class="fas fa-plus mr-1"></i>Add Card
+                            </div>
+                        <% } %>
+                    </div>
+                `;
+                container.append(listHtml);
+            });
+        }
+
+        function initializeSortable() {
+            const containers = document.querySelectorAll('.cards-container');
+
+            containers.forEach(container => {
+                new Sortable(container, {
+                    group: 'cards',
+                    animation: 150,
+                    onEnd: function(evt) {
+                        const cardId = evt.item.dataset.cardId;
+                        const newSection = evt.to.dataset.section;
+                        const newPosition = Array.from(evt.to.children).indexOf(evt.item);
+
+                        updateCardPosition(cardId, newSection, newPosition);
+                    }
+                });
+            });
+        }
+
+        function updateCardPosition(cardId, section, position) {
+            $.ajax({
+                url: '/api/update',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    type: 'move_card',
+                    card_id: cardId,
+                    section: section,
+                    position: position
+                }),
+                success: function() {
+                    toastr.success('Card moved successfully');
+                },
+                error: function() {
+                    toastr.error('Failed to move card');
+                    loadBoard(); // Reload to revert changes
+                }
+            });
+        }
+
+        function addCard(section) {
+            if (!currentBoard) return;
+
+            Swal.fire({
+                title: 'Add New Card',
+                html: `
+                    <input id="card-title" class="swal2-input" placeholder="Card title" required>
+                    <textarea id="card-description" class="swal2-textarea" placeholder="Card description"></textarea>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Add Card',
+                preConfirm: () => {
+                    const title = $('#card-title').val();
+                    if (!title) {
+                        Swal.showValidationMessage('Title is required');
+                        return false;
+                    }
+                    return { title, description: $('#card-description').val() };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: '/api/cards',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            board_id: currentBoard.id,
+                            title: result.value.title,
+                            description: result.value.description,
+                            section: section
+                        }),
+                        success: function() {
+                            loadBoard();
+                            toastr.success('Card added successfully');
+                        },
+                        error: function(xhr) {
+                            toastr.error(xhr.responseJSON?.error || 'Failed to add card');
+                        }
+                    });
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            loadBoard();
+        });
+    </script>
+
+<%- include('footer') %>
