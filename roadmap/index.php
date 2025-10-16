@@ -4,22 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter Roadmap</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background: #0079bf; color: white; }
-        .category-card { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 20px; margin: 10px; }
-    </style>
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
 </head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="index.php">Roadmap</a>
-            <div id="user-info" class="navbar-text ms-auto"></div>
+<body class="bg-gradient-to-br from-blue-600 to-blue-800 text-white">
+    <nav class="bg-white text-gray-800 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <a href="index.php" class="text-2xl font-bold text-blue-600">Roadmap</a>
+            <div id="user-info" class="text-sm"></div>
         </div>
     </nav>
-    <div class="container mt-5">
-        <h1 class="text-center mb-4">BotOfTheSpecter Roadmap</h1>
-        <div id="categories" class="row">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <h1 class="text-center text-4xl font-bold mb-8">BotOfTheSpecter Roadmap</h1>
+        <div id="categories" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- Categories will be loaded here -->
         </div>
     </div>
@@ -28,11 +27,11 @@
         function checkLogin() {
             $.get('api/login_status.php', function(data) {
                 if (data.admin) {
-                    $('#user-info').html('Logged in as ' + data.username + ' (Admin) | <a href="logout.php" style="color: #0079bf;">Logout</a>');
+                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
                 } else if (data.logged_in) {
-                    $('#user-info').html('Logged in as ' + data.username + ' | <a href="logout.php" style="color: #0079bf;">Logout</a>');
+                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
                 } else {
-                    $('#user-info').html('<a href="login.php" style="color: #0079bf;">Login</a>');
+                    $('#user-info').html('<a href="login.php" class="text-blue-600 hover:text-blue-700 font-medium">Login</a>');
                 }
                 loadCategories();
             });
@@ -47,23 +46,21 @@
                     if (data && data.length > 0) {
                         data.forEach(category => {
                             $('#categories').append(`
-                                <div class="col-md-4">
-                                    <div class="category-card">
-                                        <h3>${category.name}</h3>
-                                        <p>${category.description}</p>
-                                        <a href="category.php?id=${category.id}" class="btn btn-primary">View Boards</a>
-                                    </div>
+                                <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 hover:bg-opacity-20 transition-all duration-300 shadow-lg">
+                                    <h3 class="text-xl font-bold mb-3">${category.name}</h3>
+                                    <p class="text-blue-100 mb-6">${category.description}</p>
+                                    <a href="category.php?id=${category.id}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200">View Boards</a>
                                 </div>
                             `);
                         });
                     } else {
-                        $('#categories').append('<p class="text-center">No categories found. Please check back later.</p>');
+                        $('#categories').append('<p class="text-center text-blue-100 col-span-full">No categories found. Please check back later.</p>');
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error('Error loading categories:', error);
                     console.error('Response:', xhr.responseText);
-                    $('#categories').append('<p class="text-center text-danger">Error loading categories: ' + (xhr.responseJSON ? xhr.responseJSON.error : error) + '</p>');
+                    $('#categories').append('<p class="text-center text-red-300 col-span-full">Error loading categories: ' + (xhr.responseJSON ? xhr.responseJSON.error : error) + '</p>');
                 }
             });
         }

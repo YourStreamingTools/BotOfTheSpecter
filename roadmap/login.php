@@ -95,25 +95,25 @@ if (isset($_GET['code'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background: #0079bf; color: white; }
-        .login-container { max-width: 500px; margin: 50px auto; }
-    </style>
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <script src="https://cdn.tailwindcss.com"></link>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
 </head>
-<body>
-    <div class="login-container">
-        <div class="alert alert-info" role="alert">
-            <h4 class="alert-heading">Logging in...</h4>
-            <p>You are being redirected to Twitch for authentication. If you are not redirected automatically, 
-            <a href="https://id.twitch.tv/oauth2/authorize?client_id=<?php echo $clientID; ?>&redirect_uri=<?php echo urlencode($redirectURI); ?>&response_type=code&scope=openid%20user:read:email" class="alert-link">click here</a>.</p>
+<body class="bg-gradient-to-br from-blue-600 to-blue-800 text-white min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full mx-4">
+        <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 shadow-xl">
+            <h2 class="text-3xl font-bold mb-6 text-center">Logging in...</h2>
+            <p class="text-blue-100 text-center mb-6">You are being redirected to Twitch for authentication.</p>
+            <p class="text-blue-100 text-center text-sm mb-6">If you are not redirected automatically, 
+            <a href="https://id.twitch.tv/oauth2/authorize?client_id=<?php echo $clientID; ?>&redirect_uri=<?php echo urlencode($redirectURI); ?>&response_type=code&scope=openid%20user:read:email" class="underline font-semibold hover:text-white">click here</a>.</p>
         </div>
         <?php if (isset($_SESSION['login_error'])): ?>
-            <div class="alert alert-danger" role="alert">
-                <h4 class="alert-heading">Login Error</h4>
-                <p><?php echo htmlspecialchars($_SESSION['login_error']); ?></p>
-                <a href="index.php" class="btn btn-primary">Back to Roadmap</a>
-            </div>
+        <div class="mt-6 bg-red-500 bg-opacity-20 backdrop-blur-md rounded-lg p-6 shadow-xl border border-red-400">
+            <h3 class="text-xl font-bold mb-3">Login Error</h3>
+            <p class="text-red-100 mb-6"><?php echo htmlspecialchars($_SESSION['login_error']); ?></p>
+            <a href="index.php" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200">Back to Roadmap</a>
+        </div>
         <?php endif; ?>
     </div>
 </body>
