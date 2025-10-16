@@ -57,7 +57,6 @@ try {
         $stmt->bind_param("iss", $category_id, $name, $created_by);
         if ($stmt->execute()) {
             $board_id = $conn->insert_id;
-            
             // Create default lists for the board: Upcoming, In Progress, Beta, Completed
             $default_lists = ['Upcoming', 'In Progress', 'Beta', 'Completed'];
             $position = 0;
