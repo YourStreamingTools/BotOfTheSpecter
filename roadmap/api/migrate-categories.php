@@ -7,8 +7,24 @@ ini_set('log_errors', 1);
 header('Content-Type: application/json');
 
 try {
-    // Load database config
-    require_once "/var/www/config/database.php";
+    // Check admin access first
+    session_start();
+    if (!isset($_SESSION['admin']) || !$_SESSION['admin']) {
+        http_response_code(403);
+        throw new Exception('Admin access required');
+    }
+    // Load database config - try multiple paths
+    $config_path = $_SERVER['DOCUMENT_ROOT'] . '/../config/database.php';
+    if (!file_exists($config_path)) {
+        $config_path = __DIR__ . '/../../config/database.php';
+    }
+    if (!file_exists($config_path)) {
+        $config_path = '/var/www/config/database.php';
+    }
+    if (!file_exists($config_path)) {
+        throw new Exception('Database configuration file not found');
+    }
+    require_once $config_path;
     if (empty($db_servername) || empty($db_username)) {
         throw new Exception('Database configuration not properly set');
     }
@@ -22,11 +38,6 @@ try {
     // Select the database
     if (!$conn->select_db($dbname)) {
         throw new Exception('Database not found');
-    }
-    session_start();
-    if (!isset($_SESSION['admin']) || !$_SESSION['admin']) {
-        http_response_code(403);
-        throw new Exception('Admin access required');
     }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Find categories that don't have boards
