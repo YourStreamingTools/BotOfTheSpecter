@@ -93,7 +93,7 @@ include 'includes/header.php';
         function checkLogin() {
             $.get('api/login_status.php', function(data) {
                 if (data.admin) {
-                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
+                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Logout</a>');
                     checkDatabase();
                 } else {
                     window.location.href = 'index.php';

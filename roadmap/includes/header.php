@@ -19,16 +19,16 @@
     <?php if (isset($extra_head)) echo $extra_head; ?>
 </head>
 <body class="<?php echo isset($body_class) ? $body_class : 'bg-gradient-to-br from-blue-600 to-blue-800 text-white'; ?>">
-    <nav class="bg-white text-gray-800 shadow-lg">
+    <nav style="background-color: #364152;" class="text-white shadow-lg">
         <div class="<?php echo isset($nav_width) ? $nav_width : 'max-w-7xl'; ?> mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
             <div class="flex items-center gap-6">
-                <a href="index.php" class="text-2xl font-bold text-blue-600">Roadmap</a>
-                <a href="index.php" class="text-gray-800 hover:text-blue-600 font-medium transition-colors duration-200">
+                <a href="index.php" class="text-2xl font-bold text-white">Roadmap</a>
+                <a href="index.php" class="text-white hover:text-blue-300 font-medium transition-colors duration-200">
                     <i class="fas fa-home mr-1"></i>HOME
                 </a>
             </div>
             <?php if (isset($nav_center)) echo $nav_center; ?>
-            <div id="user-info" class="text-sm flex items-center gap-4">
+            <div id="user-info" class="text-sm flex items-center gap-4 text-white">
                 <!-- User info will be inserted here by JavaScript -->
             </div>
         </div>

@@ -72,12 +72,12 @@ include 'includes/header.php';
         function checkLogin() {
             $.get('api/login_status.php', function(data) {
                 if (data.admin) {
-                    $('#user-info').html('<a href="admin.php" class="text-blue-600 hover:text-blue-700 font-medium"><i class="fas fa-cog mr-1"></i>Admin</a> | Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
+                    $('#user-info').html('<a href="admin.php" class="text-yellow-300 hover:text-yellow-100 font-medium"><i class="fas fa-cog mr-1"></i>Admin</a> | Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Logout</a>');
                     $('#add-category-btn').removeClass('hidden');
                 } else if (data.logged_in) {
-                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
+                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Logout</a>');
                 } else {
-                    $('#user-info').html('<a href="login.php" class="text-blue-600 hover:text-blue-700 font-medium">Login</a>');
+                    $('#user-info').html('<a href="login.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Login</a>');
                 }
                 loadStats();
                 loadCategories();
