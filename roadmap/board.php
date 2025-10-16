@@ -126,10 +126,10 @@
             $.get('api/login_status.php', function(data) {
                 loggedIn = data.logged_in;
                 if (data.admin) {
-                    $('#user-info').text('Logged in as ' + data.username + ' (Admin)');
+                    $('#user-info').html('Logged in as ' + data.username + ' (Admin) | <a href="logout.php">Logout</a>');
                     $('.edit-only').show();
                 } else if (loggedIn) {
-                    $('#user-info').text('Logged in as ' + data.username);
+                    $('#user-info').html('Logged in as ' + data.username + ' | <a href="logout.php">Logout</a>');
                 } else {
                     $('#user-info').html('<a href="login.php">Login</a>');
                 }

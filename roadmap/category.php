@@ -11,6 +11,12 @@
     </style>
 </head>
 <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.php">Roadmap</a>
+            <div id="user-info" class="navbar-text ms-auto"></div>
+        </div>
+    </nav>
     <div class="container mt-5">
         <a href="index.php" class="btn btn-light mb-3">Back to Categories</a>
         <h1 id="category-title"></h1>
@@ -25,6 +31,19 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         const categoryId = new URLSearchParams(window.location.search).get('id');
+
+        function checkLogin() {
+            $.get('api/login_status.php', function(data) {
+                if (data.admin) {
+                    $('#user-info').html('Logged in as ' + data.username + ' (Admin) | <a href="logout.php" style="color: #0079bf;">Logout</a>');
+                } else if (data.logged_in) {
+                    $('#user-info').html('Logged in as ' + data.username + ' | <a href="logout.php" style="color: #0079bf;">Logout</a>');
+                } else {
+                    $('#user-info').html('<a href="login.php" style="color: #0079bf;">Login</a>');
+                }
+                loadCategory();
+            });
+        }
 
         function loadCategory() {
             $.get(`api/category.php?id=${categoryId}`, function(data) {
@@ -63,7 +82,7 @@
         }
 
         $(document).ready(function() {
-            loadCategory();
+            checkLogin();
         });
     </script>
 </body>

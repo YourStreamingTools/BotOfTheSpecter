@@ -11,37 +11,64 @@
     </style>
 </head>
 <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.php">Roadmap</a>
+            <div id="user-info" class="navbar-text ms-auto"></div>
+        </div>
+    </nav>
     <div class="container mt-5">
         <h1 class="text-center mb-4">BotOfTheSpecter Roadmap</h1>
         <div id="categories" class="row">
             <!-- Categories will be loaded here -->
         </div>
-        <div class="text-center mt-4">
-            <a href="login.php" class="btn btn-light">Login to Edit</a>
-        </div>
     </div>
-
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        function loadCategories() {
-            $.get('api/categories.php', function(data) {
-                $('#categories').empty();
-                data.forEach(category => {
-                    $('#categories').append(`
-                        <div class="col-md-4">
-                            <div class="category-card">
-                                <h3>${category.name}</h3>
-                                <p>${category.description}</p>
-                                <a href="category.php?id=${category.id}" class="btn btn-primary">View Boards</a>
-                            </div>
-                        </div>
-                    `);
-                });
+        function checkLogin() {
+            $.get('api/login_status.php', function(data) {
+                if (data.admin) {
+                    $('#user-info').html('Logged in as ' + data.username + ' (Admin) | <a href="logout.php" style="color: #0079bf;">Logout</a>');
+                } else if (data.logged_in) {
+                    $('#user-info').html('Logged in as ' + data.username + ' | <a href="logout.php" style="color: #0079bf;">Logout</a>');
+                } else {
+                    $('#user-info').html('<a href="login.php" style="color: #0079bf;">Login</a>');
+                }
+                loadCategories();
             });
         }
-
+        function loadCategories() {
+            $.ajax({
+                url: 'api/categories.php',
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    $('#categories').empty();
+                    if (data && data.length > 0) {
+                        data.forEach(category => {
+                            $('#categories').append(`
+                                <div class="col-md-4">
+                                    <div class="category-card">
+                                        <h3>${category.name}</h3>
+                                        <p>${category.description}</p>
+                                        <a href="category.php?id=${category.id}" class="btn btn-primary">View Boards</a>
+                                    </div>
+                                </div>
+                            `);
+                        });
+                    } else {
+                        $('#categories').append('<p class="text-center">No categories found. Please check back later.</p>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading categories:', error);
+                    console.error('Response:', xhr.responseText);
+                    $('#categories').append('<p class="text-center text-danger">Error loading categories: ' + (xhr.responseJSON ? xhr.responseJSON.error : error) + '</p>');
+                }
+            });
+        }
         $(document).ready(function() {
-            loadCategories();
+            checkLogin();
         });
     </script>
 </body>
