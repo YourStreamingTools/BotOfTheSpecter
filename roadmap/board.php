@@ -29,22 +29,18 @@
             <div id="user-info" class="text-sm"></div>
         </div>
     </nav>
-
     <div class="board" id="board">
         <!-- Lists will be loaded here -->
     </div>
     <div class="add-list edit-only" onclick="addList()">+ Add a list</div>
-
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
         const boardId = new URLSearchParams(window.location.search).get('id');
         let loggedIn = false;
-
         if (!boardId) {
             window.location.href = 'index.php';
         }
-
         function loadBoard() {
             $.get(`api/board.php?id=${boardId}`, function(data) {
                 if (data.error) {
@@ -64,7 +60,6 @@
                         </div>
                     `);
                     $('#board').append(listEl);
-
                     if (loggedIn) {
                         // Make cards sortable
                         new Sortable(listEl.find('.cards')[0], {
@@ -78,7 +73,6 @@
                         });
                     }
                 });
-
                 if (loggedIn) {
                     // Make lists sortable
                     new Sortable(document.getElementById('board'), {
@@ -92,7 +86,6 @@
                 }
             });
         }
-
         function addCard(listId) {
             const title = prompt('Enter card title:');
             if (title) {
@@ -103,7 +96,6 @@
                 }, 'json');
             }
         }
-
         function addList() {
             const name = prompt('Enter list name:');
             if (name) {
@@ -114,19 +106,16 @@
                 }, 'json');
             }
         }
-
         function updateCardPosition(cardId, listId, position) {
             $.post('api/update.php', JSON.stringify({ type: 'move_card', card_id: cardId, list_id: listId, position: position }), function(data) {
                 // Handle response
             }, 'json');
         }
-
         function updateListPosition(listId, position) {
             $.post('api/update.php', JSON.stringify({ type: 'move_list', list_id: listId, position: position }), function(data) {
                 // Handle response
             }, 'json');
         }
-
         function checkLogin() {
             $.get('api/login_status.php', function(data) {
                 loggedIn = data.logged_in;
@@ -141,7 +130,6 @@
                 loadBoard();
             });
         }
-
         $(document).ready(function() {
             checkLogin();
         });
