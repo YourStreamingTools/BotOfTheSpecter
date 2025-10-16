@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['id'])) {
     $stmt_lists->execute();
     $result_lists = $stmt_lists->get_result();
     $lists = [];
+    // Fetch lists from database with their cards
     while ($row = $result_lists->fetch_assoc()) {
         $list_id = $row['id'];
         // Get cards for each list
