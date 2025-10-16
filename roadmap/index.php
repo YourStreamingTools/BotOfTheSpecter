@@ -16,7 +16,12 @@
 <body class="bg-gradient-to-br from-blue-600 to-blue-800 text-white">
     <nav class="bg-white text-gray-800 shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <a href="index.php" class="text-2xl font-bold text-blue-600">Roadmap</a>
+            <div class="flex items-center gap-6">
+                <a href="index.php" class="text-2xl font-bold text-blue-600">Roadmap</a>
+                <a href="index.php" class="text-gray-800 hover:text-blue-600 font-medium transition-colors duration-200">
+                    <i class="fas fa-home mr-1"></i>HOME
+                </a>
+            </div>
             <div id="user-info" class="text-sm flex items-center gap-4">
                 <!-- Admin link will be inserted here by JavaScript -->
             </div>
