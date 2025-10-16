@@ -8,6 +8,8 @@
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 </head>
 <body class="bg-gradient-to-br from-blue-600 to-blue-800 text-white">
     <nav class="bg-white text-gray-800 shadow-lg">
@@ -223,7 +225,7 @@
             const description = $('#category-description').val().trim();
 
             if (!name) {
-                alert('Please enter a category name');
+                toastr.error('Please enter a category name');
                 return;
             }
 
@@ -238,18 +240,18 @@
                 dataType: 'json',
                 success: function(data) {
                     if (data.success) {
-                        alert('Category created successfully!');
+                        toastr.success('Category created successfully!');
                         closeCreateCategoryModal();
                         loadCategories();
                         loadStats();
                     } else {
-                        alert('Error: ' + (data.error || 'Failed to create category'));
+                        toastr.error(data.error || 'Failed to create category');
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error('Error creating category:', error);
                     const errorMsg = xhr.responseJSON ? xhr.responseJSON.error : error;
-                    alert('Error creating category: ' + errorMsg);
+                    toastr.error('Error creating category: ' + errorMsg);
                 }
             });
         }

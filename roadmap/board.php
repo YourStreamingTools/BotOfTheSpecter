@@ -9,6 +9,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <style>
         .board { display: flex; overflow-x: auto; padding: 20px; min-height: calc(100vh - 80px); gap: 20px; }
         .list { min-width: 300px; background: #ebecf0; border-radius: 8px; padding: 15px; flex-shrink: 0; }
@@ -44,7 +46,7 @@
         function loadBoard() {
             $.get(`api/board.php?id=${boardId}`, function(data) {
                 if (data.error) {
-                    alert(data.error);
+                    toastr.error(data.error);
                     return;
                 }
                 $('#board-title').text(data.name);
