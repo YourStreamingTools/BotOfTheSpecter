@@ -4295,46 +4295,51 @@ class RoleButton(discord.ui.Button):
             self.logger.info(f"[ROLE_BUTTON] Interaction ID: {interaction.id}, Guild ID: {interaction.guild_id}, Channel ID: {interaction.channel_id}")
             self.logger.info(f"[ROLE_BUTTON] Bot permissions in channel: {interaction.app_permissions if interaction.app_permissions else 'Unknown'}")
             self.logger.info(f"[ROLE_BUTTON] Role hierarchy - Target role position: {self.role.position}, Bot top role position: {interaction.guild.me.top_role.position}")
+            # Defer the interaction immediately to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+            self.logger.info(f"[ROLE_BUTTON] Interaction deferred successfully")
             if self.role in member.roles:
                 try:
                     self.logger.info(f"[ROLE_BUTTON] User has role, attempting to remove...")
                     await member.remove_roles(self.role, reason="Role button - user requested removal")
-                    self.logger.info(f"[ROLE_BUTTON] Role removed, sending response...")
-                    await interaction.response.send_message(f"✅ Removed role **{self.role.name}**", ephemeral=True)
+                    self.logger.info(f"[ROLE_BUTTON] Role removed, sending followup response...")
+                    await interaction.followup.send(f"✅ Removed role **{self.role.name}**", ephemeral=True)
                     self.logger.info(f"[ROLE_BUTTON] Response sent - Successfully removed role '{self.role.name}' from {member.name}#{member.discriminator}")
                 except discord.Forbidden as e:
                     self.logger.error(f"[ROLE_BUTTON] Forbidden error when removing role: {e}")
-                    await interaction.response.send_message("❌ I don't have permission to remove this role. Please contact a server administrator.", ephemeral=True)
+                    await interaction.followup.send("❌ I don't have permission to remove this role. Please contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Missing permissions to remove role '{self.role.name}' from {member.name}#{member.discriminator}")
                 except Exception as e:
                     self.logger.error(f"[ROLE_BUTTON] Exception when removing role: {type(e).__name__} - {e}")
                     import traceback
                     self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
-                    await interaction.response.send_message("❌ An error occurred while removing the role. Please try again or contact a server administrator.", ephemeral=True)
+                    await interaction.followup.send("❌ An error occurred while removing the role. Please try again or contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Error removing role '{self.role.name}' from {member.name}#{member.discriminator}: {e}")
             else:
                 try:
                     self.logger.info(f"[ROLE_BUTTON] User doesn't have role, attempting to add...")
                     await member.add_roles(self.role, reason="Role button - user requested assignment")
-                    self.logger.info(f"[ROLE_BUTTON] Role added, sending response...")
-                    await interaction.response.send_message(f"✅ Added role **{self.role.name}**", ephemeral=True)
+                    self.logger.info(f"[ROLE_BUTTON] Role added, sending followup response...")
+                    await interaction.followup.send(f"✅ Added role **{self.role.name}**", ephemeral=True)
                     self.logger.info(f"[ROLE_BUTTON] Response sent - Successfully added role '{self.role.name}' to {member.name}#{member.discriminator}")
                 except discord.Forbidden as e:
                     self.logger.error(f"[ROLE_BUTTON] Forbidden error when adding role: {e}")
-                    await interaction.response.send_message("❌ I don't have permission to assign this role. Please contact a server administrator.", ephemeral=True)
+                    await interaction.followup.send("❌ I don't have permission to assign this role. Please contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Missing permissions to assign role '{self.role.name}' to {member.name}#{member.discriminator}")
                 except Exception as e:
                     self.logger.error(f"[ROLE_BUTTON] Exception when adding role: {type(e).__name__} - {e}")
                     import traceback
                     self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
-                    await interaction.response.send_message("❌ An error occurred while assigning the role. Please try again or contact a server administrator.", ephemeral=True)
+                    await interaction.followup.send("❌ An error occurred while assigning the role. Please try again or contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Error assigning role '{self.role.name}' to {member.name}#{member.discriminator}: {e}")
         except Exception as e:
             self.logger.error(f"[ROLE_BUTTON] Unexpected error in RoleButton callback for user {interaction.user.name}#{interaction.user.discriminator}: {type(e).__name__} - {e}")
             import traceback
             self.logger.error(f"[ROLE_BUTTON] Full traceback: {traceback.format_exc()}")
             try:
-                await interaction.response.send_message("❌ An unexpected error occurred. Please try again or contact a server administrator.", ephemeral=True)
+                if not interaction.response.is_done():
+                    await interaction.response.defer(ephemeral=True)
+                await interaction.followup.send("❌ An unexpected error occurred. Please try again or contact a server administrator.", ephemeral=True)
                 self.logger.info(f"[ROLE_BUTTON] Error response sent successfully")
             except discord.InteractionResponded:
                 self.logger.warning(f"[ROLE_BUTTON] Interaction already responded for role button error with {interaction.user.name}#{interaction.user.discriminator}")
@@ -4365,10 +4370,13 @@ class RulesAcceptButton(discord.ui.Button):
             self.logger.info(f"[RULES_ACCEPT] Interaction ID: {interaction.id}, Guild ID: {interaction.guild_id}, Channel ID: {interaction.channel_id}")
             self.logger.info(f"[RULES_ACCEPT] Bot permissions in channel: {interaction.app_permissions if interaction.app_permissions else 'Unknown'}")
             self.logger.info(f"[RULES_ACCEPT] Role hierarchy - Target role position: {self.role.position}, Bot top role position: {interaction.guild.me.top_role.position}")
+            # Defer the interaction immediately to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+            self.logger.info(f"[RULES_ACCEPT] Interaction deferred successfully")
             # Check if user already has the role
             if self.role in user.roles:
-                self.logger.info(f"[RULES_ACCEPT] User already has role, sending response...")
-                await interaction.response.send_message(
+                self.logger.info(f"[RULES_ACCEPT] User already has role, sending followup response...")
+                await interaction.followup.send(
                     "✅ You have already accepted the rules!",
                     ephemeral=True
                 )
@@ -4378,15 +4386,15 @@ class RulesAcceptButton(discord.ui.Button):
             try:
                 self.logger.info(f"[RULES_ACCEPT] Attempting to add role '{self.role.name}' to user...")
                 await user.add_roles(self.role, reason="Accepted server rules via button")
-                self.logger.info(f"[RULES_ACCEPT] Role added successfully, sending response...")
-                await interaction.response.send_message(
+                self.logger.info(f"[RULES_ACCEPT] Role added successfully, sending followup response...")
+                await interaction.followup.send(
                     "✅ Thank you for accepting the rules! You now have access to the server. 🎉",
                     ephemeral=True
                 )
                 self.logger.info(f"[RULES_ACCEPT] Response sent successfully - assigned rules acceptance role '{self.role.name}' to {user.name}#{user.discriminator}")
             except discord.Forbidden as e:
                 self.logger.error(f"[RULES_ACCEPT] Forbidden error when assigning role: {e}")
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "❌ I don't have permission to assign roles. Please contact a server administrator.",
                     ephemeral=True
                 )
@@ -4395,7 +4403,7 @@ class RulesAcceptButton(discord.ui.Button):
                 self.logger.error(f"[RULES_ACCEPT] Exception when assigning role: {type(e).__name__} - {e}")
                 import traceback
                 self.logger.error(f"[RULES_ACCEPT] Traceback: {traceback.format_exc()}")
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "❌ An error occurred while assigning your role. Please contact a server administrator.",
                     ephemeral=True
                 )
@@ -4405,7 +4413,9 @@ class RulesAcceptButton(discord.ui.Button):
             import traceback
             self.logger.error(f"[RULES_ACCEPT] Full traceback: {traceback.format_exc()}")
             try:
-                await interaction.response.send_message("❌ An unexpected error occurred. Please try again or contact a server administrator.", ephemeral=True)
+                if not interaction.response.is_done():
+                    await interaction.response.defer(ephemeral=True)
+                await interaction.followup.send("❌ An unexpected error occurred. Please try again or contact a server administrator.", ephemeral=True)
                 self.logger.info(f"[RULES_ACCEPT] Error response sent successfully")
             except discord.InteractionResponded:
                 self.logger.warning(f"[RULES_ACCEPT] Interaction already responded for rules button error with {interaction.user.name}#{interaction.user.discriminator}")
