@@ -171,12 +171,12 @@ include 'includes/header.php';
             $.get('api/login_status.php', function(data) {
                 loggedIn = data.logged_in;
                 if (data.admin) {
-                    $('#user-info').html('<a href="admin.php" class="text-blue-600 hover:text-blue-700 font-medium"><i class="fas fa-cog mr-1"></i>Admin</a> | Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
+                    $('#user-info').html('<a href="admin.php" class="text-yellow-300 hover:text-yellow-100 font-medium"><i class="fas fa-cog mr-1"></i>Admin</a> | Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Logout</a>');
                     $('.edit-only').show();
                 } else if (loggedIn) {
-                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
+                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Logout</a>');
                 } else {
-                    $('#user-info').html('<a href="login.php" class="text-blue-600 hover:text-blue-700 font-medium">Login</a>');
+                    $('#user-info').html('<a href="login.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Login</a>');
                 }
                 loadBoard();
             });
