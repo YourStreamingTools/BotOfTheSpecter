@@ -1,72 +1,49 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roadmap Board</title>
-    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="dist/styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <style>
-        .board { display: flex; overflow-x: auto; padding: 20px; min-height: calc(100vh - 80px); gap: 20px; }
-        .list { min-width: 300px; background: #364152; color: #fff; border-radius: 8px; padding: 15px; flex-shrink: 0; }
-        .list h5 { color: #fff; }
-        .card { background: white; margin-bottom: 12px; padding: 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: grab; transition: all 0.2s; }
-        .card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-        .card:active { cursor: grabbing; }
-        .add-card { color: #5e6c84; cursor: pointer; padding: 10px; font-weight: 500; transition: all 0.2s; }
-        .add-card:hover { background: rgba(0,0,0,0.1); border-radius: 4px; }
-        .add-list { 
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            min-width: 280px;
-            padding: 12px 16px;
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
-            text-align: center;
-            margin-top: 20px;
-        }
-        .add-list:hover { 
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
-        }
-        .add-list:active { 
-            transform: translateY(0);
-        }
-        .edit-only { display: none; }
-    </style>
-</head>
-<body class="bg-blue-600">
-    <nav class="bg-white text-gray-800 shadow-lg">
-        <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <div class="flex items-center gap-6">
-                <a href="index.php" class="text-2xl font-bold text-blue-600">Roadmap</a>
-                <a href="index.php" class="text-gray-800 hover:text-blue-600 font-medium transition-colors duration-200">
-                    <i class="fas fa-home mr-1"></i>HOME
-                </a>
-            </div>
-            <div id="board-title" class="text-xl font-semibold"></div>
-            <div id="user-info" class="text-sm flex items-center gap-4">
-                <!-- Admin link will be inserted here by JavaScript -->
-            </div>
-        </div>
-    </nav>
+<?php
+$page_title = "Board";
+$body_class = "bg-blue-600";
+$nav_width = "max-w-full";
+$nav_center = '<div id="board-title" class="text-xl font-semibold"></div>';
+$extra_scripts = '<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>';
+$extra_head = '<style>
+    .board { display: flex; overflow-x: auto; padding: 20px; min-height: calc(100vh - 80px); gap: 20px; }
+    .list { min-width: 300px; background: #364152; color: #fff; border-radius: 8px; padding: 15px; flex-shrink: 0; }
+    .list h5 { color: #fff; }
+    .card { background: white; margin-bottom: 12px; padding: 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: grab; transition: all 0.2s; }
+    .card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .card:active { cursor: grabbing; }
+    .add-card { color: #5e6c84; cursor: pointer; padding: 10px; font-weight: 500; transition: all 0.2s; }
+    .add-card:hover { background: rgba(0,0,0,0.1); border-radius: 4px; }
+    .add-list { 
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-width: 280px;
+        padding: 12px 16px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+        text-align: center;
+        margin-top: 20px;
+    }
+    .add-list:hover { 
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
+    }
+    .add-list:active { 
+        transform: translateY(0);
+    }
+    .edit-only { display: none; }
+</style>';
+include 'includes/header.php';
+?>
     <div class="board" id="board">
         <!-- Lists will be loaded here -->
     </div>

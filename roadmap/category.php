@@ -1,32 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roadmap Category</title>
-    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="dist/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-</head>
-<body class="bg-gradient-to-br from-blue-600 to-blue-800 text-white">
-    <nav class="bg-white text-gray-800 shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <div class="flex items-center gap-6">
-                <a href="index.php" class="text-2xl font-bold text-blue-600">Roadmap</a>
-                <a href="index.php" class="text-gray-800 hover:text-blue-600 font-medium transition-colors duration-200">
-                    <i class="fas fa-home mr-1"></i>HOME
-                </a>
-            </div>
-            <div id="user-info" class="text-sm flex items-center gap-4">
-                <!-- Admin link will be inserted here by JavaScript -->
-            </div>
-        </div>
-    </nav>
+<?php
+$page_title = "Category";
+$body_class = "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
+$nav_width = "max-w-7xl";
+include 'includes/header.php';
+?>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <a href="index.php" class="inline-block bg-gray-200 text-gray-800 hover:bg-gray-300 font-semibold py-2 px-4 rounded-lg mb-6 transition-colors duration-200"><i class="fas fa-arrow-left mr-2"></i>Back to Categories</a>
         <h1 id="category-title" class="text-4xl font-bold mb-8"></h1>
