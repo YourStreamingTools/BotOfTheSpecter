@@ -28,7 +28,12 @@
             </div>
         </div>
         <!-- Categories Grid -->
-        <h2 class="text-2xl font-bold mb-6">Categories</h2>
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold">Categories</h2>
+            <button id="add-category-btn" onclick="openCreateCategoryModal()" class="hidden bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200">
+                <i class="fas fa-plus mr-2"></i>New Category
+            </button>
+        </div>
         <div id="categories" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
             <!-- Categories will be loaded here -->
         </div>
@@ -41,6 +46,30 @@
                 <!-- Completed items will be loaded here -->
             </div>
         </div>
+        <!-- Create Category Modal -->
+        <div id="create-category-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white text-gray-800 rounded-lg p-8 max-w-md w-full mx-4">
+                <h3 class="text-2xl font-bold mb-6">Create New Category</h3>
+                <form id="create-category-form" onsubmit="createCategory(event)">
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold mb-2">Category Name</label>
+                        <input type="text" id="category-name" name="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="e.g., Bot Features" required>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-semibold mb-2">Description</label>
+                        <textarea id="category-description" name="description" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Brief description of this category" rows="3"></textarea>
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="submit" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200">
+                            <i class="fas fa-check mr-2"></i>Create
+                        </button>
+                        <button type="button" onclick="closeCreateCategoryModal()" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition-colors duration-200">
+                            <i class="fas fa-times mr-2"></i>Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
@@ -48,6 +77,7 @@
             $.get('api/login_status.php', function(data) {
                 if (data.admin) {
                     $('#user-info').html('Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
+                    $('#add-category-btn').removeClass('hidden');
                 } else if (data.logged_in) {
                     $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
                 } else {
@@ -175,6 +205,55 @@
                 }
             });
         }
+
+        function openCreateCategoryModal() {
+            $('#create-category-modal').removeClass('hidden');
+            $('#category-name').focus();
+        }
+
+        function closeCreateCategoryModal() {
+            $('#create-category-modal').addClass('hidden');
+            $('#create-category-form')[0].reset();
+        }
+
+        function createCategory(event) {
+            event.preventDefault();
+            
+            const name = $('#category-name').val().trim();
+            const description = $('#category-description').val().trim();
+
+            if (!name) {
+                alert('Please enter a category name');
+                return;
+            }
+
+            $.ajax({
+                url: 'api/create-category.php',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    name: name,
+                    description: description
+                }),
+                dataType: 'json',
+                success: function(data) {
+                    if (data.success) {
+                        alert('Category created successfully!');
+                        closeCreateCategoryModal();
+                        loadCategories();
+                        loadStats();
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to create category'));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error creating category:', error);
+                    const errorMsg = xhr.responseJSON ? xhr.responseJSON.error : error;
+                    alert('Error creating category: ' + errorMsg);
+                }
+            });
+        }
+
         $(document).ready(function() {
             checkLogin();
         });
