@@ -1,5 +1,4 @@
 <?php
-// Enable error logging
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
@@ -8,12 +7,10 @@ header('Content-Type: application/json');
 
 try {
     session_start();
-    // Check admin access
     if (!isset($_SESSION['admin']) || !$_SESSION['admin']) {
         http_response_code(403);
         throw new Exception('Admin access required');
     }
-    // Load database config
     require_once "/var/www/config/database.php";
     if (empty($db_servername) || empty($db_username)) {
         throw new Exception('Database configuration not properly set');
@@ -27,7 +24,12 @@ try {
         throw new Exception('Database not found');
     }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        // Get all lists that have a board_id (these are the items to migrate)
+        // Check if cards table exists
+        $check_table = $conn->query("SHOW TABLES LIKE 'cards'");
+        if (!$check_table || $check_table->num_rows === 0) {
+            throw new Exception('Cards table does not exist. Please run "Auto-Fix Database" first.');
+        }
+        // Get all lists that have a board_id
         $sql = "SELECT * FROM lists WHERE board_id IS NOT NULL ORDER BY board_id";
         $result = $conn->query($sql);
         if (!$result) {
@@ -36,12 +38,10 @@ try {
         $migrated = 0;
         $errors = [];
         while ($list = $result->fetch_assoc()) {
-            $list_id = $list['id'];
-            $board_id = $list['board_id'];
+            $board_id = (int)$list['board_id'];
             $title = $list['name'];
-            $description = $list['description'] ?? null;
-            $position = $list['position'] ?? 0;
-            // Determine section based on list name or default to Pending
+            $position = (int)($list['position'] ?? 0);
+            // Determine section based on list name
             $section = 'Pending';
             $name_lower = strtolower($title);
             if (strpos($name_lower, 'progress') !== false) {
@@ -55,22 +55,22 @@ try {
             $insert_sql = "INSERT INTO cards (board_id, title, section, position) VALUES (?, ?, ?, ?)";
             $stmt = $conn->prepare($insert_sql);
             if (!$stmt) {
-                $errors[] = "Failed to prepare insert for list '$title': " . $conn->error;
+                $errors[] = "Failed to prepare insert: " . $conn->error;
                 continue;
             }
             $stmt->bind_param("issi", $board_id, $title, $section, $position);
             if ($stmt->execute()) {
                 $migrated++;
             } else {
-                $errors[] = "Failed to migrate list '$title': " . $stmt->error;
+                $errors[] = "Failed to migrate '$title': " . $stmt->error;
             }
             $stmt->close();
         }
+        http_response_code(200);
         echo json_encode([
             'success' => true,
             'migrated' => $migrated,
-            'errors' => $errors,
-            'message' => "Successfully migrated $migrated list(s) to cards"
+            'errors' => $errors
         ]);
     } else {
         throw new Exception('Invalid request method');
@@ -79,9 +79,8 @@ try {
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([
-        'error' => $e->getMessage(),
-        'file' => $e->getFile(),
-        'line' => $e->getLine()
+        'success' => false,
+        'error' => $e->getMessage()
     ]);
 }
 ?>
