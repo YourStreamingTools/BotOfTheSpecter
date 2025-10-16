@@ -4,24 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Roadmap Board</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.css">
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
     <style>
-        body { background: #0079bf; }
-        .board { display: flex; overflow-x: auto; padding: 20px; min-height: calc(100vh - 56px); }
-        .list { min-width: 300px; margin-right: 20px; background: #ebecf0; border-radius: 3px; padding: 10px; }
-        .card { background: white; margin-bottom: 10px; padding: 10px; border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: pointer; }
-        .add-card, .add-list { color: #5e6c84; cursor: pointer; padding: 10px; }
-        .add-list { background: rgba(0,0,0,0.1); border-radius: 3px; width: 300px; text-align: center; }
+        .board { display: flex; overflow-x: auto; padding: 20px; min-height: calc(100vh - 80px); gap: 20px; }
+        .list { min-width: 300px; background: #ebecf0; border-radius: 8px; padding: 15px; flex-shrink: 0; }
+        .card { background: white; margin-bottom: 12px; padding: 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: grab; transition: all 0.2s; }
+        .card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .card:active { cursor: grabbing; }
+        .add-card, .add-list { color: #5e6c84; cursor: pointer; padding: 10px; font-weight: 500; transition: all 0.2s; }
+        .add-card:hover, .add-list:hover { background: rgba(0,0,0,0.05); border-radius: 4px; }
+        .add-list { background: rgba(0,0,0,0.08); border-radius: 6px; width: 300px; text-align: center; }
         .edit-only { display: none; }
     </style>
 </head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="index.php">Roadmap</a>
-            <div id="board-title" class="navbar-text"></div>
-            <div id="user-info" class="navbar-text ms-auto"></div>
+<body class="bg-blue-600">
+    <nav class="bg-white text-gray-800 shadow-lg">
+        <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <a href="index.php" class="text-2xl font-bold text-blue-600">Roadmap</a>
+            <div id="board-title" class="text-xl font-semibold"></div>
+            <div id="user-info" class="text-sm"></div>
         </div>
     </nav>
 
@@ -51,7 +56,7 @@
                 data.lists.forEach(list => {
                     const listEl = $(`
                         <div class="list" data-id="${list.id}">
-                            <h5>${list.name}</h5>
+                            <h5 class="font-bold text-gray-800 mb-3 cursor-move">${list.name}</h5>
                             <div class="cards" data-list-id="${list.id}">
                                 ${list.cards.map(card => `<div class="card" data-id="${card.id}">${card.title}</div>`).join('')}
                             </div>
@@ -126,12 +131,12 @@
             $.get('api/login_status.php', function(data) {
                 loggedIn = data.logged_in;
                 if (data.admin) {
-                    $('#user-info').html('Logged in as ' + data.username + ' (Admin) | <a href="logout.php">Logout</a>');
+                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
                     $('.edit-only').show();
                 } else if (loggedIn) {
-                    $('#user-info').html('Logged in as ' + data.username + ' | <a href="logout.php">Logout</a>');
+                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
                 } else {
-                    $('#user-info').html('<a href="login.php">Login</a>');
+                    $('#user-info').html('<a href="login.php" class="text-blue-600 hover:text-blue-700 font-medium">Login</a>');
                 }
                 loadBoard();
             });
