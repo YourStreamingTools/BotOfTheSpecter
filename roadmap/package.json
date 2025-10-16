@@ -1,0 +1,13 @@
+{
+  "name": "roadmap",
+  "version": "1.0.0",
+  "description": "Roadmap application with Tailwind CSS",
+  "scripts": {
+    "build": "tailwindcss -i ./src/input.css -o ./dist/styles.css",
+    "watch": "tailwindcss -i ./src/input.css -o ./dist/styles.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.3.6",
+    "postcss": "^8.4.31"
+  }
+}
