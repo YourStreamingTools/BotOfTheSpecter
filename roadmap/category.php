@@ -16,7 +16,9 @@
     <nav class="bg-white text-gray-800 shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
             <a href="index.php" class="text-2xl font-bold text-blue-600">Roadmap</a>
-            <div id="user-info" class="text-sm"></div>
+            <div id="user-info" class="text-sm flex items-center gap-4">
+                <!-- Admin link will be inserted here by JavaScript -->
+            </div>
         </div>
     </nav>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -57,7 +59,7 @@
         function checkLogin() {
             $.get('api/login_status.php', function(data) {
                 if (data.admin) {
-                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
+                    $('#user-info').html('<a href="admin.php" class="text-blue-600 hover:text-blue-700 font-medium"><i class="fas fa-cog mr-1"></i>Admin</a> | Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
                 } else if (data.logged_in) {
                     $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-blue-600 hover:text-blue-700 font-medium">Logout</a>');
                 } else {
