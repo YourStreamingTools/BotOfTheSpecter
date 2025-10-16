@@ -38,33 +38,35 @@ try {
         $migrated = 0;
         $errors = [];
         while ($list = $result->fetch_assoc()) {
-            $board_id = (int)$list['board_id'];
-            $title = $list['name'];
-            $position = (int)($list['position'] ?? 0);
-            // Determine section based on list name
-            $section = 'Pending';
-            $name_lower = strtolower($title);
-            if (strpos($name_lower, 'progress') !== false) {
-                $section = 'In Progress';
-            } elseif (strpos($name_lower, 'beta') !== false) {
-                $section = 'Beta';
-            } elseif (strpos($name_lower, 'complete') !== false) {
-                $section = 'Completed';
-            }
-            // Insert as card
-            $insert_sql = "INSERT INTO cards (board_id, title, section, position) VALUES (?, ?, ?, ?)";
-            $stmt = $conn->prepare($insert_sql);
-            if (!$stmt) {
-                $errors[] = "Failed to prepare insert: " . $conn->error;
-                continue;
-            }
-            $stmt->bind_param("issi", $board_id, $title, $section, $position);
-            if ($stmt->execute()) {
+            try {
+                $board_id = (int)$list['board_id'];
+                $title = $list['name'];
+                $position = (int)($list['position'] ?? 0);
+                // Determine section based on list name
+                $section = 'Pending';
+                $name_lower = strtolower($title);
+                if (strpos($name_lower, 'progress') !== false) {
+                    $section = 'In Progress';
+                } elseif (strpos($name_lower, 'beta') !== false) {
+                    $section = 'Beta';
+                } elseif (strpos($name_lower, 'complete') !== false) {
+                    $section = 'Completed';
+                }
+                // Insert as card using prepared statement
+                $insert_sql = "INSERT INTO cards (board_id, title, section, position) VALUES (?, ?, ?, ?)";
+                $stmt = $conn->prepare($insert_sql);
+                if (!$stmt) {
+                    throw new Exception('Failed to prepare insert: ' . $conn->error);
+                }
+                $stmt->bind_param("issi", $board_id, $title, $section, $position);
+                if (!$stmt->execute()) {
+                    throw new Exception('Failed to execute: ' . $stmt->error);
+                }
+                $stmt->close();
                 $migrated++;
-            } else {
-                $errors[] = "Failed to migrate '$title': " . $stmt->error;
+            } catch (Exception $e) {
+                $errors[] = "List '" . $list['name'] . "': " . $e->getMessage();
             }
-            $stmt->close();
         }
         http_response_code(200);
         echo json_encode([
