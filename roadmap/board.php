@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         .board { display: flex; overflow-x: auto; padding: 20px; min-height: calc(100vh - 80px); gap: 20px; }
         .list { min-width: 300px; background: #ebecf0; border-radius: 8px; padding: 15px; flex-shrink: 0; }
@@ -92,24 +93,60 @@
             });
         }
         function addCard(listId) {
-            const title = prompt('Enter card title:');
-            if (title) {
-                $.post('api/cards.php', JSON.stringify({ list_id: listId, title: title }), function(data) {
-                    if (data.id) {
-                        loadBoard();
+            Swal.fire({
+                title: 'Add Card',
+                input: 'text',
+                inputLabel: 'Card Title',
+                inputPlaceholder: 'Enter card title...',
+                showCancelButton: true,
+                confirmButtonText: 'Add',
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#6b7280',
+                inputValidator: (value) => {
+                    if (!value) {
+                        return 'Please enter a card title';
                     }
-                }, 'json');
-            }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.post('api/cards.php', JSON.stringify({ list_id: listId, title: result.value }), function(data) {
+                        if (data.id) {
+                            toastr.success('Card added successfully');
+                            loadBoard();
+                        } else {
+                            toastr.error('Failed to add card');
+                        }
+                    }, 'json');
+                }
+            });
         }
         function addList() {
-            const name = prompt('Enter list name:');
-            if (name) {
-                $.post('api/lists.php', JSON.stringify({ board_id: boardId, name: name }), function(data) {
-                    if (data.id) {
-                        loadBoard();
+            Swal.fire({
+                title: 'Add List',
+                input: 'text',
+                inputLabel: 'List Name',
+                inputPlaceholder: 'Enter list name...',
+                showCancelButton: true,
+                confirmButtonText: 'Add',
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#6b7280',
+                inputValidator: (value) => {
+                    if (!value) {
+                        return 'Please enter a list name';
                     }
-                }, 'json');
-            }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.post('api/lists.php', JSON.stringify({ board_id: boardId, name: result.value }), function(data) {
+                        if (data.id) {
+                            toastr.success('List added successfully');
+                            loadBoard();
+                        } else {
+                            toastr.error('Failed to add list');
+                        }
+                    }, 'json');
+                }
+            });
         }
         function updateCardPosition(cardId, listId, position) {
             $.post('api/update.php', JSON.stringify({ type: 'move_card', card_id: cardId, list_id: listId, position: position }), function(data) {

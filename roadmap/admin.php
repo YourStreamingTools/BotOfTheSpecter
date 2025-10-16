@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="bg-gradient-to-br from-blue-600 to-blue-800 text-white">
     <nav class="bg-white text-gray-800 shadow-lg">
@@ -180,61 +181,79 @@
             });
         }
         function fixDatabase() {
-            if (!confirm('This will create missing tables and add missing columns. Continue?')) {
-                return;
-            }
-            $.ajax({
-                url: 'api/db-admin.php',
-                type: 'POST',
-                dataType: 'json',
-                success: function(data) {
-                    if (data.error) {
-                        toastr.error(data.error);
-                        return;
-                    }
-                    if (data.created.length > 0) {
-                        toastr.success('Created tables: ' + data.created.join(', '));
-                    }
-                    if (data.altered.length > 0) {
-                        toastr.info('Altered tables: ' + data.altered.join(', '));
-                    }
-                    if (data.errors.length > 0) {
-                        data.errors.forEach(err => toastr.error(err));
-                    }
-                    // Refresh status
-                    setTimeout(() => checkDatabase(), 1000);
-                },
-                error: function(xhr, status, error) {
-                    toastr.error('Error fixing database: ' + error);
+            Swal.fire({
+                title: 'Fix Database?',
+                text: 'This will create missing tables and add missing columns.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#22c55e',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, fix it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: 'api/db-admin.php',
+                        type: 'POST',
+                        dataType: 'json',
+                        success: function(data) {
+                            if (data.error) {
+                                toastr.error(data.error);
+                                return;
+                            }
+                            if (data.created.length > 0) {
+                                toastr.success('Created tables: ' + data.created.join(', '));
+                            }
+                            if (data.altered.length > 0) {
+                                toastr.info('Altered tables: ' + data.altered.join(', '));
+                            }
+                            if (data.errors.length > 0) {
+                                data.errors.forEach(err => toastr.error(err));
+                            }
+                            // Refresh status
+                            setTimeout(() => checkDatabase(), 1000);
+                        },
+                        error: function(xhr, status, error) {
+                            toastr.error('Error fixing database: ' + error);
+                        }
+                    });
                 }
             });
         }
         function migrateCategories() {
-            if (!confirm('This will create missing boards for existing categories. Continue?')) {
-                return;
-            }
-            const statusDiv = $('#migration-status');
-            statusDiv.removeClass('hidden').html('<div class="bg-blue-500 bg-opacity-20 border-l-4 border-blue-400 p-3 rounded"><i class="fas fa-sync-alt mr-2 animate-spin"></i>Running migration...</div>');
-            $.ajax({
-                url: 'api/migrate-categories.php',
-                type: 'POST',
-                dataType: 'json',
-                success: function(data) {
-                    if (data.error) {
-                        statusDiv.html('<div class="bg-red-500 bg-opacity-20 border-l-4 border-red-400 p-3 rounded"><i class="fas fa-times-circle mr-2"></i>' + data.error + '</div>');
-                        toastr.error(data.error);
-                        return;
-                    }
-                    let html = '<div class="bg-green-500 bg-opacity-20 border-l-4 border-green-400 p-3 rounded mb-3"><i class="fas fa-check-circle mr-2"></i>Created <strong>' + data.created_count + '</strong> board(s)</div>';
-                    if (data.errors.length > 0) {
-                        html += '<div class="bg-yellow-500 bg-opacity-20 border-l-4 border-yellow-400 p-3 rounded"><strong>Errors:</strong><br>' + data.errors.join('<br>') + '</div>';
-                    }
-                    statusDiv.html(html);
-                    toastr.success('Migration complete! Created ' + data.created_count + ' board(s)');
-                },
-                error: function(xhr, status, error) {
-                    statusDiv.html('<div class="bg-red-500 bg-opacity-20 border-l-4 border-red-400 p-3 rounded"><i class="fas fa-times-circle mr-2"></i>Error: ' + error + '</div>');
-                    toastr.error('Error running migration: ' + error);
+            Swal.fire({
+                title: 'Migrate Categories?',
+                text: 'This will create missing boards for existing categories.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#eab308',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, migrate!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const statusDiv = $('#migration-status');
+                    statusDiv.removeClass('hidden').html('<div class="bg-blue-500 bg-opacity-20 border-l-4 border-blue-400 p-3 rounded"><i class="fas fa-sync-alt mr-2 animate-spin"></i>Running migration...</div>');
+                    $.ajax({
+                        url: 'api/migrate-categories.php',
+                        type: 'POST',
+                        dataType: 'json',
+                        success: function(data) {
+                            if (data.error) {
+                                statusDiv.html('<div class="bg-red-500 bg-opacity-20 border-l-4 border-red-400 p-3 rounded"><i class="fas fa-times-circle mr-2"></i>' + data.error + '</div>');
+                                toastr.error(data.error);
+                                return;
+                            }
+                            let html = '<div class="bg-green-500 bg-opacity-20 border-l-4 border-green-400 p-3 rounded mb-3"><i class="fas fa-check-circle mr-2"></i>Created <strong>' + data.created_count + '</strong> board(s)</div>';
+                            if (data.errors.length > 0) {
+                                html += '<div class="bg-yellow-500 bg-opacity-20 border-l-4 border-yellow-400 p-3 rounded"><strong>Errors:</strong><br>' + data.errors.join('<br>') + '</div>';
+                            }
+                            statusDiv.html(html);
+                            toastr.success('Migration complete! Created ' + data.created_count + ' board(s)');
+                        },
+                        error: function(xhr, status, error) {
+                            statusDiv.html('<div class="bg-red-500 bg-opacity-20 border-l-4 border-red-400 p-3 rounded"><i class="fas fa-times-circle mr-2"></i>Error: ' + error + '</div>');
+                            toastr.error('Error running migration: ' + error);
+                        }
+                    });
                 }
             });
         }
