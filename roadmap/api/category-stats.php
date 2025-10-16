@@ -89,7 +89,7 @@ try {
                     c.id,
                     c.name,
                     COUNT(DISTINCT ca.id) as total_cards,
-                    SUM(CASE WHEN LOWER(l.name) = 'completed' THEN 1 ELSE 0 END) as completed_cards
+                    COUNT(DISTINCT CASE WHEN LOWER(l.name) = 'completed' THEN ca.id ELSE NULL END) as completed_cards
                 FROM categories c
                 LEFT JOIN boards b ON c.id = b.category_id
                 LEFT JOIN lists l ON b.id = l.board_id
