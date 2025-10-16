@@ -39,18 +39,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['id'])) {
         echo json_encode(['error' => 'Category not found']);
         exit;
     }
-    // Get boards for the category
-    $sql_boards = "SELECT * FROM boards WHERE category_id = ? ORDER BY created_at DESC";
-    $stmt_boards = $conn->prepare($sql_boards);
-    $stmt_boards->bind_param("i", $category_id);
-    $stmt_boards->execute();
-    $result_boards = $stmt_boards->get_result();
-    $boards = [];
-    while ($board = $result_boards->fetch_assoc()) {
-        $boards[] = $board;
-    }
-    $stmt_boards->close();
-    $category['boards'] = $boards;
+    // Get the board for this category (should be only one)
+    $sql_board = "SELECT * FROM boards WHERE category_id = ? LIMIT 1";
+    $stmt_board = $conn->prepare($sql_board);
+    $stmt_board->bind_param("i", $category_id);
+    $stmt_board->execute();
+    $board = $stmt_board->get_result()->fetch_assoc();
+    $stmt_board->close();
+    $category['board'] = $board;
     $category['admin'] = isset($_SESSION['admin']) && $_SESSION['admin'];
     echo json_encode($category);
 } else {

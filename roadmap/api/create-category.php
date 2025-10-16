@@ -51,9 +51,46 @@ try {
         }
         $stmt->bind_param("ss", $name, $description);
         if ($stmt->execute()) {
+            $category_id = $conn->insert_id;
+            // Create board for this category
+            $board_name = $name . " Board";
+            $created_by = $_SESSION['username'] ?? 'admin';
+            $sql_board = "INSERT INTO boards (category_id, name, created_by) VALUES (?, ?, ?)";
+            $stmt_board = $conn->prepare($sql_board);
+            if (!$stmt_board) {
+                throw new Exception('Failed to prepare board insert: ' . $conn->error);
+            }
+            $stmt_board->bind_param("iss", $category_id, $board_name, $created_by);
+            if (!$stmt_board->execute()) {
+                throw new Exception('Failed to create board: ' . $stmt_board->error);
+            }
+            $board_id = $conn->insert_id;
+            $stmt_board->close();
+            // Create 4 default lists for the board
+            $lists = [
+                ['name' => 'Upcoming', 'position' => 0],
+                ['name' => 'In Progress', 'position' => 1],
+                ['name' => 'Beta', 'position' => 2],
+                ['name' => 'Completed', 'position' => 3]
+            ];
+            $sql_list = "INSERT INTO lists (board_id, name, position) VALUES (?, ?, ?)";
+            $stmt_list = $conn->prepare($sql_list);
+            if (!$stmt_list) {
+                throw new Exception('Failed to prepare list insert: ' . $conn->error);
+            }
+            foreach ($lists as $list) {
+                $list_name = $list['name'];
+                $list_position = $list['position'];
+                $stmt_list->bind_param("isi", $board_id, $list_name, $list_position);
+                if (!$stmt_list->execute()) {
+                    throw new Exception('Failed to create list ' . $list_name . ': ' . $stmt_list->error);
+                }
+            }
+            $stmt_list->close();
             echo json_encode([
                 'success' => true,
-                'id' => $conn->insert_id,
+                'id' => $category_id,
+                'board_id' => $board_id,
                 'name' => $name,
                 'description' => $description
             ]);

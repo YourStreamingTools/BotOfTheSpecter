@@ -46,12 +46,6 @@
                 </div>
             </div>
         </div>
-        <div id="boards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <!-- Boards will be loaded here -->
-        </div>
-        <div id="edit-controls" class="hidden">
-            <button onclick="createBoard()" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 text-lg"><i class="fas fa-plus mr-2"></i>Create New Board</button>
-        </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
@@ -87,32 +81,13 @@
                     return;
                 }
                 $('#category-title').text(data.name);
-                $('#boards').empty();
-                data.boards.forEach(board => {
-                    $('#boards').append(`
-                        <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 hover:bg-opacity-20 transition-all duration-300 shadow-lg">
-                            <h3 class="text-xl font-bold mb-4">${board.name}</h3>
-                            <a href="board.php?id=${board.id}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200">
-                                <i class="fas fa-arrow-right mr-2"></i>View Board
-                            </a>
-                        </div>
-                    `);
-                });
-                // Show edit if admin
-                if (data.admin) {
-                    $('#edit-controls').removeClass('hidden');
+                // If board exists, redirect to it
+                if (data.board && data.board.id) {
+                    window.location.href = `board.php?id=${data.board.id}`;
+                } else {
+                    toastr.error('No board found for this category');
                 }
             });
-        }
-        function createBoard() {
-            const name = prompt('Enter board name:');
-            if (name) {
-                $.post('api/boards.php', JSON.stringify({ name: name, category_id: categoryId }), function(data) {
-                    if (data.id) {
-                        loadCategory();
-                    }
-                }, 'json');
-            }
         }
         $(document).ready(function() {
             checkLogin();
