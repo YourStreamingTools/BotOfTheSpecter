@@ -71,6 +71,12 @@ include 'includes/header.php';
             <p class="text-blue-200 mb-4">Remove test or unwanted data from the database.</p>
             <div class="space-y-3">
                 <div>
+                    <button onclick="fixListOrder()" class="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200">
+                        <i class="fas fa-sort mr-2"></i>Fix List Order
+                    </button>
+                    <p class="text-xs text-blue-300 mt-2">Reorder lists so Completed appears last</p>
+                </div>
+                <div>
                     <button onclick="clearCompletedItems()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200">
                         <i class="fas fa-trash mr-2"></i>Clear All Completed Items
                     </button>
@@ -279,6 +285,37 @@ include 'includes/header.php';
                         },
                         error: function(xhr, status, error) {
                             toastr.error('Error clearing completed items: ' + error);
+                        }
+                    });
+                }
+            });
+        }
+        function fixListOrder() {
+            Swal.fire({
+                title: 'Fix List Order?',
+                text: 'This will reorder all lists to ensure "Completed" appears last.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#a855f7',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, fix it!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: 'api/fix-list-order.php',
+                        type: 'POST',
+                        data: { board_id: 1 }, // Will need to be board-specific, for now use 1
+                        dataType: 'json',
+                        success: function(data) {
+                            if (data.success) {
+                                toastr.success('List order fixed! Updated ' + data.updated + ' list(s)');
+                            } else {
+                                toastr.error(data.error || 'Failed to fix list order');
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            toastr.error('Error fixing list order: ' + error);
                         }
                     });
                 }
