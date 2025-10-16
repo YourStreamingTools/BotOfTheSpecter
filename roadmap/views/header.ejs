@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title || 'BotOfTheSpecter Roadmap' %></title>
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="stylesheet" href="/dist/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <% if (typeof extra_scripts !== 'undefined') { %><%= extra_scripts %><% } %>
+    <% if (typeof extra_head !== 'undefined') { %><%= extra_head %><% } %>
+</head>
+<body class="<%= body_class || 'bg-gradient-to-br from-blue-600 to-blue-800 text-white' %>">
+    <nav style="background-color: #364152;" class="text-white shadow-lg">
+        <div class="<%= nav_width || 'max-w-7xl' %> mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <div class="flex items-center">
+                <a href="/" class="text-xl font-bold">BotOfTheSpecter</a>
+            </div>
+            <div class="flex items-center gap-4">
+                <% if (typeof nav_center !== 'undefined') { %><%= nav_center %><% } %>
+                <% if (user && user.username) { %>
+                    <span class="text-sm">Welcome, <%= user.display_name || user.username %></span>
+                    <% if (user.admin) { %>
+                        <a href="/admin" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm">Admin</a>
+                    <% } %>
+                    <a href="/logout" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm">Logout</a>
+                <% } else { %>
+                    <a href="/login" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm">Login</a>
+                <% } %>
+            </div>
+        </div>
+    </nav>
