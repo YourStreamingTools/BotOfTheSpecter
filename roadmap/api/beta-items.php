@@ -17,8 +17,7 @@ try {
     $conn = new mysqli($db_servername, $db_username, $db_password);
     // Check connection
     if ($conn->connect_error) {
-        echo json_encode(['error' => 'Connection failed: ' . $conn->connect_error]);
-        exit;
+        throw new Exception('Connection failed: ' . $conn->connect_error);
     }
     // Select the database
     if (!$conn->select_db($dbname)) {
