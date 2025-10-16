@@ -56,9 +56,20 @@ include 'includes/header.php';
                 <i class="fas fa-exchange-alt mr-3"></i>Data Migration
             </h2>
             <p class="text-blue-200 mb-4">Create boards for existing categories that don't have them yet.</p>
-            <button onclick="migrateCategories()" class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200">
-                <i class="fas fa-sync-alt mr-2"></i>Migrate Existing Categories
-            </button>
+            <div class="space-y-3">
+                <div>
+                    <button onclick="migrateCategories()" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200">
+                        <i class="fas fa-sync-alt mr-2"></i>Migrate Existing Categories
+                    </button>
+                    <p class="text-xs text-blue-300 mt-2">Create missing boards for existing categories</p>
+                </div>
+                <div>
+                    <button onclick="migrateListsToCards()" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200">
+                        <i class="fas fa-sync-alt mr-2"></i>Migrate Lists to Cards
+                    </button>
+                    <p class="text-xs text-blue-300 mt-2">Convert existing list items into cards with sections</p>
+                </div>
+            </div>
             <div id="migration-status" class="mt-4 hidden">
                 <!-- Migration status will appear here -->
             </div>
@@ -251,6 +262,44 @@ include 'includes/header.php';
                             }
                             statusDiv.html(html);
                             toastr.success('Migration complete! Created ' + data.created_count + ' board(s)');
+                        },
+                        error: function(xhr, status, error) {
+                            statusDiv.html('<div class="bg-red-500 bg-opacity-20 border-l-4 border-red-400 p-3 rounded"><i class="fas fa-times-circle mr-2"></i>Error: ' + error + '</div>');
+                            toastr.error('Error running migration: ' + error);
+                        }
+                    });
+                }
+            });
+        }
+        function migrateListsToCards() {
+            Swal.fire({
+                title: 'Migrate Lists to Cards?',
+                text: 'This will convert existing list items into cards with sections. This operation is safe and items will remain intact.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#eab308',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, migrate!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const statusDiv = $('#migration-status');
+                    statusDiv.removeClass('hidden').html('<div class="bg-blue-500 bg-opacity-20 border-l-4 border-blue-400 p-3 rounded"><i class="fas fa-sync-alt mr-2 animate-spin"></i>Running migration...</div>');
+                    $.ajax({
+                        url: 'api/migrate-lists-to-cards.php',
+                        type: 'POST',
+                        dataType: 'json',
+                        success: function(data) {
+                            if (!data.success) {
+                                statusDiv.html('<div class="bg-red-500 bg-opacity-20 border-l-4 border-red-400 p-3 rounded"><i class="fas fa-times-circle mr-2"></i>' + (data.error || 'Migration failed') + '</div>');
+                                toastr.error(data.error || 'Migration failed');
+                                return;
+                            }
+                            let html = '<div class="bg-green-500 bg-opacity-20 border-l-4 border-green-400 p-3 rounded mb-3"><i class="fas fa-check-circle mr-2"></i>Successfully migrated <strong>' + data.migrated + '</strong> item(s) to cards</div>';
+                            if (data.errors && data.errors.length > 0) {
+                                html += '<div class="bg-yellow-500 bg-opacity-20 border-l-4 border-yellow-400 p-3 rounded"><strong>Warnings:</strong><br>' + data.errors.join('<br>') + '</div>';
+                            }
+                            statusDiv.html(html);
+                            toastr.success('Migration complete! Migrated ' + data.migrated + ' item(s)');
                         },
                         error: function(xhr, status, error) {
                             statusDiv.html('<div class="bg-red-500 bg-opacity-20 border-l-4 border-red-400 p-3 rounded"><i class="fas fa-times-circle mr-2"></i>Error: ' + error + '</div>');
