@@ -1,29 +1,16 @@
 <?php
 header('Content-Type: application/json');
 
-// Only allow this from admin or POST requests
 session_start();
 
-require_once "/var/www/config/database.php";
-
 // Check if user is admin
-$is_admin = false;
-if (isset($_SESSION['username'])) {
-    $db = new mysqli($db_servername, $db_username, $db_password, "roadmap");
-    $username = $db->real_escape_string($_SESSION['username']);
-    $result = $db->query("SELECT is_admin FROM users WHERE username = '$username'");
-    if ($result && $result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        $is_admin = (bool)$user['is_admin'];
-    }
-    $db->close();
-}
-
-if (!$is_admin) {
+if (!isset($_SESSION['admin']) || !$_SESSION['admin']) {
     http_response_code(403);
     echo json_encode(['error' => 'Admin access required']);
     exit;
 }
+
+require_once "/var/www/config/database.php";
 
 $conn = new mysqli($db_servername, $db_username, $db_password, "roadmap");
 
