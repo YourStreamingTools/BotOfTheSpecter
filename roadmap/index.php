@@ -17,9 +17,29 @@
         </div>
     </nav>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 class="text-center text-4xl font-bold mb-8">BotOfTheSpecter Roadmap</h1>
-        <div id="categories" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <h1 class="text-center text-4xl font-bold mb-12">BotOfTheSpecter Roadmap</h1>
+        <!-- Completion Summary Section -->
+        <div class="mb-12 bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 shadow-lg">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <i class="fas fa-chart-pie mr-3"></i>Overall Progress
+            </h2>
+            <div id="overall-stats" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Stats will be loaded here -->
+            </div>
+        </div>
+        <!-- Categories Grid -->
+        <h2 class="text-2xl font-bold mb-6">Categories</h2>
+        <div id="categories" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
             <!-- Categories will be loaded here -->
+        </div>
+        <!-- Completed Items Section -->
+        <div id="completed-section" class="hidden">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <i class="fas fa-check-circle mr-3 text-green-400"></i>Recently Completed
+            </h2>
+            <div id="completed-items" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Completed items will be loaded here -->
+            </div>
         </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -33,7 +53,50 @@
                 } else {
                     $('#user-info').html('<a href="login.php" class="text-blue-600 hover:text-blue-700 font-medium">Login</a>');
                 }
+                loadStats();
                 loadCategories();
+                loadCompletedItems();
+            });
+        }
+        function loadStats() {
+            $.ajax({
+                url: 'api/category-stats.php',
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    if (data && data.length > 0) {
+                        let totalCards = 0;
+                        let totalCompleted = 0;
+                        
+                        data.forEach(cat => {
+                            totalCards += cat.total_cards;
+                            totalCompleted += cat.completed_cards;
+                        });
+                        
+                        const overallPercentage = totalCards > 0 ? Math.round((totalCompleted / totalCards) * 100) : 0;
+                        
+                        $('#overall-stats').empty().html(`
+                            <div class="text-center">
+                                <div class="text-5xl font-bold text-green-400 mb-2">${totalCompleted}</div>
+                                <div class="text-lg">Items Completed</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-5xl font-bold text-blue-300 mb-2">${totalCards}</div>
+                                <div class="text-lg">Total Items</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-5xl font-bold text-purple-300 mb-2">${overallPercentage}%</div>
+                                <div class="text-lg">Complete</div>
+                                <div class="w-full bg-gray-700 rounded-full h-2 mt-3">
+                                    <div class="bg-purple-500 h-2 rounded-full" style="width: ${overallPercentage}%"></div>
+                                </div>
+                            </div>
+                        `);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading stats:', error);
+                }
             });
         }
         function loadCategories() {
@@ -45,13 +108,30 @@
                     $('#categories').empty();
                     if (data && data.length > 0) {
                         data.forEach(category => {
-                            $('#categories').append(`
-                                <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 hover:bg-opacity-20 transition-all duration-300 shadow-lg">
-                                    <h3 class="text-xl font-bold mb-3">${category.name}</h3>
-                                    <p class="text-blue-100 mb-6">${category.description}</p>
-                                    <a href="category.php?id=${category.id}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200">View Boards</a>
-                                </div>
-                            `);
+                            $.get(`api/category-stats.php?id=${category.id}`, function(stats) {
+                                const progressColor = stats.percentage >= 75 ? 'text-green-400' : stats.percentage >= 50 ? 'text-yellow-400' : stats.percentage >= 25 ? 'text-orange-400' : 'text-red-400';
+                                
+                                $('#categories').append(`
+                                    <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 hover:bg-opacity-20 transition-all duration-300 shadow-lg">
+                                        <h3 class="text-xl font-bold mb-3">${category.name}</h3>
+                                        <p class="text-blue-100 mb-4">${category.description}</p>
+                                        
+                                        <div class="mb-6 pb-4 border-b border-white border-opacity-20">
+                                            <div class="flex justify-between items-center mb-2">
+                                                <span class="text-sm">Progress: <strong class="${progressColor}">${stats.percentage}%</strong></span>
+                                                <span class="text-sm text-blue-200">${stats.completed_cards}/${stats.total_cards}</span>
+                                            </div>
+                                            <div class="w-full bg-gray-700 rounded-full h-2">
+                                                <div class="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500" style="width: ${stats.percentage}%"></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <a href="category.php?id=${category.id}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 w-full text-center">
+                                            <i class="fas fa-arrow-right mr-2"></i>View Boards
+                                        </a>
+                                    </div>
+                                `);
+                            });
                         });
                     } else {
                         $('#categories').append('<p class="text-center text-blue-100 col-span-full">No categories found. Please check back later.</p>');
@@ -61,6 +141,37 @@
                     console.error('Error loading categories:', error);
                     console.error('Response:', xhr.responseText);
                     $('#categories').append('<p class="text-center text-red-300 col-span-full">Error loading categories: ' + (xhr.responseJSON ? xhr.responseJSON.error : error) + '</p>');
+                }
+            });
+        }
+        function loadCompletedItems() {
+            $.ajax({
+                url: 'api/completed-items.php',
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    if (data && data.length > 0) {
+                        $('#completed-section').removeClass('hidden');
+                        $('#completed-items').empty();
+                        
+                        data.forEach(item => {
+                            $('#completed-items').append(`
+                                <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-6 hover:bg-opacity-20 transition-all duration-300 shadow-lg border-l-4 border-green-400">
+                                    <div class="flex items-start justify-between mb-2">
+                                        <h4 class="text-lg font-bold">${item.card_title}</h4>
+                                        <i class="fas fa-check-circle text-green-400 text-xl"></i>
+                                    </div>
+                                    <p class="text-sm text-blue-200 mb-2">${item.board_name}</p>
+                                    <p class="text-xs text-blue-300"><i class="fas fa-folder mr-1"></i>${item.category_name}</p>
+                                </div>
+                            `);
+                        });
+                    } else {
+                        $('#completed-section').addClass('hidden');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading completed items:', error);
                 }
             });
         }
