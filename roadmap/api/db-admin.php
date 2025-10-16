@@ -7,16 +7,26 @@ ini_set('log_errors', 1);
 header('Content-Type: application/json');
 
 try {
-    // Load database config
-    require_once "/var/www/config/database.php";
-    if (empty($db_servername) || empty($db_username)) {
-        throw new Exception('Database configuration not properly set');
-    }
-    // Check admin access
+    // Check admin access first
     session_start();
     if (!isset($_SESSION['admin']) || !$_SESSION['admin']) {
         http_response_code(403);
         throw new Exception('Admin access required');
+    }
+    // Load database config - try multiple paths
+    $config_path = $_SERVER['DOCUMENT_ROOT'] . '/../config/database.php';
+    if (!file_exists($config_path)) {
+        $config_path = __DIR__ . '/../../config/database.php';
+    }
+    if (!file_exists($config_path)) {
+        $config_path = '/var/www/config/database.php';
+    }
+    if (!file_exists($config_path)) {
+        throw new Exception('Database configuration file not found');
+    }
+    require_once $config_path;
+    if (empty($db_servername) || empty($db_username)) {
+        throw new Exception('Database configuration not properly set');
     }
     $dbname = "roadmap";
     // Create connection

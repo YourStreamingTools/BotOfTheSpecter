@@ -97,8 +97,8 @@ if (isset($_GET['code'])) {
     <title>Login</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <script src="https://cdn.tailwindcss.com"></link>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
+    <link rel="stylesheet" href="dist/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-gradient-to-br from-blue-600 to-blue-800 text-white min-h-screen flex items-center justify-center">
     <div class="max-w-md w-full mx-4">
