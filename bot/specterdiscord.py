@@ -901,6 +901,76 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.error(f"Error syncing slash commands: {e}")
         # Add error handler for command tree
         self.tree.on_error = self.on_app_command_error
+        # For persistent role buttons, we need to add a view that can handle any role_<role_id>
+        class PersistentRoleButtonView(discord.ui.View):
+            def __init__(self, bot, logger=None):
+                super().__init__(timeout=None)
+                self.bot = bot
+                self.logger = logger or logging.getLogger(__name__)
+            @discord.ui.button(custom_id="role_", style=discord.ButtonStyle.primary)
+            async def persistent_role_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                # Extract the role_id from the custom_id
+                custom_id = interaction.data.get('custom_id', '')
+                if custom_id.startswith('role_'):
+                    try:
+                        role_id = int(custom_id.replace('role_', ''))
+                        role = interaction.guild.get_role(role_id)
+                        if role:
+                            # Defer immediately
+                            await interaction.response.defer(ephemeral=True)
+                            self.logger.info(f"[PERSISTENT_ROLE] Button clicked for role {role.name}")
+                            member = interaction.user
+                            if role in member.roles:
+                                await member.remove_roles(role, reason="Role button - user requested removal")
+                                await interaction.followup.send(f"✅ Removed role **{role.name}**", ephemeral=True)
+                            else:
+                                await member.add_roles(role, reason="Role button - user requested assignment")
+                                await interaction.followup.send(f"✅ Added role **{role.name}**", ephemeral=True)
+                    except Exception as e:
+                        self.logger.error(f"[PERSISTENT_ROLE] Error: {e}")
+                        try:
+                            if not interaction.response.is_done():
+                                await interaction.response.defer(ephemeral=True)
+                            await interaction.followup.send("❌ An error occurred. Please try again.", ephemeral=True)
+                        except:
+                            pass
+
+        # For persistent rules buttons
+        class PersistentRulesButtonView(discord.ui.View):
+            def __init__(self, bot, logger=None):
+                super().__init__(timeout=None)
+                self.bot = bot
+                self.logger = logger or logging.getLogger(__name__)
+            @discord.ui.button(custom_id="rules_accept_", style=discord.ButtonStyle.success)
+            async def persistent_rules_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                # Extract the role_id from the custom_id
+                custom_id = interaction.data.get('custom_id', '')
+                if custom_id.startswith('rules_accept_'):
+                    try:
+                        role_id = int(custom_id.replace('rules_accept_', ''))
+                        role = interaction.guild.get_role(role_id)
+                        if role:
+                            # Defer immediately
+                            await interaction.response.defer(ephemeral=True)
+                            self.logger.info(f"[PERSISTENT_RULES] Button clicked for role {role.name}")
+                            user = interaction.user
+                            if role in user.roles:
+                                await interaction.followup.send("✅ You have already accepted the rules!", ephemeral=True)
+                            else:
+                                await user.add_roles(role, reason="Accepted server rules via button")
+                                await interaction.followup.send("✅ Thank you for accepting the rules! You now have access to the server. 🎉", ephemeral=True)
+                    except Exception as e:
+                        self.logger.error(f"[PERSISTENT_RULES] Error: {e}")
+                        try:
+                            if not interaction.response.is_done():
+                                await interaction.response.defer(ephemeral=True)
+                            await interaction.followup.send("❌ An error occurred. Please try again.", ephemeral=True)
+                        except:
+                            pass
+        # Add the persistent views
+        self.add_view(PersistentRoleButtonView(self, self.logger))
+        self.add_view(PersistentRulesButtonView(self, self.logger))
+        self.logger.info("Registered persistent button views for role and rules buttons")
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         # Ignore CommandNotFound errors (commands from other bots)
