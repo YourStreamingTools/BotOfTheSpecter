@@ -43,18 +43,12 @@ include 'includes/header.php';
                 }
                 $('#board-title').text(data.name);
                 $('#board').empty();
-                // Sort lists to ensure Completed is last
-                const order = ['Upcoming', 'Upcoming/Pending', 'In Progress', 'Beta', 'Completed'];
-                data.lists.sort((a, b) => {
-                    const aIndex = order.indexOf(a.name);
-                    const bIndex = order.indexOf(b.name);
-                    return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-                });
+                // Sections are already in correct order from API
                 data.lists.forEach(list => {
                     const listEl = $(`
-                        <div class="list" data-id="${list.id}">
+                        <div class="list" data-id="${list.id}" data-section="${list.name}">
                             <h5 class="font-bold text-gray-800 mb-3">${list.name}</h5>
-                            <div class="cards" data-list-id="${list.id}">
+                            <div class="cards" data-section="${list.name}">
                                 ${list.cards.map(card => `<div class="card" data-id="${card.id}">${card.title}</div>`).join('')}
                             </div>
                             <div class="add-card edit-only" onclick="addCard(${list.id})">+ Add a card</div>
@@ -70,9 +64,9 @@ include 'includes/header.php';
                                 return;
                             }
                             const cardId = evt.item.dataset.id;
-                            const newListId = evt.to.dataset.listId;
+                            const newSection = evt.to.dataset.section;
                             const newIndex = Array.from(evt.to.children).indexOf(evt.item);
-                            updateCardPosition(cardId, newListId, newIndex);
+                            updateCardPosition(cardId, newSection, newIndex);
                         }
                     });
                 });
