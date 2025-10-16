@@ -1,10 +1,13 @@
 <?php
 // Enable error logging
 error_reporting(E_ALL);
-ini_set('display_errors', 0);
+ini_set('display_errors', 1);
 ini_set('log_errors', 1);
 
 header('Content-Type: application/json');
+
+// Debug logging
+error_log("db-admin.php called - Method: " . $_SERVER['REQUEST_METHOD']);
 
 try {
     // Check admin access first
@@ -61,12 +64,9 @@ try {
                 'extra_columns' => []
             ];
             // Check if table exists
-            $check_sql = "SHOW TABLES LIKE ?";
-            $stmt = $conn->prepare($check_sql);
-            $stmt->bind_param("s", $table_name);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($result->num_rows > 0) {
+            $check_sql = "SHOW TABLES LIKE '" . $conn->real_escape_string($table_name) . "'";
+            $result = $conn->query($check_sql);
+            if ($result && $result->num_rows > 0) {
                 $table_status['exists'] = true;
                 // Get existing columns
                 $cols_sql = "SHOW COLUMNS FROM `$table_name`";
@@ -107,7 +107,6 @@ try {
                 $status['all_ok'] = false;
                 $status['issues'][] = "Table '$table_name' does not exist";
             }
-            $stmt->close();
             $status['tables'][] = $table_status;
         }
         echo json_encode($status);
@@ -121,13 +120,9 @@ try {
         ];
         foreach ($DATABASE_SCHEMA as $table_name => $table_def) {
             // Check if table exists
-            $check_sql = "SHOW TABLES LIKE ?";
-            $stmt = $conn->prepare($check_sql);
-            $stmt->bind_param("s", $table_name);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $stmt->close();
-            if ($result->num_rows === 0) {
+            $check_sql = "SHOW TABLES LIKE '" . $conn->real_escape_string($table_name) . "'";
+            $result = $conn->query($check_sql);
+            if ($result && $result->num_rows === 0) {
                 // Create table
                 $create_sql = "CREATE TABLE IF NOT EXISTS `$table_name` (\n";
                 $all_parts = [];
@@ -183,7 +178,16 @@ try {
     echo json_encode([
         'error' => $e->getMessage(),
         'file' => $e->getFile(),
-        'line' => $e->getLine()
+        'line' => $e->getLine(),
+        'debug' => [
+            'document_root' => $_SERVER['DOCUMENT_ROOT'] ?? 'NOT SET',
+            'script_dir' => __DIR__,
+            'tested_paths' => [
+                $_SERVER['DOCUMENT_ROOT'] . '/../config/database.php',
+                __DIR__ . '/../../config/database.php',
+                '/var/www/config/database.php'
+            ]
+        ]
     ]);
 }
 ?>

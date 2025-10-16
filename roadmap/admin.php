@@ -103,6 +103,7 @@
                 dataType: 'json',
                 success: function(data) {
                     if (data.error) {
+                        console.error('DB Admin Error:', data);
                         toastr.error(data.error);
                         return;
                     }
@@ -177,7 +178,21 @@
                     $('#tables-container').html(tablesHtml);
                 },
                 error: function(xhr, status, error) {
-                    toastr.error('Error checking database: ' + error);
+                    console.error('AJAX Error - Status:', xhr.status);
+                    console.error('Response:', xhr.responseText);
+                    console.error('Error:', error);
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        console.error('Parsed Error:', data);
+                        if (data.error) {
+                            toastr.error('Database Error: ' + data.error);
+                            if (data.debug) {
+                                console.error('Debug Info:', data.debug);
+                            }
+                        }
+                    } catch(e) {
+                        toastr.error('Error checking database: ' + error);
+                    }
                 }
             });
         }
