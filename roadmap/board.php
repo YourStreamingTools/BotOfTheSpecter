@@ -43,10 +43,17 @@ include 'includes/header.php';
                 }
                 $('#board-title').text(data.name);
                 $('#board').empty();
+                // Sort lists to ensure Completed is last
+                const order = ['Upcoming', 'Upcoming/Pending', 'In Progress', 'Beta', 'Completed'];
+                data.lists.sort((a, b) => {
+                    const aIndex = order.indexOf(a.name);
+                    const bIndex = order.indexOf(b.name);
+                    return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                });
                 data.lists.forEach(list => {
                     const listEl = $(`
                         <div class="list" data-id="${list.id}">
-                            <h5 class="font-bold text-gray-800 mb-3 cursor-move">${list.name}</h5>
+                            <h5 class="font-bold text-gray-800 mb-3">${list.name}</h5>
                             <div class="cards" data-list-id="${list.id}">
                                 ${list.cards.map(card => `<div class="card" data-id="${card.id}">${card.title}</div>`).join('')}
                             </div>
@@ -54,50 +61,88 @@ include 'includes/header.php';
                         </div>
                     `);
                     $('#board').append(listEl);
-                    if (loggedIn) {
-                        // Make cards sortable
-                        new Sortable(listEl.find('.cards')[0], {
-                            group: 'cards',
-                            onEnd: function(evt) {
-                                const cardId = evt.item.dataset.id;
-                                const newListId = evt.to.dataset.listId;
-                                const newIndex = Array.from(evt.to.children).indexOf(evt.item);
-                                updateCardPosition(cardId, newListId, newIndex);
-                            }
-                        });
-                    }
-                });
-                if (loggedIn) {
-                    // Make lists sortable
-                    new Sortable(document.getElementById('board'), {
-                        handle: '.list h5',
+                    // Always initialize Sortable for cards
+                    new Sortable(listEl.find('.cards')[0], {
+                        group: 'cards',
                         onEnd: function(evt) {
-                            const listId = evt.item.dataset.id;
+                            if (!loggedIn) {
+                                loadBoard();
+                                return;
+                            }
+                            const cardId = evt.item.dataset.id;
+                            const newListId = evt.to.dataset.listId;
                             const newIndex = Array.from(evt.to.children).indexOf(evt.item);
-                            updateListPosition(listId, newIndex);
+                            updateCardPosition(cardId, newListId, newIndex);
                         }
                     });
-                }
+                });
+                // Don't sort lists - keep them in fixed order
             });
         }
         function addCard(listId) {
             Swal.fire({
                 title: 'Add Card',
-                input: 'text',
-                inputLabel: 'Card Title',
-                inputPlaceholder: 'Enter card title...',
+                html: `
+                    <div class="text-left space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Title *</label>
+                            <input type="text" id="card-title" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Enter card title...">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Section *</label>
+                            <select id="card-section" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                                <option value="">-- Select a section --</option>
+                                <option value="Upcoming">Upcoming/Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Beta">Beta</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                            <textarea id="card-description" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Enter card description..." rows="3"></textarea>
+                        </div>
+                    </div>
+                `,
                 showCancelButton: true,
-                confirmButtonText: 'Add',
+                confirmButtonText: 'Add Card',
                 confirmButtonColor: '#3b82f6',
                 cancelButtonColor: '#6b7280',
-                inputValidator: (value) => {
-                    if (!value) {
-                        return 'Please enter a card title';
+                preConfirm: () => {
+                    const title = document.getElementById('card-title').value.trim();
+                    const section = document.getElementById('card-section').value;
+                    const description = document.getElementById('card-description').value.trim();
+                    if (!title) {
+                        Swal.showValidationMessage('Please enter a card title');
+                        return false;
                     }
+                    if (!section) {
+                        Swal.showValidationMessage('Please select a section');
+                        return false;
+                    }
+                    return { title, section, description };
                 }
             }).then((result) => {
                 if (result.isConfirmed) {
-                    $.post('api/cards.php', JSON.stringify({ list_id: listId, title: result.value }), function(data) {
+                    const { title, section, description } = result.value;
+                    // Find the list ID for the selected section
+                    let targetListId = null;
+                    $('#board .list').each(function() {
+                        const listTitle = $(this).find('h5').text().trim();
+                        if (listTitle.toLowerCase() === section.toLowerCase()) {
+                            targetListId = $(this).data('id');
+                            return false;
+                        }
+                    });
+                    if (!targetListId) {
+                        toastr.error('Section not found');
+                        return;
+                    }
+                    $.post('api/cards.php', JSON.stringify({ 
+                        list_id: targetListId, 
+                        title: title,
+                        description: description 
+                    }), function(data) {
                         if (data.id) {
                             toastr.success('Card added successfully');
                             loadBoard();
@@ -111,21 +156,54 @@ include 'includes/header.php';
         function addList() {
             Swal.fire({
                 title: 'Add List',
-                input: 'text',
-                inputLabel: 'List Name',
-                inputPlaceholder: 'Enter list name...',
+                html: `
+                    <div class="text-left space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">List Name *</label>
+                            <input type="text" id="list-name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Enter list name...">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Section *</label>
+                            <select id="list-section" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                                <option value="">-- Select a section --</option>
+                                <option value="Upcoming">Upcoming/Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Beta">Beta</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                            <textarea id="list-description" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Enter list description..." rows="3"></textarea>
+                        </div>
+                    </div>
+                `,
                 showCancelButton: true,
-                confirmButtonText: 'Add',
+                confirmButtonText: 'Add List',
                 confirmButtonColor: '#3b82f6',
                 cancelButtonColor: '#6b7280',
-                inputValidator: (value) => {
-                    if (!value) {
-                        return 'Please enter a list name';
+                preConfirm: () => {
+                    const name = document.getElementById('list-name').value.trim();
+                    const section = document.getElementById('list-section').value;
+                    const description = document.getElementById('list-description').value.trim();
+                    if (!name) {
+                        Swal.showValidationMessage('Please enter a list name');
+                        return false;
                     }
+                    if (!section) {
+                        Swal.showValidationMessage('Please select a section');
+                        return false;
+                    }
+                    return { name, section, description };
                 }
             }).then((result) => {
                 if (result.isConfirmed) {
-                    $.post('api/lists.php', JSON.stringify({ board_id: boardId, name: result.value }), function(data) {
+                    const { name, section, description } = result.value;
+                    $.post('api/lists.php', JSON.stringify({ 
+                        board_id: boardId, 
+                        name: name,
+                        description: description
+                    }), function(data) {
                         if (data.id) {
                             toastr.success('List added successfully');
                             loadBoard();
