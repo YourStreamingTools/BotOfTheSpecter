@@ -35,21 +35,24 @@ try {
             throw new Exception('Admin access required');
         }
         $data = json_decode(file_get_contents('php://input'), true);
-        $list_id = $data['list_id'] ?? null;
+        $board_id = $data['board_id'] ?? null;
         $title = $data['title'] ?? null;
+        $section = $data['section'] ?? 'Pending';
         $description = $data['description'] ?? '';
         $position = $data['position'] ?? 0;
         $due_date = $data['due_date'] ?? null;
         $labels = $data['labels'] ?? '';
-        if (!$list_id || !$title) {
-            throw new Exception('list_id and title are required');
+        
+        if (!$board_id || !$title) {
+            throw new Exception('board_id and title are required');
         }
-        $sql = "INSERT INTO cards (list_id, title, description, position, due_date, labels) VALUES (?, ?, ?, ?, ?, ?)";
+        
+        $sql = "INSERT INTO cards (board_id, title, section, description, position, due_date, labels) VALUES (?, ?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
             throw new Exception('Prepare failed: ' . $conn->error);
         }
-        $stmt->bind_param("ississ", $list_id, $title, $description, $position, $due_date, $labels);
+        $stmt->bind_param("isssisss", $board_id, $title, $section, $description, $position, $due_date, $labels);
         if ($stmt->execute()) {
             echo json_encode(['id' => $conn->insert_id]);
         } else {
