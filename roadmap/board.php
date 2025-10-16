@@ -79,7 +79,7 @@ include 'includes/header.php';
                 // Don't sort lists - keep them in fixed order
             });
         }
-        function addCard(listId) {
+        function addCard(sectionId) {
             Swal.fire({
                 title: 'Add Card',
                 html: `
@@ -92,7 +92,7 @@ include 'includes/header.php';
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Section *</label>
                             <select id="card-section" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
                                 <option value="">-- Select a section --</option>
-                                <option value="Upcoming">Upcoming/Pending</option>
+                                <option value="Pending">Pending</option>
                                 <option value="In Progress">In Progress</option>
                                 <option value="Beta">Beta</option>
                                 <option value="Completed">Completed</option>
@@ -125,22 +125,10 @@ include 'includes/header.php';
             }).then((result) => {
                 if (result.isConfirmed) {
                     const { title, section, description } = result.value;
-                    // Find the list ID for the selected section
-                    let targetListId = null;
-                    $('#board .list').each(function() {
-                        const listTitle = $(this).find('h5').text().trim();
-                        if (listTitle.toLowerCase() === section.toLowerCase()) {
-                            targetListId = $(this).data('id');
-                            return false;
-                        }
-                    });
-                    if (!targetListId) {
-                        toastr.error('Section not found');
-                        return;
-                    }
                     $.post('api/cards.php', JSON.stringify({ 
-                        list_id: targetListId, 
+                        board_id: boardId,
                         title: title,
+                        section: section,
                         description: description 
                     }), function(data) {
                         if (data.id) {
@@ -214,8 +202,8 @@ include 'includes/header.php';
                 }
             });
         }
-        function updateCardPosition(cardId, listId, position) {
-            $.post('api/update.php', JSON.stringify({ type: 'move_card', card_id: cardId, list_id: listId, position: position }), function(data) {
+        function updateCardPosition(cardId, section, position) {
+            $.post('api/update.php', JSON.stringify({ type: 'move_card', card_id: cardId, section: section, position: position }), function(data) {
                 // Handle response
             }, 'json');
         }
