@@ -40,31 +40,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['id'])) {
         echo json_encode(['error' => 'Board not found']);
         exit;
     }
-    // Get lists for the board
-    $sql_lists = "SELECT * FROM lists WHERE board_id = ? ORDER BY position";
-    $stmt_lists = $conn->prepare($sql_lists);
-    $stmt_lists->bind_param("i", $board_id);
-    $stmt_lists->execute();
-    $result_lists = $stmt_lists->get_result();
+    // Get all cards for this board, grouped by section
+    $sql_cards = "SELECT * FROM cards WHERE board_id = ? ORDER BY section, position";
+    $stmt_cards = $conn->prepare($sql_cards);
+    $stmt_cards->bind_param("i", $board_id);
+    $stmt_cards->execute();
+    $result_cards = $stmt_cards->get_result();
+    // Initialize the 4 sections
+    $sections = ['Pending', 'In Progress', 'Beta', 'Completed'];
     $lists = [];
-    // Fetch lists from database with their cards
-    while ($row = $result_lists->fetch_assoc()) {
-        $list_id = $row['id'];
-        // Get cards for each list
-        $sql_cards = "SELECT * FROM cards WHERE list_id = ? ORDER BY position";
-        $stmt_cards = $conn->prepare($sql_cards);
-        $stmt_cards->bind_param("i", $list_id);
-        $stmt_cards->execute();
-        $result_cards = $stmt_cards->get_result();
-        $cards = [];
-        while ($card = $result_cards->fetch_assoc()) {
-            $cards[] = $card;
-        }
-        $stmt_cards->close();
-        $row['cards'] = $cards;
-        $lists[] = $row;
+    foreach ($sections as $index => $section_name) {
+        $lists[] = [
+            'id' => $index + 1, // Virtual ID for sections
+            'board_id' => $board_id,
+            'name' => $section_name,
+            'description' => null,
+            'position' => $index + 1,
+            'cards' => []
+        ];
     }
-    $stmt_lists->close();
+    // Populate cards into their respective sections
+    while ($card = $result_cards->fetch_assoc()) {
+        $card_section = $card['section'] ?? 'Pending'; // Default to Pending if not set
+        // Find the matching section and add card to it
+        foreach ($lists as &$list) {
+            if ($list['name'] === $card_section) {
+                $list['cards'][] = $card;
+                break;
+            }
+        }
+    }
+    $stmt_cards->close();
     $board['lists'] = $lists;
     echo json_encode($board);
 } else {

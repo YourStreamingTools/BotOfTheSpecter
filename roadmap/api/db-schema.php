@@ -50,17 +50,19 @@ $DATABASE_SCHEMA = [
     'cards' => [
         'columns' => [
             'id' => 'INT AUTO_INCREMENT PRIMARY KEY',
-            'list_id' => 'INT NOT NULL',
+            'board_id' => 'INT NOT NULL',
             'title' => 'VARCHAR(255) NOT NULL',
             'description' => 'TEXT',
+            'section' => "ENUM('Pending', 'In Progress', 'Beta', 'Completed') DEFAULT 'Pending'",
             'position' => 'INT DEFAULT 0',
             'due_date' => 'DATE',
             'labels' => 'VARCHAR(255)',
             'created_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-            'FOREIGN KEY (list_id)' => 'REFERENCES lists(id) ON DELETE CASCADE'
+            'FOREIGN KEY (board_id)' => 'REFERENCES boards(id) ON DELETE CASCADE'
         ],
         'indexes' => [
-            'idx_list' => 'KEY idx_list (list_id)',
+            'idx_board' => 'KEY idx_board (board_id)',
+            'idx_section' => 'KEY idx_section (section)',
             'idx_position' => 'KEY idx_position (position)',
             'idx_created_at' => 'KEY idx_created_at (created_at)'
         ]
