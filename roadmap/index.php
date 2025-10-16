@@ -134,27 +134,31 @@ include 'includes/header.php';
                         data.forEach(category => {
                             $.get(`api/category-stats.php?id=${category.id}`, function(stats) {
                                 const progressColor = stats.percentage >= 75 ? 'text-green-400' : stats.percentage >= 50 ? 'text-yellow-400' : stats.percentage >= 25 ? 'text-orange-400' : 'text-red-400';
-                                
-                                $('#categories').append(`
-                                    <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 hover:bg-opacity-20 transition-all duration-300 shadow-lg">
-                                        <h3 class="text-xl font-bold mb-3">${category.name}</h3>
-                                        <p class="text-blue-100 mb-4">${category.description}</p>
-                                        
-                                        <div class="mb-6 pb-4 border-b border-white border-opacity-20">
-                                            <div class="flex justify-between items-center mb-2">
-                                                <span class="text-sm">Progress: <strong class="${progressColor}">${stats.percentage}%</strong></span>
-                                                <span class="text-sm text-blue-200">${stats.completed_cards}/${stats.total_cards}</span>
+                                // Get board ID from category to link directly to board
+                                $.get(`api/get-board.php?category_id=${category.id}`, function(boardData) {
+                                    const boardLink = boardData.board && boardData.board.id ? `board.php?id=${boardData.board.id}` : '#';
+                                    
+                                    $('#categories').append(`
+                                        <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 hover:bg-opacity-20 transition-all duration-300 shadow-lg">
+                                            <h3 class="text-xl font-bold mb-3">${category.name}</h3>
+                                            <p class="text-blue-100 mb-4">${category.description}</p>
+                                            
+                                            <div class="mb-6 pb-4 border-b border-white border-opacity-20">
+                                                <div class="flex justify-between items-center mb-2">
+                                                    <span class="text-sm">Progress: <strong class="${progressColor}">${stats.percentage}%</strong></span>
+                                                    <span class="text-sm text-blue-200">${stats.completed_cards}/${stats.total_cards}</span>
+                                                </div>
+                                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                                    <div class="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500" style="width: ${stats.percentage}%"></div>
+                                                </div>
                                             </div>
-                                            <div class="w-full bg-gray-700 rounded-full h-2">
-                                                <div class="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500" style="width: ${stats.percentage}%"></div>
-                                            </div>
+                                            
+                                            <a href="${boardLink}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 w-full text-center">
+                                                <i class="fas fa-arrow-right mr-2"></i>View Boards
+                                            </a>
                                         </div>
-                                        
-                                        <a href="category.php?id=${category.id}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 w-full text-center">
-                                            <i class="fas fa-arrow-right mr-2"></i>View Boards
-                                        </a>
-                                    </div>
-                                `);
+                                    `);
+                                });
                             });
                         });
                     } else {
