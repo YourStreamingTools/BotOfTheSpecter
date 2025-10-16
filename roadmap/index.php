@@ -44,8 +44,17 @@
             <h2 class="text-2xl font-bold mb-6 flex items-center">
                 <i class="fas fa-check-circle mr-3 text-green-400"></i>Recently Completed
             </h2>
-            <div id="completed-items" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div id="completed-items" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                 <!-- Completed items will be loaded here -->
+            </div>
+        </div>
+        <!-- Beta Testing Items Section -->
+        <div id="beta-section" class="hidden">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <i class="fas fa-flask mr-3 text-yellow-400"></i>Testing in Beta
+            </h2>
+            <div id="beta-items" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                <!-- Beta items will be loaded here -->
             </div>
         </div>
         <!-- Create Category Modal -->
@@ -88,6 +97,7 @@
                 loadStats();
                 loadCategories();
                 loadCompletedItems();
+                loadBetaItems();
             });
         }
         function loadStats() {
@@ -99,14 +109,11 @@
                     if (data && data.length > 0) {
                         let totalCards = 0;
                         let totalCompleted = 0;
-                        
                         data.forEach(cat => {
                             totalCards += cat.total_cards;
                             totalCompleted += cat.completed_cards;
                         });
-                        
                         const overallPercentage = totalCards > 0 ? Math.round((totalCompleted / totalCards) * 100) : 0;
-                        
                         $('#overall-stats').empty().html(`
                             <div class="text-center">
                                 <div class="text-5xl font-bold text-green-400 mb-2">${totalCompleted}</div>
@@ -207,28 +214,53 @@
                 }
             });
         }
-
+        function loadBetaItems() {
+            $.ajax({
+                url: 'api/beta-items.php',
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    if (data && data.length > 0) {
+                        $('#beta-section').removeClass('hidden');
+                        $('#beta-items').empty();
+                        
+                        data.forEach(item => {
+                            $('#beta-items').append(`
+                                <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-6 hover:bg-opacity-20 transition-all duration-300 shadow-lg border-l-4 border-yellow-400">
+                                    <div class="flex items-start justify-between mb-2">
+                                        <h4 class="text-lg font-bold">${item.card_title}</h4>
+                                        <i class="fas fa-flask text-yellow-400 text-xl"></i>
+                                    </div>
+                                    <p class="text-sm text-blue-200 mb-2">${item.board_name}</p>
+                                    <p class="text-xs text-blue-300"><i class="fas fa-folder mr-1"></i>${item.category_name}</p>
+                                </div>
+                            `);
+                        });
+                    } else {
+                        $('#beta-section').addClass('hidden');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading beta items:', error);
+                }
+            });
+        }
         function openCreateCategoryModal() {
             $('#create-category-modal').removeClass('hidden');
             $('#category-name').focus();
         }
-
         function closeCreateCategoryModal() {
             $('#create-category-modal').addClass('hidden');
             $('#create-category-form')[0].reset();
         }
-
         function createCategory(event) {
             event.preventDefault();
-            
             const name = $('#category-name').val().trim();
             const description = $('#category-description').val().trim();
-
             if (!name) {
                 toastr.error('Please enter a category name');
                 return;
             }
-
             $.ajax({
                 url: 'api/create-category.php',
                 type: 'POST',
@@ -255,7 +287,6 @@
                 }
             });
         }
-
         $(document).ready(function() {
             checkLogin();
         });

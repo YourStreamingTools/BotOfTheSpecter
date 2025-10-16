@@ -56,7 +56,26 @@ try {
         }
         $stmt->bind_param("iss", $category_id, $name, $created_by);
         if ($stmt->execute()) {
-            echo json_encode(['id' => $conn->insert_id]);
+            $board_id = $conn->insert_id;
+            
+            // Create default lists for the board: Upcoming, In Progress, Beta, Completed
+            $default_lists = ['Upcoming', 'In Progress', 'Beta', 'Completed'];
+            $position = 0;
+            foreach ($default_lists as $list_name) {
+                $sql_list = "INSERT INTO lists (board_id, name, position) VALUES (?, ?, ?)";
+                $stmt_list = $conn->prepare($sql_list);
+                if (!$stmt_list) {
+                    throw new Exception('Prepare failed for list: ' . $conn->error);
+                }
+                $stmt_list->bind_param("isi", $board_id, $list_name, $position);
+                if (!$stmt_list->execute()) {
+                    throw new Exception('Failed to create default list: ' . $stmt_list->error);
+                }
+                $stmt_list->close();
+                $position++;
+            }
+            
+            echo json_encode(['id' => $board_id]);
         } else {
             throw new Exception('Failed to create board: ' . $stmt->error);
         }
