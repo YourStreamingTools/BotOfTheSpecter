@@ -63,6 +63,21 @@ include 'includes/header.php';
                 <!-- Migration status will appear here -->
             </div>
         </div>
+        <!-- Data Cleanup Section -->
+        <div class="mb-8 bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 shadow-lg">
+            <h2 class="text-2xl font-bold mb-6 flex items-center text-red-300">
+                <i class="fas fa-trash-alt mr-3"></i>Data Cleanup
+            </h2>
+            <p class="text-blue-200 mb-4">Remove test or unwanted data from the database.</p>
+            <div class="space-y-3">
+                <div>
+                    <button onclick="clearCompletedItems()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200">
+                        <i class="fas fa-trash mr-2"></i>Clear All Completed Items
+                    </button>
+                    <p class="text-xs text-blue-300 mt-2">Remove all cards from the "Completed" list</p>
+                </div>
+            </div>
+        </div>
         <!-- Tables Details -->
         <div class="mb-8 bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 shadow-lg">
             <h2 class="text-2xl font-bold mb-6 flex items-center">
@@ -234,6 +249,36 @@ include 'includes/header.php';
                         error: function(xhr, status, error) {
                             statusDiv.html('<div class="bg-red-500 bg-opacity-20 border-l-4 border-red-400 p-3 rounded"><i class="fas fa-times-circle mr-2"></i>Error: ' + error + '</div>');
                             toastr.error('Error running migration: ' + error);
+                        }
+                    });
+                }
+            });
+        }
+        function clearCompletedItems() {
+            Swal.fire({
+                title: 'Clear All Completed Items?',
+                text: 'This will permanently delete all cards in the "Completed" list. This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Yes, clear them!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: 'api/clear-completed-items.php',
+                        type: 'POST',
+                        dataType: 'json',
+                        success: function(data) {
+                            if (data.success) {
+                                toastr.success(data.message);
+                            } else {
+                                toastr.error(data.error || 'Failed to clear completed items');
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            toastr.error('Error clearing completed items: ' + error);
                         }
                     });
                 }
