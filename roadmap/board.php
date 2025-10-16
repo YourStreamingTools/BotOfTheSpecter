@@ -2,7 +2,14 @@
 $page_title = "Board";
 $body_class = "bg-blue-600";
 $nav_width = "max-w-full";
-$nav_center = '<div id="board-title" class="text-xl font-semibold"></div>';
+$nav_center = '
+    <div class="flex items-center gap-4">
+        <div id="board-title" class="text-xl font-semibold"></div>
+        <button id="add-list-btn" class="edit-only hidden bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-sm" onclick="addList()">
+            <i class="fas fa-plus mr-2"></i>Add List
+        </button>
+    </div>
+';
 $extra_scripts = '<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>';
 $extra_head = '<style>
     .board { display: flex; overflow-x: auto; padding: 20px; min-height: calc(100vh - 80px); gap: 20px; }
@@ -13,33 +20,6 @@ $extra_head = '<style>
     .card:active { cursor: grabbing; }
     .add-card { color: #5e6c84; cursor: pointer; padding: 10px; font-weight: 500; transition: all 0.2s; }
     .add-card:hover { background: rgba(0,0,0,0.1); border-radius: 4px; }
-    .add-list { 
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        min-width: 280px;
-        padding: 12px 16px;
-        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
-        text-align: center;
-        margin-top: 20px;
-    }
-    .add-list:hover { 
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
-    }
-    .add-list:active { 
-        transform: translateY(0);
-    }
     .edit-only { display: none; }
 </style>';
 include 'includes/header.php';
@@ -47,7 +27,6 @@ include 'includes/header.php';
     <div class="board" id="board">
         <!-- Lists will be loaded here -->
     </div>
-    <div class="add-list edit-only" onclick="addList()">+ Add a list</div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
@@ -173,6 +152,7 @@ include 'includes/header.php';
                 if (data.admin) {
                     $('#user-info').html('<a href="admin.php" class="text-yellow-300 hover:text-yellow-100 font-medium"><i class="fas fa-cog mr-1"></i>Admin</a> | Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Logout</a>');
                     $('.edit-only').show();
+                    $('#add-list-btn').removeClass('hidden');
                 } else if (loggedIn) {
                     $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Logout</a>');
                 } else {
