@@ -37,6 +37,7 @@ $DATABASE_SCHEMA = [
             'id' => 'INT AUTO_INCREMENT PRIMARY KEY',
             'board_id' => 'INT NOT NULL',
             'name' => 'VARCHAR(255) NOT NULL',
+            'description' => 'TEXT',
             'position' => 'INT DEFAULT 0',
             'created_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
             'FOREIGN KEY (board_id)' => 'REFERENCES boards(id) ON DELETE CASCADE'

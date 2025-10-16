@@ -59,8 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['id'])) {
         while ($card = $result_cards->fetch_assoc()) {
             $cards[] = $card;
         }
-        $row['cards'] = $cards;
         $stmt_cards->close();
+        $row['cards'] = $cards;
         $lists[] = $row;
     }
     $stmt_lists->close();
