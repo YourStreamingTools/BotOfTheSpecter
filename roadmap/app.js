@@ -122,7 +122,7 @@ app.use('/auth', require('./routes/auth'));
 app.use((err, req, res, next) => {
     console.error('Application error:', err.stack);
     // Return HTML for web routes, JSON for API routes
-    if (req.path.startsWith('/api/') || req.headers.accept?.includes('application/json')) {
+    if (req.path.startsWith('/api/')) {
         res.status(500).json({ error: 'Something went wrong!' });
     } else {
         res.status(500).render('500', { title: 'Server Error', error: process.env.NODE_ENV === 'development' ? err.message : null });
