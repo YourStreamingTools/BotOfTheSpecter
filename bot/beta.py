@@ -1697,11 +1697,12 @@ class TwitchBot(commands.Bot):
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
+        global CHANNEL_NAME
         # Check if message.author exists before accessing its attributes
         if not message.author or not hasattr(message.author, 'name'):
             return
         # For shared chat: Only process messages from the target channel
-        if message.channel.name.lower() != self.channel_name.lower():
+        if message.channel.name.lower() != CHANNEL_NAME.lower():
             return
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
         connection = await mysql_connection()
