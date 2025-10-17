@@ -132,7 +132,7 @@ ob_start();
             </p>
             <p>You can use the following variables in welcome messages:</p>
             <ul>
-              <li><span class="has-text-weight-bold">(shoutout)</span>: Automatically sends a shoutout to the user. This feature is in testing for beta 5.5 bot.</li>
+              <li><span class="has-text-weight-bold">(shoutout)</span>: Automatically sends a shoutout to the user.</li>
             </ul>
           </div>
           <div class="notification has-background-danger has-text-black has-text-weight-bold"><?php echo t('known_users_edit_notice'); ?></div>
