@@ -160,6 +160,23 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
+                <div class="column is-6-tablet is-3-desktop">
+                    <div class="card">
+                        <div class="card-content has-text-centered">
+                            <div class="mb-3">
+                                <span class="icon is-large has-text-grey-light">
+                                    <i class="fas fa-book fa-2x"></i>
+                                </span>
+                            </div>
+                            <h4 class="title is-5">Documentation</h4>
+                            <p class="subtitle is-6">Learn how to use BotOfTheSpecter</p>
+                            <a href="https://help.botofthespecter.com/" class="button is-light is-fullwidth" target="_blank">
+                                <span class="icon"><i class="fas fa-external-link-alt"></i></span>
+                                <span>View Docs</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
