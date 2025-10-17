@@ -15,9 +15,9 @@
     <% if (typeof extra_scripts !== 'undefined') { %><%= extra_scripts %><% } %>
     <% if (typeof extra_head !== 'undefined') { %><%= extra_head %><% } %>
 </head>
-<body class="<%= body_class || 'bg-gradient-to-br from-blue-600 to-blue-800 text-white' %>">
+<body class="<%= typeof body_class !== 'undefined' ? body_class : 'bg-gradient-to-br from-blue-600 to-blue-800 text-white' %>">
     <nav style="background-color: #364152;" class="text-white shadow-lg">
-        <div class="<%= nav_width || 'max-w-7xl' %> mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+        <div class="<%= typeof nav_width !== 'undefined' ? nav_width : 'max-w-7xl' %> mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
             <div class="flex items-center">
                 <a href="/" class="text-xl font-bold">BotOfTheSpecter</a>
             </div>
