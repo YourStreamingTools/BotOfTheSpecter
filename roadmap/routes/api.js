@@ -37,8 +37,8 @@ router.get('/categories', async (req, res) => {
     const [categories] = await db.execute('SELECT * FROM categories ORDER BY created_at DESC');
     res.json(categories);
   } catch (error) {
-    console.error('Error fetching categories:', error);
-    res.status(500).json({ error: error.message });
+    console.error('API error in GET /api/categories:', error);
+    res.status(500).json({ error: 'Something went wrong!' });
   }
 });
 
