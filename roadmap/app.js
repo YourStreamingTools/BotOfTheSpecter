@@ -144,3 +144,17 @@ const server = app.listen(PORT, () => {
 });
 
 module.exports = app;
+
+// Graceful server error handling
+server.on('error', (err) => {
+    if (err.code === 'EACCES') {
+        console.error(`Permission denied: unable to bind to port ${PORT}. Use a non-privileged port (>1024) or let cPanel manage the port.`);
+        process.exit(1);
+    } else if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use.`);
+        process.exit(1);
+    } else {
+        console.error('Server error:', err);
+        process.exit(1);
+    }
+});
