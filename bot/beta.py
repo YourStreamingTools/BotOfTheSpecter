@@ -3220,14 +3220,12 @@ class TwitchBot(commands.Bot):
                     return
                 # Get the current song and artist from Spotify
                 song_name, artist_name, song_id, spotify_error = await get_spotify_current_song()
-                # Check if there was a Spotify error
-                if spotify_error:
-                    await send_chat_message(spotify_error)
-                    return
+                # If Spotify succeeded and returned song data
                 if song_name and artist_name:
                     # If the stream is offline, notify that the user that the streamer is listening to music while offline
                     if not stream_online:
                         await send_chat_message(f"{CHANNEL_NAME} is currently listening to \"{song_name} by {artist_name}\" while being offline.")
+                        add_usage('song', bucket_key, cooldown_bucket)
                         return
                     # Check if the song is in the tracked list and if a user is associated
                     requested_by = None
@@ -3237,21 +3235,23 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
                     else:
                         await send_chat_message(f"The current playing song is: {song_name} by {artist_name}")
+                    add_usage('song', bucket_key, cooldown_bucket)
                     return
+                # Spotify failed or returned no song, attempt failover to Shazam
                 if not stream_online:
                     await send_chat_message("Sorry, I can only get the current playing song while the stream is online.")
                     return
-                # If no song on Spotify, check the alternative method if premium
+                # Check if premium is available for Shazam failover
                 premium_tier = await check_premium_feature()
                 if premium_tier in (1000, 2000, 3000, 4000):
-                    # Premium feature access granted
+                    # Premium feature access granted - use Shazam as failover
                     await send_chat_message("Please stand by, checking what song is currently playing...")
                     try:
                         song_info = await shazam_the_song()
                         await send_chat_message(song_info)
                         await delete_recorded_files()
                     except Exception as e:
-                        chat_logger.error(f"An error occurred while getting current song: {e}")
+                        chat_logger.error(f"An error occurred while getting current song via Shazam: {e}")
                         await send_chat_message("Sorry, there was an error retrieving the current song.")
                 else:
                     # No premium access
