@@ -1700,6 +1700,9 @@ class TwitchBot(commands.Bot):
         # Check if message.author exists before accessing its attributes
         if not message.author or not hasattr(message.author, 'name'):
             return
+        # For shared chat: Only process messages from the target channel
+        if message.channel.name.lower() != self.channel_name.lower():
+            return
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
         connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
