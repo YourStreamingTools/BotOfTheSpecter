@@ -38,7 +38,7 @@ router.get('/categories', async (req, res) => {
     res.json(categories);
   } catch (error) {
     console.error('API error in GET /api/categories:', error);
-    res.status(500).json({ error: 'Something went wrong!' });
+    res.status(500).json({ error: error.message });
   }
 });
 
