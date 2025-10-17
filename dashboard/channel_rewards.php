@@ -156,7 +156,7 @@ ob_start();
                                 <li><span class="has-text-weight-bold">(user)</span>: <?php echo t('channel_rewards_var_user'); ?></li>
                                 <li><span class="has-text-weight-bold">(usercount)</span>: <?php echo t('channel_rewards_var_usercount'); ?></li>
                                 <li><span class="has-text-weight-bold">(userstreak)</span>: <?php echo t('channel_rewards_var_userstreak'); ?></li>
-                                <li><span class="has-text-weight-bold" style="color: #a259ff;">(track)</span>: Tracks the internal usage count of the reward.</li>
+                                <li><span class="has-text-weight-bold">(track)</span>: Tracks the internal usage count of the reward.</li>
                             </ul>
                         </div>
                     </div>
