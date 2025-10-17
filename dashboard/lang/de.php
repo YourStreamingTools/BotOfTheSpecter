@@ -259,7 +259,7 @@ return [
     'custom_commands_error_generic' => 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.',
     // Timed Messages Page
     'timed_messages_title' => 'Zeitgesteuerte Nachrichten',
-    'timed_messages_info' => 'Zeitgesteuerte Nachrichten werden automatisch vom Bot in festgelegten Intervallen und bei Chat-Aktivität gesendet.<br>Für Nutzer von Beta 5.4: Dies wurde geändert, sodass zeitgesteuerte Nachrichten nun in drei Stufen automatisch gesendet werden:<br>1. Nachricht nach X Intervall<br>2. Nachricht nach C Chat-Nachrichten (Zeilenauslöser)<br>3. Nachricht nach C Chat-Nachrichten mit einer X-Intervall-Verzögerung<br>Alle drei Methoden arbeiten zusammen, damit dein Chat keine dieser Nachrichten verpasst.',
+    'timed_messages_info' => 'Zeitgesteuerte Nachrichten werden automatisch vom Bot in festgelegten Intervallen und bei Chat-Aktivität gesendet.<br>Der Bot sendet zeitgesteuerte Nachrichten automatisch in drei Stufen:<br>1. Nachricht nach X Intervall<br>2. Nachricht nach C Chat-Nachrichten (Zeilenauslöser)<br>3. Nachricht nach C Chat-Nachrichten mit einer X-Intervall-Verzögerung<br>Alle drei Methoden arbeiten zusammen, damit dein Chat keine dieser Nachrichten verpasst.',
     'timed_messages_add_title' => 'Zeitgesteuerte Nachricht hinzufügen',
     'timed_messages_edit_title' => 'Zeitgesteuerte Nachricht bearbeiten',
     'timed_messages_remove_title' => 'Zeitgesteuerte Nachricht entfernen',
