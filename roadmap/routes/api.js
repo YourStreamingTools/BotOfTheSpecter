@@ -15,6 +15,10 @@ router.get('/categories', async (req, res) => {
   try {
     const db = req.app.locals.db;
 
+    if (!db) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
     // Create database if it doesn't exist
     await db.execute('CREATE DATABASE IF NOT EXISTS roadmap');
     await db.execute('USE roadmap');
