@@ -1697,13 +1697,14 @@ class TwitchBot(commands.Bot):
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
-        global CHANNEL_NAME
-        # Check if message.author exists before accessing its attributes
-        if not message.author or not hasattr(message.author, 'name'):
-            return
-        # For shared chat: Only process messages from the target channel
-        if message.channel.name.lower() != CHANNEL_NAME.lower():
-            return
+        global CHANNEL_NAME, CHANNEL_ID
+        # Verify source-room-id matches expected channel
+        if hasattr(message, 'tags') and message.tags:
+            source_room_id = message.tags.get('source-room-id')
+            # source-room-id indicates the originating channel (where the user is from)
+            # We only accept messages from users in the running bot channel
+            if source_room_id and source_room_id != str(CHANNEL_ID):
+                return
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
         connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
