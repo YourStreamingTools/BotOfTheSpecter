@@ -121,6 +121,8 @@ app.use('/auth', require('./routes/auth'));
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Application error:', err.stack);
+    console.log('Error request path:', req.path);
+    console.log('Error request accept:', req.headers.accept);
     // Return HTML for web routes, JSON for API routes
     if (req.path.startsWith('/api/')) {
         res.status(500).json({ error: 'Something went wrong!' });
