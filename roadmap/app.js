@@ -12,17 +12,33 @@ const PORT = process.env.PORT || 3000;
 
 // Database configuration
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'roadmap',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'roadmap',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 };
 
-// Create database connection pool
-const pool = mysql.createPool(dbConfig);
+// Validate critical environment variables
+const requiredEnvVars = ['SESSION_SECRET'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+    console.warn(`⚠️  Missing environment variables: ${missingEnvVars.join(', ')}`);
+    console.warn('Application may not work correctly without these variables');
+}
+
+// Create database connection pool with error handling
+let pool;
+try {
+    pool = mysql.createPool(dbConfig);
+    console.log('Database connection pool created successfully');
+} catch (error) {
+    console.error('Failed to create database connection pool:', error);
+    // Continue without database for now - routes will handle gracefully
+}
 
 // Middleware
 app.use(express.json());
@@ -34,52 +50,50 @@ app.use('/dist', express.static(path.join(__dirname, 'dist')));
 
 // Session configuration
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: false, // Set to true in production with HTTPS
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false, // Set to true in production with HTTPS
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
 }));
 
 // Passport configuration for Twitch OAuth
 passport.use(new OAuth2Strategy({
-  authorizationURL: 'https://id.twitch.tv/oauth2/authorize',
-  tokenURL: 'https://id.twitch.tv/oauth2/token',
-  clientID: process.env.TWITCH_CLIENT_ID,
-  clientSecret: process.env.TWITCH_CLIENT_SECRET,
-  callbackURL: process.env.TWITCH_CALLBACK_URL || 'http://localhost:3000/auth/twitch/callback',
-  scope: ['openid', 'user:read:email']
+    authorizationURL: 'https://id.twitch.tv/oauth2/authorize',
+    tokenURL: 'https://id.twitch.tv/oauth2/token',
+    clientID: process.env.TWITCH_CLIENT_ID,
+    clientSecret: process.env.TWITCH_CLIENT_SECRET,
+    callbackURL: process.env.TWITCH_CALLBACK_URL,
+    scope: ['openid', 'user:read:email']
 }, async (accessToken, refreshToken, profile, done) => {
-  try {
-    // Get user info from Twitch API
-    const axios = require('axios');
-    const userResponse = await axios.get('https://api.twitch.tv/helix/users', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Client-Id': process.env.TWITCH_CLIENT_ID
-      }
-    });
-
-    const user = userResponse.data.data[0];
-    profile.username = user.login;
-    profile.display_name = user.display_name;
-    profile.email = user.email;
-    profile.twitch_id = user.id;
-
-    return done(null, profile);
-  } catch (error) {
-    return done(error, null);
-  }
+    try {
+      // Get user info from Twitch API
+        const axios = require('axios');
+        const userResponse = await axios.get('https://api.twitch.tv/helix/users', {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Client-Id': process.env.TWITCH_CLIENT_ID
+            }
+        });
+        const user = userResponse.data.data[0];
+        profile.username = user.login;
+        profile.display_name = user.display_name;
+        profile.email = user.email;
+        profile.twitch_id = user.id;
+        return done(null, profile);
+    } catch (error) {
+        return done(error, null);
+    }
 }));
 
 passport.serializeUser((user, done) => {
-  done(null, user);
+    done(null, user);
 });
 
 passport.deserializeUser((user, done) => {
-  done(null, user);
+    done(null, user);
 });
 
 app.use(passport.initialize());
@@ -87,13 +101,17 @@ app.use(passport.session());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100 // limit each IP to 100 requests per windowMs
 });
 app.use(limiter);
 
-// Make database pool available to routes
-app.locals.db = pool;
+// Make database pool available to routes (if available)
+if (pool) {
+    app.locals.db = pool;
+} else {
+    console.warn('Database not available - application will run in limited mode');
+}
 
 // Routes
 app.use('/', require('./routes/index'));
@@ -102,18 +120,27 @@ app.use('/auth', require('./routes/auth'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+    console.error('Application error:', err.stack);
+    // Return HTML for web routes, JSON for API routes
+    if (req.path.startsWith('/api/') || req.headers.accept?.includes('application/json')) {
+        res.status(500).json({ error: 'Something went wrong!' });
+    } else {
+        res.status(500).render('500', { title: 'Server Error', error: process.env.NODE_ENV === 'development' ? err.message : null });
+    }
 });
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).render('404', { title: 'Page Not Found' });
+    res.status(404).render('404', { title: 'Page Not Found' });
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Roadmap app listening on port ${PORT}`);
+const server = app.listen(PORT, () => {
+    console.log(`🚀 Roadmap app listening on port ${PORT}`);
+    console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🗄️  Database: ${pool ? 'Connected' : 'Not available'}`);
+    console.log(`🔐 Session secret: ${process.env.SESSION_SECRET ? 'Set' : 'Not set'}`);
+    console.log(`🐙 Twitch OAuth: ${process.env.TWITCH_CLIENT_ID ? 'Configured' : 'Not configured'}`);
 });
 
 module.exports = app;

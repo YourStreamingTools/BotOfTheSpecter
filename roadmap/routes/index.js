@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
 
+// Health check endpoint for cPanel
+router.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // Middleware to check if user is logged in
 function requireLogin(req, res, next) {
   if (req.session && req.session.username) {
@@ -24,16 +29,28 @@ router.get('/', async (req, res) => {
   try {
     const db = req.app.locals.db;
 
-    // Get stats for the homepage
-    const [statsResult] = await db.execute(`
-      SELECT
-        (SELECT COUNT(*) FROM categories) as total_categories,
-        (SELECT COUNT(*) FROM boards) as total_boards,
-        (SELECT COUNT(*) FROM cards WHERE section != 'Completed') as active_items,
-        (SELECT COUNT(*) FROM cards WHERE section = 'Completed') as completed_items
-    `);
-
-    const stats = statsResult[0];
+    // Default stats if database is not available
+    let stats = {
+      total_categories: 0,
+      total_boards: 0,
+      active_items: 0,
+      completed_items: 0
+    };
+    if (db) {
+      try {
+        // Get stats for the homepage
+        const [statsResult] = await db.execute(`
+          SELECT
+            (SELECT COUNT(*) FROM categories) as total_categories,
+            (SELECT COUNT(*) FROM boards) as total_boards,
+            (SELECT COUNT(*) FROM cards WHERE section != 'Completed') as active_items,
+            (SELECT COUNT(*) FROM cards WHERE section = 'Completed') as completed_items
+        `);
+        stats = statsResult[0];
+      } catch (dbError) {
+        console.warn('Database query failed, using default stats:', dbError.message);
+      }
+    }
 
     res.render('index', {
       title: 'BotOfTheSpecter Roadmap',
