@@ -35,6 +35,7 @@ $maintenanceMode = $config['maintenanceMode'];
         <aside class="menu mt-3">
             <ul class="menu-list">
                 <li><a href="setup.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">First Time Setup</a></li>
+                <li><a href="run_yourself.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Run Yourself</a></li>
                 <li><a href="custom_command_variables.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Custom Command Variables</a></li>
                 <li><a href="twitch_channel_points.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Twitch Channel Points</a></li>
                 <li><a href="https://api.botofthespecter.com/docs" target="_blank" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">API Documentation</a></li>
