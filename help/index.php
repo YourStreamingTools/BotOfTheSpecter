@@ -96,7 +96,7 @@ ob_start();
                         </h5>
                         <ul>
                             <li>YouTube integration for music requests</li>
-                            <li>Sound alerts and notifications</li>
+                            <li>Sound and video alerts</li>
                             <li>TTS (Text-to-Speech) support</li>
                         </ul>
                     </div>
