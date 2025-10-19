@@ -591,3 +591,50 @@ body > main {
     font-size: 0.875rem;
     color: #b0b0b0;
 }
+
+/* ============================================
+   Modal Styles
+   ============================================ */
+
+.modal-card {
+    background-color: #242a40;
+    border-radius: 8px;
+}
+
+.modal-card-head {
+    background-color: #1a1a2e;
+    border-bottom: 1px solid #333;
+    border-radius: 8px 8px 0 0;
+    flex-wrap: wrap;
+}
+
+.modal-card-head .modal-card-title {
+    color: #e0e0e0;
+    font-weight: 700;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    flex: 1;
+    min-width: 0;
+}
+
+.modal-card-head .delete {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.modal-card-head .delete:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.modal-card-body {
+    color: #e0e0e0;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.modal-card-foot {
+    background-color: #1a1a2e;
+    border-top: 1px solid #333;
+    border-radius: 0 0 8px 8px;
+}
