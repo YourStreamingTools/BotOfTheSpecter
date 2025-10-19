@@ -206,15 +206,6 @@ ob_start();
         </div>
     </form>
 </div>
-<!-- Items List -->
-<div class="box">
-    <h2 class="title is-4 mb-5">
-        <span class="icon-text">
-            <span class="icon"><i class="fas fa-list"></i></span>
-            <span>Roadmap Items</span>
-        </span>
-    </h2>
-</div>
 <!-- Category Columns -->
 <div class="columns is-multiline">
     <?php foreach ($categories as $category): ?>
