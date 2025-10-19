@@ -45,14 +45,29 @@ try {
         
         if (!$board_id || !$title) {
             throw new Exception('board_id and title are required');
+        } 
+        // Find the list_id for this board and section
+        $list_sql = "SELECT id FROM lists WHERE board_id = ? AND LOWER(name) = LOWER(?)";
+        $list_stmt = $conn->prepare($list_sql);
+        if (!$list_stmt) {
+            throw new Exception('Prepare failed for list lookup: ' . $conn->error);
         }
-        
-        $sql = "INSERT INTO cards (board_id, title, section, description, position, due_date, labels) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $list_stmt->bind_param("is", $board_id, $section);
+        $list_stmt->execute();
+        $list_result = $list_stmt->get_result();
+        if ($list_result->num_rows === 0) {
+            $list_stmt->close();
+            throw new Exception('No list found for section: ' . $section);
+        }
+        $list_row = $list_result->fetch_assoc();
+        $list_id = $list_row['id'];
+        $list_stmt->close();
+        $sql = "INSERT INTO cards (board_id, list_id, title, section, description, position, due_date, labels) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
             throw new Exception('Prepare failed: ' . $conn->error);
         }
-        $stmt->bind_param("isssisss", $board_id, $title, $section, $description, $position, $due_date, $labels);
+        $stmt->bind_param("iisssisss", $board_id, $list_id, $title, $section, $description, $position, $due_date, $labels);
         if ($stmt->execute()) {
             echo json_encode(['id' => $conn->insert_id]);
         } else {
