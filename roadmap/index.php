@@ -1,284 +1,193 @@
 <?php
-$page_title = "Home";
-$body_class = "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
-$nav_width = "max-w-7xl";
-include 'includes/header.php';
+// Display errors for development
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+session_start();
+
+require_once "admin/database.php";
+
+// Set page metadata
+$pageTitle = 'Roadmap';
+
+// Get database connection
+$conn = getRoadmapConnection();
+
+// Get all categories and items
+$categories = array('REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED');
+$subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE');
+
+// Get all items
+$allItems = [];
+$query = "SELECT * FROM roadmap_items ORDER BY priority DESC, created_at DESC";
+if ($result = $conn->query($query)) {
+    while ($row = $result->fetch_assoc()) {
+        $allItems[] = $row;
+    }
+    $result->free();
+}
+
+// Group items by category
+$itemsByCategory = [];
+foreach ($categories as $cat) {
+    $itemsByCategory[$cat] = [];
+}
+foreach ($allItems as $item) {
+    $itemsByCategory[$item['category']][] = $item;
+}
+
+// Build page content
+ob_start();
 ?>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 class="text-center text-4xl font-bold mb-12">BotOfTheSpecter Roadmap</h1>
-        <!-- Completion Summary Section -->
-        <div class="mb-12 bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 shadow-lg">
-            <h2 class="text-2xl font-bold mb-6 flex items-center">
-                <i class="fas fa-chart-pie mr-3"></i>Overall Progress
-            </h2>
-            <div id="overall-stats" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Stats will be loaded here -->
+<div class="mb-6">
+    <div class="level">
+        <div class="level-left">
+            <div class="level-item">
+                <div>
+                    <h1 class="title">BotOfTheSpecter Roadmap</h1>
+                    <p class="subtitle">View our development progress and upcoming features</p>
+                </div>
             </div>
         </div>
-        <!-- Categories Grid -->
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold">Categories</h2>
-            <button id="add-category-btn" onclick="openCreateCategoryModal()" class="hidden bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200">
-                <i class="fas fa-plus mr-2"></i>New Category
-            </button>
-        </div>
-        <div id="categories" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            <!-- Categories will be loaded here -->
-        </div>
-        <!-- Completed Items Section -->
-        <div id="completed-section" class="hidden">
-            <h2 class="text-2xl font-bold mb-6 flex items-center">
-                <i class="fas fa-check-circle mr-3 text-green-400"></i>Recently Completed
-            </h2>
-            <div id="completed-items" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                <!-- Completed items will be loaded here -->
-            </div>
-        </div>
-        <!-- Beta Testing Items Section -->
-        <div id="beta-section" class="hidden">
-            <h2 class="text-2xl font-bold mb-6 flex items-center">
-                <i class="fas fa-flask mr-3 text-yellow-400"></i>Testing in Beta
-            </h2>
-            <div id="beta-items" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                <!-- Beta items will be loaded here -->
-            </div>
-        </div>
-        <!-- Create Category Modal -->
-        <div id="create-category-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white text-gray-800 rounded-lg p-8 max-w-md w-full mx-4">
-                <h3 class="text-2xl font-bold mb-6">Create New Category</h3>
-                <form id="create-category-form" onsubmit="createCategory(event)">
-                    <div class="mb-4">
-                        <label class="block text-sm font-semibold mb-2">Category Name</label>
-                        <input type="text" id="category-name" name="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="e.g., Bot Features" required>
-                    </div>
-                    <div class="mb-6">
-                        <label class="block text-sm font-semibold mb-2">Description</label>
-                        <textarea id="category-description" name="description" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Brief description of this category" rows="3"></textarea>
-                    </div>
-                    <div class="flex gap-3">
-                        <button type="submit" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200">
-                            <i class="fas fa-check mr-2"></i>Create
-                        </button>
-                        <button type="button" onclick="closeCreateCategoryModal()" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition-colors duration-200">
-                            <i class="fas fa-times mr-2"></i>Cancel
-                        </button>
-                    </div>
-                </form>
+        <div class="level-right">
+            <div class="level-item">
+                <?php if (($_SESSION['admin'] ?? false)): ?>
+                    <a href="admin/index.php" class="button is-primary">
+                        <span class="icon"><i class="fas fa-cog"></i></span>
+                        <span>Admin Panel</span>
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
-    <script>
-        function checkLogin() {
-            $.get('api/login_status.php', function(data) {
-                if (data.admin) {
-                    $('#user-info').html('<a href="admin.php" class="text-yellow-300 hover:text-yellow-100 font-medium"><i class="fas fa-cog mr-1"></i>Admin</a> | Logged in as <strong>' + data.username + '</strong> (Admin) | <a href="logout.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Logout</a>');
-                    $('#add-category-btn').removeClass('hidden');
-                } else if (data.logged_in) {
-                    $('#user-info').html('Logged in as <strong>' + data.username + '</strong> | <a href="logout.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Logout</a>');
-                } else {
-                    $('#user-info').html('<a href="login.php" class="text-yellow-300 hover:text-yellow-100 font-medium">Login</a>');
-                }
-                loadStats();
-                loadCategories();
-                loadCompletedItems();
-                loadBetaItems();
-            });
-        }
-        function loadStats() {
-            $.ajax({
-                url: 'api/category-stats.php',
-                type: 'GET',
-                dataType: 'json',
-                success: function(data) {
-                    if (data && data.length > 0) {
-                        let totalCards = 0;
-                        let totalCompleted = 0;
-                        data.forEach(cat => {
-                            totalCards += cat.total_cards;
-                            totalCompleted += cat.completed_cards;
-                        });
-                        const overallPercentage = totalCards > 0 ? Math.round((totalCompleted / totalCards) * 100) : 0;
-                        $('#overall-stats').empty().html(`
-                            <div class="text-center">
-                                <div class="text-5xl font-bold text-green-400 mb-2">${totalCompleted}</div>
-                                <div class="text-lg">Items Completed</div>
-                            </div>
-                            <div class="text-center">
-                                <div class="text-5xl font-bold text-blue-300 mb-2">${totalCards}</div>
-                                <div class="text-lg">Total Items</div>
-                            </div>
-                            <div class="text-center">
-                                <div class="text-5xl font-bold text-purple-300 mb-2">${overallPercentage}%</div>
-                                <div class="text-lg">Complete</div>
-                                <div class="w-full bg-gray-700 rounded-full h-2 mt-3">
-                                    <div class="bg-purple-500 h-2 rounded-full" style="width: ${overallPercentage}%"></div>
+</div>
+<!-- Legend -->
+<div class="box mb-6">
+    <h3 class="title is-5 mb-4">Legend</h3>
+    <div class="columns is-multiline is-gapless">
+        <div class="column is-one-quarter">
+            <div>
+                <strong>Priority Levels:</strong>
+                <div class="mt-2">
+                    <span class="tag is-small is-success">Low</span>
+                </div>
+                <div class="mt-2">
+                    <span class="tag is-small is-info">Medium</span>
+                </div>
+                <div class="mt-2">
+                    <span class="tag is-small is-warning">High</span>
+                </div>
+                <div class="mt-2">
+                    <span class="tag is-small is-danger">Critical</span>
+                </div>
+            </div>
+        </div>
+        <div class="column is-one-quarter">
+            <div>
+                <strong>Subcategories:</strong>
+                <div class="mt-2">
+                    <span class="tag is-small is-primary">Twitch Bot</span>
+                </div>
+                <div class="mt-2">
+                    <span class="tag is-small is-info">Discord Bot</span>
+                </div>
+                <div class="mt-2">
+                    <span class="tag is-small is-success">WebSocket Server</span>
+                </div>
+                <div class="mt-2">
+                    <span class="tag is-small is-warning">API Server</span>
+                </div>
+                <div class="mt-2">
+                    <span class="tag is-small is-danger">Website</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Category Columns -->
+<div class="columns is-multiline">
+    <?php foreach ($categories as $category): ?>
+        <div class="column is-one-fifth">
+            <div class="box roadmap-column">
+                <h2 class="title is-5 mb-4">
+                    <span class="icon-text">
+                        <span class="icon"><i class="fas fa-<?php echo getCategoryIcon($category); ?>"></i></span>
+                        <span><?php echo htmlspecialchars($category); ?></span>
+                    </span>
+                </h2>
+                <div class="mb-2 roadmap-item-count">
+                    <strong><?php echo count($itemsByCategory[$category]); ?></strong> item<?php echo count($itemsByCategory[$category]) !== 1 ? 's' : ''; ?>
+                </div>
+                <hr class="my-3">
+                <div class="roadmap-column-content">
+                    <?php if (empty($itemsByCategory[$category])): ?>
+                        <div class="notification is-dark" style="margin: 0;">
+                            <small>No items in this category</small>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($itemsByCategory[$category] as $item): ?>
+                            <div class="roadmap-card is-<?php echo strtolower($item['priority']); ?>">
+                                <div class="roadmap-card-title">
+                                    <?php echo htmlspecialchars($item['title']); ?>
+                                </div>
+                                <?php if ($item['description']): ?>
+                                    <p class="roadmap-card-description">
+                                        <?php echo htmlspecialchars(substr($item['description'], 0, 50)) . (strlen($item['description']) > 50 ? '...' : ''); ?>
+                                    </p>
+                                <?php endif; ?>
+                                <div class="mb-2">
+                                    <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
+                                        <?php echo htmlspecialchars($item['subcategory']); ?>
+                                    </span>
+                                </div>
+                                <div class="roadmap-card-tags">
+                                    <span class="tag is-small is-<?php echo getPriorityColor($item['priority']); ?>">
+                                        <?php echo htmlspecialchars($item['priority']); ?>
+                                    </span>
                                 </div>
                             </div>
-                        `);
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error loading stats:', error);
-                }
-            });
-        }
-        function loadCategories() {
-            $.ajax({
-                url: 'api/categories.php',
-                type: 'GET',
-                dataType: 'json',
-                success: function(data) {
-                    $('#categories').empty();
-                    if (data && data.length > 0) {
-                        data.forEach(category => {
-                            $.get(`api/category-stats.php?id=${category.id}`, function(stats) {
-                                const progressColor = stats.percentage >= 75 ? 'text-green-400' : stats.percentage >= 50 ? 'text-yellow-400' : stats.percentage >= 25 ? 'text-orange-400' : 'text-red-400';
-                                // Get board ID from category to link directly to board
-                                $.get(`api/get-board.php?category_id=${category.id}`, function(boardData) {
-                                    const boardLink = boardData.board && boardData.board.id ? `board.php?id=${boardData.board.id}` : '#';
-                                    
-                                    $('#categories').append(`
-                                        <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 hover:bg-opacity-20 transition-all duration-300 shadow-lg">
-                                            <h3 class="text-xl font-bold mb-3">${category.name}</h3>
-                                            <p class="text-blue-100 mb-4">${category.description}</p>
-                                            
-                                            <div class="mb-6 pb-4 border-b border-white border-opacity-20">
-                                                <div class="flex justify-between items-center mb-2">
-                                                    <span class="text-sm">Progress: <strong class="${progressColor}">${stats.percentage}%</strong></span>
-                                                    <span class="text-sm text-blue-200">${stats.completed_cards}/${stats.total_cards}</span>
-                                                </div>
-                                                <div class="w-full bg-gray-700 rounded-full h-2">
-                                                    <div class="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500" style="width: ${stats.percentage}%"></div>
-                                                </div>
-                                            </div>
-                                            
-                                            <a href="${boardLink}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 w-full text-center">
-                                                <i class="fas fa-arrow-right mr-2"></i>View Boards
-                                            </a>
-                                        </div>
-                                    `);
-                                });
-                            });
-                        });
-                    } else {
-                        $('#categories').append('<p class="text-center text-blue-100 col-span-full">No categories found. Please check back later.</p>');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error loading categories:', error);
-                    console.error('Response:', xhr.responseText);
-                    $('#categories').append('<p class="text-center text-red-300 col-span-full">Error loading categories: ' + (xhr.responseJSON ? xhr.responseJSON.error : error) + '</p>');
-                }
-            });
-        }
-        function loadCompletedItems() {
-            $.ajax({
-                url: 'api/completed-items.php',
-                type: 'GET',
-                dataType: 'json',
-                success: function(data) {
-                    if (data && data.length > 0) {
-                        $('#completed-section').removeClass('hidden');
-                        $('#completed-items').empty();
-                        
-                        data.forEach(item => {
-                            $('#completed-items').append(`
-                                <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-6 hover:bg-opacity-20 transition-all duration-300 shadow-lg border-l-4 border-green-400">
-                                    <div class="flex items-start justify-between mb-2">
-                                        <h4 class="text-lg font-bold">${item.card_title}</h4>
-                                        <i class="fas fa-check-circle text-green-400 text-xl"></i>
-                                    </div>
-                                    <p class="text-sm text-blue-200 mb-2">${item.board_name}</p>
-                                    <p class="text-xs text-blue-300"><i class="fas fa-folder mr-1"></i>${item.category_name}</p>
-                                </div>
-                            `);
-                        });
-                    } else {
-                        $('#completed-section').addClass('hidden');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error loading completed items:', error);
-                }
-            });
-        }
-        function loadBetaItems() {
-            $.ajax({
-                url: 'api/beta-items.php',
-                type: 'GET',
-                dataType: 'json',
-                success: function(data) {
-                    if (data && data.length > 0) {
-                        $('#beta-section').removeClass('hidden');
-                        $('#beta-items').empty();
-                        
-                        data.forEach(item => {
-                            $('#beta-items').append(`
-                                <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-6 hover:bg-opacity-20 transition-all duration-300 shadow-lg border-l-4 border-yellow-400">
-                                    <div class="flex items-start justify-between mb-2">
-                                        <h4 class="text-lg font-bold">${item.card_title}</h4>
-                                        <i class="fas fa-flask text-yellow-400 text-xl"></i>
-                                    </div>
-                                    <p class="text-sm text-blue-200 mb-2">${item.board_name}</p>
-                                    <p class="text-xs text-blue-300"><i class="fas fa-folder mr-1"></i>${item.category_name}</p>
-                                </div>
-                            `);
-                        });
-                    } else {
-                        $('#beta-section').addClass('hidden');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error loading beta items:', error);
-                }
-            });
-        }
-        function openCreateCategoryModal() {
-            $('#create-category-modal').removeClass('hidden');
-            $('#category-name').focus();
-        }
-        function closeCreateCategoryModal() {
-            $('#create-category-modal').addClass('hidden');
-            $('#create-category-form')[0].reset();
-        }
-        function createCategory(event) {
-            event.preventDefault();
-            const name = $('#category-name').val().trim();
-            const description = $('#category-description').val().trim();
-            if (!name) {
-                toastr.error('Please enter a category name');
-                return;
-            }
-            $.ajax({
-                url: 'api/create-category.php',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    name: name,
-                    description: description
-                }),
-                dataType: 'json',
-                success: function(data) {
-                    if (data.success) {
-                        toastr.success('Category created successfully!');
-                        closeCreateCategoryModal();
-                        loadCategories();
-                        loadStats();
-                    } else {
-                        toastr.error(data.error || 'Failed to create category');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error creating category:', error);
-                    const errorMsg = xhr.responseJSON ? xhr.responseJSON.error : error;
-                    toastr.error('Error creating category: ' + errorMsg);
-                }
-            });
-        }
-        $(document).ready(function() {
-            checkLogin();
-        });
-    </script>
-</body>
-</html>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
+</div>
+
+<?php
+function getCategoryIcon($category) {
+    $icons = [
+        'REQUESTS' => 'lightbulb',
+        'IN PROGRESS' => 'spinner',
+        'BETA TESTING' => 'flask',
+        'COMPLETED' => 'check-circle',
+        'REJECTED' => 'times-circle'
+    ];
+    return $icons[$category] ?? 'folder';
+}
+
+function getPriorityColor($priority) {
+    $colors = [
+        'LOW' => 'success',
+        'MEDIUM' => 'info',
+        'HIGH' => 'warning',
+        'CRITICAL' => 'danger'
+    ];
+    return $colors[$priority] ?? 'light';
+}
+
+function getSubcategoryColor($subcategory) {
+    $colors = [
+        'TWITCH BOT' => 'primary',
+        'DISCORD BOT' => 'info',
+        'WEBSOCKET SERVER' => 'success',
+        'API SERVER' => 'warning',
+        'WEBSITE' => 'danger'
+    ];
+    return $colors[$subcategory] ?? 'light';
+}
+
+$pageContent = ob_get_clean();
+require_once 'layout.php';
+?>
