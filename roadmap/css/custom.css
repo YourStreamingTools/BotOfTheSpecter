@@ -510,6 +510,9 @@ body > main {
     min-height: 600px;
     display: flex;
     flex-direction: column;
+    background-color: #242a40;
+    border: 1px solid #333;
+    border-radius: 8px;
 }
 
 .roadmap-column-content {
