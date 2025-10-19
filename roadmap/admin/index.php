@@ -52,7 +52,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $id = $_POST['id'] ?? 0;
         $category = $_POST['category'] ?? 'REQUESTS';
         $status = $_POST['status'] ?? '';
-        
         if ($status === 'completed') {
             $stmt = $conn->prepare("UPDATE roadmap_items SET category = 'COMPLETED', completed_date = NOW() WHERE id = ?");
             if ($stmt) {
@@ -116,7 +115,6 @@ foreach ($allItems as $item) {
 // Build page content
 ob_start();
 ?>
-
 <div class="mb-6">
     <h1 class="title">Roadmap Administration</h1>
     <p class="subtitle">Manage roadmap items and track development progress</p>
@@ -137,7 +135,6 @@ ob_start();
     </h2>
     <form method="POST" action="">
         <input type="hidden" name="action" value="add">
-        
         <div class="columns">
             <div class="column is-two-thirds">
                 <div class="field">
@@ -218,7 +215,6 @@ ob_start();
         </span>
     </h2>
 </div>
-
 <!-- Category Columns -->
 <div class="columns is-multiline">
     <?php foreach ($categories as $category): ?>
@@ -345,7 +341,6 @@ require_once '../layout.php';
 document.addEventListener('DOMContentLoaded', function() {
     const categorySelect = document.getElementById('category-select');
     const prioritySelect = document.getElementById('priority-select');
-    
     if (categorySelect && prioritySelect) {
         categorySelect.addEventListener('change', function() {
             if (this.value === 'REQUESTS') {
@@ -353,5 +348,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    // Close notification when delete button is clicked
+    (document.querySelectorAll('.notification .delete') || []).forEach(($delete) => {
+        const $notification = $delete.parentNode;
+        $delete.addEventListener('click', () => {
+            $notification.parentNode.removeChild($notification);
+        });
+    });
 });
 </script>
