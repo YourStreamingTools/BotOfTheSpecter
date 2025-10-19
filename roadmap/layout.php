@@ -1,4 +1,4 @@
-<?php 
+<?php
 function uuidv4() { 
     return bin2hex(random_bytes(2)); 
 } 
@@ -28,12 +28,20 @@ function uuidv4() {
         </div>
         <div class="navbar-menu">
             <div class="navbar-start">
-                <a class="navbar-item" href="index.php">
+                <a class="navbar-item" href="../index.php">
                     <span class="icon-text">
                         <span class="icon"><i class="fas fa-home"></i></span>
                         <span>Home</span>
                     </span>
                 </a>
+                <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
+                <a class="navbar-item" href="../admin/">
+                    <span class="icon-text">
+                        <span class="icon"><i class="fas fa-cog"></i></span>
+                        <span>Admin</span>
+                    </span>
+                </a>
+                <?php endif; ?>
             </div>
             <div class="navbar-end">
                 <?php if (isset($_SESSION['username'])): ?>
