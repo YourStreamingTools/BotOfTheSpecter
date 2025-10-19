@@ -53,12 +53,6 @@ function uuidv4() {
                             </span>
                         </a>
                         <div class="navbar-dropdown is-right">
-                            <?php if ($_SESSION['admin'] ?? false): ?>
-                                <a class="navbar-item" disabled>
-                                    <span class="tag is-warning">ADMIN</span>
-                                </a>
-                                <hr class="navbar-divider">
-                            <?php endif; ?>
                             <a class="navbar-item" href="logout.php">
                                 <span class="icon-text">
                                     <span class="icon"><i class="fas fa-sign-out-alt"></i></span>
@@ -101,10 +95,54 @@ function uuidv4() {
             </p>
         </div>
     </footer>
+    <!-- Details Modal -->
+    <div class="modal" id="detailsModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title" id="detailsTitle">Item Details</p>
+                <button class="delete"></button>
+            </header>
+            <section class="modal-card-body">
+                <p id="detailsContent"></p>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-primary">Close</button>
+            </footer>
+        </div>
+    </div>
     <?php if (isset($extraJS)): ?>
         <?php foreach ($extraJS as $js): ?>
             <script src="<?php echo htmlspecialchars($js); ?>"></script>
         <?php endforeach; ?>
     <?php endif; ?>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Details button handler
+        const detailsBtns = document.querySelectorAll('.details-btn');
+        const detailsModal = document.getElementById('detailsModal');
+        detailsBtns.forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const title = this.dataset.title;
+                const description = this.dataset.description;
+                document.getElementById('detailsTitle').textContent = title;
+                document.getElementById('detailsContent').textContent = description;
+                detailsModal.classList.add('is-active');
+            });
+        });
+        // Close modal handlers
+        const closeButtons = document.querySelectorAll('#detailsModal .delete, #detailsModal .button');
+        closeButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                detailsModal.classList.remove('is-active');
+            });
+        });
+        // Close modal on background click
+        document.getElementById('detailsModal').querySelector('.modal-background').addEventListener('click', function() {
+            detailsModal.classList.remove('is-active');
+        });
+    });
+    </script>
 </body>
 </html>

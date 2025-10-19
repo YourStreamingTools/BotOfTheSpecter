@@ -232,11 +232,6 @@ ob_start();
                                 <div class="roadmap-card-title">
                                     <?php echo htmlspecialchars($item['title']); ?>
                                 </div>
-                                <?php if ($item['description']): ?>
-                                    <p class="roadmap-card-description">
-                                        <?php echo htmlspecialchars(substr($item['description'], 0, 50)) . (strlen($item['description']) > 50 ? '...' : ''); ?>
-                                    </p>
-                                <?php endif; ?>
                                 <div class="mb-2">
                                     <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
                                         <?php echo htmlspecialchars($item['subcategory']); ?>
@@ -247,6 +242,14 @@ ob_start();
                                         <?php echo htmlspecialchars($item['priority']); ?>
                                     </span>
                                 </div>
+                                <?php if ($item['description']): ?>
+                                    <div class="mb-3">
+                                        <button class="button is-small is-light is-fullwidth details-btn" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
+                                            <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
+                                            <span>Details</span>
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
                                 <div class="buttons are-small" style="gap: 0.25rem;">
                                     <form method="POST" action="" style="display:inline;">
                                         <input type="hidden" name="action" value="update">
