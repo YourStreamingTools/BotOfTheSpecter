@@ -515,6 +515,16 @@ body > main {
     border-radius: 8px;
 }
 
+/* Override box styles for roadmap columns */
+.roadmap-column.box {
+    padding: 1.5rem;
+}
+
+.roadmap-column.box h2,
+.roadmap-column.box h3 {
+    color: #e0e0e0;
+}
+
 .roadmap-column-content {
     flex: 1;
     overflow-y: auto;
@@ -532,6 +542,7 @@ body > main {
     transition: all 0.3s ease-in-out;
     display: flex;
     flex-direction: column;
+    margin: 0;
 }
 
 .roadmap-card:hover {
