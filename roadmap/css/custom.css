@@ -1,0 +1,567 @@
+/* ============================================
+   BotOfTheSpecter Roadmap - Custom Styles
+   ============================================ */
+
+/* Root Variables */
+:root {
+    --primary-color: #667eea;
+    --secondary-color: #764ba2;
+    --success-color: #48c774;
+    --warning-color: #ffdd57;
+    --danger-color: #f14668;
+    --info-color: #0096d6;
+    --light-bg: #f5f5f5;
+    --dark-text: #363636;
+    --border-radius: 8px;
+    --transition: all 0.3s ease-in-out;
+}
+
+/* ============================================
+   Global Styles
+   ============================================ */
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+}
+
+/* Flexbox layout for sticky footer */
+html,
+body {
+    height: 100%;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+body > main {
+    flex: 1;
+}
+
+/* ============================================
+   Navigation Bar
+   ============================================ */
+
+.navbar.is-dark {
+    background-color: #1a1a2e;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.navbar-item {
+    transition: var(--transition);
+}
+
+.navbar-item:hover {
+    background-color: rgba(102, 126, 234, 0.1);
+    color: var(--primary-color);
+}
+
+.navbar-link:not(.is-arrowless)::after {
+    border-color: var(--primary-color);
+}
+
+.navbar-dropdown {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    border-top: 3px solid var(--primary-color);
+}
+
+.navbar-item.has-dropdown:hover .navbar-link {
+    color: var(--primary-color);
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+
+.button {
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    transition: var(--transition);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.button.is-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    border: none;
+}
+
+.button.is-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.button.is-danger {
+    background-color: var(--danger-color);
+}
+
+.button.is-danger:hover {
+    background-color: #e91e63;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(241, 70, 104, 0.3);
+}
+
+.button.is-info {
+    background-color: var(--info-color);
+}
+
+.button.is-info:hover {
+    background-color: #0085c7;
+    transform: translateY(-2px);
+}
+
+/* ============================================
+   Cards & Boxes
+   ============================================ */
+
+.box {
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: var(--transition);
+    border: 1px solid #333;
+    background-color: #242a40;
+    color: #e0e0e0;
+}
+
+.box:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    transform: translateY(-2px);
+    background-color: #2d3350;
+}
+
+.box h2,
+.box h3,
+.box h4,
+.box h5 {
+    color: #e0e0e0;
+    margin-bottom: 0.75rem;
+}
+
+.box strong {
+    color: var(--primary-color);
+}
+
+/* ============================================
+   Tags & Badges
+   ============================================ */
+
+.tag {
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.tag.is-warning {
+    background-color: #ffd166;
+    color: #333;
+}
+
+.tag.is-success {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.tag.is-danger {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.tag.is-info {
+    background-color: var(--info-color);
+    color: white;
+}
+
+/* ============================================
+    Titles & Headings
+============================================ */
+
+.title,
+.subtitle {
+    color: #e0e0e0;
+}
+
+.title {
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.subtitle {
+    font-weight: 400;
+    color: #b0b0b0;
+}
+
+/* ============================================
+    Notifications
+============================================ */
+
+.notification {
+    border-radius: var(--border-radius);
+    border-left: 4px solid;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.notification.is-danger {
+    border-left-color: var(--danger-color);
+    background-color: rgba(241, 70, 104, 0.08);
+}
+
+.notification.is-success {
+    border-left-color: var(--success-color);
+    background-color: rgba(72, 199, 116, 0.08);
+}
+
+.notification.is-info {
+    border-left-color: var(--info-color);
+    background-color: rgba(0, 150, 214, 0.08);
+}
+
+.notification.is-warning {
+    border-left-color: #ffdd57;
+    background-color: rgba(255, 221, 87, 0.08);
+}
+
+/* ============================================
+    Footer
+============================================ */
+
+.footer {
+    background-color: #1a1a2e;
+    color: #b0b0b0;
+    margin-top: auto;
+    border-top: 1px solid #333;
+}
+
+.footer a {
+    color: var(--primary-color);
+    transition: var(--transition);
+}
+
+.footer a:hover {
+    color: var(--secondary-color);
+    text-decoration: underline;
+}
+
+.footer .content {
+    line-height: 1.8;
+}
+
+/* ============================================
+    Section Styles
+============================================ */
+
+.section {
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+}
+
+.section.is-light {
+    background-color: #242a40;
+}
+
+.section.is-alt {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+}
+
+/* ============================================
+    Level Layouts
+============================================ */
+
+.level {
+    background-color: transparent;
+}
+
+.level-item {
+    align-items: center;
+}
+
+/* ============================================
+   Form Styles
+   ============================================ */
+
+.input,
+.textarea,
+.select select {
+    border-radius: var(--border-radius);
+    border: 1px solid #444;
+    transition: var(--transition);
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+}
+
+.input:focus,
+.textarea:focus,
+.select select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    background-color: #242a40;
+}
+
+.label {
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 0.5rem;
+}
+
+/* ============================================
+   Icons
+   ============================================ */
+
+.icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-text {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* ============================================
+   Columns & Grid
+   ============================================ */
+
+.columns {
+    margin-bottom: 2rem;
+}
+
+.column {
+    padding: 1rem;
+}
+
+/* ============================================
+   Responsive Adjustments
+   ============================================ */
+
+@media screen and (max-width: 768px) {
+    .navbar-menu {
+        background-color: #1a1a2e;
+    }
+
+    .navbar-item {
+        padding: 0.75rem 1rem;
+    }
+
+    .section {
+        padding: 1.5rem 1rem;
+    }
+
+    .box {
+        padding: 1.5rem;
+    }
+
+    .column {
+        padding: 0.75rem;
+    }
+
+    .title {
+        font-size: 1.75rem;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+}
+
+@media screen and (max-width: 540px) {
+    .section {
+        padding: 1rem 0.5rem;
+    }
+
+    .box {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .button {
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
+    }
+
+    .title {
+        font-size: 1.5rem;
+    }
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+
+.has-text-primary {
+    color: var(--primary-color) !important;
+}
+
+.has-text-success {
+    color: var(--success-color) !important;
+}
+
+.has-text-danger {
+    color: var(--danger-color) !important;
+}
+
+.has-text-warning {
+    color: #ffdd57 !important;
+}
+
+.has-background-primary-light {
+    background-color: rgba(102, 126, 234, 0.15);
+}
+
+.has-background-success-light {
+    background-color: rgba(72, 199, 116, 0.15);
+}
+
+.has-background-danger-light {
+    background-color: rgba(241, 70, 104, 0.15);
+}
+
+.shadow-light {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.shadow-medium {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+.shadow-heavy {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+}
+
+.rounded {
+    border-radius: var(--border-radius);
+}
+
+.rounded-lg {
+    border-radius: 12px;
+}
+
+.transition-all {
+    transition: var(--transition);
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* ============================================
+   Animation Effects
+   ============================================ */
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-slide-in-up {
+    animation: slideInUp 0.5s ease-in-out;
+}
+
+/* ============================================
+   Login Page Styles
+   ============================================ */
+
+.login-page {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    backdrop-filter: blur(10px);
+}
+
+/* ============================================
+   Roadmap Styles
+   ============================================ */
+
+.roadmap-column {
+    min-height: 600px;
+    display: flex;
+    flex-direction: column;
+}
+
+.roadmap-column-content {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.roadmap-card {
+    padding: 0.75rem;
+    background-color: #2d3350;
+    border-radius: 6px;
+    border-left: 3px solid;
+}
+
+.roadmap-card.is-low {
+    border-left-color: #48c774;
+}
+
+.roadmap-card.is-medium {
+    border-left-color: #0096d6;
+}
+
+.roadmap-card.is-high {
+    border-left-color: #ffdd57;
+}
+
+.roadmap-card.is-critical {
+    border-left-color: #f14668;
+}
+
+.roadmap-card-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.roadmap-card-description {
+    font-size: 0.875rem;
+    color: #b0b0b0;
+    margin-bottom: 0.5rem;
+}
+
+.roadmap-card-tags {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.roadmap-item-count {
+    font-size: 0.875rem;
+    color: #b0b0b0;
+}

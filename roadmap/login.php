@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-require_once "../config/twitch.php";
+require_once "/var/www/config/twitch.php";
 $redirectURI = 'https://roadmap.botofthespecter.com/login.php';
 
 if (isset($_SESSION['username'])) {
@@ -35,12 +35,10 @@ if (isset($_GET['code'])) {
     $response = curl_exec($curl);
     curl_close($curl);
     $responseData = json_decode($response, true);
-    
     if (!isset($responseData['access_token'])) {
         $_SESSION['login_error'] = 'Failed to get access token from Twitch: ' . json_encode($responseData);
     } else {
         $accessToken = $responseData['access_token'];
-
         // Fetch user info
         $userInfoURL = 'https://api.twitch.tv/helix/users';
         $curl = curl_init($userInfoURL);
@@ -56,7 +54,6 @@ if (isset($_GET['code'])) {
             $_SESSION['username'] = $userInfo['data'][0]['login'];
             $_SESSION['display_name'] = $userInfo['data'][0]['display_name'];
             $_SESSION['twitch_id'] = $userInfo['data'][0]['id'];
-
             // Check if user is admin in website database
             require_once "/var/www/config/database.php";
             $website_conn = new mysqli($db_servername, $db_username, $db_password, "website");
@@ -71,13 +68,15 @@ if (isset($_GET['code'])) {
                 $stmt->bind_result($is_admin);
                 if ($stmt->fetch() && $is_admin == 1) {
                     $_SESSION['admin'] = true;
+                    // If user is admin, initialize roadmap database
+                    require_once "admin/database.php";
+                    initializeRoadmapDatabase();
                 } else {
                     $_SESSION['admin'] = false;
                 }
                 $stmt->close();
                 $website_conn->close();
             }
-
             // Ensure session is saved before redirecting
             session_write_close();
             header('Location: index.php');
@@ -94,27 +93,63 @@ if (isset($_GET['code'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Login - BotOfTheSpecter Roadmap</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="dist/styles.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/custom.css">
 </head>
-<body class="bg-gradient-to-br from-blue-600 to-blue-800 text-white min-h-screen flex items-center justify-center">
-    <div class="max-w-md w-full mx-4">
-        <div class="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 shadow-xl">
-            <h2 class="text-3xl font-bold mb-6 text-center">Logging in...</h2>
-            <p class="text-blue-100 text-center mb-6">You are being redirected to Twitch for authentication.</p>
-            <p class="text-blue-100 text-center text-sm mb-6">If you are not redirected automatically, 
-            <a href="https://id.twitch.tv/oauth2/authorize?client_id=<?php echo $clientID; ?>&redirect_uri=<?php echo urlencode($redirectURI); ?>&response_type=code&scope=openid%20user:read:email" class="underline font-semibold hover:text-white">click here</a>.</p>
+<body class="login-page">
+    <div class="container" style="max-width: 500px;">
+        <div class="login-container p-6">
+            <?php if (isset($_SESSION['login_error'])): ?>
+                <div class="notification is-danger">
+                    <button class="delete"></button>
+                    <h4 class="title is-5">Login Error</h4>
+                    <p><?php echo htmlspecialchars($_SESSION['login_error']); ?></p>
+                    <div class="mt-5">
+                        <a href="index.php" class="button is-info">Back to Roadmap</a>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div class="has-text-centered mb-6">
+                    <figure class="image is-96 is-inline-block mb-4">
+                        <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo" style="border-radius: 50%; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);">
+                    </figure>
+                </div>
+                <h2 class="title is-3 has-text-centered">BotOfTheSpecter Roadmap</h2>
+                <p class="subtitle is-6 has-text-centered mb-6">Sign in with your Twitch account</p>
+                <div class="box has-background-info-light mb-5">
+                    <p class="icon-text">
+                        <span class="icon">
+                            <i class="fas fa-info-circle"></i>
+                        </span>
+                        <span>Redirecting to Twitch for authentication...</span>
+                    </p>
+                </div>
+                <div class="has-text-centered">
+                    <p class="mb-3">If you are not redirected automatically,</p>
+                    <a href="https://id.twitch.tv/oauth2/authorize?client_id=<?php echo htmlspecialchars($clientID); ?>&redirect_uri=<?php echo urlencode($redirectURI); ?>&response_type=code&scope=openid%20user:read:email" class="button is-primary is-large is-fullwidth">
+                        <span class="icon">
+                            <i class="fab fa-twitch"></i>
+                        </span>
+                        <span>Login with Twitch</span>
+                    </a>
+                </div>
+            <?php endif; ?>
         </div>
-        <?php if (isset($_SESSION['login_error'])): ?>
-        <div class="mt-6 bg-red-500 bg-opacity-20 backdrop-blur-md rounded-lg p-6 shadow-xl border border-red-400">
-            <h3 class="text-xl font-bold mb-3">Login Error</h3>
-            <p class="text-red-100 mb-6"><?php echo htmlspecialchars($_SESSION['login_error']); ?></p>
-            <a href="index.php" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200">Back to Roadmap</a>
-        </div>
-        <?php endif; ?>
     </div>
+    <script>
+        // Close notification when delete button is clicked
+        document.addEventListener('DOMContentLoaded', () => {
+            (document.querySelectorAll('.notification .delete') || []).forEach(($delete) => {
+                const $notification = $delete.parentNode;
+                $delete.addEventListener('click', () => {
+                    $notification.parentNode.removeChild($notification);
+                });
+            });
+        });
+    </script>
 </body>
 </html>
