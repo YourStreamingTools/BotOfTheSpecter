@@ -179,7 +179,6 @@ function uuidv4() {
                 fetch('../get-comments.php?item_id=' + encodeURIComponent(currentItemId))
                     .then(response => response.text())
                     .then(html => {
-                        console.log('Comments HTML:', html);
                         const commentsSection = document.getElementById('commentsSection');
                         commentsSection.innerHTML = html;
                     })
