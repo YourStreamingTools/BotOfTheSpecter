@@ -161,6 +161,14 @@ function uuidv4() {
         <?php endforeach; ?>
     <?php endif; ?>
     <script>
+    // Helper function to convert URLs in text to clickable links
+    function linkifyText(text) {
+        // Regular expression to match URLs
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.replace(urlRegex, function(url) {
+            return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline; cursor: pointer;">' + url + '</a>';
+        });
+    }
     document.addEventListener('DOMContentLoaded', function() {
         const detailsBtns = document.querySelectorAll('.details-btn');
         const detailsModal = document.getElementById('detailsModal');
@@ -176,7 +184,8 @@ function uuidv4() {
                 const description = this.dataset.description;
                 currentItemId = this.getAttribute('data-item-id');
                 document.getElementById('detailsTitle').textContent = title;
-                document.getElementById('detailsContent').textContent = description;
+                // Linkify the description
+                document.getElementById('detailsContent').innerHTML = linkifyText(description);
                 // Load comments via AJAX
                 fetch('../get-comments.php?item_id=' + encodeURIComponent(currentItemId))
                     .then(response => response.text())
