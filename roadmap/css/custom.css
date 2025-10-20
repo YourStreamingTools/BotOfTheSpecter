@@ -643,3 +643,20 @@ body > main {
     border-top: 1px solid #333;
     border-radius: 0 0 8px 8px;
 }
+
+/* ============================================
+   Comments Styling
+   ============================================ */
+
+#commentsSection .box {
+    background-color: #2d3350;
+    border-left: 3px solid var(--primary-color);
+}
+
+#commentsSection .level {
+    gap: 1rem;
+}
+
+#commentsSection .has-text-grey {
+    color: #b0b0b0 !important;
+}

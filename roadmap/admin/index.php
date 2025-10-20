@@ -90,6 +90,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message = 'Error preparing statement: ' . $conn->error;
             $message_type = 'danger';
         }
+    } elseif ($_POST['action'] === 'add_comment') {
+        $item_id = $_POST['item_id'] ?? 0;
+        $comment_text = $_POST['comment_text'] ?? '';
+        if (!empty($comment_text) && $item_id > 0) {
+            $stmt = $conn->prepare("INSERT INTO roadmap_comments (item_id, username, comment) VALUES (?, ?, ?)");
+            if ($stmt) {
+                $stmt->bind_param("iss", $item_id, $_SESSION['username'], $comment_text);
+                if ($stmt->execute()) {
+                    $message = 'Comment added successfully!';
+                    $message_type = 'success';
+                } else {
+                    $message = 'Error adding comment: ' . $stmt->error;
+                    $message_type = 'danger';
+                }
+                $stmt->close();
+            }
+        }
     }
 }
 
@@ -265,7 +282,7 @@ ob_start();
                                 </div>
                                 <?php if ($item['description']): ?>
                                     <div class="mb-3">
-                                        <button class="button is-small is-light is-fullwidth details-btn" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
+                                        <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
                                             <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
                                             <span>Details</span>
                                         </button>
@@ -385,6 +402,59 @@ document.addEventListener('DOMContentLoaded', function() {
         const $notification = $delete.parentNode;
         $delete.addEventListener('click', () => {
             $notification.parentNode.removeChild($notification);
+        });
+    });
+    
+    // Inject add comment form when Details button is clicked
+    document.querySelectorAll('button[data-item-id]').forEach(button => {
+        button.addEventListener('click', function() {
+            const itemId = this.getAttribute('data-item-id');
+            const container = document.getElementById('addCommentFormContainer');
+            
+            if (container && !container.querySelector('form')) {
+                const formHTML = `
+                    <form method="POST" class="mt-5" style="border-top: 1px solid #444; padding-top: 1.5rem;">
+                        <input type="hidden" name="action" value="add_comment">
+                        <input type="hidden" name="item_id" value="${itemId}">
+                        <div class="field">
+                            <label class="label">Add Comment</label>
+                            <div class="control">
+                                <textarea class="textarea" name="comment_text" placeholder="Enter your comment..." required></textarea>
+                            </div>
+                        </div>
+                        <div class="field is-grouped">
+                            <div class="control">
+                                <button class="button is-primary" type="submit">Add Comment</button>
+                            </div>
+                        </div>
+                    </form>
+                `;
+                container.innerHTML = formHTML;
+                
+                // Handle form submission
+                const form = container.querySelector('form');
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    // Submit the form
+                    fetch(window.location.href, {
+                        method: 'POST',
+                        body: new FormData(form)
+                    })
+                    .then(response => response.text())
+                    .then(() => {
+                        // Clear form
+                        form.reset();
+                        // Reload comments
+                        const commentsContainer = document.getElementById('commentsSection');
+                        fetch('/roadmap/admin/get-comments.php?item_id=' + encodeURIComponent(itemId))
+                            .then(response => response.text())
+                            .then(html => {
+                                commentsContainer.innerHTML = html;
+                            });
+                    });
+                });
+            }
         });
     });
 });

@@ -148,7 +148,7 @@ ob_start();
                                 </div>
                                 <?php if ($item['description']): ?>
                                     <div class="mt-3">
-                                        <button class="button is-small is-light is-fullwidth details-btn" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
+                                        <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
                                             <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
                                             <span>Details</span>
                                         </button>
