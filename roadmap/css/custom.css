@@ -679,12 +679,18 @@ body > main {
    Comments Styling
    ============================================ */
 
+#commentsSection {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
 #commentsSection .box {
     background-color: transparent;
     border: none;
     padding: 1rem 0 !important;
-    margin-bottom: 1.5rem !important;
-    border-bottom: 1px solid #444;
+    margin-bottom: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 #commentsSection .box:last-child {
@@ -692,35 +698,26 @@ body > main {
 }
 
 #commentsSection .level {
-    gap: 1rem;
     margin-bottom: 0.75rem !important;
-    align-items: flex-start;
-}
-
-#commentsSection .level-left {
-    flex: 1;
-}
-
-#commentsSection .level-right {
-    flex: 0 0 auto;
 }
 
 #commentsSection strong {
-    color: #667eea;
+    color: #e0e0e0;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.95rem;
 }
 
 #commentsSection .has-text-grey {
-    color: #999 !important;
-    font-size: 0.85rem !important;
-    white-space: nowrap;
+    color: #888 !important;
+    font-size: 0.8rem !important;
+    margin-top: 0.2rem;
 }
 
 #commentsSection p {
-    color: #e0e0e0;
-    line-height: 1.6;
+    color: #b0b0b0;
+    line-height: 1.5;
     margin: 0 !important;
     word-wrap: break-word;
     white-space: pre-wrap;
+    font-size: 0.95rem;
 }
