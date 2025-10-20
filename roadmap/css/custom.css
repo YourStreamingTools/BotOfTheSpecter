@@ -601,6 +601,11 @@ body > main {
    Modal Styles
    ============================================ */
 
+.modal .modal-card {
+    width: 90vw;
+    max-width: 1200px;
+}
+
 .modal-card {
     background-color: #242a40;
     border-radius: 8px;
@@ -636,37 +641,53 @@ body > main {
     line-height: 1.6;
     white-space: pre-wrap;
     word-wrap: break-word;
-    padding: 1rem;
+    padding: 1.5rem;
     display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    gap: 2rem;
+    height: 600px;
+    background-color: #242a40;
+    border-radius: 0;
 }
 
 .modal-card-body > div {
-    flex-shrink: 0;
+    overflow-y: auto;
 }
 
 .modal-card-body #descriptionSection {
-    flex-shrink: 0;
+    flex: 1;
+    padding-right: 1rem;
+}
+
+.modal-card-body #descriptionSection .title {
+    color: #e0e0e0;
+    margin-bottom: 1rem;
 }
 
 .modal-card-body #descriptionSection p {
     margin-bottom: 0;
+    color: #b0b0b0;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
-.modal-card-body hr {
-    margin: 0.5rem 0;
+.modal-card-body #commentsContainer {
+    flex: 1;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    padding-left: 1.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-card-body #commentsContainer .title {
+    color: #e0e0e0;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
 }
 
 .modal-card-body #commentsSection {
     flex: 1;
-    max-height: 250px !important;
     overflow-y: auto;
-}
-
-.modal-card-body #addCommentBtn {
-    flex-shrink: 0;
-    margin-top: 1rem;
 }
 
 .modal-card-foot {
@@ -680,44 +701,83 @@ body > main {
    ============================================ */
 
 #commentsSection {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+}
+
+#commentsSection .box.comment-box {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    border: none !important;
+    padding: 0.15rem 0.25rem !important;
+    margin: 0.05rem 0 !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    min-height: auto !important;
+    line-height: 1 !important;
+}
+
+/* Comment Header: User info and timestamp */
+.comment-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 0.08rem !important;
+    gap: 0.2rem !important;
+}
+
+.comment-user-info {
     display: flex;
-    flex-direction: column;
-    gap: 0;
+    align-items: center;
+    gap: 0.3rem;
+    flex: 1;
+    min-width: 0;
 }
 
-#commentsSection .box {
-    background-color: transparent;
-    border: none;
-    padding: 1rem 0 !important;
-    margin-bottom: 0 !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.comment-avatar {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
 }
 
-#commentsSection .box:last-child {
-    border-bottom: none;
+.comment-avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: hsl(var(--avatar-hue), 70%, 50%);
+    color: white;
+    font-weight: bold;
+    font-size: 0.6rem;
+    flex-shrink: 0;
 }
 
-#commentsSection .level {
-    margin-bottom: 0.75rem !important;
-}
-
-#commentsSection strong {
-    color: #e0e0e0;
+.comment-username {
+    color: #667eea;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    line-height: 1 !important;
 }
 
-#commentsSection .has-text-grey {
-    color: #888 !important;
-    font-size: 0.8rem !important;
-    margin-top: 0.2rem;
+.comment-time {
+    color: #555;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1 !important;
 }
 
-#commentsSection p {
+/* Comment text */
+.comment-text {
     color: #b0b0b0;
-    line-height: 1.5;
-    margin: 0 !important;
+    line-height: 1 !important;
+    font-size: 0.85rem;
     word-wrap: break-word;
     white-space: pre-wrap;
-    font-size: 0.95rem;
+    margin: 0 !important;
 }

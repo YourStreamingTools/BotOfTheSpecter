@@ -67,7 +67,6 @@ while ($row = $result->fetch_assoc()) {
             $user_stmt->close();
         }
     }
-    
     // Get user initials for avatar fallback
     $userInitials = '';
     $nameParts = explode(' ', htmlspecialchars($row['username']));
@@ -80,43 +79,22 @@ while ($row = $result->fetch_assoc()) {
     $hash = crc32($row['username']) % 360;
     $avatarHue = $hash;
     ?>
-    <div class="box">
-        <div class="level">
-            <div class="level-left">
-                <div class="level-item" style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
-                    <?php if ($profileImage): ?>
-                        <img src="<?php echo htmlspecialchars($profileImage); ?>" alt="<?php echo htmlspecialchars($row['username']); ?>" style="
-                            width: 32px;
-                            height: 32px;
-                            border-radius: 50%;
-                            object-fit: cover;
-                            flex-shrink: 0;
-                        ">
-                    <?php else: ?>
-                        <div style="
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            width: 32px;
-                            height: 32px;
-                            border-radius: 50%;
-                            background: hsl(<?php echo $avatarHue; ?>, 70%, 50%);
-                            color: white;
-                            font-weight: bold;
-                            font-size: 0.8rem;
-                            flex-shrink: 0;
-                        ">
-                            <?php echo $userInitials; ?>
-                        </div>
-                    <?php endif; ?>
-                    <div style="flex: 1; min-width: 0;">
-                        <strong><?php echo htmlspecialchars($row['username']); ?></strong>
-                        <div class="has-text-grey"><?php echo htmlspecialchars($formattedDate); ?></div>
+    <div class="box comment-box">
+        <!-- Header: Avatar + Username on left, Time on right -->
+        <div class="comment-header">
+            <div class="comment-user-info">
+                <?php if ($profileImage): ?>
+                    <img src="<?php echo htmlspecialchars($profileImage); ?>" alt="<?php echo htmlspecialchars($row['username']); ?>" class="comment-avatar">
+                <?php else: ?>
+                    <div class="comment-avatar-fallback">
+                        <?php echo $userInitials; ?>
                     </div>
-                </div>
+                <?php endif; ?>
+                <strong class="comment-username"><?php echo htmlspecialchars($row['username']); ?></strong>
             </div>
+            <div class="comment-time"><?php echo htmlspecialchars($formattedDate); ?></div>
         </div>
-        <p><?php echo htmlspecialchars($row['comment']); ?></p>
+        <div class="comment-text"><?php echo htmlspecialchars($row['comment']); ?></div>
     </div>
     <?php
 }

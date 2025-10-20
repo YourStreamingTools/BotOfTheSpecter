@@ -103,15 +103,17 @@ function uuidv4() {
                 <p class="modal-card-title" id="detailsTitle">Item Details</p>
                 <button class="delete"></button>
             </header>
-            <section class="modal-card-body">
-                <div id="descriptionSection">
-                    <h4 class="title is-6">Description</h4>
-                <div id="detailsContent"></p>
+            <section class="modal-card-body" style="display: flex; gap: 2rem; height: 600px;">
+                <!-- Left Column: Description -->
+                <div id="descriptionSection" style="flex: 1; overflow-y: auto; padding-right: 1rem;">
+                    <h4 class="title is-6" style="margin-bottom: 1rem;">Description</h4>
+                    <div id="detailsContent" style="line-height: 1.6; color: #b0b0b0;"></div>
                 </div>
-                <hr id="commentsHR">
-                <div id="commentsContainer">
-                    <h4 class="title is-6">Comments</h4>
-                    <div id="commentsSection" class="mb-4" style="max-height: 300px; overflow-y: auto;">
+                
+                <!-- Right Column: Activity/Comments Feed -->
+                <div id="commentsContainer" style="flex: 1; border-left: 1px solid rgba(255, 255, 255, 0.1); padding-left: 1.5rem; display: flex; flex-direction: column;">
+                    <h4 class="title is-6" style="margin-bottom: 1rem;">Activity</h4>
+                    <div id="commentsSection" style="flex: 1; overflow-y: auto;">
                         <!-- Comments will be loaded here -->
                     </div>
                 </div>
