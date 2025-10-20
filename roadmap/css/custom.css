@@ -664,10 +664,9 @@ body > main {
     overflow-y: auto;
 }
 
-.modal-card-body #addCommentFormContainer {
+.modal-card-body #addCommentBtn {
     flex-shrink: 0;
-    padding-top: 1rem;
-    border-top: 1px solid #444;
+    margin-top: 1rem;
 }
 
 .modal-card-foot {
