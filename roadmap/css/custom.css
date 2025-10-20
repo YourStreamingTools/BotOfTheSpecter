@@ -314,6 +314,59 @@ body > main {
     margin-bottom: 0.5rem;
 }
 
+/* Compact modal form styles */
+#editItemModal .field {
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
+}
+
+#editItemModal .control {
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
+}
+
+#editItemModal .select {
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
+}
+
+#editItemModal .label {
+    margin-bottom: 0.15rem !important;
+    margin-top: 0 !important;
+}
+
+#editItemModal input,
+#editItemModal textarea,
+#editItemModal select {
+    line-height: 1.2 !important;
+}
+
+#editItemModal .input {
+    padding: 0.35rem !important;
+    height: auto !important;
+    font-size: 0.8rem !important;
+}
+
+#editItemModal .textarea {
+    padding: 0.35rem !important;
+    font-size: 0.8rem !important;
+    line-height: 1.2 !important;
+}
+
+#editItemModal select {
+    padding: 0.35rem !important;
+    font-size: 0.8rem !important;
+    height: auto !important;
+}
+
+#editItemModal .select::after {
+    height: 12px !important;
+}
+
+#editItemModal .field-body {
+    display: block !important;
+}
+
 /* ============================================
    Icons
    ============================================ */
