@@ -680,14 +680,47 @@ body > main {
    ============================================ */
 
 #commentsSection .box {
-    background-color: #2d3350;
-    border-left: 3px solid var(--primary-color);
+    background-color: transparent;
+    border: none;
+    padding: 1rem 0 !important;
+    margin-bottom: 1.5rem !important;
+    border-bottom: 1px solid #444;
+}
+
+#commentsSection .box:last-child {
+    border-bottom: none;
 }
 
 #commentsSection .level {
     gap: 1rem;
+    margin-bottom: 0.75rem !important;
+    align-items: flex-start;
+}
+
+#commentsSection .level-left {
+    flex: 1;
+}
+
+#commentsSection .level-right {
+    flex: 0 0 auto;
+}
+
+#commentsSection strong {
+    color: #667eea;
+    font-weight: 600;
+    font-size: 1rem;
 }
 
 #commentsSection .has-text-grey {
-    color: #b0b0b0 !important;
+    color: #999 !important;
+    font-size: 0.85rem !important;
+    white-space: nowrap;
+}
+
+#commentsSection p {
+    color: #e0e0e0;
+    line-height: 1.6;
+    margin: 0 !important;
+    word-wrap: break-word;
+    white-space: pre-wrap;
 }
