@@ -232,58 +232,39 @@ CREATE TABLE IF NOT EXISTS spam_patterns (
     spam_pattern TEXT NOT NULL
 );
 
--- website: core website schema
-CREATE DATABASE IF NOT EXISTS website;
-
 -- roadmap: roadmap site schema
 CREATE DATABASE IF NOT EXISTS roadmap;
 USE roadmap;
 
--- roadmap.tables: categories, boards, lists, cards (as used by the roadmap feature)
-CREATE TABLE IF NOT EXISTS categories (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_name (name)
-);
-
-CREATE TABLE IF NOT EXISTS boards (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    category_id INT,
-    name VARCHAR(255) NOT NULL,
+-- roadmap_items: Main roadmap items
+CREATE TABLE IF NOT EXISTS roadmap_items (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(255) NOT NULL,
+    description LONGTEXT,
+    category ENUM('REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED') NOT NULL DEFAULT 'REQUESTS',
+    subcategory ENUM('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE') NOT NULL,
+    priority ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NOT NULL DEFAULT 'MEDIUM',
+    website_type ENUM('DASHBOARD', 'OVERLAYS') DEFAULT NULL,
+    completed_date DATE,
     created_by VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_category_id (category_id),
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_category (category),
+    INDEX idx_subcategory (subcategory),
+    INDEX idx_priority (priority),
+    INDEX idx_created_at (created_at)
 );
 
-CREATE TABLE IF NOT EXISTS lists (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    board_id INT NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    position INT DEFAULT 0,
+-- roadmap_comments: Comments on roadmap items
+CREATE TABLE IF NOT EXISTS roadmap_comments (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    item_id INT NOT NULL,
+    username VARCHAR(255) NOT NULL,
+    comment TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_board_id (board_id),
-    FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS cards (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    list_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    position INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    due_date DATE DEFAULT NULL,
-    labels VARCHAR(255),
-    board_id INT,
-    section ENUM('Pending','In Progress','Done') DEFAULT 'Pending',
-    KEY idx_list_id (list_id),
-    KEY idx_board_id_on_card (board_id),
-    FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE CASCADE,
-    FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE SET NULL
+    FOREIGN KEY (item_id) REFERENCES roadmap_items(id) ON DELETE CASCADE,
+    INDEX idx_item_id (item_id),
+    INDEX idx_created_at (created_at)
 );
 
 -- specterdiscordbot: Discord bot
