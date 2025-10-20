@@ -205,26 +205,31 @@ body > main {
     border-radius: var(--border-radius);
     border-left: 4px solid;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    color: white;
 }
 
 .notification.is-danger {
     border-left-color: var(--danger-color);
     background-color: rgba(241, 70, 104, 0.08);
+    color: white;
 }
 
 .notification.is-success {
     border-left-color: var(--success-color);
     background-color: rgba(72, 199, 116, 0.08);
+    color: white;
 }
 
 .notification.is-info {
     border-left-color: var(--info-color);
     background-color: rgba(0, 150, 214, 0.08);
+    color: white;
 }
 
 .notification.is-warning {
     border-left-color: #ffdd57;
     background-color: rgba(255, 221, 87, 0.08);
+    color: white;
 }
 
 /* ============================================
