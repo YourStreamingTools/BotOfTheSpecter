@@ -375,7 +375,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const prioritySelect = document.getElementById('priority-select');
     const subcategorySelect = document.querySelector('select[name="subcategory"]');
     const websiteTypeField = document.getElementById('website-type-field');
-    
     if (categorySelect && prioritySelect) {
         categorySelect.addEventListener('change', function() {
             if (this.value === 'REQUESTS') {
@@ -383,7 +382,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
     if (subcategorySelect && websiteTypeField) {
         function toggleWebsiteType() {
             if (subcategorySelect.value === 'WEBSITE') {
@@ -392,11 +390,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 websiteTypeField.style.display = 'none';
             }
         }
-        
         subcategorySelect.addEventListener('change', toggleWebsiteType);
         toggleWebsiteType(); // Run on page load
     }
-    
     // Close notification when delete button is clicked
     (document.querySelectorAll('.notification .delete') || []).forEach(($delete) => {
         const $notification = $delete.parentNode;
@@ -404,16 +400,14 @@ document.addEventListener('DOMContentLoaded', function() {
             $notification.parentNode.removeChild($notification);
         });
     });
-    
     // Inject add comment form when Details button is clicked
     document.querySelectorAll('button[data-item-id]').forEach(button => {
         button.addEventListener('click', function() {
             const itemId = this.getAttribute('data-item-id');
             const container = document.getElementById('addCommentFormContainer');
-            
             if (container && !container.querySelector('form')) {
                 const formHTML = `
-                    <form method="POST" class="mt-5" style="border-top: 1px solid #444; padding-top: 1.5rem;">
+                    <form method="POST" class="mt-0">
                         <input type="hidden" name="action" value="add_comment">
                         <input type="hidden" name="item_id" value="${itemId}">
                         <div class="field">
@@ -430,12 +424,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     </form>
                 `;
                 container.innerHTML = formHTML;
-                
                 // Handle form submission
                 const form = container.querySelector('form');
                 form.addEventListener('submit', function(e) {
                     e.preventDefault();
-                    
                     // Submit the form
                     fetch(window.location.href, {
                         method: 'POST',
@@ -447,7 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         form.reset();
                         // Reload comments
                         const commentsContainer = document.getElementById('commentsSection');
-                        fetch('/roadmap/admin/get-comments.php?item_id=' + encodeURIComponent(itemId))
+                        fetch('../get-comments.php?item_id=' + encodeURIComponent(itemId))
                             .then(response => response.text())
                             .then(html => {
                                 commentsContainer.innerHTML = html;

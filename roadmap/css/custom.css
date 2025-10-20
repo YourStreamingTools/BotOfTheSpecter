@@ -636,6 +636,38 @@ body > main {
     line-height: 1.6;
     white-space: pre-wrap;
     word-wrap: break-word;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.modal-card-body > div {
+    flex-shrink: 0;
+}
+
+.modal-card-body #descriptionSection {
+    flex-shrink: 0;
+}
+
+.modal-card-body #descriptionSection p {
+    margin-bottom: 0;
+}
+
+.modal-card-body hr {
+    margin: 0.5rem 0;
+}
+
+.modal-card-body #commentsSection {
+    flex: 1;
+    max-height: 250px !important;
+    overflow-y: auto;
+}
+
+.modal-card-body #addCommentFormContainer {
+    flex-shrink: 0;
+    padding-top: 1rem;
+    border-top: 1px solid #444;
 }
 
 .modal-card-foot {
