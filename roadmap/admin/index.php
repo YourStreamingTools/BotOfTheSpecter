@@ -288,6 +288,12 @@ ob_start();
                                         </button>
                                     </div>
                                 <?php endif; ?>
+                                <div class="mb-3">
+                                    <button type="button" class="button is-small is-primary is-fullwidth add-comment-btn" data-item-id="<?php echo $item['id']; ?>">
+                                        <span class="icon is-small"><i class="fas fa-comment"></i></span>
+                                        <span>Add Comment</span>
+                                    </button>
+                                </div>
                                 <div class="buttons are-small" style="gap: 0.25rem;">
                                     <form method="POST" action="" style="display:inline;">
                                         <input type="hidden" name="action" value="update">
@@ -400,52 +406,17 @@ document.addEventListener('DOMContentLoaded', function() {
             $notification.parentNode.removeChild($notification);
         });
     });
-    // Inject add comment form when Details button is clicked
-    document.querySelectorAll('button[data-item-id]').forEach(button => {
-        button.addEventListener('click', function() {
+    // Add Comment button handler
+    document.querySelectorAll('.add-comment-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
             const itemId = this.getAttribute('data-item-id');
-            const container = document.getElementById('addCommentFormContainer');
-            if (container && !container.querySelector('form')) {
-                const formHTML = `
-                    <form method="POST" class="mt-0">
-                        <input type="hidden" name="action" value="add_comment">
-                        <input type="hidden" name="item_id" value="${itemId}">
-                        <div class="field">
-                            <label class="label">Add Comment</label>
-                            <div class="control">
-                                <textarea class="textarea" name="comment_text" placeholder="Enter your comment..." required></textarea>
-                            </div>
-                        </div>
-                        <div class="field is-grouped">
-                            <div class="control">
-                                <button class="button is-primary" type="submit">Add Comment</button>
-                            </div>
-                        </div>
-                    </form>
-                `;
-                container.innerHTML = formHTML;
-                // Handle form submission
-                const form = container.querySelector('form');
-                form.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    // Submit the form
-                    fetch(window.location.href, {
-                        method: 'POST',
-                        body: new FormData(form)
-                    })
-                    .then(response => response.text())
-                    .then(() => {
-                        // Clear form
-                        form.reset();
-                        // Reload comments
-                        const commentsContainer = document.getElementById('commentsSection');
-                        fetch('../get-comments.php?item_id=' + encodeURIComponent(itemId))
-                            .then(response => response.text())
-                            .then(html => {
-                                commentsContainer.innerHTML = html;
-                            });
-                    });
-                });
+            const addCommentModal = document.getElementById('addCommentModal');
+            const commentItemId = document.getElementById('commentItemId');
+            const commentTextarea = document.getElementById('commentTextarea');
+            if (addCommentModal && commentItemId) {
+                commentItemId.value = itemId;
+                commentTextarea.value = '';
+                addCommentModal.classList.add('is-active');
             }
         });
     });

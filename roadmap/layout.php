@@ -95,7 +95,7 @@ function uuidv4() {
             </p>
         </div>
     </footer>
-    <!-- Details Modal -->
+    <!-- Details Modal (Public) -->
     <div class="modal" id="detailsModal">
         <div class="modal-background"></div>
         <div class="modal-card">
@@ -106,20 +106,51 @@ function uuidv4() {
             <section class="modal-card-body">
                 <div id="descriptionSection">
                     <h4 class="title is-6">Description</h4>
-                    <p id="detailsContent" class="mb-4"></p>
+                    <p id="detailsContent"></p>
                 </div>
                 <hr>
                 <h4 class="title is-6">Comments</h4>
-                <div id="commentsSection" style="max-height: 300px; overflow-y: auto;">
+                <div id="commentsSection" class="mb-4" style="max-height: 300px; overflow-y: auto;">
                     <!-- Comments will be loaded here -->
                 </div>
-                <div id="addCommentFormContainer"></div>
             </section>
             <footer class="modal-card-foot">
                 <button class="button is-primary">Close</button>
             </footer>
         </div>
     </div>
+    <!-- Add Comment Modal (Admin Only) -->
+    <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
+    <div class="modal" id="addCommentModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Add Comment</p>
+                <button class="delete"></button>
+            </header>
+            <section class="modal-card-body">
+                <form id="addCommentForm" method="POST">
+                    <input type="hidden" name="action" value="add_comment">
+                    <input type="hidden" name="item_id" id="commentItemId" value="">
+                    <div class="field">
+                        <label class="label">Comment</label>
+                        <div class="control">
+                            <textarea class="textarea" name="comment_text" id="commentTextarea" placeholder="Enter your comment..." required></textarea>
+                        </div>
+                    </div>
+                    <div class="field is-grouped">
+                        <div class="control">
+                            <button type="submit" class="button is-primary">Submit</button>
+                        </div>
+                        <div class="control">
+                            <button type="button" class="button is-light" id="cancelCommentBtn">Cancel</button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+    <?php endif; ?>
     <?php if (isset($extraJS)): ?>
         <?php foreach ($extraJS as $js): ?>
             <script src="<?php echo htmlspecialchars($js); ?>"></script>
@@ -127,19 +158,23 @@ function uuidv4() {
     <?php endif; ?>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Details button handler
         const detailsBtns = document.querySelectorAll('.details-btn');
         const detailsModal = document.getElementById('detailsModal');
+        const addCommentModal = document.getElementById('addCommentModal');
+        const cancelCommentBtn = document.getElementById('cancelCommentBtn');
+        const addCommentForm = document.getElementById('addCommentForm');
+        let currentItemId = null;
+        // Details button handler
         detailsBtns.forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 const title = this.dataset.title;
                 const description = this.dataset.description;
-                const itemId = this.getAttribute('data-item-id');
+                currentItemId = this.getAttribute('data-item-id');
                 document.getElementById('detailsTitle').textContent = title;
                 document.getElementById('detailsContent').textContent = description;
                 // Load comments via AJAX
-                fetch('../get-comments.php?item_id=' + encodeURIComponent(itemId))
+                fetch('../get-comments.php?item_id=' + encodeURIComponent(currentItemId))
                     .then(response => response.text())
                     .then(html => {
                         document.getElementById('commentsSection').innerHTML = html;
@@ -151,16 +186,71 @@ function uuidv4() {
                 detailsModal.classList.add('is-active');
             });
         });
-        // Close modal handlers
-        const closeButtons = document.querySelectorAll('#detailsModal .delete, #detailsModal .button');
+        // Add comment form submission
+        if (addCommentForm) {
+            addCommentForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                // Submit the form
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: new FormData(addCommentForm)
+                })
+                .then(() => {
+                    // Close comment modal
+                    if (addCommentModal) {
+                        addCommentModal.classList.remove('is-active');
+                    }
+                    // Clear form
+                    addCommentForm.reset();
+                    // Reload comments in details modal
+                    fetch('../get-comments.php?item_id=' + encodeURIComponent(currentItemId))
+                        .then(response => response.text())
+                        .then(html => {
+                            document.getElementById('commentsSection').innerHTML = html;
+                        });
+                })
+                .catch(error => {
+                    console.error('Error submitting comment:', error);
+                    alert('Error adding comment. Please try again.');
+                });
+            });
+        }
+        // Close comment modal cancel button
+        if (cancelCommentBtn) {
+            cancelCommentBtn.addEventListener('click', function() {
+                if (addCommentModal) {
+                    addCommentModal.classList.remove('is-active');
+                }
+            });
+        }
+        // Close modal handlers for both modals
+        const deleteButtons = document.querySelectorAll('.modal .delete');
+        deleteButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const modal = this.closest('.modal');
+                if (modal) {
+                    modal.classList.remove('is-active');
+                }
+            });
+        });
+        const closeButtons = document.querySelectorAll('.modal-card-foot .button');
         closeButtons.forEach(btn => {
             btn.addEventListener('click', function() {
-                detailsModal.classList.remove('is-active');
+                const modal = this.closest('.modal');
+                if (modal) {
+                    modal.classList.remove('is-active');
+                }
             });
         });
         // Close modal on background click
-        document.getElementById('detailsModal').querySelector('.modal-background').addEventListener('click', function() {
-            detailsModal.classList.remove('is-active');
+        const modalBackgrounds = document.querySelectorAll('.modal-background');
+        modalBackgrounds.forEach(bg => {
+            bg.addEventListener('click', function() {
+                const modal = this.closest('.modal');
+                if (modal) {
+                    modal.classList.remove('is-active');
+                }
+            });
         });
     });
     </script>
