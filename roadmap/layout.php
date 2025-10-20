@@ -110,7 +110,7 @@ function uuidv4() {
                 </div>
                 <hr>
                 <h4 class="title is-6">Comments</h4>
-                <div id="commentsSection" class="mb-4" style="max-height: 300px; overflow-y: auto;">
+                <div id="commentsSection" style="max-height: 300px; overflow-y: auto;">
                     <!-- Comments will be loaded here -->
                 </div>
                 <div id="addCommentFormContainer"></div>
