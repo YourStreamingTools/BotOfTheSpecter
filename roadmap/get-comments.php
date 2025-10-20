@@ -1,6 +1,7 @@
 <?php
 // Get comments for a roadmap item
-require_once 'database.php';
+require_once "/var/www/config/database.php";
+require_once "/var/www/roadmap/admin/database.php";
 
 $item_id = $_GET['item_id'] ?? 0;
 
