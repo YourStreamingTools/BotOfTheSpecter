@@ -68,6 +68,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $message = 'Item updated successfully!';
         $message_type = 'success';
+    } elseif ($_POST['action'] === 'edit_item') {
+        $id = $_POST['id'] ?? 0;
+        $title = $_POST['title'] ?? '';
+        $description = $_POST['description'] ?? '';
+        $category = $_POST['category'] ?? 'REQUESTS';
+        $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
+        $priority = $_POST['priority'] ?? 'MEDIUM';
+        $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
+        $stmt = $conn->prepare("UPDATE roadmap_items SET title = ?, description = ?, category = ?, subcategory = ?, priority = ?, website_type = ? WHERE id = ?");
+        if ($stmt) {
+            $stmt->bind_param("ssssssi", $title, $description, $category, $subcategory, $priority, $website_type, $id);
+            if ($stmt->execute()) {
+                $message = 'Item edited successfully!';
+                $message_type = 'success';
+            } else {
+                $message = 'Error editing item: ' . $stmt->error;
+                $message_type = 'danger';
+            }
+            $stmt->close();
+        } else {
+            $message = 'Error preparing statement: ' . $conn->error;
+            $message_type = 'danger';
+        }
     } elseif ($_POST['action'] === 'delete') {
         $id = $_POST['id'] ?? 0;
         $stmt = $conn->prepare("DELETE FROM roadmap_items WHERE id = ?");
@@ -287,6 +310,12 @@ ob_start();
                                     <button type="button" class="button is-small is-primary is-fullwidth add-comment-btn" data-item-id="<?php echo $item['id']; ?>">
                                         <span class="icon is-small"><i class="fas fa-comment"></i></span>
                                         <span>Add Comment</span>
+                                    </button>
+                                </div>
+                                <div class="mb-3">
+                                    <button type="button" class="button is-small is-warning is-fullwidth edit-item-btn" data-item-id="<?php echo $item['id']; ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-subcategory="<?php echo htmlspecialchars($item['subcategory']); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-website-type="<?php echo htmlspecialchars($item['website_type'] ?? ''); ?>">
+                                        <span class="icon is-small"><i class="fas fa-edit"></i></span>
+                                        <span>Edit</span>
                                     </button>
                                 </div>
                                 <div class="buttons are-small" style="gap: 0.25rem;">
