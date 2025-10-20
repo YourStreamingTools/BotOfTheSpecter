@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $category = $_POST['category'] ?? 'REQUESTS';
         $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
         $priority = $_POST['priority'] ?? 'MEDIUM';
-        $website_type = ($_POST['website_type'] ?? '');
+        $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
         $stmt = $conn->prepare("INSERT INTO roadmap_items (title, description, category, subcategory, priority, website_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
         if ($stmt) {
             $stmt->bind_param("sssssss", $title, $description, $category, $subcategory, $priority, $website_type, $_SESSION['username']);
