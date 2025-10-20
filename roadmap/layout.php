@@ -163,26 +163,21 @@ function uuidv4() {
                 <p class="modal-card-title" style="font-size: 1.25rem;">Edit Item</p>
                 <button class="delete"></button>
             </header>
-            <section class="modal-card-body" style="max-height: 60vh; overflow-y: auto; padding: 1rem;">
-                <form id="editItemForm" method="POST" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <section class="modal-card-body" style="max-height: 60vh; overflow-y: auto; padding: 0.25rem;">
+                <form id="editItemForm" method="POST" style="display: flex; flex-direction: column; gap: 0.125rem;">
                     <input type="hidden" name="action" value="edit_item">
                     <input type="hidden" name="id" id="editItemId" value="">
-                    <div class="field" style="margin: 0;">
-                        <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Title</label>
-                        <div class="control">
-                            <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required style="padding: 0.5rem; font-size: 0.875rem;">
-                        </div>
-                    </div>
-                    <div class="field" style="margin: 0;">
-                        <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Description</label>
-                        <div class="control">
-                            <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description..." style="height: 100px; padding: 0.5rem; font-size: 0.875rem; resize: none;"></textarea>
-                        </div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                        <div style="display: flex; flex-direction: column;">
-                            <label class="label" style="margin: 0 0 0.15rem 0; font-size: 0.8rem;">Category</label>
-                            <select name="category" id="editItemCategory" style="padding: 0.3rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px;">
+                    
+                    <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Title</label>
+                    <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required style="padding: 0.25rem; font-size: 0.8rem; margin: 0;">
+                    
+                    <label class="label" style="margin: 0.125rem 0 0.1rem 0; font-size: 0.8rem;">Description</label>
+                    <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description..." style="height: 60px; padding: 0.25rem; font-size: 0.8rem; resize: none; margin: 0;"></textarea>
+                    
+                    <div style="display: flex; gap: 0.25rem; margin-top: 0.125rem;">
+                        <div style="flex: 1;">
+                            <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Category</label>
+                            <select name="category" id="editItemCategory" style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
                                 <option value="REQUESTS">REQUESTS</option>
                                 <option value="IN PROGRESS">IN PROGRESS</option>
                                 <option value="BETA TESTING">BETA TESTING</option>
@@ -190,9 +185,9 @@ function uuidv4() {
                                 <option value="REJECTED">REJECTED</option>
                             </select>
                         </div>
-                        <div style="display: flex; flex-direction: column;">
-                            <label class="label" style="margin: 0 0 0.15rem 0; font-size: 0.8rem;">Priority</label>
-                            <select name="priority" id="editItemPriority" style="padding: 0.3rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px;">
+                        <div style="flex: 1;">
+                            <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Priority</label>
+                            <select name="priority" id="editItemPriority" style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
                                 <option value="LOW">Low</option>
                                 <option value="MEDIUM">Medium</option>
                                 <option value="HIGH">High</option>
@@ -200,17 +195,18 @@ function uuidv4() {
                             </select>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                        <div style="display: flex; flex-direction: column;">
-                            <label class="label" style="margin: 0 0 0.15rem 0; font-size: 0.8rem;">Subcategory</label>
-                            <select name="subcategory" id="editItemSubcategory" style="padding: 0.3rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px;">
+                    
+                    <div style="display: flex; gap: 0.25rem; margin-top: 0.125rem;">
+                        <div style="flex: 1;">
+                            <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Subcategory</label>
+                            <select name="subcategory" id="editItemSubcategory" style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
                                 <option value="TWITCH BOT">TWITCH BOT</option>
                                 <option value="WEBSITE">WEBSITE</option>
                             </select>
                         </div>
-                        <div style="display: flex; flex-direction: column;">
-                            <label class="label" style="margin: 0 0 0.15rem 0; font-size: 0.8rem;">Website Type</label>
-                            <select name="website_type" id="editItemWebsiteType" style="padding: 0.3rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px;">
+                        <div style="flex: 1;">
+                            <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Website Type</label>
+                            <select name="website_type" id="editItemWebsiteType" style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
                                 <option value="">None</option>
                                 <option value="DASHBOARD">Dashboard</option>
                                 <option value="OVERLAYS">Overlays</option>
@@ -219,7 +215,7 @@ function uuidv4() {
                     </div>
                 </form>
             </section>
-            <footer class="modal-card-foot" style="padding: 0.75rem 1rem;">
+            <footer class="modal-card-foot" style="padding: 0.5rem;">
                 <button type="submit" form="editItemForm" class="button is-warning" style="font-size: 0.875rem; padding: 0.4rem 1rem;">Save Changes</button>
                 <button type="button" class="button is-light" id="cancelEditBtn" style="font-size: 0.875rem; padding: 0.4rem 1rem;">Cancel</button>
             </footer>

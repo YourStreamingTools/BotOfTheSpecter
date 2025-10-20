@@ -339,6 +339,7 @@ body > main {
 #editItemModal textarea,
 #editItemModal select {
     line-height: 1.2 !important;
+    margin: 0 !important;
 }
 
 #editItemModal .input {
@@ -365,6 +366,50 @@ body > main {
 
 #editItemModal .field-body {
     display: block !important;
+}
+
+#editItemModal form {
+    margin: 0 !important;
+}
+
+#editItemModal {
+    padding: 1rem !important;
+}
+
+#editItemModal .modal-card {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-height: 80vh !important;
+}
+
+#editItemModal .modal-card-body {
+    padding: 0.5rem !important;
+    margin: 0 !important;
+}
+
+#editItemModal .modal-card-head {
+    padding: 0.5rem !important;
+    margin: 0 !important;
+}
+
+#editItemModal .modal-card-foot {
+    padding: 0.5rem !important;
+    margin: 0 !important;
+}
+
+#editItemModal form > div {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+#editItemModal [style*="display: grid"] {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+#editItemModal [style*="display: flex"] {
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 /* ============================================
