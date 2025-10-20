@@ -135,6 +135,11 @@ ob_start();
                                     <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
                                         <?php echo htmlspecialchars($item['subcategory']); ?>
                                     </span>
+                                    <?php if (!empty($item['website_type'])): ?>
+                                        <span class="tag is-small is-info">
+                                            <?php echo htmlspecialchars($item['website_type']); ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="roadmap-card-tags">
                                     <span class="tag is-small is-<?php echo getPriorityColor($item['priority']); ?>">

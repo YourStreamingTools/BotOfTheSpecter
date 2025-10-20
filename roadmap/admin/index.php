@@ -15,6 +15,9 @@ if (!isset($_SESSION['username']) || !($_SESSION['admin'] ?? false)) {
 require_once 'database.php';
 require_once "/var/www/config/database.php";
 
+// Initialize database and run migrations
+initializeRoadmapDatabase();
+
 // Set page metadata
 $pageTitle = 'Roadmap Admin';
 
@@ -33,9 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $category = $_POST['category'] ?? 'REQUESTS';
         $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
         $priority = $_POST['priority'] ?? 'MEDIUM';
-        $stmt = $conn->prepare("INSERT INTO roadmap_items (title, description, category, subcategory, priority, created_by) VALUES (?, ?, ?, ?, ?, ?)");
+        $website_type = ($_POST['website_type'] ?? '');
+        $stmt = $conn->prepare("INSERT INTO roadmap_items (title, description, category, subcategory, priority, website_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
         if ($stmt) {
-            $stmt->bind_param("ssssss", $title, $description, $category, $subcategory, $priority, $_SESSION['username']);
+            $stmt->bind_param("sssssss", $title, $description, $category, $subcategory, $priority, $website_type, $_SESSION['username']);
             if ($stmt->execute()) {
                 $message = 'Roadmap item added successfully!';
                 $message_type = 'success';
@@ -179,6 +183,18 @@ ob_start();
                         </div>
                     </div>
                 </div>
+                <div class="field" id="website-type-field" style="display: none;">
+                    <label class="label">Website Type</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select name="website_type" id="website-type-select">
+                                <option value="">None</option>
+                                <option value="DASHBOARD">Dashboard</option>
+                                <option value="OVERLAYS">Overlays</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
                 <div class="field">
                     <label class="label">Priority</label>
                     <div class="control">
@@ -236,6 +252,11 @@ ob_start();
                                     <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
                                         <?php echo htmlspecialchars($item['subcategory']); ?>
                                     </span>
+                                    <?php if (!empty($item['website_type'])): ?>
+                                        <span class="tag is-small is-info">
+                                            <?php echo htmlspecialchars($item['website_type']); ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="roadmap-card-tags mb-3">
                                     <span class="tag is-small is-<?php echo getPriorityColor($item['priority']); ?>">
@@ -335,6 +356,9 @@ require_once '../layout.php';
 document.addEventListener('DOMContentLoaded', function() {
     const categorySelect = document.getElementById('category-select');
     const prioritySelect = document.getElementById('priority-select');
+    const subcategorySelect = document.querySelector('select[name="subcategory"]');
+    const websiteTypeField = document.getElementById('website-type-field');
+    
     if (categorySelect && prioritySelect) {
         categorySelect.addEventListener('change', function() {
             if (this.value === 'REQUESTS') {
@@ -342,6 +366,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    if (subcategorySelect && websiteTypeField) {
+        function toggleWebsiteType() {
+            if (subcategorySelect.value === 'WEBSITE') {
+                websiteTypeField.style.display = 'block';
+            } else {
+                websiteTypeField.style.display = 'none';
+            }
+        }
+        
+        subcategorySelect.addEventListener('change', toggleWebsiteType);
+        toggleWebsiteType(); // Run on page load
+    }
+    
     // Close notification when delete button is clicked
     (document.querySelectorAll('.notification .delete') || []).forEach(($delete) => {
         const $notification = $delete.parentNode;
