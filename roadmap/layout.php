@@ -154,37 +154,37 @@ function uuidv4() {
             </section>
         </div>
     </div>
-    <!-- Edit Item Modal (Admin Only) -->
+        <!-- Edit Item Modal (Admin Only) -->
     <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
     <div class="modal" id="editItemModal">
         <div class="modal-background"></div>
-        <div class="modal-card" style="width: 90vw; max-width: 800px;">
-            <header class="modal-card-head">
-                <p class="modal-card-title">Edit Item</p>
+        <div class="modal-card" style="width: 90vw; max-width: 600px;">
+            <header class="modal-card-head" style="padding: 1rem;">
+                <p class="modal-card-title" style="font-size: 1.25rem;">Edit Item</p>
                 <button class="delete"></button>
             </header>
-            <section class="modal-card-body" style="display: flex; flex-direction: column; height: 500px; gap: 1rem; overflow-y: auto; padding: 1.5rem;">
-                <form id="editItemForm" method="POST" style="display: flex; flex-direction: column; gap: 1rem;">
+            <section class="modal-card-body" style="max-height: 60vh; overflow-y: auto; padding: 1rem;">
+                <form id="editItemForm" method="POST" style="display: flex; flex-direction: column; gap: 0.75rem;">
                     <input type="hidden" name="action" value="edit_item">
                     <input type="hidden" name="id" id="editItemId" value="">
                     <div class="field" style="margin: 0;">
-                        <label class="label" style="margin-bottom: 0.4rem;">Title</label>
+                        <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Title</label>
                         <div class="control">
-                            <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required>
+                            <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required style="padding: 0.5rem; font-size: 0.875rem;">
                         </div>
                     </div>
-                    <div class="field" style="margin: 0; flex: 1; display: flex; flex-direction: column;">
-                        <label class="label" style="margin-bottom: 0.4rem;">Description</label>
-                        <div class="control" style="flex: 1;">
-                            <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description..." style="height: 100%; resize: none;"></textarea>
+                    <div class="field" style="margin: 0;">
+                        <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Description</label>
+                        <div class="control">
+                            <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description..." style="height: 100px; padding: 0.5rem; font-size: 0.875rem; resize: none;"></textarea>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                         <div class="field" style="margin: 0;">
-                            <label class="label" style="margin-bottom: 0.4rem;">Category</label>
+                            <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Category</label>
                             <div class="control">
                                 <div class="select is-fullwidth">
-                                    <select name="category" id="editItemCategory">
+                                    <select name="category" id="editItemCategory" style="padding: 0.5rem; font-size: 0.875rem;">
                                         <option value="REQUESTS">REQUESTS</option>
                                         <option value="IN PROGRESS">IN PROGRESS</option>
                                         <option value="BETA TESTING">BETA TESTING</option>
@@ -195,10 +195,10 @@ function uuidv4() {
                             </div>
                         </div>
                         <div class="field" style="margin: 0;">
-                            <label class="label" style="margin-bottom: 0.4rem;">Priority</label>
+                            <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Priority</label>
                             <div class="control">
                                 <div class="select is-fullwidth">
-                                    <select name="priority" id="editItemPriority">
+                                    <select name="priority" id="editItemPriority" style="padding: 0.5rem; font-size: 0.875rem;">
                                         <option value="LOW">Low</option>
                                         <option value="MEDIUM">Medium</option>
                                         <option value="HIGH">High</option>
@@ -208,12 +208,12 @@ function uuidv4() {
                             </div>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                         <div class="field" style="margin: 0;">
-                            <label class="label" style="margin-bottom: 0.4rem;">Subcategory</label>
+                            <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Subcategory</label>
                             <div class="control">
                                 <div class="select is-fullwidth">
-                                    <select name="subcategory" id="editItemSubcategory">
+                                    <select name="subcategory" id="editItemSubcategory" style="padding: 0.5rem; font-size: 0.875rem;">
                                         <option value="TWITCH BOT">TWITCH BOT</option>
                                         <option value="WEBSITE">WEBSITE</option>
                                     </select>
@@ -221,10 +221,10 @@ function uuidv4() {
                             </div>
                         </div>
                         <div class="field" style="margin: 0;">
-                            <label class="label" style="margin-bottom: 0.4rem;">Website Type</label>
+                            <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Website Type</label>
                             <div class="control">
                                 <div class="select is-fullwidth">
-                                    <select name="website_type" id="editItemWebsiteType">
+                                    <select name="website_type" id="editItemWebsiteType" style="padding: 0.5rem; font-size: 0.875rem;">
                                         <option value="">None</option>
                                         <option value="DASHBOARD">Dashboard</option>
                                         <option value="OVERLAYS">Overlays</option>
@@ -233,16 +233,12 @@ function uuidv4() {
                             </div>
                         </div>
                     </div>
-                    <div class="field is-grouped" style="margin: 0; margin-top: auto;">
-                        <div class="control">
-                            <button type="submit" class="button is-warning">Save Changes</button>
-                        </div>
-                        <div class="control">
-                            <button type="button" class="button is-light" id="cancelEditBtn">Cancel</button>
-                        </div>
-                    </div>
                 </form>
             </section>
+            <footer class="modal-card-foot" style="padding: 0.75rem 1rem;">
+                <button type="submit" form="editItemForm" class="button is-warning" style="font-size: 0.875rem; padding: 0.4rem 1rem;">Save Changes</button>
+                <button type="button" class="button is-light" id="cancelEditBtn" style="font-size: 0.875rem; padding: 0.4rem 1rem;">Cancel</button>
+            </footer>
         </div>
     </div>
     <?php endif; ?>
