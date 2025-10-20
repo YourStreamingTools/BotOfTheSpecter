@@ -179,58 +179,42 @@ function uuidv4() {
                             <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description..." style="height: 100px; padding: 0.5rem; font-size: 0.875rem; resize: none;"></textarea>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                        <div class="field" style="margin: 0;">
-                            <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Category</label>
-                            <div class="control">
-                                <div class="select is-fullwidth">
-                                    <select name="category" id="editItemCategory" style="padding: 0.5rem; font-size: 0.875rem;">
-                                        <option value="REQUESTS">REQUESTS</option>
-                                        <option value="IN PROGRESS">IN PROGRESS</option>
-                                        <option value="BETA TESTING">BETA TESTING</option>
-                                        <option value="COMPLETED">COMPLETED</option>
-                                        <option value="REJECTED">REJECTED</option>
-                                    </select>
-                                </div>
-                            </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div style="display: flex; flex-direction: column;">
+                            <label class="label" style="margin: 0 0 0.15rem 0; font-size: 0.8rem;">Category</label>
+                            <select name="category" id="editItemCategory" style="padding: 0.3rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px;">
+                                <option value="REQUESTS">REQUESTS</option>
+                                <option value="IN PROGRESS">IN PROGRESS</option>
+                                <option value="BETA TESTING">BETA TESTING</option>
+                                <option value="COMPLETED">COMPLETED</option>
+                                <option value="REJECTED">REJECTED</option>
+                            </select>
                         </div>
-                        <div class="field" style="margin: 0;">
-                            <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Priority</label>
-                            <div class="control">
-                                <div class="select is-fullwidth">
-                                    <select name="priority" id="editItemPriority" style="padding: 0.5rem; font-size: 0.875rem;">
-                                        <option value="LOW">Low</option>
-                                        <option value="MEDIUM">Medium</option>
-                                        <option value="HIGH">High</option>
-                                        <option value="CRITICAL">Critical</option>
-                                    </select>
-                                </div>
-                            </div>
+                        <div style="display: flex; flex-direction: column;">
+                            <label class="label" style="margin: 0 0 0.15rem 0; font-size: 0.8rem;">Priority</label>
+                            <select name="priority" id="editItemPriority" style="padding: 0.3rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px;">
+                                <option value="LOW">Low</option>
+                                <option value="MEDIUM">Medium</option>
+                                <option value="HIGH">High</option>
+                                <option value="CRITICAL">Critical</option>
+                            </select>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                        <div class="field" style="margin: 0;">
-                            <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Subcategory</label>
-                            <div class="control">
-                                <div class="select is-fullwidth">
-                                    <select name="subcategory" id="editItemSubcategory" style="padding: 0.5rem; font-size: 0.875rem;">
-                                        <option value="TWITCH BOT">TWITCH BOT</option>
-                                        <option value="WEBSITE">WEBSITE</option>
-                                    </select>
-                                </div>
-                            </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div style="display: flex; flex-direction: column;">
+                            <label class="label" style="margin: 0 0 0.15rem 0; font-size: 0.8rem;">Subcategory</label>
+                            <select name="subcategory" id="editItemSubcategory" style="padding: 0.3rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px;">
+                                <option value="TWITCH BOT">TWITCH BOT</option>
+                                <option value="WEBSITE">WEBSITE</option>
+                            </select>
                         </div>
-                        <div class="field" style="margin: 0;">
-                            <label class="label" style="margin-bottom: 0.25rem; font-size: 0.875rem;">Website Type</label>
-                            <div class="control">
-                                <div class="select is-fullwidth">
-                                    <select name="website_type" id="editItemWebsiteType" style="padding: 0.5rem; font-size: 0.875rem;">
-                                        <option value="">None</option>
-                                        <option value="DASHBOARD">Dashboard</option>
-                                        <option value="OVERLAYS">Overlays</option>
-                                    </select>
-                                </div>
-                            </div>
+                        <div style="display: flex; flex-direction: column;">
+                            <label class="label" style="margin: 0 0 0.15rem 0; font-size: 0.8rem;">Website Type</label>
+                            <select name="website_type" id="editItemWebsiteType" style="padding: 0.3rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px;">
+                                <option value="">None</option>
+                                <option value="DASHBOARD">Dashboard</option>
+                                <option value="OVERLAYS">Overlays</option>
+                            </select>
                         </div>
                     </div>
                 </form>
