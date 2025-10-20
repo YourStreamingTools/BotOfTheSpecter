@@ -154,6 +154,98 @@ function uuidv4() {
             </section>
         </div>
     </div>
+    <!-- Edit Item Modal (Admin Only) -->
+    <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
+    <div class="modal" id="editItemModal">
+        <div class="modal-background"></div>
+        <div class="modal-card" style="width: 90vw; max-width: 800px;">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Edit Item</p>
+                <button class="delete"></button>
+            </header>
+            <section class="modal-card-body" style="display: flex; flex-direction: column; height: 500px; gap: 1rem; overflow-y: auto; padding: 1.5rem;">
+                <form id="editItemForm" method="POST" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <input type="hidden" name="action" value="edit_item">
+                    <input type="hidden" name="id" id="editItemId" value="">
+                    <div class="field" style="margin: 0;">
+                        <label class="label" style="margin-bottom: 0.4rem;">Title</label>
+                        <div class="control">
+                            <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required>
+                        </div>
+                    </div>
+                    <div class="field" style="margin: 0; flex: 1; display: flex; flex-direction: column;">
+                        <label class="label" style="margin-bottom: 0.4rem;">Description</label>
+                        <div class="control" style="flex: 1;">
+                            <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description..." style="height: 100%; resize: none;"></textarea>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="field" style="margin: 0;">
+                            <label class="label" style="margin-bottom: 0.4rem;">Category</label>
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select name="category" id="editItemCategory">
+                                        <option value="REQUESTS">REQUESTS</option>
+                                        <option value="IN PROGRESS">IN PROGRESS</option>
+                                        <option value="BETA TESTING">BETA TESTING</option>
+                                        <option value="COMPLETED">COMPLETED</option>
+                                        <option value="REJECTED">REJECTED</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="field" style="margin: 0;">
+                            <label class="label" style="margin-bottom: 0.4rem;">Priority</label>
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select name="priority" id="editItemPriority">
+                                        <option value="LOW">Low</option>
+                                        <option value="MEDIUM">Medium</option>
+                                        <option value="HIGH">High</option>
+                                        <option value="CRITICAL">Critical</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="field" style="margin: 0;">
+                            <label class="label" style="margin-bottom: 0.4rem;">Subcategory</label>
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select name="subcategory" id="editItemSubcategory">
+                                        <option value="TWITCH BOT">TWITCH BOT</option>
+                                        <option value="WEBSITE">WEBSITE</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="field" style="margin: 0;">
+                            <label class="label" style="margin-bottom: 0.4rem;">Website Type</label>
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select name="website_type" id="editItemWebsiteType">
+                                        <option value="">None</option>
+                                        <option value="DASHBOARD">Dashboard</option>
+                                        <option value="OVERLAYS">Overlays</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field is-grouped" style="margin: 0; margin-top: auto;">
+                        <div class="control">
+                            <button type="submit" class="button is-warning">Save Changes</button>
+                        </div>
+                        <div class="control">
+                            <button type="button" class="button is-light" id="cancelEditBtn">Cancel</button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+    <?php endif; ?>
     <?php endif; ?>
     <?php if (isset($extraJS)): ?>
         <?php foreach ($extraJS as $js): ?>
@@ -235,6 +327,39 @@ function uuidv4() {
             cancelCommentBtn.addEventListener('click', function() {
                 if (addCommentModal) {
                     addCommentModal.classList.remove('is-active');
+                }
+            });
+        }
+        // Edit item button handler
+        const editItemBtns = document.querySelectorAll('.edit-item-btn');
+        const editItemModal = document.getElementById('editItemModal');
+        const editItemForm = document.getElementById('editItemForm');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        editItemBtns.forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('editItemId').value = this.getAttribute('data-item-id');
+                document.getElementById('editItemTitle').value = this.getAttribute('data-title');
+                document.getElementById('editItemDescription').value = this.getAttribute('data-description');
+                document.getElementById('editItemCategory').value = this.getAttribute('data-category');
+                document.getElementById('editItemSubcategory').value = this.getAttribute('data-subcategory');
+                document.getElementById('editItemPriority').value = this.getAttribute('data-priority');
+                document.getElementById('editItemWebsiteType').value = this.getAttribute('data-website-type');
+                if (editItemModal) {
+                    editItemModal.classList.add('is-active');
+                }
+            });
+        });
+        if (editItemForm) {
+            editItemForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                this.submit();
+            });
+        }
+        if (cancelEditBtn) {
+            cancelEditBtn.addEventListener('click', function() {
+                if (editItemModal) {
+                    editItemModal.classList.remove('is-active');
                 }
             });
         }
