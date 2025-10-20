@@ -104,7 +104,16 @@ function uuidv4() {
                 <button class="delete"></button>
             </header>
             <section class="modal-card-body">
-                <p id="detailsContent"></p>
+                <div id="descriptionSection">
+                    <h4 class="title is-6">Description</h4>
+                    <p id="detailsContent" class="mb-4"></p>
+                </div>
+                <hr>
+                <h4 class="title is-6">Comments</h4>
+                <div id="commentsSection" class="mb-4" style="max-height: 300px; overflow-y: auto;">
+                    <!-- Comments will be loaded here -->
+                </div>
+                <div id="addCommentFormContainer"></div>
             </section>
             <footer class="modal-card-foot">
                 <button class="button is-primary">Close</button>
@@ -126,8 +135,19 @@ function uuidv4() {
                 e.preventDefault();
                 const title = this.dataset.title;
                 const description = this.dataset.description;
+                const itemId = this.getAttribute('data-item-id');
                 document.getElementById('detailsTitle').textContent = title;
                 document.getElementById('detailsContent').textContent = description;
+                // Load comments via AJAX
+                fetch('../get-comments.php?item_id=' + encodeURIComponent(itemId))
+                    .then(response => response.text())
+                    .then(html => {
+                        document.getElementById('commentsSection').innerHTML = html;
+                    })
+                    .catch(error => {
+                        console.error('Error loading comments:', error);
+                        document.getElementById('commentsSection').innerHTML = '<p class="has-text-danger">Error loading comments</p>';
+                    });
                 detailsModal.classList.add('is-active');
             });
         });
