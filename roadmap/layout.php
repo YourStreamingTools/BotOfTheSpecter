@@ -106,12 +106,14 @@ function uuidv4() {
             <section class="modal-card-body">
                 <div id="descriptionSection">
                     <h4 class="title is-6">Description</h4>
-                    <p id="detailsContent"></p>
+                <div id="detailsContent"></p>
                 </div>
-                <hr>
-                <h4 class="title is-6">Comments</h4>
-                <div id="commentsSection" class="mb-4" style="max-height: 300px; overflow-y: auto;">
-                    <!-- Comments will be loaded here -->
+                <hr id="commentsHR" style="display: none;">
+                <div id="commentsContainer" style="display: none;">
+                    <h4 class="title is-6">Comments</h4>
+                    <div id="commentsSection" class="mb-4" style="max-height: 300px; overflow-y: auto;">
+                        <!-- Comments will be loaded here -->
+                    </div>
                 </div>
             </section>
             <footer class="modal-card-foot">
@@ -177,7 +179,18 @@ function uuidv4() {
                 fetch('../get-comments.php?item_id=' + encodeURIComponent(currentItemId))
                     .then(response => response.text())
                     .then(html => {
-                        document.getElementById('commentsSection').innerHTML = html;
+                        const commentsSection = document.getElementById('commentsSection');
+                        const commentsContainer = document.getElementById('commentsContainer');
+                        const commentsHR = document.getElementById('commentsHR');
+                        // Check if there are actual comments (not the "No comments yet" message)
+                        if (html.includes('No comments yet')) {
+                            commentsContainer.style.display = 'none';
+                            commentsHR.style.display = 'none';
+                        } else {
+                            commentsContainer.style.display = 'block';
+                            commentsHR.style.display = 'block';
+                            commentsSection.innerHTML = html;
+                        }
                     })
                     .catch(error => {
                         console.error('Error loading comments:', error);
@@ -206,7 +219,17 @@ function uuidv4() {
                     fetch('../get-comments.php?item_id=' + encodeURIComponent(currentItemId))
                         .then(response => response.text())
                         .then(html => {
-                            document.getElementById('commentsSection').innerHTML = html;
+                            const commentsSection = document.getElementById('commentsSection');
+                            const commentsContainer = document.getElementById('commentsContainer');
+                            const commentsHR = document.getElementById('commentsHR');
+                            if (html.includes('No comments yet')) {
+                                commentsContainer.style.display = 'none';
+                                commentsHR.style.display = 'none';
+                            } else {
+                                commentsContainer.style.display = 'block';
+                                commentsHR.style.display = 'block';
+                                commentsSection.innerHTML = html;
+                            }
                         });
                 })
                 .catch(error => {
