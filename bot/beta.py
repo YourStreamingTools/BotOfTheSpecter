@@ -1255,6 +1255,27 @@ async def SYSTEM_UPDATE(data):
     except Exception as e:
         websocket_logger.error(f"Failed to process system update event: {e}")
 
+@specterSocket.event
+async def OBS_EVENT_RECEIVED(data):
+    websocket_logger.info(f"OBS event received: {data}")
+    # Handle the response from OBS
+    status = data.get('status')
+    action = data.get('action', {})
+    if status == 'success':
+        subcommand = action.get('subcommand')
+        if subcommand == 'scene':
+            scene_name = action.get('scene_name')
+            await send_chat_message(f"OBS scene changed to {scene_name}!")
+        else:
+            await send_chat_message("OBS event sent!")
+        websocket_logger.info("OBS event completed successfully")
+    elif status == 'error':
+        error_message = data.get('message', 'Unknown error occurred with OBS event')
+        await send_chat_message(f"OBS reported something wrong, please check your logs.")
+        websocket_logger.error(f"OBS event error: {error_message}")
+    else:
+        websocket_logger.warning(f"Unknown OBS event status: {status}")
+
 # Helper function for manual websocket reconnection (can be called from commands)
 async def force_websocket_reconnect():
     global websocket_connected
@@ -6724,15 +6745,13 @@ class TwitchBot(commands.Bot):
                                     scene_name = " ".join(message_parts[2:])
                                     await websocket_notice(event="SEND_OBS_EVENT", additional_data={"command": "obs", "subcommand": "scene", "scene_name": scene_name})
                                     chat_logger.info(f"{ctx.author.name} triggered OBS scene change to {scene_name}")
-                                    await send_chat_message(f"OBS scene changed to {scene_name}!")
                                 else:
                                     await send_chat_message("Please specify a scene name: !obs scene <name>")
                             else:
-                                await send_chat_message("Unknown subcommand. Use !obs scene <name>")
+                                await send_chat_message("Unknown subcommand.")
                         else:
                             await websocket_notice(event="SEND_OBS_EVENT", additional_data={"command": "obs_triggered"})
                             chat_logger.info(f"{ctx.author.name} triggered OBS event")
-                            await send_chat_message("OBS event sent!")
                         # Record usage
                         add_usage('obs', bucket_key, cooldown_bucket)
                     else:
