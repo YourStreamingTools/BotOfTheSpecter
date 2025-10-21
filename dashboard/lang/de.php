@@ -1275,4 +1275,9 @@ return [
     'modules_variables_general_events_title' => 'Allgemeine Ereignisse',
     'modules_variables_subscription_events_title' => 'Abonnement-Ereignisse',
     'modules_user_variables_description' => 'Benutzername der Person, die beitritt',
+    'premium_coming_soon_title' => 'Bald in Version 5.6',
+    'premium_alternative_payment_title' => 'Alternative Premium-Zugang',
+    'premium_alternative_payment_description' => 'Können Sie nicht auf Twitch abonnieren? Kein Problem! Bald können Sie BotOfTheSpecter direkt über unseren Store unterstützen und erhalten ein ganzes Jahr Premium-Zugang zu allen Funktionen.',
+    'premium_visit_store' => 'Besuchen Sie unseren Store',
+    'premium_coming_soon_note' => 'Diese Funktion wird in Version 5.6 verfügbar sein',
 ];
