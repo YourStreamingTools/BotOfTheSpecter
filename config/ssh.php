@@ -157,6 +157,17 @@ if (!class_exists('SSHConnectionManager')) {
                 return $output;
             }
         }
+        public static function executeCommandStream($connection, $command) {
+            $stream = ssh2_exec($connection, $command);
+            if (!$stream) {
+                return false;
+            }
+            // Set non-blocking mode for streaming
+            stream_set_blocking($stream, false);
+            // Set a reasonable timeout
+            stream_set_timeout($stream, 30); // 30 seconds timeout
+            return $stream;
+        }
     }
 }
 
