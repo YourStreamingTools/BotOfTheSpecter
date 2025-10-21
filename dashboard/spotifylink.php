@@ -44,8 +44,8 @@ if (isset($_GET['code'])) {
         'grant_type' => 'authorization_code',
         'code' => $auth_code,
         'redirect_uri' => $redirect_uri,
-        'client_id' => $client_id,
-        'client_secret' => $client_secret
+        'client_id' => $effective_client_id,
+        'client_secret' => $effective_client_secret
     ];
     $options = [
         'http' => [
@@ -87,19 +87,44 @@ if (isset($_GET['code'])) {
     }
 }
 
+// Handle POST requests for own client settings
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['use_own_client'])) {
+        // Enable own client and reset auth
+        $updateStmt = $conn->prepare("UPDATE spotify_tokens SET own_client = 1, auth = 0 WHERE user_id = ?");
+        $updateStmt->bind_param("i", $user_id);
+        $updateStmt->execute();
+        $own_client = 1;
+    } elseif (isset($_POST['save_credentials'])) {
+        $client_id_input = $_POST['client_id'] ?? '';
+        $client_secret_input = $_POST['client_secret'] ?? '';
+        $updateStmt = $conn->prepare("UPDATE spotify_tokens SET client_id = ?, client_secret = ? WHERE user_id = ?");
+        $updateStmt->bind_param("ssi", $client_id_input, $client_secret_input, $user_id);
+        $updateStmt->execute();
+        $user_client_id = $client_id_input;
+        $user_client_secret = $client_secret_input;
+    }
+}
+
 // Fetch Spotify Profile Information if linked
-$spotifySTMT = $conn->prepare("SELECT access_token, has_access FROM spotify_tokens WHERE user_id = ?");
+$spotifySTMT = $conn->prepare("SELECT access_token, has_access, own_client, client_id, client_secret FROM spotify_tokens WHERE user_id = ?");
 $spotifySTMT->bind_param("i", $user_id);
 $spotifySTMT->execute();
 $spotifyResult = $spotifySTMT->get_result();
 $connectionStatus = 'not-connected'; // default
 $spotifyUserInfo = [];
+$own_client = 0;
+$user_client_id = '';
+$user_client_secret = '';
 
 if ($spotifyResult->num_rows > 0) {
     // User has a token entry
     $spotifyRow = $spotifyResult->fetch_assoc();
     $spotifyAccessToken = $spotifyRow['access_token'];
     $hasAccess = $spotifyRow['has_access'];
+    $own_client = $spotifyRow['own_client'];
+    $user_client_id = $spotifyRow['client_id'] ?? '';
+    $user_client_secret = $spotifyRow['client_secret'] ?? '';
     if ($hasAccess == 1) {
         // Has access, try to fetch profile
         $profileUrl = 'https://api.spotify.com/v1/me';
@@ -132,6 +157,19 @@ if ($spotifyResult->num_rows > 0) {
     // User not linked, set authorization URL
     $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
     $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
+}
+
+// Determine effective client credentials
+$effective_client_id = $client_id;
+$effective_client_secret = $client_secret;
+if ($own_client == 1 && !empty($user_client_id) && !empty($user_client_secret)) {
+    $effective_client_id = $user_client_id;
+    $effective_client_secret = $user_client_secret;
+}
+
+// Update auth URL if needed
+if ($authURL && strpos($authURL, 'client_id=') !== false) {
+    $authURL = str_replace("client_id=$client_id", "client_id=$effective_client_id", $authURL);
 }
 
 // Fetch the number of linked accounts with access
@@ -190,6 +228,46 @@ ob_start();
                         <?php echo $message; ?>
                     </div>
                 <?php endif; ?>
+                <div class="box has-background-grey-darker" style="border-radius: 8px; border: 1px solid #363636; margin-bottom: 1.5rem;">
+                    <h4 class="title is-6 has-text-white mb-3">
+                        <span class="icon mr-2 has-text-info"><i class="fas fa-cogs"></i></span>
+                        Use Your Own Spotify Client
+                    </h4>
+                    <p class="has-text-grey-light mb-3">If you prefer to use your own Spotify application instead of waiting for authorization, enable this option. You'll need to create your own Spotify app and enter the credentials below.</p>
+                    <a href="https://help.botofthespecter.com/spotify_setup.php" target="_blank" class="button is-info is-small" style="margin-bottom: 1rem;">
+                        <span class="icon"><i class="fas fa-external-link-alt"></i></span>
+                        <span>Get Setup Instructions</span>
+                    </a>
+                    <form method="post">
+                        <div class="field">
+                            <div class="control">
+                                <label class="checkbox has-text-white">
+                                    <input type="checkbox" name="use_own_client" <?php echo $own_client == 1 ? 'checked' : ''; ?> onchange="this.form.submit()">
+                                    Enable Own Client
+                                </label>
+                            </div>
+                        </div>
+                        <?php if ($own_client == 1): ?>
+                            <div class="field">
+                                <label class="label has-text-white">Client ID</label>
+                                <div class="control">
+                                    <input class="input" type="text" name="client_id" value="<?php echo htmlspecialchars($user_client_id); ?>" placeholder="Your Spotify Client ID">
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label class="label has-text-white">Client Secret</label>
+                                <div class="control">
+                                    <input class="input" type="password" name="client_secret" value="<?php echo htmlspecialchars($user_client_secret); ?>" placeholder="Your Spotify Client Secret">
+                                </div>
+                            </div>
+                            <div class="field">
+                                <div class="control">
+                                    <button class="button is-success" type="submit" name="save_credentials">Save Credentials</button>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </form>
+                </div>
                 <?php if ($connectionStatus === 'connected'): ?>
                     <div class="columns is-multiline is-variable is-6">
                         <div class="column is-12">

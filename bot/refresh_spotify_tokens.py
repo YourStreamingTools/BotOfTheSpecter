@@ -16,10 +16,14 @@ DB_PASS = os.getenv('SQL_PASSWORD')
 DB_NAME = "website"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 
-async def refresh_spotify_token(session, pool, user_id, refresh_token):
+async def refresh_spotify_token(session, pool, user_id, refresh_token, own_client, client_id, client_secret):
     try:
         data = {"grant_type": "refresh_token","refresh_token": refresh_token,}
-        auth_string = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode()
+        # Use user's own credentials if enabled, otherwise global
+        if own_client == 1 and client_id and client_secret:
+            auth_string = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        else:
+            auth_string = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode()
         headers = {'Content-Type': 'application/x-www-form-urlencoded','Authorization': f'Basic {auth_string}'}
         async with session.post(TOKEN_URL, data=data, headers=headers) as response:
             result = await response.json()
@@ -72,7 +76,7 @@ async def main():
         # Fetch all users with Spotify refresh tokens
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute("SELECT user_id, refresh_token FROM spotify_tokens WHERE refresh_token IS NOT NULL AND refresh_token != ''")
+                await cur.execute("SELECT user_id, refresh_token, own_client, client_id, client_secret FROM spotify_tokens WHERE refresh_token IS NOT NULL AND refresh_token != ''")
                 tokens = await cur.fetchall()
         if not tokens:
             print("ℹ️  No Spotify users with refresh tokens found")
@@ -81,8 +85,8 @@ async def main():
         # Refresh tokens concurrently
         async with aiohttp.ClientSession() as session:
             tasks = [
-                refresh_spotify_token(session, pool, user_id, refresh_token) 
-                for user_id, refresh_token in tokens
+                refresh_spotify_token(session, pool, user_id, refresh_token, own_client, client_id, client_secret) 
+                for user_id, refresh_token, own_client, client_id, client_secret in tokens
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
         # Count successful refreshes
