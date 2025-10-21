@@ -216,6 +216,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("PATREON", self.handle_patreon_event),
             ("SYSTEM_UPDATE", self.event_handler.handle_system_update),
             ("SEND_OBS_EVENT", self.event_handler.handle_obs_event),
+            ("OBS_EVENT_RECEIVED", self.handle_obs_event_received),
             ("MUSIC_COMMAND", self.music_handler.music_command),
             ("*", self.event)
         ]
@@ -680,6 +681,10 @@ class BotOfTheSpecter_WebsocketServer:
     async def handle_obs_event(self, sid, data):
         # Redirect to event handler for proper global broadcasting
         return await self.event_handler.handle_obs_event(sid, data)
+
+    async def handle_obs_event_received(self, sid, data):
+        # Broadcast OBS_EVENT_RECEIVED to all global listeners
+        await self.broadcast_event_with_globals("OBS_EVENT_RECEIVED", data, None)
 
     async def deaths(self, sid, data):
         # Redirect to event handler for proper global broadcasting
