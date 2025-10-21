@@ -478,6 +478,10 @@ ob_start();
             <span class="icon"><i class="fas fa-plug"></i></span>
             <span>Websocket Clients</span>
         </a>
+        <a href="admin_terminal.php" class="button is-warning is-light">
+            <span class="icon"><i class="fas fa-terminal"></i></span>
+            <span>Web Terminal</span>
+        </a>
     </div>
 </div>
 
