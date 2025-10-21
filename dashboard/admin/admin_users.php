@@ -223,9 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                     </td>
                     <td class="has-text-centered" style="vertical-align: middle;">
                         <?php
-                        if ($user['beta_access']) {
-                            echo '<span class="tag is-success">Beta</span>';
-                        } elseif (!empty($user['twitch_user_id'])) {
+                        if (!empty($user['twitch_user_id'])) {
                             $tier = getTwitchSubTier($user['twitch_user_id']);
                             if ($tier === "1000") {
                                 echo '<span class="tag is-warning">Tier 1</span>';
@@ -347,17 +345,15 @@ function showSensitiveModal(userId) {
                         <th>Premium Access</th>
                         <td>
                             ${
-                                user.beta_access
-                                ? '<span class="tag is-success">Beta</span>'
-                                : (user.twitch_user_id
-                                    ? (() => {
-                                        let tier = '';
-                                        if (user.twitch_sub_tier === "1000") return '<span class="tag is-warning">Tier 1</span>';
-                                        if (user.twitch_sub_tier === "2000") return '<span class="tag is-link">Tier 2</span>';
-                                        if (user.twitch_sub_tier === "3000") return '<span class="tag is-danger">Tier 3</span>';
-                                        return '<span class="tag is-info">None</span>';
-                                    })()
-                                    : '<span class="tag is-info">None</span>')
+                                user.twitch_user_id
+                                ? (() => {
+                                    let tier = '';
+                                    if (user.twitch_sub_tier === "1000") return '<span class="tag is-warning">Tier 1</span>';
+                                    if (user.twitch_sub_tier === "2000") return '<span class="tag is-link">Tier 2</span>';
+                                    if (user.twitch_sub_tier === "3000") return '<span class="tag is-danger">Tier 3</span>';
+                                    return '<span class="tag is-info">None</span>';
+                                })()
+                                : '<span class="tag is-info">None</span>'
                             }
                         </td>
                     </tr>
