@@ -70,12 +70,12 @@ if (isset($_GET['code'])) {
         $exists = $checkStmt->get_result()->num_rows > 0;
         if ($exists) {
             // Update existing tokens for the user
-            $updateStmt = $conn->prepare("UPDATE spotify_tokens SET access_token = ?, refresh_token = ? WHERE user_id = ?");
+            $updateStmt = $conn->prepare("UPDATE spotify_tokens SET access_token = ?, refresh_token = ?, auth = 1 WHERE user_id = ?");
             $updateStmt->bind_param("ssi", $access_token, $refresh_token, $user_id);
             $updateStmt->execute();
         } else {
             // Insert new tokens if none exist for this user
-            $insertStmt = $conn->prepare("INSERT INTO spotify_tokens (user_id, access_token, refresh_token) VALUES (?, ?, ?)");
+            $insertStmt = $conn->prepare("INSERT INTO spotify_tokens (user_id, access_token, refresh_token, auth) VALUES (?, ?, ?, 1)");
             $insertStmt->bind_param("iss", $user_id, $access_token, $refresh_token);
             $insertStmt->execute();
         }
@@ -125,8 +125,8 @@ if ($spotifyResult->num_rows > 0) {
     $own_client = $spotifyRow['own_client'];
     $user_client_id = $spotifyRow['client_id'] ?? '';
     $user_client_secret = $spotifyRow['client_secret'] ?? '';
-    if ($hasAccess == 1) {
-        // Has access, try to fetch profile
+    if ($hasAccess == 1 || $own_client == 1) {
+        // Has access or using own client, try to fetch profile
         $profileUrl = 'https://api.spotify.com/v1/me';
         $profileOptions = [
             'http' => [
@@ -144,7 +144,7 @@ if ($spotifyResult->num_rows > 0) {
             $messageType = "is-danger";
             // Set authorization URL to trigger reauthorization
             $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
-            $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
+            $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$effective_client_id&scope=$scopes&redirect_uri=$redirect_uri";
             $connectionStatus = 'error';
         }
     } else {
