@@ -1,10 +1,27 @@
 <?php
 session_start();
+require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 include '../userdata.php';
 
+// Database query to check if user is admin
+function isAdmin() {
+    global $conn;
+    if (!isset($_SESSION['user_id'])) {
+        return false;
+    }
+    $user_id = $_SESSION['user_id'];
+    $stmt = $conn->prepare("SELECT is_admin FROM users WHERE id = ?");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $stmt->bind_result($is_admin);
+    $result = $stmt->fetch();
+    $stmt->close();
+    return $result && $is_admin == 1;
+}
+
 // Check admin access
-if (!isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true) {
+if (!isAdmin()) {
     http_response_code(403);
     exit('Access denied');
 }

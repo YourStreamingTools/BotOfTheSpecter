@@ -7,12 +7,6 @@ require_once "/var/www/config/ssh.php";
 include '../userdata.php';
 $pageTitle = "Web Terminal";
 
-// Check admin access
-if (!isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true) {
-    header("Location: ../index.php");
-    exit();
-}
-
 ob_start();
 ?>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
