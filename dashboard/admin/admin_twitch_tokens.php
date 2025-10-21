@@ -597,6 +597,8 @@ function validateChatToken(token) {
         button.classList.remove('is-loading');
     });
 }
+
+function validateToken(token, tokenId) {
     const statusCell = document.getElementById(`status-${tokenId}`);
     const expiryCell = document.getElementById(`expiry-${tokenId}`);
     const button = document.querySelector(`#row-${tokenId} button:first-child`);
