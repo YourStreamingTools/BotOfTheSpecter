@@ -267,7 +267,7 @@ ob_start();
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>Validate All Tokens</span>
             </button>
-            <button class="button is-danger" id="renew-invalid-btn" style="display:none; margin-left: 10px;">
+            <button class="button is-danger is-disabled" id="renew-invalid-btn" disabled style="margin-left: 10px;">
                 <span class="icon"><i class="fas fa-refresh"></i></span>
                 <span>Renew Invalid Tokens</span>
             </button>
@@ -345,7 +345,8 @@ document.addEventListener('DOMContentLoaded', function() {
     validateAllBtn.addEventListener('click', function() {
         const rows = document.querySelectorAll('#tokens-table-body tr[data-token]');
         invalidTokens = [];
-        renewInvalidBtn.style.display = 'none';
+        renewInvalidBtn.disabled = true;
+        renewInvalidBtn.classList.add('is-disabled');
         const promises = Array.from(rows).map(row => {
             const token = row.getAttribute('data-token');
             const tokenId = row.id.replace('row-', '');
@@ -360,7 +361,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             if (invalidTokens.length > 0) {
-                renewInvalidBtn.style.display = 'inline-block';
+                renewInvalidBtn.disabled = false;
+                renewInvalidBtn.classList.remove('is-disabled');
             }
         });
     });
@@ -372,7 +374,8 @@ document.addEventListener('DOMContentLoaded', function() {
             renewToken(userId, tokenId);
         });
         invalidTokens = [];
-        renewInvalidBtn.style.display = 'none';
+        renewInvalidBtn.disabled = true;
+        renewInvalidBtn.classList.add('is-disabled');
     });
     generateBtn.addEventListener('click', async function() {
         const clientId = document.getElementById('client-id').value.trim();
