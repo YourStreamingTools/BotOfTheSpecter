@@ -377,6 +377,33 @@ function getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password) {
     return $output;
 }
 
+// Function to get Twitch subscription tier
+function getTwitchSubTier($twitch_user_id) {
+    global $clientID;
+    $accessToken = $_SESSION['access_token'];
+    if (empty($twitch_user_id) || empty($accessToken)) {
+        return null;
+    }
+    $broadcaster_id = "140296994";
+    $url = "https://api.twitch.tv/helix/subscriptions?broadcaster_id={$broadcaster_id}&user_id={$twitch_user_id}";
+    $headers = [ "Client-ID: $clientID", "Authorization: Bearer $accessToken" ];
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($ch);
+    if ($response === false) {
+        curl_close($ch);
+        return null;
+    }
+    $data = json_decode($response, true);
+    curl_close($ch);
+    // Check if we have subscription data in the response
+    if (isset($data['data']) && is_array($data['data']) && count($data['data']) > 0) {
+        return $data['data'][0]['tier'];
+    }
+    return null;
+}
+
 // Service statuses will be loaded asynchronously via JavaScript
 $discord_status = ['status' => 'Loading...', 'pid' => '...'];
 $api_status = ['status' => 'Loading...', 'pid' => '...'];
@@ -403,9 +430,22 @@ if ($conn) {
     if ($result) {
         $beta_count = $result->fetch_assoc()['count'];
     }
-    // Assuming premium is based on beta_access for now, adjust if needed
-    $premium_count = $beta_count;
-    $regular_count = $total_users - $admin_count - $beta_count;
+    // Count premium users (actual Twitch subscribers)
+    $premium_count = 0;
+    if (isset($_SESSION['access_token'])) {
+        $result = $conn->query("SELECT twitch_user_id FROM users WHERE twitch_user_id IS NOT NULL AND twitch_user_id != ''");
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $tier = getTwitchSubTier($row['twitch_user_id']);
+                if ($tier && in_array($tier, ["1000", "2000", "3000"])) {
+                    $premium_count++;
+                }
+            }
+        }
+    }
+    $regular_count = $total_users - $admin_count - $beta_count - $premium_count;
+    // Ensure regular count doesn't go negative if users have multiple roles
+    if ($regular_count < 0) $regular_count = 0;
 }
 
 // Defer bot status fetching until the AJAX request
