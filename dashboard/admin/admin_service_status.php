@@ -84,6 +84,12 @@ $serviceMap = [
         'ssh_host' => $websocket_server_host,
         'ssh_username' => $websocket_server_username,
         'ssh_password' => $websocket_server_password
+    ],
+    'mysql' => [
+        'service_name' => 'mysql.service',
+        'ssh_host' => $sql_server_host,
+        'ssh_username' => $sql_server_username,
+        'ssh_password' => $sql_server_password
     ]
 ];
 
