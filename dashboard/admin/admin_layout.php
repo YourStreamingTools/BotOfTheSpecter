@@ -125,6 +125,8 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
     $active_menu = 'discord';
 } elseif ($current_file == 'admin_websocket_clients.php') {
     $active_menu = 'websocket';
+} elseif ($current_file == 'admin_terminal.php') {
+    $active_menu = 'terminal';
 }
 ?>
 <!DOCTYPE html>
@@ -182,51 +184,58 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
         <ul class="sidebar-menu">
             <li class="sidebar-menu-item">
                 <a href="/admin" class="sidebar-menu-link <?php echo $active_menu == 'dashboard' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fas fa-tachometer-alt"></i></span>
-                    <span>Dashboard</span>
+                    <span class="icon sidebar-menu-icon"><i class="fas fa-tachometer-alt"></i></span>
+                    <span class="sidebar-menu-text">Dashboard</span>
                 </a>
                 <div class="sidebar-tooltip">Dashboard</div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="admin_users.php" class="sidebar-menu-link <?php echo $active_menu == 'users' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fas fa-users-cog"></i></span>
-                    <span>User Management</span>
+                    <span class="icon sidebar-menu-icon"><i class="fas fa-users-cog"></i></span>
+                    <span class="sidebar-menu-text">User Management</span>
                 </a>
                 <div class="sidebar-tooltip">User Management</div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="admin_logs.php" class="sidebar-menu-link <?php echo $active_menu == 'logs' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fas fa-clipboard-list"></i></span>
-                    <span>Log Management</span>
+                    <span class="icon sidebar-menu-icon"><i class="fas fa-clipboard-list"></i></span>
+                    <span class="sidebar-menu-text">Log Management</span>
                 </a>
                 <div class="sidebar-tooltip">Log Management</div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="admin_twitch_tokens.php" class="sidebar-menu-link <?php echo $active_menu == 'twitch' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fab fa-twitch"></i></span>
-                    <span>Twitch Tokens</span>
+                    <span class="icon sidebar-menu-icon"><i class="fab fa-twitch"></i></span>
+                    <span class="sidebar-menu-text">Twitch Tokens</span>
                 </a>
                 <div class="sidebar-tooltip">Twitch Tokens</div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="admin_discord_tracking.php" class="sidebar-menu-link <?php echo $active_menu == 'discord' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fab fa-discord"></i></span>
-                    <span>Discord Tracking</span>
+                    <span class="icon sidebar-menu-icon"><i class="fab fa-discord"></i></span>
+                    <span class="sidebar-menu-text">Discord Tracking</span>
                 </a>
                 <div class="sidebar-tooltip">Discord Tracking</div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="admin_websocket_clients.php" class="sidebar-menu-link <?php echo $active_menu == 'websocket' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fas fa-plug"></i></span>
-                    <span>Websocket Clients</span>
+                    <span class="icon sidebar-menu-icon"><i class="fas fa-plug"></i></span>
+                    <span class="sidebar-menu-text">Websocket Clients</span>
                 </a>
                 <div class="sidebar-tooltip">Websocket Clients</div>
+            </li>
+            <li class="sidebar-menu-item">
+                <a href="admin_terminal.php" class="sidebar-menu-link <?php echo $active_menu == 'terminal' ? 'active' : ''; ?>">
+                    <span class="icon sidebar-menu-icon"><i class="fas fa-terminal"></i></span>
+                    <span class="sidebar-menu-text">Web Terminal</span>
+                </a>
+                <div class="sidebar-tooltip">Web Terminal</div>
             </li>
         </ul>
         <div class="sidebar-user-section">
             <a href="../bot.php" class="sidebar-user-item">
-                <span class="icon"><i class="fas fa-home"></i></span>
-                <span>Back to Bot</span>
+                <span class="icon sidebar-menu-icon"><i class="fas fa-home"></i></span>
+                <span class="sidebar-menu-text">Back to Bot</span>
             </a>
         </div>
         </div>
@@ -300,6 +309,10 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                 <a class="navbar-item <?php echo $active_menu == 'websocket' ? 'is-active' : ''; ?>" href="admin_websocket_clients.php">
                     <span class="icon"><i class="fas fa-plug"></i></span>
                     <span>Websocket Clients</span>
+                </a>
+                <a class="navbar-item <?php echo $active_menu == 'terminal' ? 'is-active' : ''; ?>" href="admin_terminal.php">
+                    <span class="icon"><i class="fas fa-terminal"></i></span>
+                    <span>Web Terminal</span>
                 </a>
             </div>
             <div class="navbar-end">
@@ -448,7 +461,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
         document.querySelectorAll('.sidebar-menu-link.active').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.navbar-item.is-active').forEach(el => el.classList.remove('is-active'));
         // Admin active menu logic
-        if (currentPath.includes('/admin') && !currentPath.includes('admin_users.php') && !currentPath.includes('admin_logs.php') && !currentPath.includes('admin_twitch_tokens.php') && !currentPath.includes('admin_discord_tracking.php') && !currentPath.includes('admin_websocket_clients.php')) {
+        if (currentPath.includes('/admin') && !currentPath.includes('admin_users.php') && !currentPath.includes('admin_logs.php') && !currentPath.includes('admin_twitch_tokens.php') && !currentPath.includes('admin_discord_tracking.php') && !currentPath.includes('admin_websocket_clients.php') && !currentPath.includes('admin_terminal.php')) {
             // Dashboard
             const dashboardLinks = document.querySelectorAll('a[href="/admin"]');
             dashboardLinks.forEach(link => {
@@ -487,6 +500,13 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
             // Websocket Clients
             const websocketLinks = document.querySelectorAll('a[href*="admin_websocket_clients.php"]');
             websocketLinks.forEach(link => {
+                if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
+                if (link.classList.contains('navbar-item')) link.classList.add('is-active');
+            });
+        } else if (currentPath.includes('admin_terminal.php')) {
+            // Web Terminal
+            const terminalLinks = document.querySelectorAll('a[href*="admin_terminal.php"]');
+            terminalLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
