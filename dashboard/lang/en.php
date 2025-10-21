@@ -1334,4 +1334,9 @@ return [
     'modules_variables_general_events_title' => 'General Events',
     'modules_variables_subscription_events_title' => 'Subscription Events',
     'modules_user_variables_description' => 'Username of the person joining',
+    'premium_coming_soon_title' => 'Coming Soon in Version 5.6',
+    'premium_alternative_payment_title' => 'Alternative Premium Access',
+    'premium_alternative_payment_description' => 'Can\'t subscribe on Twitch? No problem! Soon you\'ll be able to support BotOfTheSpecter directly through our store and get a full year of premium access to all features.',
+    'premium_visit_store' => 'Visit Our Store',
+    'premium_coming_soon_note' => 'This feature will be available in version 5.6',
 ];
