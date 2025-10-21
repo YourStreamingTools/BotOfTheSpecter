@@ -430,10 +430,10 @@ if ($conn) {
     if ($result) {
         $beta_count = $result->fetch_assoc()['count'];
     }
-    // Count premium users (actual Twitch subscribers)
+    // Count premium users (actual Twitch subscribers who are NOT beta users)
     $premium_count = 0;
     if (isset($_SESSION['access_token'])) {
-        $result = $conn->query("SELECT twitch_user_id FROM users WHERE twitch_user_id IS NOT NULL AND twitch_user_id != ''");
+        $result = $conn->query("SELECT twitch_user_id FROM users WHERE twitch_user_id IS NOT NULL AND twitch_user_id != '' AND beta_access = 0");
         if ($result) {
             while ($row = $result->fetch_assoc()) {
                 $tier = getTwitchSubTier($row['twitch_user_id']);
