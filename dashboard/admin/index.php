@@ -620,70 +620,78 @@ ob_start();
     <h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
     <p>Loading bot overview...</p>
 </div>
-<div class="box">
-    <h2 class="title is-4"><span class="icon"><i class="fas fa-chart-pie"></i></span> User Overview</h2>
-    <div class="columns">
-        <div class="column is-half">
-            <div style="max-width: 300px; margin: 0 auto;">
-                <canvas id="userChart" width="300" height="300"></canvas>
-            </div>
-        </div>
-        <div class="column is-half">
-            <p class="mb-4">Quick stats on user distribution:</p>
-            <ul>
-                <li><strong>Total Users:</strong> <?php echo $total_users; ?></li>
-                <li><strong>Admins:</strong> <?php echo $admin_count; ?></li>
-                <li><strong>Beta Users:</strong> <?php echo $beta_count; ?></li>
-                <li><strong>Premium Users:</strong> <?php echo $premium_count; ?></li>
-                <li><strong>Regular Users:</strong> <?php echo $regular_count; ?></li>
-            </ul>
-            <a href="admin_users.php" class="button is-link is-light mt-4">
-                <span class="icon"><i class="fas fa-users-cog"></i></span>
-                <span>Manage Users</span>
-            </a>
-        </div>
-    </div>
-</div>
-<div class="box">
-    <h2 class="title is-4"><span class="icon"><i class="fas fa-paper-plane"></i></span> Send Bot Message</h2>
-    <?php if (isset($success_message)): ?>
-        <div class="notification is-success"><?php echo htmlspecialchars($success_message); ?></div>
-    <?php endif; ?>
-    <?php if (isset($error_message)): ?>
-        <div class="notification is-danger"><?php echo htmlspecialchars($error_message); ?></div>
-    <?php endif; ?>
-    <form method="post">
-        <div class="field">
-            <label class="label">Select Channel</label>
-            <div class="control">
-                <div class="select">
-                    <!-- Populated via AJAX to avoid blocking page load -->
-                    <select name="channel_id" id="channel-select" required>
-                        <option value="">Loading channels...</option>
-                    </select>
+<div class="columns is-variable is-3" style="align-items: stretch;">
+    <div class="column is-half">
+        <div class="box" style="height: 100%; display: flex; flex-direction: column;">
+            <h2 class="title is-4"><span class="icon"><i class="fas fa-chart-pie"></i></span> User Overview</h2>
+            <div class="columns" style="flex: 1;">
+                <div class="column is-half">
+                    <div style="max-width: 300px; margin: 0 auto;">
+                        <canvas id="userChart" width="300" height="300"></canvas>
+                    </div>
+                </div>
+                <div class="column is-half" style="display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                        <p class="mb-4">Quick stats on user distribution:</p>
+                        <ul>
+                            <li><strong>Total Users:</strong> <?php echo $total_users; ?></li>
+                            <li><strong>Admins:</strong> <?php echo $admin_count; ?></li>
+                            <li><strong>Beta Users:</strong> <?php echo $beta_count; ?></li>
+                            <li><strong>Premium Users:</strong> <?php echo $premium_count; ?></li>
+                            <li><strong>Regular Users:</strong> <?php echo $regular_count; ?></li>
+                        </ul>
+                    </div>
+                    <a href="admin_users.php" class="button is-link is-light mt-4">
+                        <span class="icon"><i class="fas fa-users-cog"></i></span>
+                        <span>Manage Users</span>
+                    </a>
                 </div>
             </div>
         </div>
-        <div class="field">
-            <div class="control">
-                <label class="checkbox">
-                    <input type="checkbox" id="include-offline">
-                    Include offline channels
-                </label>
-            </div>
+    </div>
+    <div class="column is-half">
+        <div class="box" style="height: 100%">
+            <h2 class="title is-4"><span class="icon"><i class="fas fa-paper-plane"></i></span> Send Bot Message</h2>
+            <?php if (isset($success_message)): ?>
+                <div class="notification is-success"><?php echo htmlspecialchars($success_message); ?></div>
+            <?php endif; ?>
+            <?php if (isset($error_message)): ?>
+                <div class="notification is-danger"><?php echo htmlspecialchars($error_message); ?></div>
+            <?php endif; ?>
+            <form method="post">
+                <div class="field">
+                    <label class="label">Select Channel</label>
+                    <div class="control">
+                        <div class="select">
+                            <!-- Populated via AJAX to avoid blocking page load -->
+                            <select name="channel_id" id="channel-select" required>
+                                <option value="">Loading channels...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="control">
+                        <label class="checkbox">
+                            <input type="checkbox" id="include-offline">
+                            Include offline channels
+                        </label>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Message</label>
+                    <div class="control">
+                        <textarea class="textarea" name="message" id="message" placeholder="Enter your message..." required></textarea>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="control">
+                        <button class="button is-primary" type="submit" name="send_message" id="send" disabled>Send Message</button>
+                    </div>
+                </div>
+            </form>
         </div>
-        <div class="field">
-            <label class="label">Message</label>
-            <div class="control">
-                <textarea class="textarea" name="message" id="message" placeholder="Enter your message..." required></textarea>
-            </div>
-        </div>
-        <div class="field">
-            <div class="control">
-                <button class="button is-primary" type="submit" name="send_message" id="send" disabled>Send Message</button>
-            </div>
-        </div>
-    </form>
+    </div>
 </div>
 <?php
 $content = ob_get_clean();
