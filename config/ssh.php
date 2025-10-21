@@ -162,11 +162,16 @@ if (!class_exists('SSHConnectionManager')) {
             if (!$stream) {
                 return false;
             }
+            // Get stderr stream as well
+            $errorStream = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
             // Set non-blocking mode for streaming
             stream_set_blocking($stream, false);
+            stream_set_blocking($errorStream, false);
             // Set a reasonable timeout
             stream_set_timeout($stream, 30); // 30 seconds timeout
-            return $stream;
+            stream_set_timeout($errorStream, 30);
+            // Return both streams as an array
+            return ['stdout' => $stream, 'stderr' => $errorStream];
         }
     }
 }
