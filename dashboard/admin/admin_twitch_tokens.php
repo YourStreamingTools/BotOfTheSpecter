@@ -95,31 +95,13 @@ ob_start();
 <div class="box">
     <h1 class="title is-4"><span class="icon"><i class="fab fa-twitch"></i></span> Twitch App Access Tokens</h1>
     <p class="mb-4">Generate App Access Tokens for Twitch API usage, such as for chatbot badge display.</p>
-    <div class="content">
-        <h2>How to Get a Twitch App Access Token</h2>
-        <p>To obtain an App Access Token, you need:</p>
-        <ol>
-            <li>A registered Twitch application in the <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></li>
-            <li>Your application's Client ID and Client Secret</li>
-            <li>Use the OAuth endpoint to request the token</li>
-        </ol>
-        <p>The token is generated using the Client Credentials flow and is not tied to a specific user.</p>
-        <h3>Redirect URI Configuration</h3>
-        <p><strong>For App Access Tokens (Client Credentials):</strong> No redirect URI is required in the Twitch Developer Console.</p>
-        <p><strong>For User Access Tokens (Authorization Code):</strong> You need to configure redirect URIs in your Twitch application settings.</p>
-        <p><strong>Current Configuration:</strong></p>
-        <ul>
-            <li>Production: <code><?php echo htmlspecialchars($redirectURI ?? 'Not configured'); ?></code></li>
-            <li>Beta: <code><?php echo htmlspecialchars($betaRedirectURI ?? 'Not configured'); ?></code></li>
-        </ul>
-        <h3>Requirements for Chat Bot Badge</h3>
-        <p>For a chatbot to display the Chat Bot Badge:</p>
-        <ul>
-            <li>Use the Send Chat Message API</li>
-            <li>Use an App Access Token</li>
-            <li>Have the <code>channel:bot</code> scope authorized by the broadcaster or moderator status</li>
-            <li>The chatbot's user account is not the channel's broadcaster</li>
-        </ul>
+    <div class="field">
+        <div class="control">
+            <button class="button is-info is-light" id="learn-more-btn">
+                <span class="icon"><i class="fas fa-info-circle"></i></span>
+                <span>What is an App Access Token?</span>
+            </button>
+        </div>
     </div>
     <div class="box">
         <h3 class="title is-5">Enter Twitch Application Credentials</h3>
@@ -157,7 +139,47 @@ ob_start();
         <div id="token-content"></div>
     </div>
 </div>
-
+<!-- Modal for App Access Token Information -->
+<div class="modal" id="info-modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head">
+            <p class="modal-card-title">What is an App Access Token?</p>
+            <button class="delete" aria-label="close" id="close-modal"></button>
+        </header>
+        <section class="modal-card-body">
+            <div class="content">
+                <h2>How to Get a Twitch App Access Token</h2>
+                <p>To obtain an App Access Token, you need:</p>
+                <ol>
+                    <li>A registered Twitch application in the <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></li>
+                    <li>Your application's Client ID and Client Secret</li>
+                    <li>Use the OAuth endpoint to request the token</li>
+                </ol>
+                <p>The token is generated using the Client Credentials flow and is not tied to a specific user.</p>
+                <h3>Redirect URI Configuration</h3>
+                <p><strong>For App Access Tokens (Client Credentials):</strong> No redirect URI is required in the Twitch Developer Console.</p>
+                <p><strong>For User Access Tokens (Authorization Code):</strong> You need to configure redirect URIs in your Twitch application settings.</p>
+                <p><strong>Current Configuration:</strong></p>
+                <ul>
+                    <li>Production: <code><?php echo htmlspecialchars($redirectURI ?? 'Not configured'); ?></code></li>
+                    <li>Beta: <code><?php echo htmlspecialchars($betaRedirectURI ?? 'Not configured'); ?></code></li>
+                </ul>
+                <h3>Requirements for Chat Bot Badge</h3>
+                <p>For a chatbot to display the Chat Bot Badge:</p>
+                <ul>
+                    <li>Use the Send Chat Message API</li>
+                    <li>Use an App Access Token</li>
+                    <li>Have the <code>channel:bot</code> scope authorized by the broadcaster or moderator status</li>
+                    <li>The chatbot's user account is not the channel's broadcaster</li>
+                </ul>
+            </div>
+        </section>
+        <footer class="modal-card-foot">
+            <button class="button is-success" id="close-modal-footer">Got it!</button>
+        </footer>
+    </div>
+</div>
 <div class="box">
     <h3 class="title is-5">Validate Access Token</h3>
     <p class="mb-4">Enter an access token to validate its status and details.</p>
@@ -194,7 +216,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const validateBtn = document.getElementById('validate-token-btn');
     const validationResult = document.getElementById('validation-result');
     const validationContent = document.getElementById('validation-content');
-
+    const learnMoreBtn = document.getElementById('learn-more-btn');
+    const infoModal = document.getElementById('info-modal');
+    const closeModal = document.getElementById('close-modal');
+    const closeModalFooter = document.getElementById('close-modal-footer');
+    // Modal functionality
+    learnMoreBtn.addEventListener('click', function() {
+        infoModal.classList.add('is-active');
+    });
+    closeModal.addEventListener('click', function() {
+        infoModal.classList.remove('is-active');
+    });
+    closeModalFooter.addEventListener('click', function() {
+        infoModal.classList.remove('is-active');
+    });
+    // Close modal when clicking background
+    infoModal.addEventListener('click', function(event) {
+        if (event.target === infoModal) {
+            infoModal.classList.remove('is-active');
+        }
+    });
     generateBtn.addEventListener('click', async function() {
         const clientId = document.getElementById('client-id').value.trim();
         const clientSecret = document.getElementById('client-secret').value.trim();
