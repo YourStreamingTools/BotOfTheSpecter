@@ -106,7 +106,7 @@ builtin_commands = {
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong", "wsstatus"
+    "skipsong", "wsstatus", "obs"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip"
@@ -6689,6 +6689,58 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
+        finally:
+            await connection.ensure_closed()
+
+    @commands.command(name='obs')
+    async def obs_command(self, ctx):
+        global bot_owner
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("obs",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('obs', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        message_parts = ctx.message.content.split()
+                        if len(message_parts) > 1:
+                            subcommand = message_parts[1].lower()
+                            if subcommand == "scene":
+                                if len(message_parts) > 2:
+                                    scene_name = " ".join(message_parts[2:])
+                                    await websocket_notice(event="SEND_OBS_EVENT", additional_data={"command": "obs", "subcommand": "scene", "scene_name": scene_name})
+                                    chat_logger.info(f"{ctx.author.name} triggered OBS scene change to {scene_name}")
+                                    await send_chat_message(f"OBS scene changed to {scene_name}!")
+                                else:
+                                    await send_chat_message("Please specify a scene name: !obs scene <name>")
+                            else:
+                                await send_chat_message("Unknown subcommand. Use !obs scene <name>")
+                        else:
+                            await websocket_notice(event="SEND_OBS_EVENT", additional_data={"command": "obs_triggered"})
+                            chat_logger.info(f"{ctx.author.name} triggered OBS event")
+                            await send_chat_message("OBS event sent!")
+                        # Record usage
+                        add_usage('obs', bucket_key, cooldown_bucket)
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to trigger OBS event but lacked permissions.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"Error in obs_command: {e}")
+            await send_chat_message("An error occurred while sending OBS event.")
         finally:
             await connection.ensure_closed()
 
