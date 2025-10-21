@@ -11,6 +11,7 @@ if (php_sapi_name() !== 'cli') {
     // Include necessary files to get user data
     require_once '/var/www/config/db_connect.php';
     include '../userdata.php';
+    include '/var/www/config/twitch.php';
     // Check if user is admin
     if (!isset($is_admin) || !$is_admin) {
         http_response_code(403);
@@ -32,16 +33,16 @@ if (!$payload) {
 $broadcaster_id = $payload['broadcaster_id'] ?? '';
 $sender_id = $payload['sender_id'] ?? '';
 $message = $payload['message'] ?? '';
-$twitch_bot_oauth = $payload['twitch_bot_oauth'] ?? '';
+$chat_token = $oauth;
 $clientID = $payload['clientID'] ?? '';
 
-if (empty($broadcaster_id) || empty($message) || empty($twitch_bot_oauth) || empty($clientID)) {
+if (empty($broadcaster_id) || empty($message) || empty($chat_token) || empty($clientID)) {
     exit(0);
 }
 
 $url = "https://api.twitch.tv/helix/chat/messages";
 $headers = [
-    "Authorization: Bearer " . $twitch_bot_oauth,
+    "Authorization: Bearer " . $chat_token,
     "Client-Id: " . $clientID,
     "Content-Type: application/json"
 ];
