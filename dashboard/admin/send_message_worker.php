@@ -1,7 +1,22 @@
 <?php
-// send_message_worker.php
-// Usage: php send_message_worker.php '{"broadcaster_id":"...","sender_id":"...","message":"...","twitch_bot_oauth":"...","clientID":"..."}'
-// This script performs a single HTTP request to Twitch to send a chat message.
+// Check if this is being called via command line or web request
+if (php_sapi_name() !== 'cli') {
+    // This is a web request - require admin authentication
+    session_start();
+    // Check if user is logged in and is an admin
+    if (!isset($_SESSION['access_token']) || !isset($_SESSION['username'])) {
+        http_response_code(401);
+        exit('Unauthorized - Please log in');
+    }
+    // Include necessary files to get user data
+    require_once '/var/www/config/db_connect.php';
+    include '../userdata.php';
+    // Check if user is admin
+    if (!isset($is_admin) || !$is_admin) {
+        http_response_code(403);
+        exit('Unauthorized - Admin access required');
+    }
+}
 
 if ($argc < 2) {
     // Nothing to do
