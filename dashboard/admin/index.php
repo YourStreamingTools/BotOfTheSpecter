@@ -21,12 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
             $ssh_username = $bots_ssh_username;
             $ssh_password = $bots_ssh_password;
             if ($service == 'fastapi.service') {
-                $ssh_host = $api_server_host;
-                $ssh_username = $api_server_username;
+                $ssh_host = $api_ssh_host;
+                $ssh_username = $api_ssh_username;
                 $ssh_password = $api_server_password;
             } elseif ($service == 'websocket.service') {
-                $ssh_host = $websocket_server_host;
-                $ssh_username = $websocket_server_username;
+                $ssh_host = $websocket_ssh_host;
+                $ssh_username = $websocket_ssh_username;
                 $ssh_password = $websocket_server_password;
             } elseif ($service == 'mysql.service') {
                 $ssh_host = $sql_server_host;
@@ -35,19 +35,80 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
             }
             $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
             if ($connection) {
-                if ($action == 'start') {
-                    SSHConnectionManager::executeCommand($connection, "sudo systemctl start $service");
-                } elseif ($action == 'stop') {
-                    SSHConnectionManager::executeCommand($connection, "sudo systemctl stop $service");
-                } elseif ($action == 'restart') {
-                    SSHConnectionManager::executeCommand($connection, "sudo systemctl restart $service");
-                }
+                $command = "sudo systemctl $action $service";
+                $output = SSHConnectionManager::executeCommand($connection, $command);
+                $success = strpos($output, 'success') !== false || strpos($output, 'active') !== false || strpos($output, 'inactive') !== false;
             }
-        } catch (Exception $e) {}
+        } catch (Exception $e) {
+            $success = false;
+        }
     }
     // Return JSON response instead of redirect
     header('Content-Type: application/json');
-    echo json_encode(['success' => true]);
+    echo json_encode(['success' => $success]);
+    exit;
+}
+
+// Handle refresh Spotify tokens action
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_spotify_tokens'])) {
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        if ($connection) {
+            $command = "cd /home/botofthespecter && python3 refresh_spotify_tokens.py";
+            $output = SSHConnectionManager::executeCommand($connection, $command);
+            $success = true;
+        } else {
+            $output = "Failed to connect to bot server.";
+            $success = false;
+        }
+    } catch (Exception $e) {
+        $output = "Error: " . $e->getMessage();
+        $success = false;
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['success' => $success, 'output' => $output]);
+    exit;
+}
+
+// Handle refresh StreamElements tokens action
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_streamelements_tokens'])) {
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        if ($connection) {
+            $command = "cd /home/botofthespecter && python3 refresh_streamelements_tokens.py";
+            $output = SSHConnectionManager::executeCommand($connection, $command);
+            $success = true;
+        } else {
+            $output = "Failed to connect to bot server.";
+            $success = false;
+        }
+    } catch (Exception $e) {
+        $output = "Error: " . $e->getMessage();
+        $success = false;
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['success' => $success, 'output' => $output]);
+    exit;
+}
+
+// Handle refresh Discord tokens action
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_discord_tokens'])) {
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        if ($connection) {
+            $command = "cd /home/botofthespecter && python3 refresh_discord_tokens.py";
+            $output = SSHConnectionManager::executeCommand($connection, $command);
+            $success = true;
+        } else {
+            $output = "Failed to connect to bot server.";
+            $success = false;
+        }
+    } catch (Exception $e) {
+        $output = "Error: " . $e->getMessage();
+        $success = false;
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['success' => $success, 'output' => $output]);
     exit;
 }
 
@@ -529,7 +590,33 @@ ob_start();
         </div>
     </div>
 </div>
-<div class="box" id="bot-overview-container">
+<div class="box">
+    <h2 class="title is-4"><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
+    <div class="columns">
+        <div class="column">
+            <h3 class="title is-5"><span class="icon"><i class="fab fa-spotify"></i></span> Spotify</h3>
+            <button type="button" class="button is-success" onclick="refreshSpotifyTokens()">
+                <span class="icon"><i class="fas fa-sync"></i></span>
+                <span>Refresh Spotify Tokens</span>
+            </button>
+        </div>
+        <div class="column">
+            <h3 class="title is-5"><span class="icon"><i class="fas fa-stream"></i></span> StreamElements</h3>
+            <button type="button" class="button is-info" onclick="refreshStreamElementsTokens()">
+                <span class="icon"><i class="fas fa-sync"></i></span>
+                <span>Refresh StreamElements Tokens</span>
+            </button>
+        </div>
+        <div class="column">
+            <h3 class="title is-5"><span class="icon"><i class="fab fa-discord"></i></span> Discord</h3>
+            <button type="button" class="button is-link" onclick="refreshDiscordTokens()">
+                <span class="icon"><i class="fas fa-sync"></i></span>
+                <span>Refresh Discord Tokens</span>
+            </button>
+        </div>
+    </div>
+</div>
+<div class="box">
     <h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
     <p>Loading bot overview...</p>
 </div>
@@ -655,21 +742,31 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                // Update status after a short delay to allow service to change state
-                setTimeout(() => {
-                    const statusService = service === 'fastapi.service' ? 'fastapi' : service === 'websocket.service' ? 'websocket' : service === 'mysql.service' ? 'mysql' : 'discordbot';
-                    const statusElementId = service === 'fastapi.service' ? 'api-status' : service === 'websocket.service' ? 'websocket-status' : service === 'mysql.service' ? 'mysql-status' : 'discord-status';
-                    const pidElementId = service === 'fastapi.service' ? 'api-pid' : service === 'websocket.service' ? 'websocket-pid' : service === 'mysql.service' ? 'mysql-pid' : 'discord-pid';
-                    const buttonsElementId = service === 'fastapi.service' ? 'api-buttons' : service === 'websocket.service' ? 'websocket-buttons' : service === 'mysql.service' ? 'mysql-buttons' : 'discord-buttons';
-                    updateServiceStatus(statusService, statusElementId, pidElementId, buttonsElementId);
-                }, 2000);
+            const success = data.success;
+            if (success) {
+                Swal.fire({
+                    title: 'Success',
+                    text: 'Command executed successfully.',
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
             } else {
-                buttons.forEach(btn => btn.disabled = false);
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Command failed.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
             }
+            buttons.forEach(btn => btn.disabled = false);
         })
         .catch(error => {
-            console.error('Error controlling service:', error);
+            Swal.fire({
+                title: 'Error',
+                text: 'Network error: ' + error.message,
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
             buttons.forEach(btn => btn.disabled = false);
         });
     };
@@ -703,6 +800,114 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }
         });
+    };
+    // Function to refresh Spotify tokens
+    window.refreshSpotifyTokens = function() {
+        const button = document.querySelector('button[onclick="refreshSpotifyTokens()"]');
+        button.disabled = true;
+        button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Refreshing...</span>';
+        const formData = new FormData();
+        formData.append('refresh_spotify_tokens', '1');
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            const success = data.success;
+            const output = data.output || '';
+            if (success) {
+                Swal.fire({
+                    title: 'Spotify Tokens Refreshed',
+                    html: '<pre style="text-align: left; white-space: pre-wrap;">' + output + '</pre>',
+                    icon: 'success',
+                    confirmButtonText: 'OK',
+                    width: '600px'
+                });
+            } else {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Failed to refresh tokens: ' + output,
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            }
+            button.disabled = false;
+            button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Spotify Tokens</span>';
+        })
+        .catch(error => {
+            Swal.fire({
+                title: 'Error',
+                text: 'Network error: ' + error.message,
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
+            button.disabled = false;
+            button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Spotify Tokens</span>';
+        });
+    };
+    // Generic function to stream command output via SSE
+    function streamCommand(scriptKey, serviceName, buttonSelector) {
+        const button = document.querySelector(buttonSelector);
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Refreshing...</span>';
+        }
+        // Create modal with an output container
+        let outputHtml = '<div style="text-align:left; max-height:300px; overflow:auto; white-space:pre-wrap; font-family: monospace;" id="stream-output">Connecting...\n</div>';
+        Swal.fire({
+            title: serviceName + ' - Live Output',
+            html: outputHtml,
+            showCancelButton: true,
+            cancelButtonText: 'Close',
+            showConfirmButton: false,
+            width: 800,
+            didOpen: () => {
+                const outputEl = document.getElementById('stream-output');
+                const es = new EventSource('admin_stream_command.php?script=' + encodeURIComponent(scriptKey));
+                es.onmessage = function(e) {
+                    // Generic messages
+                    outputEl.textContent += e.data + '\n';
+                    outputEl.scrollTop = outputEl.scrollHeight;
+                };
+                es.addEventListener('error', function(e) {
+                    outputEl.textContent += '[ERROR] ' + (e.data || 'An error occurred') + '\n';
+                    outputEl.scrollTop = outputEl.scrollHeight;
+                });
+                es.addEventListener('done', function(e) {
+                    try {
+                        const info = JSON.parse(e.data);
+                        outputEl.textContent += '\n[PROCESS DONE] ' + (info.success ? 'Success' : 'Failed') + '\n';
+                    } catch (err) {
+                        outputEl.textContent += '\n[PROCESS DONE]\n';
+                    }
+                    outputEl.scrollTop = outputEl.scrollHeight;
+                    es.close();
+                    if (button) {
+                        button.disabled = false;
+                        // reset button label based on selector
+                        if (buttonSelector.includes('Spotify')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Spotify Tokens</span>';
+                        else if (buttonSelector.includes('StreamElements')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh StreamElements Tokens</span>';
+                        else button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Discord Tokens</span>';
+                    }
+                });
+                es.onerror = function(ev) {
+                    // Some browsers call onerror on stream end, so keep it lightweight
+                };
+            }
+        });
+    }
+    // Function to refresh StreamElements tokens (streams output)
+    window.refreshStreamElementsTokens = function() {
+        streamCommand('streamelements', 'StreamElements', 'button[onclick="refreshStreamElementsTokens()"]');
+    };
+    // Function to refresh Discord tokens (streams output)
+    window.refreshDiscordTokens = function() {
+        streamCommand('discord', 'Discord', 'button[onclick="refreshDiscordTokens()"]');
+    };
+    // Function to refresh Spotify tokens (streams output)
+    window.refreshSpotifyTokens = function() {
+        streamCommand('spotify', 'Spotify', 'button[onclick="refreshSpotifyTokens()"]');
     };
     // Function to update service status
     function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
