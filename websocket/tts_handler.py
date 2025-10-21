@@ -195,7 +195,7 @@ class TTSHandler:
                 response_format="mp3"
             ) as response:
                 # Stream the response directly to file
-                response.stream_to_file(filepath)
+                await response.stream_to_file(filepath)
             self.logger.info(f"TTS audio generated and saved: {filepath}")
             return filepath
         except Exception as e:
