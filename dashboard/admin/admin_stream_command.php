@@ -1,5 +1,32 @@
 <?php
-require_once __DIR__ . '/../../config/ssh.php';
+session_start();
+
+// Include necessary files to get user data
+require_once '/var/www/config/db_connect.php';
+include '../userdata.php';
+require_once '/var/www/config/ssh.php';
+
+// Check if user is logged in and is an admin
+if (!isset($_SESSION['access_token']) || !isset($_SESSION['username'])) {
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    echo "event: error\n";
+    echo "data: Unauthorized - Please log in\n\n";
+    echo "event: done\n";
+    echo "data: {\"success\":false}\n\n";
+    exit;
+}
+
+// Check if user is admin
+if (!isset($is_admin) || !$is_admin) {
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    echo "event: error\n";
+    echo "data: Unauthorized - Admin access required\n\n";
+    echo "event: done\n";
+    echo "data: {\"success\":false}\n\n";
+    exit;
+}
 
 // Allow only specific scripts
 $mapping = [
@@ -54,7 +81,6 @@ try {
         sse_send(json_encode(['success' => false]), 'done');
         exit;
     }
-
     $cmd = "cd /home/botofthespecter && python3 " . escapeshellarg($script);
     $streams = SSHConnectionManager::executeCommandStream($connection, $cmd);
     if (!$streams || !isset($streams['stdout'])) {
@@ -62,19 +88,15 @@ try {
         sse_send(json_encode(['success' => false]), 'done');
         exit;
     }
-
     $stdout = $streams['stdout'];
     $stderr = $streams['stderr'];
-
     $read = [$stdout, $stderr];
-
     // Loop until both streams are closed
     while (true) {
         $r = $read;
         $w = null; $e = null;
         $num = @stream_select($r, $w, $e, 1, 0);
         if ($num === false) break;
-
         if ($num > 0) {
             foreach ($r as $res) {
                 $chunk = stream_get_contents($res);
@@ -84,20 +106,16 @@ try {
                 }
             }
         }
-
         // Exit when both streams are at EOF
         $stdout_eof = feof($stdout);
         $stderr_eof = feof($stderr);
         if ($stdout_eof && $stderr_eof) break;
     }
-
     // Final summary
     sse_send(json_encode(['success' => true]), 'done');
 } catch (Exception $e) {
     sse_send('Exception: ' . $e->getMessage(), 'error');
     sse_send(json_encode(['success' => false]), 'done');
 }
-
 exit;
-
 ?>
