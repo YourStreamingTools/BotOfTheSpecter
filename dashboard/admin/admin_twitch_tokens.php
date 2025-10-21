@@ -91,7 +91,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
 
 ob_start();
 ?>
-
 <div class="box">
     <h1 class="title is-4"><span class="icon"><i class="fab fa-twitch"></i></span> Twitch App Access Tokens</h1>
     <p class="mb-4">Generate App Access Tokens for Twitch API usage, such as for chatbot badge display.</p>
@@ -202,12 +201,53 @@ ob_start();
 <div id="validation-result" class="notification is-hidden">
     <div id="validation-content"></div>
 </div>
-
+<div class="box">
+    <h3 class="title is-5">View Existing Tokens</h3>
+    <p class="mb-4">List of all stored Twitch App Access Tokens with their associated users.</p>
+    <div class="field">
+        <div class="control">
+            <button class="button is-info" id="validate-all-btn">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>Validate All Tokens</span>
+            </button>
+        </div>
+    </div>
+    <table class="table is-fullwidth">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Status</th>
+                <th>Expires In</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="tokens-table-body">
+            <?php
+            $sql = "SELECT tba.twitch_access_token, u.username FROM twitch_bot_access tba JOIN users u ON tba.twitch_user_id = u.twitch_user_id";
+            $result = $conn->query($sql);
+            if ($result && $result->num_rows > 0) {
+                while ($row = $result->fetch_assoc()) {
+                    $token = $row['twitch_access_token'];
+                    $username = htmlspecialchars($row['username']);
+                    $tokenId = md5($token); // Use hash for unique ID
+                    echo "<tr id='row-$tokenId' data-token='$token'>";
+                    echo "<td>$username</td>";
+                    echo "<td id='status-$tokenId'>Not Validated</td>";
+                    echo "<td id='expiry-$tokenId'>-</td>";
+                    echo "<td><button class='button is-small is-info' onclick='validateToken(\"$token\", \"$tokenId\")'>Validate</button></td>";
+                    echo "</tr>";
+                }
+            } else {
+                echo "<tr><td colspan='4'>No tokens found.</td></tr>";
+            }
+            ?>
+        </tbody>
+    </table>
+</div>
 <?php
 $content = ob_get_clean();
 ob_start();
 ?>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const generateBtn = document.getElementById('generate-token-btn');
@@ -220,6 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const infoModal = document.getElementById('info-modal');
     const closeModal = document.getElementById('close-modal');
     const closeModalFooter = document.getElementById('close-modal-footer');
+    const validateAllBtn = document.getElementById('validate-all-btn');
     // Modal functionality
     learnMoreBtn.addEventListener('click', function() {
         infoModal.classList.add('is-active');
@@ -235,6 +276,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.target === infoModal) {
             infoModal.classList.remove('is-active');
         }
+    });
+    // Validate all tokens
+    validateAllBtn.addEventListener('click', function() {
+        const rows = document.querySelectorAll('#tokens-table-body tr[data-token]');
+        rows.forEach(row => {
+            const token = row.getAttribute('data-token');
+            const tokenId = row.id.replace('row-', '');
+            validateToken(token, tokenId);
+        });
     });
     generateBtn.addEventListener('click', async function() {
         const clientId = document.getElementById('client-id').value.trim();
@@ -304,7 +354,6 @@ document.addEventListener('DOMContentLoaded', function() {
         generateBtn.classList.remove('is-loading');
         generateBtn.disabled = false;
     });
-
     validateBtn.addEventListener('click', async function() {
         const token = document.getElementById('validate-token').value.trim();
         if (!token) {
@@ -374,6 +423,65 @@ document.addEventListener('DOMContentLoaded', function() {
         validateBtn.disabled = false;
     });
 });
+
+function validateToken(token, tokenId) {
+    const statusCell = document.getElementById(`status-${tokenId}`);
+    const expiryCell = document.getElementById(`expiry-${tokenId}`);
+    const button = document.querySelector(`#row-${tokenId} button`);
+    statusCell.textContent = 'Validating...';
+    button.disabled = true;
+    button.classList.add('is-loading');
+    const formData = new FormData();
+    formData.append('validate_token', '1');
+    formData.append('access_token', token);
+    fetch('', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const val = data.validation;
+            const expiresIn = val.expires_in || 0;
+            const now = new Date();
+            const expiryDate = new Date(now.getTime() + expiresIn * 1000);
+            // Calculate time components
+            let remaining = expiresIn;
+            const months = Math.floor(remaining / (30 * 24 * 3600));
+            remaining %= (30 * 24 * 3600);
+            const days = Math.floor(remaining / (24 * 3600));
+            remaining %= (24 * 3600);
+            const hours = Math.floor(remaining / 3600);
+            remaining %= 3600;
+            const minutes = Math.floor(remaining / 60);
+            const seconds = remaining % 60;
+            // Build time string
+            let timeParts = [];
+            if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
+            if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
+            if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+            if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+            if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
+            const timeString = timeParts.join(', ') || '0 seconds';
+            statusCell.textContent = 'Valid';
+            statusCell.className = 'has-text-success';
+            expiryCell.textContent = timeString;
+        } else {
+            statusCell.textContent = 'Invalid';
+            statusCell.className = 'has-text-danger';
+            expiryCell.textContent = '-';
+        }
+    })
+    .catch(error => {
+        statusCell.textContent = 'Error';
+        statusCell.className = 'has-text-danger';
+        expiryCell.textContent = '-';
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+    });
+}
 
 function copyToken() {
     const tokenInput = document.getElementById('token-input');
