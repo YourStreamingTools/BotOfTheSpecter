@@ -89,6 +89,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
     exit;
 }
 
+// Handle AJAX request for token renewal BEFORE any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
+    header('Content-Type: application/json');
+    $userId = isset($_POST['twitch_user_id']) ? trim($_POST['twitch_user_id']) : '';
+    if (empty($userId)) {
+        echo json_encode(['success' => false, 'error' => 'User ID is required.']);
+        exit;
+    }
+    $clientID = $GLOBALS['clientID'] ?? '';
+    $clientSecret = $GLOBALS['clientSecret'] ?? '';
+    if (empty($clientID) || empty($clientSecret)) {
+        echo json_encode(['success' => false, 'error' => 'Client credentials not configured.']);
+        exit;
+    }
+    $url = 'https://id.twitch.tv/oauth2/token';
+    $data = [
+        'client_id' => $clientID,
+        'client_secret' => $clientSecret,
+        'grant_type' => 'client_credentials'
+    ];
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/x-www-form-urlencoded'
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($httpCode === 200) {
+        $result = json_decode($response, true);
+        if (isset($result['access_token'])) {
+            // Update database
+            $stmt = $conn->prepare("UPDATE twitch_bot_access SET twitch_access_token = ? WHERE twitch_user_id = ?");
+            $stmt->bind_param("ss", $result['access_token'], $userId);
+            if ($stmt->execute()) {
+                echo json_encode([
+                    'success' => true,
+                    'new_token' => $result['access_token'],
+                    'expires_in' => $result['expires_in'] ?? 0
+                ]);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'Failed to update database.']);
+            }
+            $stmt->close();
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Invalid response from Twitch API.']);
+        }
+    } else {
+        $error = json_decode($response, true);
+        $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to renew token.';
+        echo json_encode(['success' => false, 'error' => $errorMsg]);
+    }
+    exit;
+}
+
 ob_start();
 ?>
 <div class="box">
@@ -223,18 +280,19 @@ ob_start();
         </thead>
         <tbody id="tokens-table-body">
             <?php
-            $sql = "SELECT tba.twitch_access_token, u.username FROM twitch_bot_access tba JOIN users u ON tba.twitch_user_id = u.twitch_user_id";
+            $sql = "SELECT tba.twitch_user_id, tba.twitch_access_token, u.username FROM twitch_bot_access tba JOIN users u ON tba.twitch_user_id = u.twitch_user_id";
             $result = $conn->query($sql);
             if ($result && $result->num_rows > 0) {
                 while ($row = $result->fetch_assoc()) {
+                    $userId = $row['twitch_user_id'];
                     $token = $row['twitch_access_token'];
                     $username = htmlspecialchars($row['username']);
                     $tokenId = md5($token); // Use hash for unique ID
-                    echo "<tr id='row-$tokenId' data-token='$token'>";
+                    echo "<tr id='row-$tokenId' data-token='$token' data-user-id='$userId'>";
                     echo "<td>$username</td>";
                     echo "<td id='status-$tokenId'>Not Validated</td>";
                     echo "<td id='expiry-$tokenId'>-</td>";
-                    echo "<td><button class='button is-small is-info' onclick='validateToken(\"$token\", \"$tokenId\")'>Validate</button></td>";
+                    echo "<td><button class='button is-small is-info' onclick='validateToken(\"$token\", \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewToken(\"$userId\", \"$tokenId\")'>Renew</button></td>";
                     echo "</tr>";
                 }
             } else {
@@ -427,7 +485,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function validateToken(token, tokenId) {
     const statusCell = document.getElementById(`status-${tokenId}`);
     const expiryCell = document.getElementById(`expiry-${tokenId}`);
-    const button = document.querySelector(`#row-${tokenId} button`);
+    const button = document.querySelector(`#row-${tokenId} button:first-child`);
     statusCell.textContent = 'Validating...';
     button.disabled = true;
     button.classList.add('is-loading');
@@ -480,6 +538,50 @@ function validateToken(token, tokenId) {
     .finally(() => {
         button.disabled = false;
         button.classList.remove('is-loading');
+    });
+}
+
+function renewToken(userId, tokenId) {
+    const statusCell = document.getElementById(`status-${tokenId}`);
+    const expiryCell = document.getElementById(`expiry-${tokenId}`);
+    const row = document.getElementById(`row-${tokenId}`);
+    const buttons = row.querySelectorAll('button');
+    buttons.forEach(btn => {
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+    });
+    statusCell.textContent = 'Renewing...';
+    const formData = new FormData();
+    formData.append('renew_token', '1');
+    formData.append('twitch_user_id', userId);
+    fetch('', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update the row's data-token
+            row.setAttribute('data-token', data.new_token);
+            statusCell.textContent = 'Renewed';
+            statusCell.className = 'has-text-warning';
+            expiryCell.textContent = '-';
+            // Optionally, auto-validate
+            setTimeout(() => validateToken(data.new_token, tokenId), 500);
+        } else {
+            statusCell.textContent = 'Renew Failed';
+            statusCell.className = 'has-text-danger';
+        }
+    })
+    .catch(error => {
+        statusCell.textContent = 'Error';
+        statusCell.className = 'has-text-danger';
+    })
+    .finally(() => {
+        buttons.forEach(btn => {
+            btn.disabled = false;
+            btn.classList.remove('is-loading');
+        });
     });
 }
 
