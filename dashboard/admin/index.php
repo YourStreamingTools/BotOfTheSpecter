@@ -616,7 +616,7 @@ ob_start();
         </div>
     </div>
 </div>
-<div class="box">
+<div class="box" id="bot-overview-container">
     <h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
     <p>Loading bot overview...</p>
 </div>
