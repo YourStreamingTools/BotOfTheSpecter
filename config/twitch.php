@@ -9,4 +9,5 @@ if ($use_backup) {
 }
 $redirectURI = 'https://dashboard.botofthespecter.com/login.php';
 $betaRedirectURI = 'https://beta.dashboard.botofthespecter.com/login.php';
+$oauth = "";
 ?>

@@ -259,6 +259,20 @@ ob_start();
     <div id="validation-content"></div>
 </div>
 <div class="box">
+    <h3 class="title is-5">Twitch Chat Token</h3>
+    <p class="mb-4">Status of the configured Twitch Chat OAuth token.</p>
+    <p><strong>Status:</strong> <span id="chat-status">Checking...</span></p>
+    <p><strong>Expires In:</strong> <span id="chat-expiry">-</span></p>
+    <div class="field">
+        <div class="control">
+            <button class="button is-info" id="validate-chat-btn">
+                <span class="icon"><i class="fas fa-check"></i></span>
+                <span>Validate Chat Token</span>
+            </button>
+        </div>
+    </div>
+</div>
+<div class="box">
     <h3 class="title is-5">View Existing Tokens</h3>
     <p class="mb-4">List of all stored Twitch App Access Tokens with their associated users.</p>
     <div class="field">
@@ -324,7 +338,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeModalFooter = document.getElementById('close-modal-footer');
     const validateAllBtn = document.getElementById('validate-all-btn');
     const renewInvalidBtn = document.getElementById('renew-invalid-btn');
+    const validateChatBtn = document.getElementById('validate-chat-btn');
     let invalidTokens = [];
+    const chatToken = "<?php echo addslashes($oauth); ?>";
     // Modal functionality
     learnMoreBtn.addEventListener('click', function() {
         infoModal.classList.add('is-active');
@@ -377,6 +393,14 @@ document.addEventListener('DOMContentLoaded', function() {
         renewInvalidBtn.disabled = true;
         renewInvalidBtn.classList.add('is-disabled');
     });
+    // Validate chat token
+    validateChatBtn.addEventListener('click', function() {
+        validateChatToken(chatToken);
+    });
+    // Auto-validate chat token on page load
+    if (chatToken) {
+        validateChatToken(chatToken);
+    }
     generateBtn.addEventListener('click', async function() {
         const clientId = document.getElementById('client-id').value.trim();
         const clientSecret = document.getElementById('client-secret').value.trim();
@@ -515,7 +539,64 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function validateToken(token, tokenId) {
+function validateChatToken(token) {
+    const statusCell = document.getElementById('chat-status');
+    const expiryCell = document.getElementById('chat-expiry');
+    const button = document.getElementById('validate-chat-btn');
+    statusCell.textContent = 'Validating...';
+    button.disabled = true;
+    button.classList.add('is-loading');
+    const formData = new FormData();
+    formData.append('validate_token', '1');
+    formData.append('access_token', token);
+    fetch('', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const val = data.validation;
+            const expiresIn = val.expires_in || 0;
+            const now = new Date();
+            const expiryDate = new Date(now.getTime() + expiresIn * 1000);
+            // Calculate time components
+            let remaining = expiresIn;
+            const months = Math.floor(remaining / (30 * 24 * 3600));
+            remaining %= (30 * 24 * 3600);
+            const days = Math.floor(remaining / (24 * 3600));
+            remaining %= (24 * 3600);
+            const hours = Math.floor(remaining / 3600);
+            remaining %= 3600;
+            const minutes = Math.floor(remaining / 60);
+            const seconds = remaining % 60;
+            // Build time string
+            let timeParts = [];
+            if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
+            if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
+            if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+            if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+            if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
+            const timeString = timeParts.join(', ') || '0 seconds';
+            statusCell.textContent = 'Valid';
+            statusCell.className = 'has-text-success';
+            expiryCell.textContent = timeString;
+        } else {
+            statusCell.textContent = 'Invalid';
+            statusCell.className = 'has-text-danger';
+            expiryCell.textContent = '-';
+        }
+    })
+    .catch(error => {
+        statusCell.textContent = 'Error';
+        statusCell.className = 'has-text-danger';
+        expiryCell.textContent = '-';
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+    });
+}
     const statusCell = document.getElementById(`status-${tokenId}`);
     const expiryCell = document.getElementById(`expiry-${tokenId}`);
     const button = document.querySelector(`#row-${tokenId} button:first-child`);
