@@ -88,32 +88,45 @@ if (isset($_GET['code'])) {
 }
 
 // Fetch Spotify Profile Information if linked
-$spotifySTMT = $conn->prepare("SELECT access_token FROM spotify_tokens WHERE user_id = ?");
+$spotifySTMT = $conn->prepare("SELECT access_token, has_access FROM spotify_tokens WHERE user_id = ?");
 $spotifySTMT->bind_param("i", $user_id);
 $spotifySTMT->execute();
 $spotifyResult = $spotifySTMT->get_result();
+$connectionStatus = 'not-connected'; // default
+$spotifyUserInfo = [];
 
 if ($spotifyResult->num_rows > 0) {
-    // User is already linked to Spotify
+    // User has a token entry
     $spotifyRow = $spotifyResult->fetch_assoc();
     $spotifyAccessToken = $spotifyRow['access_token'];
-    // Get Spotify profile data
-    $profileUrl = 'https://api.spotify.com/v1/me';
-    $profileOptions = [
-        'http' => [
-            'method' => 'GET',
-            'header' => "Authorization: Bearer $spotifyAccessToken",
-            'ignore_errors' => true
-        ]
-    ];
-    $profileResponse = file_get_contents($profileUrl, false, stream_context_create($profileOptions));
-    $spotifyUserInfo = json_decode($profileResponse, true);
-    if (!isset($spotifyUserInfo['id'])) {
-        $message = "Please follow the linking instructions above this error panel. (Error: User is not authorized.)";
-        $messageType = "is-danger";
-        // Set authorization URL to trigger reauthorization if profile data fetch fails
-        $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
-        $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
+    $hasAccess = $spotifyRow['has_access'];
+    if ($hasAccess == 1) {
+        // Has access, try to fetch profile
+        $profileUrl = 'https://api.spotify.com/v1/me';
+        $profileOptions = [
+            'http' => [
+                'method' => 'GET',
+                'header' => "Authorization: Bearer $spotifyAccessToken",
+                'ignore_errors' => true
+            ]
+        ];
+        $profileResponse = file_get_contents($profileUrl, false, stream_context_create($profileOptions));
+        $spotifyUserInfo = json_decode($profileResponse, true);
+        if (isset($spotifyUserInfo['id'])) {
+            $connectionStatus = 'connected';
+        } else {
+            $message = "Please follow the linking instructions above this error panel. (Error: User is not authorized.)";
+            $messageType = "is-danger";
+            // Set authorization URL to trigger reauthorization
+            $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+            $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
+            $connectionStatus = 'error';
+        }
+    } else {
+        // Pending approval
+        $message = "Your Spotify link is pending approval.";
+        $messageType = "is-warning";
+        $connectionStatus = 'pending';
     }
 } else {
     // User not linked, set authorization URL
@@ -139,11 +152,18 @@ ob_start();
                     <span class="icon mr-2"><i class="fab fa-spotify"></i></span>
                     <?php echo t('spotify_link_page_title'); ?>
                 </span>
-                <?php if (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?>
+                <?php if ($connectionStatus === 'connected'): ?>
                     <div class="card-header-icon">
                         <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
                             <span class="icon mr-1"><i class="fas fa-check-circle"></i></span>
                             <?php echo t('spotify_connected_title'); ?>
+                        </span>
+                    </div>
+                <?php elseif ($connectionStatus === 'pending'): ?>
+                    <div class="card-header-icon">
+                        <span class="tag is-warning is-medium" style="border-radius: 6px; font-weight: 600;">
+                            <span class="icon mr-1"><i class="fas fa-clock"></i></span>
+                            Pending Link
                         </span>
                     </div>
                 <?php else: ?>
@@ -170,37 +190,7 @@ ob_start();
                         <?php echo $message; ?>
                     </div>
                 <?php endif; ?>
-                <?php if (empty($spotifyUserInfo) || !isset($spotifyUserInfo['display_name'])): ?>
-                    <div class="has-text-centered">
-                        <div class="content has-text-white mb-5" style="margin: 0 auto;">
-                            <p><?php echo t('spotify_connect_instructions'); ?><br><?php echo t('spotify_connect_after_request'); ?></p>
-                            <div class="box has-background-grey-darker has-text-centered" style="max-width: 600px; margin: 0 auto; border-radius: 8px; border: 1px solid #363636;">
-                                <h4 class="title is-6 has-text-white mb-3">
-                                    <span class="icon mr-2 has-text-success"><i class="fas fa-music"></i></span>
-                                    Available Features:
-                                </h4>
-                                <ul class="has-text-left has-text-white">
-                                    <li class="mb-2"><?php echo t('spotify_feature_current_song'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!song</code></li>
-                                    <li class="mb-2"><?php echo t('spotify_feature_song_request'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest [song title] [artist]</code> (or <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!sr</code>)</li>
-                                    <li><?php echo t('spotify_feature_example'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest Stick Season Noah Kahan</code></li>
-                                </ul>
-                            </div>
-                            <p class="mt-4">
-                                <strong><?php
-                                    $accountsLinkedText = t('spotify_accounts_linked');
-                                    $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
-                                    echo $accountsLinkedText;
-                                ?></strong>
-                            </p>
-                        </div>
-                        <?php if ($authURL): ?>
-                            <a href="<?php echo $authURL; ?>" class="button is-success is-large" style="border-radius: 8px; font-weight: 600;">
-                                <span class="icon"><i class="fab fa-spotify"></i></span>
-                                <span><?php echo t('spotify_link_button'); ?></span>
-                            </a>
-                        <?php endif; ?>
-                    </div>
-                <?php else: ?>
+                <?php if ($connectionStatus === 'connected'): ?>
                     <div class="columns is-multiline is-variable is-6">
                         <div class="column is-12">
                             <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
@@ -242,6 +232,36 @@ ob_start();
                                 </div>
                             </div>
                         </div>
+                    </div>
+                <?php else: ?>
+                    <div class="has-text-centered">
+                        <div class="content has-text-white mb-5" style="margin: 0 auto;">
+                            <p><?php echo t('spotify_connect_instructions'); ?><br><?php echo t('spotify_connect_after_request'); ?></p>
+                            <div class="box has-background-grey-darker has-text-centered" style="max-width: 600px; margin: 0 auto; border-radius: 8px; border: 1px solid #363636;">
+                                <h4 class="title is-6 has-text-white mb-3">
+                                    <span class="icon mr-2 has-text-success"><i class="fas fa-music"></i></span>
+                                    Available Features:
+                                </h4>
+                                <ul class="has-text-left has-text-white">
+                                    <li class="mb-2"><?php echo t('spotify_feature_current_song'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!song</code></li>
+                                    <li class="mb-2"><?php echo t('spotify_feature_song_request'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest [song title] [artist]</code> (or <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!sr</code>)</li>
+                                    <li><?php echo t('spotify_feature_example'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest Stick Season Noah Kahan</code></li>
+                                </ul>
+                            </div>
+                            <p class="mt-4">
+                                <strong><?php
+                                    $accountsLinkedText = t('spotify_accounts_linked');
+                                    $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
+                                    echo $accountsLinkedText;
+                                ?></strong>
+                            </p>
+                        </div>
+                        <?php if ($authURL && $connectionStatus !== 'pending'): ?>
+                            <a href="<?php echo $authURL; ?>" class="button is-success is-large" style="border-radius: 8px; font-weight: 600;">
+                                <span class="icon"><i class="fab fa-spotify"></i></span>
+                                <span><?php echo t('spotify_link_button'); ?></span>
+                            </a>
+                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
             </div>
