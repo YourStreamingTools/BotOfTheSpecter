@@ -75,4 +75,13 @@ $logFile = $logDir . '/send_message_worker.log';
 $entry = date('c') . "\t" . ($http_code ?: '0') . "\t" . ($curl_errno ? $curl_error : 'OK') . "\t" . substr($message, 0, 200) . "\n";
 @file_put_contents($logFile, $entry, FILE_APPEND);
 
+// Output result as JSON for the calling process
+$result = [
+    'success' => $http_code === 204,
+    'http_code' => $http_code,
+    'error' => $curl_errno ? $curl_error : null,
+    'response' => $response
+];
+echo json_encode($result);
+
 exit(0);

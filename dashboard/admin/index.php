@@ -134,63 +134,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
     $message = trim($_POST['message']);
     $channel_id = $_POST['channel_id'];
     if (!empty($message) && !empty($channel_id)) {
-        // Queue message to a background worker to avoid blocking the UI.
+        // Execute message sending synchronously to get immediate feedback
         $payload = [
             'broadcaster_id' => $channel_id,
-            'sender_id' => '971436498',
+            'sender_id' => $sender_id,
             'message' => $message,
-            'twitch_bot_oauth' => $twitch_bot_oauth,
             'clientID' => $clientID
         ];
         $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $worker = __DIR__ . '/send_message_worker.php';
         // Use PHP binary if available, otherwise fallback to /usr/bin/php
         $phpBin = defined('PHP_BINARY') ? PHP_BINARY : '/usr/bin/php';
-        // Build safe command and run in background. Redirect output to null. This works on typical Linux servers.
-        $canExec = function_exists('exec') && function_exists('escapeshellarg');
+        // Build safe command and capture output
+        $canExec = function_exists('exec') && function_exists('escapeshellarg') && function_exists('shell_exec');
         if ($canExec) {
-            $cmd = $phpBin . ' ' . escapeshellarg($worker) . ' ' . escapeshellarg($json) . ' > /dev/null 2>&1 &';
-            @exec($cmd);
-            // Immediately return success to the user — the worker will handle the delivery.
-            $success_message = "Message queued for sending. It should appear in chat shortly.";
-        } else {
-            // Fallback: try to finish the HTTP response quickly (if running under FPM) and then do a short-timeout cURL.
-            if (function_exists('fastcgi_finish_request')) {
-                // send success to client
-                $success_message = "Message queued for sending. It should appear in chat shortly.";
-                // flush response
-                @fastcgi_finish_request();
-                // now perform the cURL with a short timeout so we don't block for long
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/chat/messages");
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $json = json_encode([
-                    'broadcaster_id' => $channel_id,
-                    'sender_id' => '971436498',
-                    'message' => $message
-                ]));
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer " . $twitch_bot_oauth, "Client-Id: " . $clientID, "Content-Type: application/json"]);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-                @curl_exec($ch);
-                @curl_close($ch);
+            $cmd = $phpBin . ' ' . escapeshellarg($worker) . ' ' . escapeshellarg($json) . ' 2>&1';
+            $output = shell_exec($cmd);
+            $result = json_decode($output, true);
+            if ($result && isset($result['success'])) {
+                if ($result['success']) {
+                    $success_message = "Message sent successfully! It should appear in chat shortly.";
+                } else {
+                    $error_message = "Failed to send message.";
+                    if ($result['http_code']) {
+                        $error_message .= " HTTP " . $result['http_code'];
+                    }
+                    if ($result['error']) {
+                        $error_message .= ": " . $result['error'];
+                    }
+                    if ($result['response']) {
+                        $response_data = json_decode($result['response'], true);
+                        if ($response_data && isset($response_data['message'])) {
+                            $error_message .= " - " . $response_data['message'];
+                        }
+                    }
+                }
             } else {
-                // Last resort: synchronous cURL with a short timeout so the page doesn't hang long.
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/chat/messages");
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                    'broadcaster_id' => $channel_id,
-                    'sender_id' => '971436498',
-                    'message' => $message
-                ]));
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer " . $twitch_bot_oauth, "Client-Id: " . $clientID, "Content-Type: application/json"]);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-                @curl_exec($ch);
-                @curl_close($ch);
-                $success_message = "Message queued for sending. It should appear in chat shortly.";
+                $error_message = "Failed to execute message worker or parse response.";
             }
+        } else {
+            $error_message = "Unable to execute PHP process. Message not sent.";
         }
     } else {
         $error_message = "Message and channel are required.";
@@ -696,13 +679,7 @@ ob_start();
     <div class="column is-half">
         <div class="box" style="height: 100%">
             <h2 class="title is-4"><span class="icon"><i class="fas fa-paper-plane"></i></span> Send Bot Message</h2>
-            <?php if (isset($success_message)): ?>
-                <div class="notification is-success"><?php echo htmlspecialchars($success_message); ?></div>
-            <?php endif; ?>
-            <?php if (isset($error_message)): ?>
-                <div class="notification is-danger"><?php echo htmlspecialchars($error_message); ?></div>
-            <?php endif; ?>
-            <form method="post">
+            <form id="send-message-form" method="post">
                 <div class="field">
                     <label class="label">Select Channel</label>
                     <div class="control">
@@ -742,6 +719,29 @@ $content = ob_get_clean();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Show toast notifications for messages
+    <?php if (isset($success_message)): ?>
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        icon: 'success',
+        title: <?php echo json_encode($success_message); ?>
+    });
+    <?php endif; ?>
+    <?php if (isset($error_message)): ?>
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 5000,
+        timerProgressBar: true,
+        icon: 'error',
+        title: <?php echo json_encode($error_message); ?>
+    });
+    <?php endif; ?>
     // Initialize user chart
     const ctx = document.getElementById('userChart');
     if (ctx) {
@@ -1298,6 +1298,83 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (channelSelect) {
         channelSelect.addEventListener('change', updateSendButtonState);
+    }
+    // Handle form submission via AJAX
+    const sendMessageForm = document.getElementById('send-message-form');
+    if (sendMessageForm) {
+        sendMessageForm.addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevent normal form submission
+            const formData = new FormData(this);
+            formData.append('send_message', '1');
+            const sendButton = document.getElementById('send');
+            const originalText = sendButton.innerHTML;
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Sending...</span>';
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Parse the response to check for success/error messages
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const successNotification = doc.querySelector('.notification.is-success');
+                const errorNotification = doc.querySelector('.notification.is-danger');
+                if (successNotification) {
+                    // Success - clear the textarea and show toast
+                    document.getElementById('message').value = '';
+                    updateSendButtonState(); // This will disable the send button since textarea is now empty
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000,
+                        timerProgressBar: true,
+                        icon: 'success',
+                        title: 'Message sent successfully! It should appear in chat shortly.'
+                    });
+                } else if (errorNotification) {
+                    // Error - show error toast
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 5000,
+                        timerProgressBar: true,
+                        icon: 'error',
+                        title: errorNotification.textContent.trim()
+                    });
+                } else {
+                    // Fallback error
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 5000,
+                        timerProgressBar: true,
+                        icon: 'error',
+                        title: 'Unknown error occurred while sending message.'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error sending message:', error);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 5000,
+                    timerProgressBar: true,
+                    icon: 'error',
+                    title: 'Network error: ' + error.message
+                });
+            })
+            .finally(() => {
+                sendButton.disabled = false;
+                sendButton.innerHTML = originalText;
+            });
+        });
     }
 });
 </script>
