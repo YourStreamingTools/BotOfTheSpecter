@@ -1,8 +1,11 @@
 {
-    "tts_model": "tts_models/en/ljspeech/tacotron2-DDC",
-    "voice_processing": {
-        "pitch_shift": -3,
-        "speed_adjustment": 0.95
+    "tts_model": "gpt-4o-mini-tts",
+    "default_voice": "alloy",
+    "available_voices": ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"],
+    "audio_settings": {
+        "sample_rate": 24000,
+        "format": "mp3",
+        "response_format": "mp3"
     },
     "ssh_config": {
         "hostname": "your-server.com",
@@ -14,9 +17,5 @@
     "remote_paths": {
         "tts_directory": "/var/www/tts/",
         "temp_directory": "/tmp/tts/"
-    },
-    "audio_settings": {
-        "sample_rate": 22050,
-        "format": "mp3"
     }
 }

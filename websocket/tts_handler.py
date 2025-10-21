@@ -5,11 +5,12 @@ import asyncio
 import subprocess
 import aiohttp
 from pathlib import Path
+from openai import AsyncOpenAI
 
-# Vultr TTS API Configuration
-API_URL = "https://api.vultrinference.com/v1/audio/speech"
-MODEL_NAME = "xtts"
-VOICE_NAME = "Abrahan Mack"
+# OpenAI TTS API Configuration
+MODEL_NAME = "gpt-4o-mini-tts"
+DEFAULT_VOICE = "alloy"
+AVAILABLE_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"]
 
 class TTSHandler:
     def __init__(self, logger, ssh_manager, sio=None, get_clients=None):
@@ -21,10 +22,10 @@ class TTSHandler:
         self.tts_config = self.load_tts_config()
         self.tts_queue = asyncio.Queue()
         self.processing_task = None
-        self.vultr_api_key = os.getenv('VULTR_API_KEY')
-        self.api_url = API_URL
+        self.openai_client = AsyncOpenAI(api_key=os.getenv('OPENAI_KEY'))
         self.model_name = MODEL_NAME
-        self.default_voice = VOICE_NAME
+        self.default_voice = DEFAULT_VOICE
+        self.available_voices = AVAILABLE_VOICES
 
     def load_tts_config(self):
         config_path = "/home/botofthespecter/websocket_tts_config.json"
@@ -38,25 +39,7 @@ class TTSHandler:
             return None
 
     async def get_available_voices(self):
-        if not self.vultr_api_key:
-            self.logger.error("VULTR_API_KEY not set")
-            return []
-        voices_url = self.api_url.replace("/speech", "/voices")
-        headers = {"Authorization": f"Bearer {self.vultr_api_key}"}
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(voices_url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        voices = data.get('voices', [])
-                        self.logger.info(f"Fetched {len(voices)} voices from Vultr API")
-                        return voices
-                    else:
-                        self.logger.error(f"Failed to fetch voices: {response.status} - {await response.text()}")
-                        return []
-        except Exception as e:
-            self.logger.error(f"Error fetching voices: {e}")
-            return []
+        return self.available_voices
 
     async def start_processing(self):
         if not self.processing_task:
@@ -162,7 +145,7 @@ class TTSHandler:
 
     async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
         self.logger.info(f"Processing TTS request for code {code} with text: {text}")
-        # Generate TTS using Vultr API
+        # Generate TTS using OpenAI API
         audio_file = await self.generate_api_tts(text, code, voice_name)
         if audio_file is None:
             self.logger.error(f"Failed to generate TTS audio for code {code}")
@@ -189,63 +172,35 @@ class TTSHandler:
             self.logger.error(f"Error cleaning up TTS file: {e}")
 
     async def generate_api_tts(self, text, code, voice_name=None):
-        if not self.vultr_api_key:
-            self.logger.error("VULTR_API_KEY not set")
+        if not self.openai_client.api_key:
+            self.logger.error("OPENAI_API_KEY not set")
             return None
-        # Validate text length (max 2000 characters)
-        if len(text) > 2000:
-            self.logger.error(f"Text too long: {len(text)} characters (max 2000)")
+        # Validate text length (OpenAI limit is 4096 characters)
+        if len(text) > 4096:
+            self.logger.error(f"Text too long: {len(text)} characters (max 4096)")
             return None
-        if not voice_name:
-            voice_name = self.default_voice  # Use configured default voice
+        # Validate voice
+        if not voice_name or voice_name not in self.available_voices:
+            voice_name = self.default_voice
+            self.logger.info(f"Using default voice: {voice_name}")
         unique_id = uuid.uuid4().hex[:8]
         filename = f'tts_output_{code}_{unique_id}.mp3'
         filepath = os.path.join(self.tts_dir, filename)
-        url = self.api_url
-        headers = {
-            "Authorization": f"Bearer {self.vultr_api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": self.model_name,
-            "input": text,
-            "voice": voice_name
-        }
-        base_delay = 1.0  # Start with 1 second delay
-        attempt = 0
-        while True:
-            attempt += 1
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(url, headers=headers, json=payload) as response:
-                        if response.status == 200:
-                            # Save the audio content to file
-                            with open(filepath, 'wb') as f:
-                                f.write(await response.read())
-                            self.logger.info(f"TTS audio generated and saved: {filepath}")
-                            return filepath
-                        elif response.status == 500:
-                            # Server error - retry endlessly
-                            error_text = await response.text()
-                            self.logger.warning(f"TTS API request failed (attempt {attempt}): {response.status} - {error_text}")
-                            delay = min(base_delay * (2 ** (attempt - 1)), 60.0)  # Exponential backoff, max 60 seconds
-                            self.logger.info(f"Retrying in {delay} seconds...")
-                            await asyncio.sleep(delay)
-                            continue
-                        else:
-                            # Other error - don't retry
-                            error_text = await response.text()
-                            self.logger.error(f"TTS API request failed (non-retryable): {response.status} - {error_text}")
-                            return None
-            except Exception as e:
-                self.logger.error(f"Error generating TTS via API (attempt {attempt}): {e}")
-                delay = min(base_delay * (2 ** (attempt - 1)), 60.0)  # Exponential backoff, max 60 seconds
-                self.logger.info(f"Retrying in {delay} seconds...")
-                await asyncio.sleep(delay)
-                continue
-        # This should never be reached, but just in case
-        self.logger.error(f"TTS generation failed after {attempt} attempts")
-        return None
+        try:
+            # Use OpenAI's streaming response for better performance
+            async with self.openai_client.audio.speech.with_streaming_response.create(
+                model=self.model_name,
+                voice=voice_name,
+                input=text,
+                response_format="mp3"
+            ) as response:
+                # Stream the response directly to file
+                response.stream_to_file(filepath)
+            self.logger.info(f"TTS audio generated and saved: {filepath}")
+            return filepath
+        except Exception as e:
+            self.logger.error(f"Error generating TTS via OpenAI API: {e}")
+            return None
 
     def estimate_audio_duration(self, audio_file, text):
         try:
