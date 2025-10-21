@@ -86,3 +86,11 @@ Data flows from Twitch events → bot processing → API storage → dashboard/a
 - SSH connections for server management (use `paramiko`)
 - Environment variables for all secrets
 - Input sanitization for custom commands and user messages
+
+## AI Assistant Guidelines
+
+- Never make notes outside of the code base
+- Never make MD note files unless asked to
+- Always think before answering
+- Always read the file before making any helpful changes
+- Be aware of any imports for Python files before adding imports, ensure that we don't already have it covered
