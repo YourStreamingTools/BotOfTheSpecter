@@ -267,6 +267,10 @@ ob_start();
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>Validate All Tokens</span>
             </button>
+            <button class="button is-danger" id="renew-invalid-btn" style="display:none; margin-left: 10px;">
+                <span class="icon"><i class="fas fa-refresh"></i></span>
+                <span>Renew Invalid Tokens</span>
+            </button>
         </div>
     </div>
     <table class="table is-fullwidth">
@@ -319,6 +323,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeModal = document.getElementById('close-modal');
     const closeModalFooter = document.getElementById('close-modal-footer');
     const validateAllBtn = document.getElementById('validate-all-btn');
+    const renewInvalidBtn = document.getElementById('renew-invalid-btn');
+    let invalidTokens = [];
     // Modal functionality
     learnMoreBtn.addEventListener('click', function() {
         infoModal.classList.add('is-active');
@@ -338,11 +344,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // Validate all tokens
     validateAllBtn.addEventListener('click', function() {
         const rows = document.querySelectorAll('#tokens-table-body tr[data-token]');
-        rows.forEach(row => {
+        invalidTokens = [];
+        renewInvalidBtn.style.display = 'none';
+        const promises = Array.from(rows).map(row => {
             const token = row.getAttribute('data-token');
             const tokenId = row.id.replace('row-', '');
-            validateToken(token, tokenId);
+            return validateToken(token, tokenId);
         });
+        Promise.all(promises).then(() => {
+            rows.forEach(row => {
+                const tokenId = row.id.replace('row-', '');
+                const status = document.getElementById(`status-${tokenId}`).textContent;
+                if (status === 'Invalid') {
+                    invalidTokens.push(row.getAttribute('data-user-id'));
+                }
+            });
+            if (invalidTokens.length > 0) {
+                renewInvalidBtn.style.display = 'inline-block';
+            }
+        });
+    });
+    // Renew invalid tokens
+    renewInvalidBtn.addEventListener('click', function() {
+        invalidTokens.forEach(userId => {
+            const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+            const tokenId = row.id.replace('row-', '');
+            renewToken(userId, tokenId);
+        });
+        invalidTokens = [];
+        renewInvalidBtn.style.display = 'none';
     });
     generateBtn.addEventListener('click', async function() {
         const clientId = document.getElementById('client-id').value.trim();
@@ -492,7 +522,7 @@ function validateToken(token, tokenId) {
     const formData = new FormData();
     formData.append('validate_token', '1');
     formData.append('access_token', token);
-    fetch('', {
+    return fetch('', {
         method: 'POST',
         body: formData
     })
@@ -529,11 +559,13 @@ function validateToken(token, tokenId) {
             statusCell.className = 'has-text-danger';
             expiryCell.textContent = '-';
         }
+        return data;
     })
     .catch(error => {
         statusCell.textContent = 'Error';
         statusCell.className = 'has-text-danger';
         expiryCell.textContent = '-';
+        return { success: false };
     })
     .finally(() => {
         button.disabled = false;
