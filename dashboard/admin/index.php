@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $action = $_POST['action'];
     $service = $_POST['service'];
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'fastapi.service', 'websocket.service'];
+    $allowedServices = ['discordbot.service', 'fastapi.service', 'websocket.service', 'mysql.service'];
     if (in_array($service, $allowedServices)) {
         try {
             // Determine which server credentials to use based on service
@@ -28,6 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_host = $websocket_server_host;
                 $ssh_username = $websocket_server_username;
                 $ssh_password = $websocket_server_password;
+            } elseif ($service == 'mysql.service') {
+                $ssh_host = $sql_server_host;
+                $ssh_username = $sql_server_username;
+                $ssh_password = $sql_server_password;
             }
             $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
             if ($connection) {
@@ -316,6 +320,7 @@ function getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password) {
 $discord_status = ['status' => 'Loading...', 'pid' => '...'];
 $api_status = ['status' => 'Loading...', 'pid' => '...'];
 $websocket_status = ['status' => 'Loading...', 'pid' => '...'];
+$mysql_status = ['status' => 'Loading...', 'pid' => '...'];
 
 // Fetch user statistics for pie chart
 $total_users = 0;
@@ -379,7 +384,7 @@ ob_start();
     <h2 class="title is-4"><span class="icon"><i class="fas fa-server"></i></span> Server Overview</h2>
     <div class="columns is-multiline">
         <!-- Discord Bot Service -->
-        <div class="column is-one-third">
+        <div class="column is-one-quarter">
             <div class="box">
                 <div class="level">
                     <div class="level-left">
@@ -415,7 +420,7 @@ ob_start();
             </div>
         </div>
         <!-- API Server Service -->
-        <div class="column is-one-third">
+        <div class="column is-one-quarter">
             <div class="box">
                 <div class="level">
                     <div class="level-left">
@@ -451,7 +456,7 @@ ob_start();
             </div>
         </div>
         <!-- WebSocket Server Service -->
-        <div class="column is-one-third">
+        <div class="column is-one-quarter">
             <div class="box">
                 <div class="level">
                     <div class="level-left">
@@ -481,6 +486,42 @@ ob_start();
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
                     <button type="button" class="button is-warning" onclick="controlService('websocket.service', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- MySQL Server Service -->
+        <div class="column is-one-quarter">
+            <div class="box">
+                <div class="level">
+                    <div class="level-left">
+                        <div class="level-item">
+                            <span class="icon has-text-warning">
+                                <i class="fas fa-database fa-lg"></i>
+                            </span>
+                        </div>
+                        <div class="level-item">
+                            <div>
+                                <p class="heading">MySQL Server</p>
+                                <p class="title is-6 has-text-info" id="mysql-status">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="level-right">
+                        <div class="level-item">
+                            <span class="tag is-light has-text-black" id="mysql-pid">PID: ...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="buttons are-small" id="mysql-buttons">
+                    <button type="button" class="button is-success" onclick="controlService('mysql.service', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="button is-danger" onclick="controlService('mysql.service', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="button is-warning" onclick="controlService('mysql.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
@@ -601,7 +642,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Function to control service
     window.controlService = function(service, action) {
-        const buttonsElementId = service === 'discordbot.service' ? 'discord-buttons' : service === 'fastapi.service' ? 'api-buttons' : 'websocket-buttons';
+        const buttonsElementId = service === 'discordbot.service' ? 'discord-buttons' : service === 'fastapi.service' ? 'api-buttons' : service === 'mysql.service' ? 'mysql-buttons' : 'websocket-buttons';
         const buttonsElement = document.getElementById(buttonsElementId);
         const buttons = buttonsElement.querySelectorAll('button');
         buttons.forEach(btn => btn.disabled = true);
@@ -617,10 +658,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 // Update status after a short delay to allow service to change state
                 setTimeout(() => {
-                    const statusService = service === 'fastapi.service' ? 'fastapi' : service === 'websocket.service' ? 'websocket' : 'discordbot';
-                    const statusElementId = service === 'fastapi.service' ? 'api-status' : service === 'websocket.service' ? 'websocket-status' : 'discord-status';
-                    const pidElementId = service === 'fastapi.service' ? 'api-pid' : service === 'websocket.service' ? 'websocket-pid' : 'discord-pid';
-                    const buttonsElementId = service === 'fastapi.service' ? 'api-buttons' : service === 'websocket.service' ? 'websocket-buttons' : 'discord-buttons';
+                    const statusService = service === 'fastapi.service' ? 'fastapi' : service === 'websocket.service' ? 'websocket' : service === 'mysql.service' ? 'mysql' : 'discordbot';
+                    const statusElementId = service === 'fastapi.service' ? 'api-status' : service === 'websocket.service' ? 'websocket-status' : service === 'mysql.service' ? 'mysql-status' : 'discord-status';
+                    const pidElementId = service === 'fastapi.service' ? 'api-pid' : service === 'websocket.service' ? 'websocket-pid' : service === 'mysql.service' ? 'mysql-pid' : 'discord-pid';
+                    const buttonsElementId = service === 'fastapi.service' ? 'api-buttons' : service === 'websocket.service' ? 'websocket-buttons' : service === 'mysql.service' ? 'mysql-buttons' : 'discord-buttons';
                     updateServiceStatus(statusService, statusElementId, pidElementId, buttonsElementId);
                 }, 2000);
             } else {
@@ -713,6 +754,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('discordbot', 'discord-status', 'discord-pid', 'discord-buttons');
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
+        updateServiceStatus('mysql', 'mysql-status', 'mysql-pid', 'mysql-buttons');
     }, 100);
     // Utility to create safe DOM ids from channel names
     function sanitizeId(str) {
@@ -789,7 +831,6 @@ document.addEventListener('DOMContentLoaded', function() {
         html += '<button type="button" class="button is-danger is-small bot-stop-button" data-pid="' + bot.pid + '">';
         html += '<span class="icon"><i class="fas fa-stop"></i></span>';
         html += '</button>';
-        html += '</div>';
         html += '</div>';
         html += '</div>';
         html += '</div>';
