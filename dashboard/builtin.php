@@ -64,14 +64,18 @@ $permissionsMap = [
 $jsonText = file_get_contents(__DIR__ . '../../api/builtin_commands.json');
 $cmdData = json_decode($jsonText, true)['commands'];
 
-// Parse command data for descriptions and force levels
+// Parse command data for descriptions, force levels, and aliases
 $cmdDescriptions = [];
 $cmdForceLevels = [];
+$cmdAliases = [];
 foreach ($cmdData as $cmdKey => $cmdInfo) {
     if (is_array($cmdInfo)) {
         $cmdDescriptions[$cmdKey] = $cmdInfo['description'] ?? t('builtin_commands_no_description');
         if (isset($cmdInfo['force_level'])) {
             $cmdForceLevels[$cmdKey] = $cmdInfo['force_level'];
+        }
+        if (isset($cmdInfo['aliases'])) {
+            $cmdAliases[$cmdKey] = $cmdInfo['aliases'];
         }
     } else {
         // Backwards compatibility for old string format
@@ -254,10 +258,14 @@ ob_start();
                             $desc = isset($cmdDescriptions[$cmdKey]) ? $cmdDescriptions[$cmdKey] : t('builtin_commands_no_description');
                             $hasForceLevel = isset($cmdForceLevels[$cmdKey]);
                             $forceLevel = $hasForceLevel ? $cmdForceLevels[$cmdKey] : null;
+                            $aliases = isset($cmdAliases[$cmdKey]) ? $cmdAliases[$cmdKey] : [];
+                            $tooltipText = !empty($aliases) ? 'Aliases: !' . implode(', !', $aliases) : '';
                         ?>
                         <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
                             <td class="has-text-centered has-text-weight-semibold has-text-info" style="vertical-align: middle;">
-                                !<?php echo htmlspecialchars($command['command']); ?>
+                                <span <?php echo !empty($tooltipText) ? 'title="' . htmlspecialchars($tooltipText) . '" style="cursor: help; position: relative;"' : ''; ?>>
+                                    !<?php echo htmlspecialchars($command['command']); ?>
+                                </span>
                             </td>
                             <td style="vertical-align: middle;"><?php echo htmlspecialchars($desc); ?></td>
                             <td>
