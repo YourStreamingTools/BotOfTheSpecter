@@ -1,7 +1,8 @@
 {
 	"commands": {
 		"commands": {
-			"description": "This command will list all available commands in the chat bot."
+			"description": "This command will list all available commands in the chat bot.",
+			"aliases": ["cmds"]
 		},
 		"bot": {
 			"description": "This command will display information about who the developer is and a website link."
@@ -22,13 +23,15 @@
 			"description": "This command will kick off a playful game of roulette in chat."
 		},
 		"songrequest": {
-			"description": "This command will allow users to request songs for my Spotify queue (if your account is linked)."
+			"description": "This command will allow users to request songs for my Spotify queue (if your account is linked).",
+			"aliases": ["sr"]
 		},
 		"songqueue": {
 			"description": "This command will show the current Spotify song request queue (if your account is linked)."
 		},
 		"skipsong": {
-			"description": "This command allows users to skip the currently playing song in the queue."
+			"description": "This command allows users to skip the currently playing song in the queue.",
+			"aliases": ["skip"]
 		},
 		"watchtime": {
 			"description": "This command will reveal how long you have been watching the stream."
@@ -110,7 +113,8 @@
 			"description": "This command will notify that you are currently lurking."
 		},
 		"lurklead": {
-			"description": "This command will show the top most lurked user in your channel."
+			"description": "This command will show the top most lurked user in your channel.",
+			"aliases": ["lurkleader"]
 		},
 		"userslurking": {
 			"description": "This command will show a count of users that are currently marked as lurking."
@@ -119,7 +123,8 @@
 			"description": "This command will create a clip of the current stream action."
 		},
 		"subscription": {
-			"description": "This command will display what subscription tier you are at."
+			"description": "This command will display what subscription tier you are at.",
+			"aliases": ["mysub"]
 		},
 		"hug": {
 			"description": "This command will send a virtual hug to a mentioned user."
@@ -137,7 +142,8 @@
 			"description": "This command will count how many typing errors a mentioned user has done."
 		},
 		"typos": {
-			"description": "This command will show a count of the number chat typos a mentioned user has made."
+			"description": "This command will show a count of the number chat typos a mentioned user has made.",
+			"aliases": ["typocount"]
 		},
 		"followage": {
 			"description": "This command will show how long you have followed the channel."
@@ -158,7 +164,8 @@
 			"description": "This command will edit an existing custom command."
 		},
 		"removetypos": {
-			"description": "This command will remove a type from a mentioned user."
+			"description": "This command will remove a type from a mentioned user.",
+			"aliases": ["removetypo"]
 		},
 		"addpoints": {
 			"description": "This command will award points to a mentioned user."
@@ -182,16 +189,20 @@
 			"description": "This command will update the stream's game category."
 		},
 		"edittypos": {
-			"description": "This command will edit the recorded typos for the mentioned user."
+			"description": "This command will edit the recorded typos for the mentioned user.",
+			"aliases": ["edittypo"]
 		},
 		"deathadd": {
-			"description": "This command will increase the death count when you die in-game."
+			"description": "This command will increase the death count when you die in-game.",
+			"aliases": ["death+"]
 		},
 		"deathremove": {
-			"description": "This command will decrease the death count to correct errors."
+			"description": "This command will decrease the death count to correct errors.",
+			"aliases": ["death-"]
 		},
 		"shoutout": {
-			"description": "This command will give a shoutout to a notable user."
+			"description": "This command will give a shoutout to a notable user.",
+			"aliases": ["so"]
 		},
 		"marker": {
 			"description": "This command will set a marker in the stream for highlights."
