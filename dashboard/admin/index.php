@@ -854,7 +854,7 @@ document.addEventListener('DOMContentLoaded', function() {
             button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Refreshing...</span>';
         }
         // Create modal with an output container
-        let outputHtml = '<div style="text-align:left; max-height:300px; overflow:auto; white-space:pre-wrap; font-family: monospace;" id="stream-output">Connecting...\n</div>';
+        let outputHtml = '<div style="text-align:left; max-height:500px; overflow:auto; white-space:pre-wrap; font-family: monospace;" id="stream-output">Connecting...\n</div>';
         Swal.fire({
             title: serviceName + ' - Live Output',
             html: outputHtml,
