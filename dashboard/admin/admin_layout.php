@@ -271,69 +271,6 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
         </div>
     </div>
     <?php endif; endif; ?>
-    <!-- Top Navigation Bar (Mobile/Tablet Only - Hidden on Desktop) -->
-    <nav class="navbar is-dark top-navbar mobile-only" id="topNavbar" role="navigation" aria-label="main navigation">
-        <div class="navbar-brand">
-            <a class="navbar-item" href="/admin">
-                <img src="https://cdn.botofthespecter.com/logo.png" width="28" height="28" alt="BotOfTheSpecter Logo">
-                <strong class="ml-2">Admin Panel</strong>
-            </a>
-            <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMain">
-                <span aria-hidden="true"></span>
-                <span aria-hidden="true"></span>
-                <span aria-hidden="true"></span>
-            </a>
-        </div>
-        <div id="navbarMain" class="navbar-menu">
-            <div class="navbar-start">
-                <a class="navbar-item <?php echo $active_menu == 'dashboard' ? 'is-active' : ''; ?>" href="/admin">
-                    <span class="icon"><i class="fas fa-tachometer-alt"></i></span>
-                    <span>Dashboard</span>
-                </a>
-                <a class="navbar-item <?php echo $active_menu == 'users' ? 'is-active' : ''; ?>" href="admin_users.php">
-                    <span class="icon"><i class="fas fa-users-cog"></i></span>
-                    <span>User Management</span>
-                </a>
-                <a class="navbar-item <?php echo $active_menu == 'logs' ? 'is-active' : ''; ?>" href="admin_logs.php">
-                    <span class="icon"><i class="fas fa-clipboard-list"></i></span>
-                    <span>Log Management</span>
-                </a>
-                <a class="navbar-item <?php echo $active_menu == 'twitch' ? 'is-active' : ''; ?>" href="admin_twitch_tokens.php">
-                    <span class="icon"><i class="fab fa-twitch"></i></span>
-                    <span>Twitch Tokens</span>
-                </a>
-                <a class="navbar-item <?php echo $active_menu == 'discord' ? 'is-active' : ''; ?>" href="admin_discord_tracking.php">
-                    <span class="icon"><i class="fab fa-discord"></i></span>
-                    <span>Discord Tracking</span>
-                </a>
-                <a class="navbar-item <?php echo $active_menu == 'websocket' ? 'is-active' : ''; ?>" href="admin_websocket_clients.php">
-                    <span class="icon"><i class="fas fa-plug"></i></span>
-                    <span>Websocket Clients</span>
-                </a>
-                <a class="navbar-item <?php echo $active_menu == 'terminal' ? 'is-active' : ''; ?>" href="admin_terminal.php">
-                    <span class="icon"><i class="fas fa-terminal"></i></span>
-                    <span>Web Terminal</span>
-                </a>
-            </div>
-            <div class="navbar-end">
-                <div class="navbar-item has-dropdown is-hoverable">
-                    <a class="navbar-link">
-                        <span><?php echo isset($_SESSION['username']) ? $_SESSION['username'] : 'Admin'; ?></span>
-                    </a>
-                    <div class="navbar-dropdown is-right">
-                        <a class="navbar-item" href="../bot.php">
-                            <span class="icon"><i class="fas fa-id-card"></i></span>
-                            <span>Back to Bot</span>
-                        </a>
-                        <a class="navbar-item" href="../logout.php">
-                            <span class="icon"><i class="fas fa-sign-out-alt"></i></span>
-                            <span>Log Out</span>
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </nav>
     <!-- Main content wrapper -->
     <div class="page-content">
         <div class="columns" style="flex: 1 0 auto;">
