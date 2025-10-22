@@ -15,7 +15,6 @@ import json
 import aiomysql
 import shutil
 import subprocess
-import ipaddress
 
 # Import our modular components
 from music_handler import MusicHandler
@@ -430,9 +429,6 @@ class BotOfTheSpecter_WebsocketServer:
         return count
 
     def get_code_by_sid(self, sid):
-        """
-        Get the channel code for a given SID
-        """
         for code, clients in self.registered_clients.items():
             for client in clients:
                 if client['sid'] == sid:
@@ -456,7 +452,15 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info(f"Notify request data: {data}")
         event = event.upper().replace(" ", "_")
         count = 0
-        if event == "TTS" and text:
+        if event == "TWITCH_FOLLOW":
+            await self.broadcast_event_with_globals(event, data, code)
+        elif event == "TWITCH_CHEER":
+            await self.broadcast_event_with_globals(event, data, code)
+        elif event == "TWITCH_RAID":
+            await self.broadcast_event_with_globals(event, data, code)
+        elif event == "TWITCH_SUB":
+            await self.broadcast_event_with_globals(event, data, code)
+        elif event == "TTS" and text:
             # Add TTS request to queue with additional parameters
             await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name)
             self.logger.info(f"TTS request added to queue: {text}")
@@ -496,11 +500,9 @@ class BotOfTheSpecter_WebsocketServer:
         admin_key = request.query.get("admin_key")
         if not admin_key or admin_key != self.admin_code:
             raise web.HTTPForbidden(text="403 Forbidden: Invalid or missing admin key")
-        
         # Broadcast SYSTEM_UPDATE event to all clients
         count = await self.broadcast_event_with_globals("SYSTEM_UPDATE", {}, None)
         self.logger.info(f"System update triggered, broadcasted to {count} clients")
-        
         return web.json_response({"success": 1, "count": count, "msg": f"System update notification sent to {count} clients"})
 
     async def admin_disconnect_client(self, request):
@@ -577,91 +579,6 @@ class BotOfTheSpecter_WebsocketServer:
             return
         await self.sio.emit(event, data, sid)
 
-    async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
-        # Generate the TTS audio using local TTS script
-        self.logger.info(f"Processing TTS request for code {code} with text: {text}")
-        # Generate TTS using the local script in its own environment
-        audio_file = await self.generate_local_tts(text, code, voice_name)
-        if audio_file is None:
-            self.logger.error(f"Failed to generate speech for text: {text}")
-            return
-        try:
-            # Attempt to transfer the file via SFTP
-            await self.sftp_transfer(audio_file)
-            self.logger.info(f'File "{audio_file}" successfully transferred to SFTP server.')
-            # Emit the TTS event only if the file was successfully transferred
-            sids = self.registered_clients.get(code, [])
-            if sids:
-                self.logger.info(f"Emitting TTS event to clients with code {code}")
-                for sid in sids:
-                    self.logger.info(f"Emitting TTS event to SID {sid}")
-                    try:
-                        if sid and isinstance(sid, dict) and 'sid' in sid:
-                            await self.sio.emit("TTS", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=sid['sid'])
-                        else:
-                            self.logger.error(f"Invalid SID structure for code {code}: {sid}")
-                    except KeyError as e:
-                        self.logger.error(f"KeyError while emitting TTS event: {e}")
-            else:
-                self.logger.error(f"No clients found with code {code}. Unable to emit TTS event.")
-        except Exception as e:
-            self.logger.error(f'Failed to transfer file "{audio_file}" via SFTP: {e}')
-            return 
-        # Estimate the duration of the audio and wait for it to finish
-        duration = self.estimate_audio_duration(audio_file, text)
-        self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
-        await asyncio.sleep(duration + 5)
-        # After playback, delete the TTS file from the SFTP server
-        try:
-            await self.sftp_delete(audio_file)
-            self.logger.info(f'Audio file "{audio_file}" successfully deleted from SFTP server.')
-        except Exception as e:
-            self.logger.error(f'Failed to delete audio file "{audio_file}" from SFTP server: {e}')
-
-    async def sftp_transfer(self, local_file_path):
-        # Set up the SFTP connection details from .env file
-        hostname = "web1.botofthespecter.com"
-        username = os.getenv("SFTP_USERNAME")
-        password = os.getenv("SFTP_PASSWORD")
-        remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
-        try:
-            # Establish an SFTP session
-            transport = paramiko.Transport((hostname, 22))
-            transport.connect(username=username, password=password)
-            sftp = paramiko.SFTPClient.from_transport(transport)
-            # Upload the file
-            sftp.put(local_file_path, remote_file_path)
-            self.logger.info(f"File {local_file_path} transferred to {remote_file_path} on webserver {hostname}")
-            # Close the SFTP session
-            sftp.close()
-            transport.close()
-        except Exception as e:
-            self.logger.error(f"Failed to transfer file via SFTP: {e}")
-
-    async def sftp_delete(self, local_file_path):
-        # Set up the SFTP connection details from .env file
-        hostname = "web1.botofthespecter.com"
-        username = os.getenv("SFTP_USERNAME")
-        password = os.getenv("SFTP_PASSWORD")
-        remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
-        try:
-            # Establish an SFTP session
-            transport = paramiko.Transport((hostname, 22))
-            transport.connect(username=username, password=password)
-            sftp = paramiko.SFTPClient.from_transport(transport)
-            # Delete the file
-            sftp.remove(remote_file_path)
-            self.logger.info(f"File {remote_file_path} deleted from webserver {hostname}")
-            # Close the SFTP session
-            sftp.close()
-            transport.close()
-        except Exception as e:
-            self.logger.error(f"Failed to delete file via SFTP: {e}")
-
-    def estimate_duration(self, response):
-        # Calculate the duration based on the audio content length and bitrate
-        return len(response.audio_content) / 64000 # Duration in seconds for 64kbps MP3
-
     async def walkon(self, sid, data):
         # Redirect to event handler for proper global broadcasting
         return await self.event_handler.handle_walkon(sid, data)
@@ -689,27 +606,6 @@ class BotOfTheSpecter_WebsocketServer:
     async def deaths(self, sid, data):
         # Redirect to event handler for proper global broadcasting
         return await self.event_handler.handle_deaths(sid, data)
-
-    async def tts(self, sid, data):
-        # Log the incoming TTS request
-        self.logger.info(f"TTS event from SID [{sid}]: {data}")
-        # Get the registration code for this SID
-        code = self.get_code_by_sid(sid)
-        if not code:
-            self.logger.error(f"No registration code found for SID [{sid}]")
-            return
-        # Extract required and optional parameters from the data
-        text = data.get("text")
-        language_code = data.get("language_code", None)
-        gender = data.get("gender", None)
-        voice_name = data.get("voice_name", None)
-        if text:
-            # Add the TTS request to the queue with all parameters
-            await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name)
-            self.logger.info(f"TTS request added to queue from SID [{sid}] with code [{code}]: {text}")
-        else:
-            # Log an error if no text was provided
-            self.logger.error(f"No text provided in TTS event from SID [{sid}]")
 
     async def twitch_follow(self, sid, data):
         # Redirect to event handler for proper global broadcasting
