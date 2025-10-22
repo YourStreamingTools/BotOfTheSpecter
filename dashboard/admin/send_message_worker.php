@@ -17,16 +17,26 @@ if (php_sapi_name() !== 'cli') {
         http_response_code(403);
         exit('Unauthorized - Admin access required');
     }
+    // Handle POST request with payload
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['payload'])) {
+        $raw = $_POST['payload'];
+    } else {
+        exit(0);
+    }
+} else {
+    if ($argc < 2) {
+        // Nothing to do
+        exit(0);
+    }
+    $raw = $argv[1];
 }
 
-if ($argc < 2) {
-    // Nothing to do
-    exit(0);
-}
-
-$raw = $argv[1];
 $payload = json_decode($raw, true);
 if (!$payload) {
+    if (php_sapi_name() !== 'cli') {
+        http_response_code(400);
+        exit('Invalid payload');
+    }
     exit(0);
 }
 

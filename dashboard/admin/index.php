@@ -145,11 +145,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
         $worker = __DIR__ . '/send_message_worker.php';
         // Use PHP binary if available, otherwise fallback to /usr/bin/php
         $phpBin = defined('PHP_BINARY') ? PHP_BINARY : '/usr/bin/php';
-        // Build safe command and capture output
-        $canExec = function_exists('exec') && function_exists('escapeshellarg') && function_exists('shell_exec');
-        if ($canExec) {
-            $cmd = $phpBin . ' ' . escapeshellarg($worker) . ' ' . escapeshellarg($json) . ' 2>&1';
-            $output = shell_exec($cmd);
+        // Use curl to call the worker via HTTP POST
+        $worker_url = 'https://' . $_SERVER['HTTP_HOST'] . '/admin/send_message_worker.php';
+        $ch = curl_init($worker_url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, ['payload' => $json]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id()); // Pass session cookie
+        $output = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($http_code == 200) {
             $result = json_decode($output, true);
             if ($result && isset($result['success'])) {
                 if ($result['success']) {
@@ -170,14 +176,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
                     }
                 }
             } else {
-                $error_message = "Failed to execute message worker or parse response.";
+                $error_message = "Failed to execute message worker or parse response. Output: '" . $output . "'";
             }
         } else {
-            $error_message = "Unable to execute PHP process. Message not sent.";
+            $error_message = "Failed to call message worker via HTTP. HTTP $http_code: $output";
         }
     } else {
         $error_message = "Message and channel are required.";
     }
+    // Return JSON response for AJAX
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => isset($success_message),
+        'message' => $success_message ?? $error_message ?? 'Unknown error'
+    ]);
+    exit;
 }
 
 // Function to check if a channel is online
@@ -1314,14 +1327,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.text())
-            .then(html => {
-                // Parse the response to check for success/error messages
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const successNotification = doc.querySelector('.notification.is-success');
-                const errorNotification = doc.querySelector('.notification.is-danger');
-                if (successNotification) {
+            .then(response => {
+                console.log('Message send response status:', response.status);
+                console.log('Message send response headers:', response.headers);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Message send response data:', data);
+                if (data.success) {
                     // Success - clear the textarea and show toast
                     document.getElementById('message').value = '';
                     updateSendButtonState(); // This will disable the send button since textarea is now empty
@@ -1332,9 +1345,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         timer: 3000,
                         timerProgressBar: true,
                         icon: 'success',
-                        title: 'Message sent successfully! It should appear in chat shortly.'
+                        title: data.message
                     });
-                } else if (errorNotification) {
+                } else {
                     // Error - show error toast
                     Swal.fire({
                         toast: true,
@@ -1343,23 +1356,17 @@ document.addEventListener('DOMContentLoaded', function() {
                         timer: 5000,
                         timerProgressBar: true,
                         icon: 'error',
-                        title: errorNotification.textContent.trim()
-                    });
-                } else {
-                    // Fallback error
-                    Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 5000,
-                        timerProgressBar: true,
-                        icon: 'error',
-                        title: 'Unknown error occurred while sending message.'
+                        title: data.message
                     });
                 }
             })
             .catch(error => {
                 console.error('Error sending message:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                });
                 Swal.fire({
                     toast: true,
                     position: 'top-end',
