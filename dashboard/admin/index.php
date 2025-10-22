@@ -7,6 +7,7 @@ require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 require_once "/var/www/config/admin_actions.php";
 require_once "/var/www/config/twitch.php";
+include "../userdata.php";
 
 // Handle service control actions
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_POST['service'])) {
@@ -134,52 +135,62 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
     $message = trim($_POST['message']);
     $channel_id = $_POST['channel_id'];
     if (!empty($message) && !empty($channel_id)) {
-        // Execute message sending synchronously to get immediate feedback
-        $payload = [
-            'broadcaster_id' => $channel_id,
-            'sender_id' => $sender_id,
-            'message' => $message,
-            'clientID' => $clientID
-        ];
-        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $worker = __DIR__ . '/send_message_worker.php';
-        // Use PHP binary if available, otherwise fallback to /usr/bin/php
-        $phpBin = defined('PHP_BINARY') ? PHP_BINARY : '/usr/bin/php';
-        // Use curl to call the worker via HTTP POST
-        $worker_url = 'https://' . $_SERVER['HTTP_HOST'] . '/admin/send_message_worker.php';
-        $ch = curl_init($worker_url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, ['payload' => $json]);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id()); // Pass session cookie
-        $output = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($http_code == 200) {
-            $result = json_decode($output, true);
-            if ($result && isset($result['success'])) {
-                if ($result['success']) {
-                    $success_message = "Message sent successfully! It should appear in chat shortly.";
-                } else {
-                    $error_message = "Failed to send message.";
-                    if ($result['http_code']) {
-                        $error_message .= " HTTP " . $result['http_code'];
-                    }
-                    if ($result['error']) {
-                        $error_message .= ": " . $result['error'];
-                    }
-                    if ($result['response']) {
-                        $response_data = json_decode($result['response'], true);
-                        if ($response_data && isset($response_data['message'])) {
-                            $error_message .= " - " . $response_data['message'];
+        if (strlen($message) > 255) {
+            $error_message = "Message too long: " . strlen($message) . " characters (max 255)";
+        } else {
+            // Send message directly via Twitch API using bot token
+            $url = "https://api.twitch.tv/helix/chat/messages";
+            $headers = [
+                "Authorization: Bearer " . $oauth,
+                "Client-Id: " . $clientID,
+                "Content-Type: application/json"
+            ];
+            $data = [
+                "broadcaster_id" => $channel_id,
+                "sender_id" => "971436498", // Bot's user ID
+                "message" => $message
+            ];
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            $response = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curl_errno = curl_errno($ch);
+            $curl_error = curl_error($ch);
+            curl_close($ch);
+            if ($curl_errno) {
+                $error_message = "Failed to send message: " . $curl_error;
+            } elseif ($http_code === 200) {
+                $response_data = json_decode($response, true);
+                if ($response_data && isset($response_data['data']) && is_array($response_data['data']) && count($response_data['data']) > 0) {
+                    $msg_data = $response_data['data'][0];
+                    $is_sent = $msg_data['is_sent'] ?? false;
+                    $drop_reason = $msg_data['drop_reason'] ?? null;
+                    if ($is_sent) {
+                        $success_message = "Message sent successfully as bot! It should appear in chat shortly.";
+                    } else {
+                        $error_message = "Message not sent.";
+                        if ($drop_reason) {
+                            $error_message .= " Drop reason: " . $drop_reason;
                         }
                     }
+                } else {
+                    $error_message = "Invalid response from Twitch API.";
                 }
             } else {
-                $error_message = "Failed to execute message worker or parse response. Output: '" . $output . "'";
+                $error_message = "Failed to send message. HTTP $http_code";
+                if ($response) {
+                    $response_data = json_decode($response, true);
+                    if ($response_data && isset($response_data['message'])) {
+                        $error_message .= ": " . $response_data['message'];
+                    } else {
+                        $error_message .= ": " . $response;
+                    }
+                }
             }
-        } else {
-            $error_message = "Failed to call message worker via HTTP. HTTP $http_code: $output";
         }
     } else {
         $error_message = "Message and channel are required.";
