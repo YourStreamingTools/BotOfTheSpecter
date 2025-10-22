@@ -12,10 +12,7 @@ class EventHandler:
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the follow event to clients and global listeners
         payload = {**(data or {}), "channel_code": code or "unknown"}
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_FOLLOW", payload, code)
-        else:
-            await self.sio.emit("TWITCH_FOLLOW", payload)
+        await self.broadcast_with_globals("TWITCH_FOLLOW", payload, code)
 
     async def handle_twitch_cheer(self, sid, data):
         self.logger.info(f"Twitch cheer event from SID [{sid}]: {data}")
@@ -23,10 +20,7 @@ class EventHandler:
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the cheer event to clients and global listeners
         payload = {**(data or {}), "channel_code": code or "unknown"}
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_CHEER", payload, code)
-        else:
-            await self.sio.emit("TWITCH_CHEER", payload)
+        await self.broadcast_with_globals("TWITCH_CHEER", payload, code)
 
     async def handle_twitch_raid(self, sid, data):
         self.logger.info(f"Twitch raid event from SID [{sid}]: {data}")
@@ -34,10 +28,7 @@ class EventHandler:
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the raid event to clients and global listeners
         payload = {**(data or {}), "channel_code": code or "unknown"}
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_RAID", payload, code)
-        else:
-            await self.sio.emit("TWITCH_RAID", payload)
+        await self.broadcast_with_globals("TWITCH_RAID", payload, code)
 
     async def handle_twitch_sub(self, sid, data):
         self.logger.info(f"Twitch sub event from SID [{sid}]: {data}")
@@ -45,10 +36,7 @@ class EventHandler:
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the sub event to clients and global listeners
         payload = {**(data or {}), "channel_code": code or "unknown"}
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_SUB", payload, code)
-        else:
-            await self.sio.emit("TWITCH_SUB", payload)
+        await self.broadcast_with_globals("TWITCH_SUB", payload, code)
 
     async def handle_twitch_channelpoints(self, sid, data):
         self.logger.info(f"Twitch Channel Points event from SID [{sid}]: {data}")
@@ -56,30 +44,21 @@ class EventHandler:
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the Channel Points event to clients and global listeners
         payload = {**(data or {}), "channel_code": code or "unknown"}
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("TWITCH_CHANNELPOINTS", payload, code)
-        else:
-            await self.sio.emit("TWITCH_CHANNELPOINTS", payload)
+        await self.broadcast_with_globals("TWITCH_CHANNELPOINTS", payload, code)
 
     async def handle_stream_online(self, sid, data):
         self.logger.info(f"Stream online event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the stream online event to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("STREAM_ONLINE", data, code)
-        else:
-            await self.sio.emit("STREAM_ONLINE", data)
+        await self.broadcast_with_globals("STREAM_ONLINE", data, code)
 
     async def handle_stream_offline(self, sid, data):
         self.logger.info(f"Stream offline event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the stream offline event to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("STREAM_OFFLINE", data, code)
-        else:
-            await self.sio.emit("STREAM_OFFLINE", data)
+        await self.broadcast_with_globals("STREAM_OFFLINE", data, code)
 
     async def handle_weather(self, sid, data):
         self.logger.info(f"Weather event from SID [{sid}]: {data}")
@@ -88,50 +67,35 @@ class EventHandler:
             # Get the channel code for this SID
             code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
             # Broadcast weather data to clients and global listeners
-            if self.broadcast_with_globals:
-                await self.broadcast_with_globals("WEATHER", {"weather_data": weather_data}, code)
-            else:
-                await self.sio.emit("WEATHER", {"weather_data": weather_data})
+            await self.broadcast_with_globals("WEATHER", {"weather_data": weather_data}, code)
 
     async def handle_weather_data(self, sid, data):
         self.logger.info(f"Weather data event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Process and broadcast weather data to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("WEATHER_DATA", data, code)
-        else:
-            await self.sio.emit("WEATHER_DATA", data)
+        await self.broadcast_with_globals("WEATHER_DATA", data, code)
 
     async def handle_discord_join(self, sid, data):
         self.logger.info(f"Discord join event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast Discord join event to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("DISCORD_JOIN", data, code)
-        else:
-            await self.sio.emit("DISCORD_JOIN", data)
+        await self.broadcast_with_globals("DISCORD_JOIN", data, code)
 
     async def handle_sound_alert(self, sid, data):
         self.logger.info(f"Sound alert event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast sound alert to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("SOUND_ALERT", data, code)
-        else:
-            await self.sio.emit("SOUND_ALERT", data)
+        await self.broadcast_with_globals("SOUND_ALERT", data, code)
 
     async def handle_video_alert(self, sid, data):
         self.logger.info(f"Video alert event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast video alert to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("VIDEO_ALERT", data, code)
-        else:
-            await self.sio.emit("VIDEO_ALERT", data)
+        await self.broadcast_with_globals("VIDEO_ALERT", data, code)
 
     async def handle_walkon(self, sid, data):
         self.logger.info(f"Walkon event from SID [{sid}]: {data}")
@@ -164,10 +128,7 @@ class EventHandler:
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the walkon event to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("WALKON", walkon_data, code)
-        else:
-            await self.sio.emit("WALKON", walkon_data)
+        await self.broadcast_with_globals("WALKON", walkon_data, code)
 
     async def handle_deaths(self, sid, data):
         self.logger.info(f"Death event from SID [{sid}]: {data}")
@@ -181,10 +142,7 @@ class EventHandler:
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the death event to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("DEATHS", death_data, code)
-        else:
-            await self.sio.emit("DEATHS", death_data)
+        await self.broadcast_with_globals("DEATHS", death_data, code)
 
     async def handle_obs_event(self, sid, data):
         self.logger.info(f"SEND_OBS_EVENT received from SID [{sid}]: {data}")
@@ -193,10 +151,7 @@ class EventHandler:
         # Process the data here (e.g., extract event-name, scene-name, etc.)
         # and decide how to handle different OBS events at a later time.
         # Broadcast to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("OBS_EVENT", data, code)
-        else:
-            await self.sio.emit("OBS_EVENT", data)
+        await self.broadcast_with_globals("OBS_EVENT", data, code)
 
     async def handle_generic_notify(self, sid, data):
         self.logger.info(f"Notify event from SID [{sid}]: {data}")
@@ -207,10 +162,7 @@ class EventHandler:
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the event to clients and global listeners
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals(event, data, code)
-        else:
-            await self.sio.emit(event, data)
+        await self.broadcast_with_globals(event, data, code)
 
     async def handle_system_update(self, sid, data):
         self.logger.info(f"System update event from SID [{sid}]: {data}")
@@ -218,10 +170,7 @@ class EventHandler:
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
         # Broadcast the system update event to clients and global listeners
         payload = {**(data or {}), "channel_code": code or "unknown"}
-        if self.broadcast_with_globals:
-            await self.broadcast_with_globals("SYSTEM_UPDATE", payload, code)
-        else:
-            await self.sio.emit("SYSTEM_UPDATE", payload)
+        await self.broadcast_with_globals("SYSTEM_UPDATE", payload, code)
 
     async def broadcast_to_code_clients(self, code, event, data):
         count = 0
