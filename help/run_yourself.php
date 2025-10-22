@@ -500,7 +500,11 @@ CREATE TABLE IF NOT EXISTS spotify_tokens (
     email TEXT DEFAULT NULL,
     has_access INT DEFAULT 0,
     access_token VARCHAR(255),
-    refresh_token VARCHAR(255)
+    refresh_token VARCHAR(255),
+    auth TINYINT DEFAULT 1,
+    own_client TINYINT DEFAULT 0,
+    client_id VARCHAR(255) NULL,
+    client_secret VARCHAR(255) NULL
 );
 
 CREATE TABLE IF NOT EXISTS streamelements_tokens (
