@@ -728,6 +728,7 @@ ob_start();
                     <div class="control">
                         <textarea class="textarea" name="message" id="message" placeholder="Enter your message..." required></textarea>
                     </div>
+                    <small id="char-count" class="has-text-grey">0 / 255 characters</small>
                 </div>
                 <div class="field">
                     <div class="control">
@@ -1259,9 +1260,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const sendButton = document.getElementById('send');
     const channelSelect = document.getElementById('channel-select');
     const includeOfflineCheckbox = document.getElementById('include-offline');
+    const charCountElement = document.getElementById('char-count');
+    function updateCharCount() {
+        if (!messageTextarea || !charCountElement) return;
+        const length = messageTextarea.value.length;
+        charCountElement.textContent = length + ' / 255 characters';
+        if (length > 255) {
+            charCountElement.className = 'has-text-danger';
+        } else if (length > 230) {
+            charCountElement.className = 'has-text-warning';
+        } else {
+            charCountElement.className = 'has-text-grey';
+        }
+    }
     function updateSendButtonState() {
         if (!sendButton) return;
-        const hasMessage = messageTextarea && messageTextarea.value.trim() !== '';
+        const length = messageTextarea ? messageTextarea.value.length : 0;
+        const hasMessage = messageTextarea && messageTextarea.value.trim() !== '' && length <= 255;
         const hasChannel = channelSelect && channelSelect.value && channelSelect.value !== '';
         sendButton.disabled = !(hasMessage && hasChannel);
     }
@@ -1318,11 +1333,17 @@ document.addEventListener('DOMContentLoaded', function() {
         includeOfflineCheckbox.addEventListener('change', fetchChannels);
     }
     if (messageTextarea) {
-        messageTextarea.addEventListener('input', updateSendButtonState);
+        messageTextarea.addEventListener('input', function() {
+            updateCharCount();
+            updateSendButtonState();
+        });
     }
     if (channelSelect) {
         channelSelect.addEventListener('change', updateSendButtonState);
     }
+    // Initial updates
+    updateCharCount();
+    updateSendButtonState();
     // Handle form submission via AJAX
     const sendMessageForm = document.getElementById('send-message-form');
     if (sendMessageForm) {
