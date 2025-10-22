@@ -1172,6 +1172,7 @@ ob_start();
                                                         <span class="icon mr-1"><i class="fas fa-gift"></i></span>
                                                         <?php echo t('modules_gift_subscription_alert'); ?> 
                                                         <span class="tag is-danger is-small">*</span>
+                                                        <span class="icon has-text-warning" title="This message uses the user variable to thank the person who sent the gift, not the recipients."><i class="fas fa-info-circle"></i></span>
                                                     </label>
                                                     <div class="control">
                                                         <input class="input chat-alert-input" type="text" name="gift_subscription_alert" maxlength="255"
