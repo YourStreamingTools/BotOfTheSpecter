@@ -103,15 +103,15 @@ if ($current_file == 'index.php') {
         <ul class="sidebar-menu">
             <li class="sidebar-menu-item">
                 <a href="index.php" class="sidebar-menu-link <?php echo $active_menu == 'dashboard' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fas fa-shield-alt"></i></span>
-                    <span>Mod Dashboard</span>
+                    <span class="sidebar-menu-icon"><i class="fas fa-shield-alt"></i></span>
+                    <span class="sidebar-menu-text">Mod Dashboard</span>
                 </a>
                 <div class="sidebar-tooltip">Mod Dashboard</div>
             </li>
             <li class="sidebar-menu-item has-submenu">
                 <a href="#" class="sidebar-menu-link <?php echo $active_menu == 'commands' ? 'active' : ''; ?>" onclick="toggleSubmenu(event, this)">
-                    <span class="icon"><i class="fas fa-terminal"></i></span>
-                    <span><?php echo t('navbar_commands'); ?></span>
+                    <span class="sidebar-menu-icon"><i class="fas fa-terminal"></i></span>
+                    <span class="sidebar-menu-text"><?php echo t('navbar_commands'); ?></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_commands'); ?></div>
                 <ul class="sidebar-submenu">
@@ -122,22 +122,22 @@ if ($current_file == 'index.php') {
             </li>
             <li class="sidebar-menu-item">
                 <a href="timed_messages.php" class="sidebar-menu-link <?php echo $active_menu == 'timed_messages' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fas fa-clock"></i></span>
-                    <span><?php echo t('navbar_timed_messages'); ?></span>
+                    <span class="sidebar-menu-icon"><i class="fas fa-clock"></i></span>
+                    <span class="sidebar-menu-text"><?php echo t('navbar_timed_messages'); ?></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_timed_messages'); ?></div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="bot_points.php" class="sidebar-menu-link <?php echo $active_menu == 'points' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fas fa-coins"></i></span>
-                    <span><?php echo t('navbar_points_system'); ?></span>
+                    <span class="sidebar-menu-icon"><i class="fas fa-coins"></i></span>
+                    <span class="sidebar-menu-text"><?php echo t('navbar_points_system'); ?></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_points_system'); ?></div>
             </li>
             <li class="sidebar-menu-item has-submenu">
                 <a href="#" class="sidebar-menu-link <?php echo $active_menu == 'counters' ? 'active' : ''; ?>" onclick="toggleSubmenu(event, this)">
-                    <span class="icon"><i class="fas fa-calculator"></i></span>
-                    <span><?php echo t('navbar_counters'); ?></span>
+                    <span class="sidebar-menu-icon"><i class="fas fa-calculator"></i></span>
+                    <span class="sidebar-menu-text"><?php echo t('navbar_counters'); ?></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_counters'); ?></div>
                 <ul class="sidebar-submenu">
@@ -147,15 +147,15 @@ if ($current_file == 'index.php') {
             </li>
             <li class="sidebar-menu-item">
                 <a href="known_users.php" class="sidebar-menu-link <?php echo $active_menu == 'users' ? 'active' : ''; ?>">
-                    <span class="icon"><i class="fas fa-users"></i></span>
-                    <span><?php echo t('known_users_title'); ?></span>
+                    <span class="sidebar-menu-icon"><i class="fas fa-users"></i></span>
+                    <span class="sidebar-menu-text"><?php echo t('known_users_title'); ?></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('known_users_title'); ?></div>
             </li>
             <li class="sidebar-menu-item has-submenu">
                 <a href="#" class="sidebar-menu-link <?php echo $active_menu == 'alerts' ? 'active' : ''; ?>" onclick="toggleSubmenu(event, this)">
-                    <span class="icon"><i class="fas fa-bell"></i></span>
-                    <span><?php echo t('navbar_alerts'); ?></span>
+                    <span class="sidebar-menu-icon"><i class="fas fa-bell"></i></span>
+                    <span class="sidebar-menu-text"><?php echo t('navbar_alerts'); ?></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_alerts'); ?></div>
                 <ul class="sidebar-submenu">
@@ -168,17 +168,17 @@ if ($current_file == 'index.php') {
         <div class="sidebar-user-section">
             <?php if (!empty($showModDropdown) && !empty($modChannels)): ?>
             <a href="../mod_channels.php" class="sidebar-user-item">
-                <span class="icon"><i class="fas fa-user-shield"></i></span>
-                <span><?php echo t('navbar_mod_for'); ?></span>
+                <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
+                <span class="sidebar-user-text"><?php echo t('navbar_mod_for'); ?></span>
             </a>
             <?php endif; ?>
             <a href="../profile.php" class="sidebar-user-item">
-                <span class="icon"><i class="fas fa-user"></i></span>
-                <span><?php echo t('navbar_profile'); ?></span>
+                <span class="sidebar-user-icon"><i class="fas fa-user"></i></span>
+                <span class="sidebar-user-text"><?php echo t('navbar_profile'); ?></span>
             </a>
             <a href="mod_return_home.php" class="sidebar-user-item">
-                <span class="icon"><i class="fas fa-home"></i></span>
-                <span><?php echo t('navbar_return_home'); ?></span>
+                <span class="sidebar-user-icon"><i class="fas fa-home"></i></span>
+                <span class="sidebar-user-text"><?php echo t('navbar_return_home'); ?></span>
             </a>
             <!-- Version Badge -->
             <div class="sidebar-version">
@@ -250,7 +250,7 @@ if ($current_file == 'index.php') {
             ?>
             BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
             This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
-                        All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are used for identification purposes only.
+            All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are used for identification purposes only.
         </div>
         <div style="max-width: 1500px;" class="is-hidden-tablet">
             &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
