@@ -603,6 +603,19 @@ class BotOfTheSpecter_WebsocketServer:
         # Broadcast OBS_EVENT_RECEIVED to all global listeners
         await self.broadcast_event_with_globals("OBS_EVENT_RECEIVED", data, None)
 
+    async def tts(self, sid, data):
+        # Handle TTS event for SocketIO
+        text = data.get("text")
+        code = data.get("code") or self.get_code_by_sid(sid)
+        language_code = data.get("language_code")
+        gender = data.get("gender")
+        voice_name = data.get("voice_name")
+        if text and code:
+            await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name)
+            self.logger.info(f"TTS request added to queue: {text}")
+        else:
+            self.logger.warning(f"TTS event missing required parameters: text={text}, code={code}")
+
     async def deaths(self, sid, data):
         # Redirect to event handler for proper global broadcasting
         return await self.event_handler.handle_deaths(sid, data)
