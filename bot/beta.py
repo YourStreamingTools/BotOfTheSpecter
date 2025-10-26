@@ -2550,7 +2550,7 @@ class TwitchBot(commands.Bot):
                         elif uptime_minutes > 1 or (uptime_days == 0 and uptime_hours == 0):
                             message += f"{uptime_minutes} minutes, "
                         # Add premium status information
-                        if premium_tier == 4000 and message_user == bot_owner:
+                        if message_user == bot_owner:
                             premium_status = "Premium Features: Bot Owner Control"
                         elif premium_tier == 4000:
                             premium_status = "Premium Features: Beta User Access"
