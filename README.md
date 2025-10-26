@@ -8,7 +8,7 @@ BotOfTheSpecter is a helpful Twitch chat bot designed to make your streaming exp
  
 ### Upcoming: v6 — Complete rewrite (TwitchIO 3.1.0)
 
-We are planning a complete rewrite of the bot system for v4.0.0, migrating the codebase to TwitchIO 3.1.0. This is a ground-up refactor and may include substantial architectural changes.
+We are planning a complete rewrite of the bot system for v6.0.0, migrating the codebase to TwitchIO 3.1.0. This is a ground-up refactor and may include substantial architectural changes.
 
 ## BotOfTheSpecter Versioning Rules (since v2.5.0)
 
