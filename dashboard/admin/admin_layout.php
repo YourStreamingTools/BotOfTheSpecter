@@ -112,6 +112,7 @@ ob_start();
 
 // Determine active menu item based on current URI
 $current_file = basename($_SERVER['PHP_SELF']);
+$current_uri = $_SERVER['REQUEST_URI'] ?? '';
 $active_menu = '';
 if ($current_file == 'index.php' || $current_uri == '/admin') {
     $active_menu = 'dashboard';
@@ -119,6 +120,8 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
     $active_menu = 'users';
 } elseif ($current_file == 'admin_logs.php') {
     $active_menu = 'logs';
+} elseif ($current_file == 'admin_feedback.php') {
+    $active_menu = 'feedback';
 } elseif ($current_file == 'admin_twitch_tokens.php') {
     $active_menu = 'twitch';
 } elseif ($current_file == 'admin_discord_tracking.php') {
@@ -202,6 +205,13 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                     <span class="sidebar-menu-text">Log Management</span>
                 </a>
                 <div class="sidebar-tooltip">Log Management</div>
+            </li>
+            <li class="sidebar-menu-item">
+                <a href="admin_feedback.php" class="sidebar-menu-link <?php echo $active_menu == 'feedback' ? 'active' : ''; ?>">
+                    <span class="icon sidebar-menu-icon"><i class="fas fa-comments"></i></span>
+                    <span class="sidebar-menu-text">Feedback</span>
+                </a>
+                <div class="sidebar-tooltip">User Feedback</div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="admin_twitch_tokens.php" class="sidebar-menu-link <?php echo $active_menu == 'twitch' ? 'active' : ''; ?>">
@@ -303,7 +313,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
             ?>
             BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
             This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
-                        All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are used for identification purposes only.
+            All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are used for identification purposes only.
         </div>
         <div style="max-width: 1500px;" class="is-hidden-tablet">
             &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
@@ -398,7 +408,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
         document.querySelectorAll('.sidebar-menu-link.active').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.navbar-item.is-active').forEach(el => el.classList.remove('is-active'));
         // Admin active menu logic
-        if (currentPath.includes('/admin') && !currentPath.includes('admin_users.php') && !currentPath.includes('admin_logs.php') && !currentPath.includes('admin_twitch_tokens.php') && !currentPath.includes('admin_discord_tracking.php') && !currentPath.includes('admin_websocket_clients.php') && !currentPath.includes('admin_terminal.php')) {
+        if (currentPath.includes('/admin') && !currentPath.includes('admin_users.php') && !currentPath.includes('admin_logs.php') && !currentPath.includes('admin_feedback.php') && !currentPath.includes('admin_twitch_tokens.php') && !currentPath.includes('admin_discord_tracking.php') && !currentPath.includes('admin_websocket_clients.php') && !currentPath.includes('admin_terminal.php')) {
             // Dashboard
             const dashboardLinks = document.querySelectorAll('a[href="/admin"]');
             dashboardLinks.forEach(link => {
@@ -416,6 +426,13 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
             // Log Management
             const logLinks = document.querySelectorAll('a[href*="admin_logs.php"]');
             logLinks.forEach(link => {
+                if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
+                if (link.classList.contains('navbar-item')) link.classList.add('is-active');
+            });
+        } else if (currentPath.includes('admin_feedback.php')) {
+            // Feedback
+            const feedbackLinks = document.querySelectorAll('a[href*="admin_feedback.php"]');
+            feedbackLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
