@@ -2278,9 +2278,9 @@ class TwitchBot(commands.Bot):
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global bot_owner
-        premium_tier = await check_premium_feature()
+        premium_tier = await check_premium_feature(message_author_name)
         # Allow bot owner access even without premium subscription
-        if premium_tier in (2000, 3000, 4000) or message_author_name.lower() == bot_owner.lower():
+        if premium_tier in (2000, 3000, 4000):
             # Premium feature access granted or bot owner access
             try:
                 async with httpClientSession() as session:
@@ -2528,7 +2528,8 @@ class TwitchBot(commands.Bot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         # Check premium feature status
-                        premium_tier = await check_premium_feature()
+                        message_user = ctx.author.name
+                        premium_tier = await check_premium_feature(message_user)
                         uptime = time_right_now()- bot_started
                         uptime_days = uptime.days
                         uptime_hours, remainder = divmod(uptime.seconds, 3600)
@@ -2549,7 +2550,9 @@ class TwitchBot(commands.Bot):
                         elif uptime_minutes > 1 or (uptime_days == 0 and uptime_hours == 0):
                             message += f"{uptime_minutes} minutes, "
                         # Add premium status information
-                        if premium_tier == 4000:
+                        if premium_tier == 4000 and message_user == bot_owner:
+                            premium_status = "Premium Features: Bot Owner Control"
+                        elif premium_tier == 4000:
                             premium_status = "Premium Features: Beta User Access"
                         elif premium_tier == 3000:
                             premium_status = "Premium Features: Tier 3 Subscriber"
@@ -3263,7 +3266,8 @@ class TwitchBot(commands.Bot):
                     await send_chat_message("Sorry, I can only get the current playing song while the stream is online.")
                     return
                 # Check if premium is available for Shazam failover
-                premium_tier = await check_premium_feature()
+                message_user = ctx.author.name
+                premium_tier = await check_premium_feature(message_user)
                 if premium_tier in (1000, 2000, 3000, 4000):
                     # Premium feature access granted - use Shazam as failover
                     await send_chat_message("Please stand by, checking what song is currently playing...")
@@ -9582,10 +9586,13 @@ async def known_users():
     finally:
         await connection.ensure_closed()
 
-async def check_premium_feature():
-    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, CHANNEL_NAME
+async def check_premium_feature(user):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, CHANNEL_NAME, bot_owner
     api_logger.info("Starting premium feature check")
     connection = None
+    if user == bot_owner:
+        api_logger.info("User is bot owner, returning 4000")
+        return 4000
     try:
         connection = await mysql_connection(db_name="website")
         async with connection.cursor(DictCursor) as cursor:
