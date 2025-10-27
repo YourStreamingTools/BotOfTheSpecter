@@ -43,6 +43,8 @@ if (!class_exists('SSHConnectionManager')) {
         private static $connections = [];
         private static $last_activity = [];
         private static $connection_timeout = 60; // 1 minute (reduced from 2 minutes)
+        // Last exit status of the most recently executed command (per process)
+        public static $last_exit_status = null;
         public static function getConnection($host, $username, $password) {
             $key = md5($host . $username);
             // Check if we have a valid connection
@@ -153,12 +155,24 @@ if (!class_exists('SSHConnectionManager')) {
                 // Check if stream timed out
                 if ($info['timed_out']) {
                     error_log("SSH command timed out: $command");
+                    self::$last_exit_status = null;
                     return false;
                 }
+                // Retrieve exit status if available
+                $exit_status = null;
+                if (function_exists('ssh2_get_exit_status')) {
+                    // ssh2_get_exit_status expects the original stream resource
+                    $exit_status = @ssh2_get_exit_status($stream);
+                }
+                self::$last_exit_status = $exit_status;
                 // Return stdout and stderr combined for better diagnostics
                 $combined = trim($output);
                 if (!empty(trim($errOutput))) {
                     $combined .= "\n[stderr]\n" . trim($errOutput);
+                }
+                // Append exit status marker for visibility in logs (optional)
+                if ($exit_status !== null) {
+                    $combined .= "\n[exit_code:" . intval($exit_status) . "]";
                 }
                 return $combined;
             }
