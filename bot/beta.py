@@ -38,6 +38,7 @@ from jokeapi import Jokes
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
+from openai import AsyncOpenAI
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -83,6 +84,11 @@ SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_KEY')
+OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
+_cached_instructions = None
+_cached_instructions_time = 0
+INSTRUCTIONS_CACHE_TTL = int('300') # seconds
 SSH_USERNAME = os.getenv('SSH_USERNAME')
 SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 SSH_HOSTS = {
@@ -187,6 +193,7 @@ message_tasks = {}                                      # Dictionary to track in
 # Initialize global variables
 specterSocket = AsyncClient()                           # Specter Socket Client instance
 streamelements_socket = AsyncClient()                   # StreamElements Socket Client instance
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)     # OpenAI client for AI responses
 bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
 next_spotify_refresh_time = None                        # Time for the next Spotify token refresh 
@@ -2281,25 +2288,81 @@ class TwitchBot(commands.Bot):
         premium_tier = await check_premium_feature(message_author_name)
         # Allow bot owner access even without premium subscription
         if premium_tier in (2000, 3000, 4000):
-            # Premium feature access granted or bot owner access
+            # Chat-based behavior: read system instructions JSON if available and call the chat completions API
+            messages = []
+            # Fetch system instructions from the remote endpoint with a small local cache
+            global _cached_instructions, _cached_instructions_time
+            sys_instr = None
             try:
-                async with httpClientSession() as session:
-                    payload = {
-                        "message": user_message,
-                        "channel": CHANNEL_NAME,
-                        "message_user": user_id
-                    }
-                    async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
-                        response.raise_for_status()
-                        ai_response = await response.text()
-                        api_logger.info(f"AI response received: {ai_response}")
-                        return ai_response
-            except aiohttpClientError as e:
-                api_logger.error(f"Error getting AI response: {e}")
-                return "Sorry, I could not understand your request."
+                now = time.time()
+                if _cached_instructions and (now - _cached_instructions_time) < INSTRUCTIONS_CACHE_TTL:
+                    sys_instr = _cached_instructions
+                else:
+                    api_logger.debug(f"Fetching system instructions from {OPENAI_INSTRUCTIONS_ENDPOINT}")
+                    async with httpClientSession() as session:
+                        try:
+                            async with session.get(OPENAI_INSTRUCTIONS_ENDPOINT, timeout=10) as resp:
+                                if resp.status == 200:
+                                    sys_instr = await resp.json()
+                                    _cached_instructions = sys_instr
+                                    _cached_instructions_time = now
+                                else:
+                                    api_logger.error(f"Failed to fetch instructions: HTTP {resp.status}")
+                        except Exception as e:
+                            api_logger.error(f"HTTP error fetching instructions: {e}")
+            except Exception as e:
+                api_logger.error(f"Error while loading system instructions: {e}")
+            # Accept several JSON shapes: list of messages, {system: '...'}, or {messages: [...]}
+            try:
+                if isinstance(sys_instr, list):
+                    messages.extend(sys_instr)
+                elif isinstance(sys_instr, dict):
+                    if 'system' in sys_instr and isinstance(sys_instr['system'], str):
+                        messages.append({'role': 'system', 'content': sys_instr['system']})
+                    elif 'messages' in sys_instr and isinstance(sys_instr['messages'], list):
+                        messages.extend(sys_instr['messages'])
+            except Exception as e:
+                api_logger.error(f"Failed to parse system instructions JSON: {e}")
+            messages.append({'role': 'user', 'content': user_message})
+            # Call OpenAI chat completion via AsyncOpenAI client
+            try:
+                api_logger.debug("Calling OpenAI chat completion from get_ai_response")
+                chat_client = getattr(openai_client, 'chat', None)
+                ai_text = None
+                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
+                    resp = await chat_client.completions.create(model="gpt-3.5-turbo", messages=messages)
+                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                        choice = resp['choices'][0]
+                        if 'message' in choice and 'content' in choice['message']:
+                            ai_text = choice['message']['content']
+                        elif 'text' in choice:
+                            ai_text = choice['text']
+                    else:
+                        # Try attribute access
+                        choices = getattr(resp, 'choices', None)
+                        if choices and len(choices) > 0:
+                            ai_text = getattr(choices[0].message, 'content', None)
+                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
+                    resp = await openai_client.chat_completions.create(model="gpt-3.5-turbo", messages=messages)
+                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                        ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
+                    else:
+                        choices = getattr(resp, 'choices', None)
+                        if choices and len(choices) > 0:
+                            ai_text = getattr(choices[0].message, 'content', None)
+                else:
+                    api_logger.error("No compatible chat completions method found on openai_client")
+                    return "AI chat completions API is not available."
+            except Exception as e:
+                api_logger.error(f"Error calling chat completion API: {e}")
+                return "An error occurred while contacting the AI chat service."
+            if not ai_text:
+                api_logger.error(f"Chat completion returned no usable text: {resp}")
+                return "The AI chat service returned an unexpected response."
+            api_logger.info("AI response received from chat completion")
+            return ai_text
         else:
             api_logger.info("AI access denied due to lack of premium.")
-            # No premium access and not the bot owner
             return "This channel doesn't have a premium subscription to use this feature."
 
     @commands.command(name='commands', aliases=['cmds'])

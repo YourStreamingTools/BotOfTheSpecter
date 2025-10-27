@@ -687,9 +687,33 @@ async def api_heartbeat():
     operation_id="get_database_heartbeat"
 )
 async def database_heartbeat():
-    db_host = "10.240.0.40"
+    db_host = os.getenv('SQL-HOST')
     is_alive = await check_icmp_ping(db_host)
     return {"status": "OK" if is_alive else "OFF"}
+
+
+# Chat instructions endpoint
+@app.get(
+    "/chat-instructions",
+    summary="Get AI chat instructions",
+    description="Return the AI system instructions used by the bot.",
+    tags=["BotOfTheSpecter"],
+    operation_id="get_chat_instructions"
+)
+async def chat_instructions():
+    path = "/home/botofthespecter/ai.json"
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return JSONResponse(status_code=200, content=data)
+        # Not found
+        raise HTTPException(status_code=404, detail="AI instructions not found at /home/botofthespecter/ai.json")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error loading AI instructions from {path}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load AI instructions")
 
 # Public API Requests Remaining (for song)
 @app.get(
