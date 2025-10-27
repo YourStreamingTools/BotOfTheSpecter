@@ -12,6 +12,7 @@ from logging import getLogger
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
+from pathlib import Path
 
 # Third-party imports
 from websockets import connect as WebSocketConnect
@@ -90,6 +91,7 @@ OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instruction
 _cached_instructions = None
 _cached_instructions_time = 0
 INSTRUCTIONS_CACHE_TTL = int('300') # seconds
+HISTORY_DIR = '/home/botofthespecter/ai/chat-history'
 SSH_USERNAME = os.getenv('SSH_USERNAME')
 SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 SSH_HOSTS = {
@@ -2330,6 +2332,11 @@ class TwitchBot(commands.Bot):
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global INSTRUCTIONS_CACHE_TTL, OPENAI_INSTRUCTIONS_ENDPOINT, bot_owner
         global OPENAI_VECTOR_ID
+        # Ensure history directory exists
+        try:
+            Path(HISTORY_DIR).mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            api_logger.debug(f"Could not create history directory {HISTORY_DIR}: {e}")
         premium_tier = await check_premium_feature(message_author_name)
         # Allow bot owner access even without premium subscription
         if premium_tier in (2000, 3000, 4000):
@@ -2374,6 +2381,26 @@ class TwitchBot(commands.Bot):
                 messages.append({'role': 'system', 'content': user_context})
             except Exception as e:
                 api_logger.error(f"Failed to build user context for AI: {e}")
+            # Load per-user chat history and insert as prior messages
+            try:
+                history_file = Path(HISTORY_DIR) / f"{user_id}.json"
+                history = []
+                if history_file.exists():
+                    try:
+                        with history_file.open('r', encoding='utf-8') as hf:
+                            history = json.load(hf)
+                    except Exception as e:
+                        api_logger.debug(f"Failed to read history for {user_id}: {e}")
+                # History is expected to be a list of {role: 'user'|'assistant', content: '...'}
+                if isinstance(history, list) and len(history) > 0:
+                    # Keep only the last 8 turns to avoid long prompts
+                    recent = history[-8:]
+                    for item in recent:
+                        if isinstance(item, dict) and 'role' in item and 'content' in item:
+                            messages.append({'role': item['role'], 'content': item['content']})
+            except Exception as e:
+                api_logger.debug(f"Error loading chat history for {user_id}: {e}")
+            # Append the current user message as the latest user turn
             messages.append({'role': 'user', 'content': user_message})
             # Call OpenAI chat completion via AsyncOpenAI client
             try:
@@ -2411,6 +2438,29 @@ class TwitchBot(commands.Bot):
                 api_logger.error(f"Chat completion returned no usable text: {resp}")
                 return "The AI chat service returned an unexpected response."
             api_logger.info("AI response received from chat completion")
+            # Persist the user message and AI response to per-user history
+            try:
+                history_file = Path(HISTORY_DIR) / f"{user_id}.json"
+                history = []
+                if history_file.exists():
+                    try:
+                        with history_file.open('r', encoding='utf-8') as hf:
+                            history = json.load(hf)
+                    except Exception as e:
+                        api_logger.debug(f"Failed to read existing history for append {user_id}: {e}")
+                # Append entries
+                history.append({'role': 'user', 'content': user_message})
+                history.append({'role': 'assistant', 'content': ai_text})
+                # Trim history to last 200 entries
+                if len(history) > 200:
+                    history = history[-200:]
+                try:
+                    with history_file.open('w', encoding='utf-8') as hf:
+                        json.dump(history, hf, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    api_logger.debug(f"Failed to write history for {user_id}: {e}")
+            except Exception as e:
+                api_logger.debug(f"Error while persisting chat history for {user_id}: {e}")
             return ai_text
         else:
             api_logger.info("AI access denied due to lack of premium.")
