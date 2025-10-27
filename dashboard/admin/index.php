@@ -45,8 +45,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 if ($output === false) {
                     $success = false;
                 } else {
-                    // Consider success if systemctl reports 'Active:' state or the command output is non-empty
-                    $success = strpos($output, 'Active:') !== false || strpos($output, 'Started') !== false || strpos($output, 'Stopped') !== false || strpos($output, 'inactive') !== false || strpos($output, 'running') !== false;
+                    // First, check the recorded exit status if available (exit 0 = success)
+                    $exit_status = SSHConnectionManager::$last_exit_status ?? null;
+                    if ($exit_status !== null) {
+                        $success = ($exit_status === 0);
+                    } else {
+                        // Fallback: consider success if systemctl reports 'Active:' state or common success words
+                        $success = strpos($output, 'Active:') !== false || strpos($output, 'Started') !== false || strpos($output, 'Stopped') !== false || strpos($output, 'inactive') !== false || strpos($output, 'running') !== false || trim($output) !== '';
+                    }
                 }
             }
         } catch (Exception $e) {
