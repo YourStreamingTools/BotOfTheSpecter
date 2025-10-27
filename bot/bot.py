@@ -58,7 +58,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.5"
+VERSION = "5.5.1"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -3742,7 +3742,7 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     @commands.command(name='hug')
-    async def hug_command(self, ctx, *, mentioned_username: str = None):
+    async def hug_command(self, ctx, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_connection()
         try:
@@ -3812,7 +3812,7 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     @commands.command(name='highfive')
-    async def highfive_command(self, ctx, *, mentioned_username: str = None):
+    async def highfive_command(self, ctx, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_connection()
         try:
@@ -3882,7 +3882,7 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     @commands.command(name='kiss')
-    async def kiss_command(self, ctx, *, mentioned_username: str = None):
+    async def kiss_command(self, ctx, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_connection()
         try:
@@ -4730,7 +4730,7 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     @commands.command(name='typo')
-    async def typo_command(self, ctx, *, mentioned_username: str = None):
+    async def typo_command(self, ctx, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_connection()
         try:
@@ -4784,7 +4784,7 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     @commands.command(name='typos', aliases=('typocount',))
-    async def typos_command(self, ctx, *, mentioned_username: str = None):
+    async def typos_command(self, ctx, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_connection()
         try:
@@ -5240,7 +5240,7 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     @commands.command(name='followage')
-    async def followage_command(self, ctx, *, mentioned_username: str = None):
+    async def followage_command(self, ctx, mentioned_username: str = None):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = await mysql_connection()
         try:
