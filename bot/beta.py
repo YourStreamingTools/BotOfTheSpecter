@@ -2280,6 +2280,15 @@ class TwitchBot(commands.Bot):
         ai_response = await self.get_ai_response(user_message, user_id, message_author_name)
         if not ai_response:
             return
+        # Normalize duplicate mentions that may be produced by the AI itself
+        try:
+            name = message_author_name or ''
+            if name:
+                # Collapse repeated adjacent @mentions of the same user (e.g. "@name @name," -> "@name,")
+                dup_pattern = re.compile(r'(@' + re.escape(name) + r'\b)(?:[\s,;:]+@' + re.escape(name) + r'\b)+', re.IGNORECASE)
+                ai_response = dup_pattern.sub(r'\1', ai_response)
+        except Exception as e:
+            api_logger.debug(f"Failed to normalize duplicate mentions: {e}")
         # Split the response if it's longer than 255 characters
         messages = [ai_response[i:i+255] for i in range(0, len(ai_response), 255)]
         # Send each part of the response as a separate message, addressing the user on the first message
