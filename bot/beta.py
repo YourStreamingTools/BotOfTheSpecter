@@ -2277,11 +2277,18 @@ class TwitchBot(commands.Bot):
 
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id, message_author_name)
+        if not ai_response:
+            return
         # Split the response if it's longer than 255 characters
         messages = [ai_response[i:i+255] for i in range(0, len(ai_response), 255)]
-        # Send each part of the response as a separate message
+        # Send each part of the response as a separate message, addressing the user on the first message
+        first = True
         for part in messages:
-            await send_chat_message(f"{part}")
+            if first:
+                await send_chat_message(f"@{message_author_name} {part}")
+                first = False
+            else:
+                await send_chat_message(part)
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global bot_owner
@@ -2323,6 +2330,12 @@ class TwitchBot(commands.Bot):
                         messages.extend(sys_instr['messages'])
             except Exception as e:
                 api_logger.error(f"Failed to parse system instructions JSON: {e}")
+            # Add a system message to tell the AI which Twitch user it's speaking to
+            try:
+                user_context = f"You are speaking to Twitch user '{message_author_name}' (id: {user_id}). Address them by their display name @{message_author_name} and tailor the response to them. Keep responses concise and suitable for Twitch chat."
+                messages.append({'role': 'system', 'content': user_context})
+            except Exception as e:
+                api_logger.error(f"Failed to build user context for AI: {e}")
             messages.append({'role': 'user', 'content': user_message})
             # Call OpenAI chat completion via AsyncOpenAI client
             try:
