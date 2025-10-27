@@ -92,6 +92,8 @@ _cached_instructions = None
 _cached_instructions_time = 0
 INSTRUCTIONS_CACHE_TTL = int('300') # seconds
 HISTORY_DIR = '/home/botofthespecter/ai/chat-history'
+# Max allowed characters per chat message; reserve room for possible prefixes like @username
+MAX_CHAT_MESSAGE_LENGTH = 240
 SSH_USERNAME = os.getenv('SSH_USERNAME')
 SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 SSH_HOSTS = {
@@ -2291,8 +2293,56 @@ class TwitchBot(commands.Bot):
                 ai_response = dup_pattern.sub(r'\1', ai_response)
         except Exception as e:
             api_logger.debug(f"Failed to normalize duplicate mentions: {e}")
-        # Split the response if it's longer than 255 characters
-        messages = [ai_response[i:i+255] for i in range(0, len(ai_response), 255)]
+        # Split the response into message-sized chunks (max 255 chars)
+        messages = []
+        try:
+            text = ai_response.strip()
+            if not text:
+                messages = [""]
+            else:
+                # First, try splitting on sentence boundaries using punctuation
+                sentences = re.split(r'(?<=[\.\!\?])\s+', text)
+                current = ''
+                for sent in sentences:
+                    if not sent:
+                        continue
+                    # If adding the sentence keeps us under limit, append it
+                    if len(current) + (1 if current else 0) + len(sent) <= 255:
+                        current = (current + ' ' + sent).strip() if current else sent
+                    else:
+                        # Flush current if present
+                        if current:
+                            messages.append(current)
+                            current = ''
+                        # If the sentence itself is longer than limit, split by words
+                        if len(sent) > 255:
+                            words = re.split(r'\s+', sent)
+                            wcur = ''
+                            for w in words:
+                                if not w:
+                                    continue
+                                if len(wcur) + (1 if wcur else 0) + len(w) <= 255:
+                                    wcur = (wcur + ' ' + w).strip() if wcur else w
+                                else:
+                                    if wcur:
+                                        messages.append(wcur)
+                                    # If single word longer than 255, hard-split it
+                                    if len(w) > 255:
+                                        for i in range(0, len(w), 255):
+                                            messages.append(w[i:i+255])
+                                        wcur = ''
+                                    else:
+                                        wcur = w
+                            if wcur:
+                                messages.append(wcur)
+                        else:
+                            # Sentence fits within a chunk by itself
+                            messages.append(sent)
+                if current:
+                    messages.append(current)
+        except Exception as e:
+            api_logger.debug(f"Sentence-based chunking failed, falling back to simple splits: {e}")
+            messages = [ai_response[i:i+255] for i in range(0, len(ai_response), 255)]
         # Send each part of the response as a separate message, addressing the user on the first message
         first = True
         # Precompute a full-response mention check to avoid double-prefixing
@@ -2303,10 +2353,11 @@ class TwitchBot(commands.Bot):
         except Exception:
             has_any_mention = False
         for part in messages:
+            part_to_send = part
             if first:
                 # If any @username appears anywhere in the AI response, don't add another prefix
                 if has_any_mention:
-                    await send_chat_message(part)
+                    prefix = ''
                 else:
                     # Fallback: check start-of-message patterns (in case of minor mismatches)
                     trimmed = part.lstrip()
@@ -2321,13 +2372,46 @@ class TwitchBot(commands.Bot):
                             already_addressed = True
                     except Exception:
                         already_addressed = False
-                    if already_addressed:
-                        await send_chat_message(part)
-                    else:
-                        await send_chat_message(f"@{message_author_name} {part}")
+                    prefix = '' if already_addressed else f"@{message_author_name} "
+                # Calculate available space for this message after accounting for prefix
+                try:
+                    total_limit = 255
+                    available = total_limit - len(prefix)
+                    if available < 10:
+                        # Fallback to conservative default
+                        available = max(32, total_limit - len(prefix))
+                except Exception:
+                    available = 255
+                # If part is too long, truncate at last space within available-3 and append ellipsis
+                if len(part_to_send) > available:
+                    try:
+                        cut_at = part_to_send.rfind(' ', 0, max(0, available - 3))
+                        if cut_at == -1:
+                            # No space found; hard cut
+                            truncated = part_to_send[:max(0, available - 3)]
+                        else:
+                            truncated = part_to_send[:cut_at]
+                        part_to_send = (truncated.rstrip() + '...')
+                    except Exception:
+                        part_to_send = part_to_send[:max(0, available - 3)] + '...'
+                # Send with prefix if needed
+                if prefix:
+                    await send_chat_message(prefix + part_to_send)
+                else:
+                    await send_chat_message(part_to_send)
                 first = False
             else:
-                await send_chat_message(part)
+                # For subsequent parts, ensure they also respect the total limit
+                try:
+                    if len(part_to_send) > 255:
+                        cut_at = part_to_send.rfind(' ', 0, 252)
+                        if cut_at == -1:
+                            part_to_send = part_to_send[:252] + '...'
+                        else:
+                            part_to_send = part_to_send[:cut_at].rstrip() + '...'
+                except Exception:
+                    part_to_send = part_to_send[:255]
+                await send_chat_message(part_to_send)
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global INSTRUCTIONS_CACHE_TTL, OPENAI_INSTRUCTIONS_ENDPOINT, bot_owner
@@ -2379,6 +2463,12 @@ class TwitchBot(commands.Bot):
             try:
                 user_context = f"You are speaking to Twitch user '{message_author_name}' (id: {user_id}). Address them by their display name @{message_author_name} and tailor the response to them. Keep responses concise and suitable for Twitch chat."
                 messages.append({'role': 'system', 'content': user_context})
+                # Instruct the AI to keep replies within the chat length limit
+                try:
+                    limiter = f"Important: Keep your final reply under {MAX_CHAT_MESSAGE_LENGTH} characters total so it fits in one Twitch chat message. If you need to be concise, prefer short sentences and avoid long lists."
+                    messages.append({'role': 'system', 'content': limiter})
+                except Exception:
+                    pass
             except Exception as e:
                 api_logger.error(f"Failed to build user context for AI: {e}")
             # Load per-user chat history and insert as prior messages
