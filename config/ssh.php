@@ -146,6 +146,7 @@ if (!class_exists('SSHConnectionManager')) {
                 stream_set_timeout($stream, 5); // Reduced from 8 to 5 seconds timeout
                 stream_set_timeout($errorStream, 5);
                 $output = stream_get_contents($stream);
+                $errOutput = stream_get_contents($errorStream);
                 $info = stream_get_meta_data($stream);
                 fclose($stream);
                 fclose($errorStream);
@@ -154,7 +155,12 @@ if (!class_exists('SSHConnectionManager')) {
                     error_log("SSH command timed out: $command");
                     return false;
                 }
-                return $output;
+                // Return stdout and stderr combined for better diagnostics
+                $combined = trim($output);
+                if (!empty(trim($errOutput))) {
+                    $combined .= "\n[stderr]\n" . trim($errOutput);
+                }
+                return $combined;
             }
         }
         public static function executeCommandStream($connection, $command) {
