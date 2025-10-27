@@ -85,6 +85,7 @@ STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_KEY')
+OPENAI_VECTOR_ID = os.getenv("OPENAI_VECTOR_ID")
 OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
 _cached_instructions = None
 _cached_instructions_time = 0
@@ -2283,15 +2284,43 @@ class TwitchBot(commands.Bot):
         messages = [ai_response[i:i+255] for i in range(0, len(ai_response), 255)]
         # Send each part of the response as a separate message, addressing the user on the first message
         first = True
+        # Precompute a full-response mention check to avoid double-prefixing
+        try:
+            full_lower = ai_response.lower()
+            mention_token = f"@{message_author_name.lower()}"
+            has_any_mention = mention_token in full_lower
+        except Exception:
+            has_any_mention = False
         for part in messages:
             if first:
-                await send_chat_message(f"@{message_author_name} {part}")
+                # If any @username appears anywhere in the AI response, don't add another prefix
+                if has_any_mention:
+                    await send_chat_message(part)
+                else:
+                    # Fallback: check start-of-message patterns (in case of minor mismatches)
+                    trimmed = part.lstrip()
+                    lower_trim = trimmed.lower()
+                    name_mention = f"@{message_author_name.lower()}"
+                    name_plain = message_author_name.lower()
+                    already_addressed = False
+                    try:
+                        if lower_trim.startswith(name_mention) or lower_trim.startswith(name_mention + ',') or lower_trim.startswith(name_mention + ':'):
+                            already_addressed = True
+                        elif lower_trim.startswith(name_plain + ',') or lower_trim.startswith(name_plain + ':') or lower_trim == name_plain:
+                            already_addressed = True
+                    except Exception:
+                        already_addressed = False
+                    if already_addressed:
+                        await send_chat_message(part)
+                    else:
+                        await send_chat_message(f"@{message_author_name} {part}")
                 first = False
             else:
                 await send_chat_message(part)
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
-        global bot_owner
+        global INSTRUCTIONS_CACHE_TTL, OPENAI_INSTRUCTIONS_ENDPOINT, bot_owner
+        global OPENAI_VECTOR_ID
         premium_tier = await check_premium_feature(message_author_name)
         # Allow bot owner access even without premium subscription
         if premium_tier in (2000, 3000, 4000):
