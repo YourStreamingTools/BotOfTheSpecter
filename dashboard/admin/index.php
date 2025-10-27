@@ -22,12 +22,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
             $ssh_username = $bots_ssh_username;
             $ssh_password = $bots_ssh_password;
             if ($service == 'fastapi.service') {
-                $ssh_host = $api_ssh_host;
-                $ssh_username = $api_ssh_username;
+                // Use the variable names defined in config/ssh.php
+                $ssh_host = $api_server_host;
+                $ssh_username = $api_server_username;
                 $ssh_password = $api_server_password;
             } elseif ($service == 'websocket.service') {
-                $ssh_host = $websocket_ssh_host;
-                $ssh_username = $websocket_ssh_username;
+                // Use the variable names defined in config/ssh.php
+                $ssh_host = $websocket_server_host;
+                $ssh_username = $websocket_server_username;
                 $ssh_password = $websocket_server_password;
             } elseif ($service == 'mysql.service') {
                 $ssh_host = $sql_server_host;
@@ -36,17 +38,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
             }
             $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
             if ($connection) {
-                $command = "sudo systemctl $action $service";
+                // Use non-interactive sudo (-n) so the command fails quickly if a password is required
+                $command = "sudo -n systemctl $action $service";
                 $output = SSHConnectionManager::executeCommand($connection, $command);
-                $success = strpos($output, 'success') !== false || strpos($output, 'active') !== false || strpos($output, 'inactive') !== false;
+                // If executeCommand returned false, it likely timed out or failed to run
+                if ($output === false) {
+                    $success = false;
+                } else {
+                    // Consider success if systemctl reports 'Active:' state or the command output is non-empty
+                    $success = strpos($output, 'Active:') !== false || strpos($output, 'Started') !== false || strpos($output, 'Stopped') !== false || strpos($output, 'inactive') !== false || strpos($output, 'running') !== false;
+                }
             }
         } catch (Exception $e) {
             $success = false;
         }
     }
-    // Return JSON response instead of redirect
+    // Return JSON response instead of redirect. Include command output for diagnostics.
     header('Content-Type: application/json');
-    echo json_encode(['success' => $success]);
+    echo json_encode(['success' => $success, 'output' => $output ?? null]);
     exit;
 }
 
@@ -820,19 +829,22 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             const success = data.success;
+            const output = data.output || '';
             if (success) {
                 Swal.fire({
                     title: 'Success',
-                    text: 'Command executed successfully.',
+                    html: output ? '<pre style="text-align:left; white-space:pre-wrap;">' + output + '</pre>' : 'Command executed successfully.',
                     icon: 'success',
-                    confirmButtonText: 'OK'
+                    confirmButtonText: 'OK',
+                    width: output ? 700 : undefined
                 });
             } else {
                 Swal.fire({
                     title: 'Error',
-                    text: 'Command failed.',
+                    html: '<p>Command failed.</p>' + (output ? '<pre style="text-align:left; white-space:pre-wrap;">' + output + '</pre>' : ''),
                     icon: 'error',
-                    confirmButtonText: 'OK'
+                    confirmButtonText: 'OK',
+                    width: output ? 700 : undefined
                 });
             }
             buttons.forEach(btn => btn.disabled = false);

@@ -59,14 +59,14 @@ $ssh_configs = [
         'name' => 'Bot Server'
     ],
     'api' => [
-        'host' => $api_ssh_host,
-        'username' => $api_ssh_username,
+        'host' => $api_server_host,
+        'username' => $api_server_username,
         'password' => $api_server_password,
         'name' => 'API Server'
     ],
     'websocket' => [
-        'host' => $websocket_ssh_host,
-        'username' => $websocket_ssh_username,
+        'host' => $websocket_server_host,
+        'username' => $websocket_server_username,
         'password' => $websocket_server_password,
         'name' => 'WebSocket Server'
     ],
