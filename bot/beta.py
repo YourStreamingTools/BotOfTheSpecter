@@ -6299,9 +6299,14 @@ class TwitchBot(commands.Bot):
                 if len(words) < 5:
                     await send_chat_message(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
                     return
-                template = "Once upon a time, there was a {0} who loved to {1}. One day, they found a {2} {3} and decided to {4}."
-                story = template.format(*words)
-                response = await self.handle_ai_response(story, ctx.author.id, ctx.author.name)
+                # Build a user-provided seed prompt and send to AI for creative generation
+                seed_prompt = (
+                    f"Create a short, creative story using these five words provided by the user: "
+                    f"noun={words[0]}, verb={words[1]}, adjective={words[2]}, adverb={words[3]}, action={words[4]}. "
+                    f"Make the story engaging, about 3-5 sentences, and keep it safe for a general audience. "
+                    f"Do not include the words list in the final story output."
+                )
+                response = await self.handle_ai_response(seed_prompt, ctx.author.id, ctx.author.name)
                 await send_chat_message(response)
                 # Record usage
                 add_usage('story', bucket_key, cooldown_bucket)
