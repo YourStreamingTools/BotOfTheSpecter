@@ -158,20 +158,63 @@ if (isset($_GET['code'])) {
             }
         } else {
             // User does not exist, insert them as a new user
-            $apiKey = bin2hex(random_bytes(16));
-            $_SESSION['api_key'] = $apiKey;
-            $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)";
-            $stmt = mysqli_prepare($conn, $insertQuery);
-            mysqli_stmt_bind_param($stmt, 'ssssssss', $twitchUsername, $accessToken, $refreshToken, $apiKey, $profileImageUrl, $twitchUserId, $twitchDisplayName, $email);
-            if (mysqli_stmt_execute($stmt)) {
-                $_SESSION['user_id'] = mysqli_insert_id($conn);
-                header('Location: bot.php');
-                exit;
-            } else {
-                echo 'Error inserting user: ' . mysqli_stmt_error($stmt);
-                exit;
-            }
+                $apiKey = bin2hex(random_bytes(16));
+                $_SESSION['api_key'] = $apiKey;
+                // We'll compute the smallest missing positive integer id in `users.id`
+                // and insert the new user with that id so deleted user slots are reused.
+                $assignedId = null;
+                // Start a transaction so the SELECT FOR UPDATE locks the rows and prevents races
+                if (!mysqli_begin_transaction($conn, MYSQLI_TRANS_START_READ_WRITE)) {
+                    // Fall back to disabling autocommit if transactions aren't available
+                    mysqli_autocommit($conn, false);
+                }
+                try {
+                    // Select ids in order and lock them for update
+                    $idResult = mysqli_query($conn, "SELECT id FROM users ORDER BY id ASC FOR UPDATE");
+                    $expected = 1;
+                    if ($idResult) {
+                        while ($row = mysqli_fetch_assoc($idResult)) {
+                            $id = (int)$row['id'];
+                            if ($id !== $expected) {
+                                break;
+                            }
+                            $expected++;
+                        }
+                    }
+                    $assignedId = $expected;
+                    // Insert the new user with the explicit id
+                    $insertQuery = "INSERT INTO users (id, username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
+                    $stmt = mysqli_prepare($conn, $insertQuery);
+                    if ($stmt === false) {
+                        throw new Exception('Prepare failed: ' . mysqli_error($conn));
+                    }
+                    // bind types: i = id, followed by strings
+                    mysqli_stmt_bind_param($stmt, 'issssssss', $assignedId, $twitchUsername, $accessToken, $refreshToken, $apiKey, $profileImageUrl, $twitchUserId, $twitchDisplayName, $email);
+                    if (!mysqli_stmt_execute($stmt)) {
+                        throw new Exception('Error inserting user: ' . mysqli_stmt_error($stmt));
+                    }
+                    // Attempt to keep AUTO_INCREMENT at least max(id)+1 to avoid conflicts
+                    $maxRes = mysqli_query($conn, "SELECT MAX(id) AS maxid FROM users");
+                    if ($maxRes) {
+                        $maxRow = mysqli_fetch_assoc($maxRes);
+                        $nextAI = ((int)$maxRow['maxid']) + 1;
+                        // ALTER TABLE may require privileges; suppress errors if it fails
+                        @mysqli_query($conn, "ALTER TABLE users AUTO_INCREMENT = " . intval($nextAI));
+                    }
+                    // Commit transaction
+                    mysqli_commit($conn);
+                    // Set the session user id to the assigned id (don't rely on mysqli_insert_id when inserting explicit ids)
+                    $_SESSION['user_id'] = $assignedId;
+                    header('Location: bot.php');
+                    exit;
+                } catch (Exception $e) {
+                    // Rollback if possible
+                    @mysqli_rollback($conn);
+                    // Re-enable autocommit if we disabled it earlier
+                    mysqli_autocommit($conn, true);
+                    echo $e->getMessage();
+                    exit;
+                }
         }
     } else {
         // Failed to fetch user information from Twitch
