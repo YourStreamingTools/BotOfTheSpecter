@@ -58,53 +58,88 @@ foreach ($users as $username) {
 
 ob_start();
 ?>
-
 <div class="box">
-    <h1 class="title is-4"><span class="icon"><i class="fab fa-discord"></i></span> Discord Stream Tracking Overview</h1>
-    <p class="mb-4">This page shows which users have Discord stream tracking enabled, how many streams they're tracking, and the details of each tracked stream.</p>
-    <div class="field mb-4">
-        <div class="control">
-            <input type="text" id="user-search" placeholder="Search user..." class="input">
+    <div class="level">
+        <div class="level-left">
+            <h1 class="title is-4"><span class="icon"><i class="fab fa-discord"></i></span> Discord Stream Tracking</h1>
+        </div>
+        <!-- Modal used to show user's tracked streams -->
+        <div id="user-details-modal" class="modal">
+            <div class="modal-background"></div>
+            <div class="modal-card">
+                <header class="modal-card-head">
+                    <p id="modal-title" class="modal-card-title">Tracked Streams</p>
+                    <button class="delete" aria-label="close" id="modal-close"></button>
+                </header>
+                <section class="modal-card-body" id="modal-body">
+                    <!-- populated by JS -->
+                </section>
+                <footer class="modal-card-foot">
+                    <button class="button" id="modal-close-btn">Close</button>
+                </footer>
+            </div>
+        </div>
+        <div class="level-right">
+            <div class="field has-addons">
+                <div class="control">
+                    <input id="user-search" class="input" type="text" placeholder="Search users or streamers...">
+                </div>
+                <div class="control">
+                    <a id="clear-search" class="button is-light" title="Clear search">Clear</a>
+                </div>
+            </div>
         </div>
     </div>
+    <p class="mb-4">Overview of users with Discord stream tracking. Click a user to expand tracked streams.</p>
     <?php if (empty($trackingData)): ?>
         <div class="notification is-info">
             <p>No users currently have Discord stream tracking configured.</p>
         </div>
     <?php else: ?>
-        <div class="table-container">
-            <table class="table is-fullwidth is-striped">
-                <thead>
-                    <tr>
-                        <th>User</th>
-                        <th>Streamer/Channel</th>
-                        <th>Stream URL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($trackingData as $username => $streams): ?>
-                        <?php foreach ($streams as $stream): ?>
-                            <tr>
-                                <td>
-                                    <?php echo htmlspecialchars($username); ?>
-                                </td>
-                                <td>
-                                    <?php echo htmlspecialchars($stream['username']); ?>
-                                </td>
-                                <td>
-                                    <?php if (!empty($stream['stream_url'])): ?>
-                                        <a href="<?php echo htmlspecialchars($stream['stream_url']); ?>" target="_blank" rel="noopener noreferrer">
-                                            <?php echo htmlspecialchars($stream['stream_url']); ?>
-                                        </a>
-                                    <?php else: ?>
-                                        <em>No URL</em>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+        <div class="columns is-multiline" id="tracking-cards">
+            <?php foreach ($trackingData as $username => $streams): ?>
+                <?php $safeUser = htmlspecialchars($username); $count = count($streams); ?>
+                <div class="column is-6-tablet is-4-desktop tracking-card" data-username="<?php echo strtolower($safeUser); ?>">
+                        <div class="card">
+                            <header class="card-header user-details-open" role="button" aria-expanded="false" tabindex="0">
+                                <p class="card-header-title">
+                                    <span class="has-text-weight-semibold"><?php echo $safeUser; ?></span>
+                                    <span class="ml-3 has-text-grey">&middot; <?php echo $count; ?> tracked</span>
+                                </p>
+                                <a href="#" class="card-header-icon" aria-label="view details">
+                                    <span class="icon"><i class="fas fa-external-link-alt" aria-hidden="true"></i></span>
+                                </a>
+                            </header>
+                            <!-- Store the details markup hidden so JS can move into modal -->
+                            <div class="card-content details-template" style="display:none;">
+                                <?php if ($count === 0): ?>
+                                    <div class="content"><em>No streams tracked.</em></div>
+                                <?php else: ?>
+                                    <div class="content stream-list">
+                                        <?php foreach ($streams as $stream): ?>
+                                            <div class="stream-item" data-streamer="<?php echo strtolower(htmlspecialchars($stream['username'])); ?>">
+                                                <div class="columns is-vcentered is-mobile">
+                                                    <div class="column is-5">
+                                                        <strong><?php echo htmlspecialchars($stream['username']); ?></strong>
+                                                    </div>
+                                                    <div class="column is-7">
+                                                        <?php if (!empty($stream['stream_url'])): ?>
+                                                            <a href="<?php echo htmlspecialchars($stream['stream_url']); ?>" target="_blank" rel="noopener noreferrer">
+                                                                <?php echo htmlspecialchars($stream['stream_url']); ?>
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <em>No URL</em>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                </div>
+            <?php endforeach; ?>
         </div>
         <div class="level mt-4">
             <div class="level-left">
@@ -120,35 +155,97 @@ ob_start();
         </div>
     <?php endif; ?>
 </div>
-
 <?php
 $content = ob_get_clean();
-
 ob_start();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('user-search').addEventListener('keyup', function(e) {
-        filterUsers();
-    });
-});
-
-function filterUsers() {
-    const input = document.getElementById('user-search').value.toLowerCase();
-    const table = document.querySelector('.table tbody');
-    const rows = table.getElementsByTagName('tr');
-    for (let row of rows) {
-        const userCell = row.getElementsByTagName('td')[0];
-        if (userCell) {
-            const userText = userCell.textContent.toLowerCase();
-            if (userText.includes(input)) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        }
+    const searchInput = document.getElementById('user-search');
+    const clearBtn = document.getElementById('clear-search');
+    const cardsContainer = document.getElementById('tracking-cards');
+    // Debounce helper
+    function debounce(fn, delay) {
+        let t;
+        return function(...args) {
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(this, args), delay);
+        };
     }
-}
+    function filterCards() {
+        const q = (searchInput.value || '').trim().toLowerCase();
+        const cards = cardsContainer.querySelectorAll('.tracking-card');
+        if (!q) {
+            cards.forEach(c => c.style.display = '');
+            return;
+        }
+        cards.forEach(card => {
+            const user = card.getAttribute('data-username') || '';
+            let matched = user.includes(q);
+            // If not matched by username, check streams inside
+            if (!matched) {
+                const rows = card.querySelectorAll('tbody tr');
+                rows.forEach(r => {
+                    const streamer = r.getAttribute('data-streamer') || '';
+                    const urlCell = r.querySelector('td:nth-child(2)');
+                    const urlText = urlCell ? (urlCell.textContent || '').toLowerCase() : '';
+                    if (streamer.includes(q) || urlText.includes(q)) matched = true;
+                });
+            }
+            card.style.display = matched ? '' : 'none';
+        });
+    }
+    const debouncedFilter = debounce(filterCards, 220);
+    searchInput.addEventListener('input', debouncedFilter);
+    clearBtn.addEventListener('click', function(e) { e.preventDefault(); searchInput.value = ''; debouncedFilter(); });
+    // Open modal with user details when header clicked
+    const modal = document.getElementById('user-details-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalBody = document.getElementById('modal-body');
+    const modalClose = document.getElementById('modal-close');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    function openModal(title, contentNode) {
+        modalTitle.textContent = title;
+        // Clear previous
+        modalBody.innerHTML = '';
+        // Append a clone so we don't remove from the card
+        const clone = contentNode.cloneNode(true);
+        // details-template was initially hidden via inline style; ensure cloned content is visible in modal
+        clone.style.display = '';
+        clone.classList.remove('details-template');
+        // If the clone contains a table, ensure it's visible
+        const hiddenEls = clone.querySelectorAll('[style*="display:none"]');
+        hiddenEls.forEach(el => el.style.display = '');
+    modalBody.appendChild(clone);
+        modal.classList.add('is-active');
+        // focus close for accessibility
+        modalCloseBtn.focus();
+    }
+    function closeModal() {
+        modal.classList.remove('is-active');
+        modalBody.innerHTML = '';
+    }
+    // Click handlers on headers
+    document.querySelectorAll('.user-details-open').forEach(header => {
+        header.addEventListener('click', function(e) {
+            e.preventDefault();
+            const card = this.closest('.tracking-card');
+            if (!card) return;
+            const username = card.getAttribute('data-username') || '';
+            const template = card.querySelector('.details-template');
+            if (!template) return;
+            // Set title nicely
+            const pretty = username.replace(/-/g, ' ');
+            openModal(pretty + ' — Tracked Streams', template);
+        });
+        header.addEventListener('keypress', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } });
+    });
+    // modal close events
+    modalClose.addEventListener('click', closeModal);
+    modalCloseBtn.addEventListener('click', closeModal);
+    modal.querySelector('.modal-background').addEventListener('click', closeModal);
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+});
 </script>
 <?php
 $scripts = ob_get_clean();
