@@ -1517,13 +1517,15 @@ nav.top-navbar,
     
     .footer {
         margin-left: var(--sidebar-width);
-        transition: margin-left 0.3s ease;
+        width: calc(100% - var(--sidebar-width));
+        transition: margin-left 0.3s ease, width 0.3s ease;
     }
     
-    aside.sidebar-nav.collapsed ~ * .footer,
-    .sidebar-nav.collapsed ~ * .footer,
-    #sidebarNav.collapsed ~ * .footer {
+    aside.sidebar-nav.collapsed ~ .footer,
+    .sidebar-nav.collapsed ~ .footer,
+    #sidebarNav.collapsed ~ .footer {
         margin-left: var(--sidebar-collapsed-width);
+        width: calc(100% - var(--sidebar-collapsed-width));
     }
     
     /* Adjust main content column offset on desktop */

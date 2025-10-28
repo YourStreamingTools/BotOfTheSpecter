@@ -231,7 +231,7 @@ if ($current_file == 'index.php') {
         </div>
     </div>
     <!-- Footer -->
-    <footer class="footer is-dark has-text-white" style="width:100%; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
+    <footer class="footer is-dark has-text-white" style="display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
         <div class="is-hidden-mobile">
             &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
             <?php
