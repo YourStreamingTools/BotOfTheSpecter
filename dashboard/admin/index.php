@@ -846,12 +846,29 @@ document.addEventListener('DOMContentLoaded', function() {
             ctx.parentNode.appendChild(noDataMsg);
         }
     }
+    const serviceConfig = {
+        'discordbot.service': { statusKey: 'discordbot', statusId: 'discord-status', pidId: 'discord-pid', buttonsId: 'discord-buttons' },
+        'fastapi.service': { statusKey: 'fastapi', statusId: 'api-status', pidId: 'api-pid', buttonsId: 'api-buttons' },
+        'websocket.service': { statusKey: 'websocket', statusId: 'websocket-status', pidId: 'websocket-pid', buttonsId: 'websocket-buttons' },
+        'mysql.service': { statusKey: 'mysql', statusId: 'mysql-status', pidId: 'mysql-pid', buttonsId: 'mysql-buttons' }
+    };
+    function scheduleStatusRefresh(meta) {
+        if (!meta) return;
+        // Give systemd a moment to settle before querying status again
+        setTimeout(() => {
+            updateServiceStatus(meta.statusKey, meta.statusId, meta.pidId, meta.buttonsId);
+        }, 500);
+    }
     // Function to control service
     window.controlService = function(service, action) {
-        const buttonsElementId = service === 'discordbot.service' ? 'discord-buttons' : service === 'fastapi.service' ? 'api-buttons' : service === 'mysql.service' ? 'mysql-buttons' : 'websocket-buttons';
-        const buttonsElement = document.getElementById(buttonsElementId);
-        const buttons = buttonsElement.querySelectorAll('button');
-        buttons.forEach(btn => btn.disabled = true);
+        const meta = serviceConfig[service];
+        if (!meta) {
+            console.error('Unknown service mapping for', service);
+            return;
+        }
+    const buttonsElement = document.getElementById(meta.buttonsId);
+    const buttons = buttonsElement ? buttonsElement.querySelectorAll('button') : [];
+    buttons.forEach(btn => btn.disabled = true);
         const formData = new FormData();
         formData.append('service', service);
         formData.append('action', action);
@@ -870,21 +887,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (success) {
                     console.log('[admin control] command success output:', output);
                     Swal.fire({
-                        title: 'Success',
-                        html: output ? '<pre style="text-align:left; white-space:pre-wrap;">' + output + '</pre>' : 'Command executed successfully.',
+                        toast: true,
+                        position: 'top-end',
                         icon: 'success',
-                        confirmButtonText: 'OK',
-                        width: output ? 700 : undefined
+                        title: 'Command executed successfully',
+                        showConfirmButton: false,
+                        timer: 3500,
+                        timerProgressBar: true
                     });
+                    if (output) {
+                        console.log('[admin control] stdout/stderr:', output);
+                    }
+                    scheduleStatusRefresh(meta);
                 } else {
                     console.error('[admin control] command failed output:', output);
                     Swal.fire({
-                        title: 'Error',
-                        html: '<p>Command failed.</p>' + (output ? '<pre style="text-align:left; white-space:pre-wrap;">' + output + '</pre>' : ''),
+                        toast: true,
+                        position: 'top-end',
                         icon: 'error',
-                        confirmButtonText: 'OK',
-                        width: output ? 700 : undefined
+                        title: 'Command failed',
+                        text: output ? undefined : 'Check logs for details.',
+                        showConfirmButton: false,
+                        timer: 5000,
+                        timerProgressBar: true
                     });
+                    if (output) {
+                        Swal.fire({
+                            title: 'Command output',
+                            html: '<pre style="text-align:left; white-space:pre-wrap; max-height:400px; overflow:auto;">' + output + '</pre>',
+                            icon: 'info',
+                            confirmButtonText: 'Close',
+                            width: 800
+                        });
+                    }
+                    scheduleStatusRefresh(meta);
                 }
             } catch (e) {
                 // Not valid JSON — log raw text for diagnosis and show it to user
