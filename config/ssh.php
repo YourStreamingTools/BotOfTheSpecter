@@ -129,7 +129,11 @@ if (!class_exists('SSHConnectionManager')) {
             }
         }
         public static function executeCommand($connection, $command, $isBackground = false) {
-            $stream = ssh2_exec($connection, $command);
+            // When we need to capture the exit code, append a unique marker so it appears in stdout.
+            // This avoids relying solely on ssh2_get_exit_status, which can return null on some setups.
+            $exit_marker = '__SSH_EXIT_STATUS__';
+            $wrappedCommand = $isBackground ? $command : ($command . '; printf "' . $exit_marker . '%s" $?');
+            $stream = ssh2_exec($connection, $wrappedCommand);
             if (!$stream) {
                 return false;
             }
@@ -150,13 +154,6 @@ if (!class_exists('SSHConnectionManager')) {
                 $output = stream_get_contents($stream);
                 $errOutput = stream_get_contents($errorStream);
                 $info = stream_get_meta_data($stream);
-                // Retrieve exit status if available BEFORE closing the streams
-                $exit_status = null;
-                if (function_exists('ssh2_get_exit_status')) {
-                    // ssh2_get_exit_status expects the original stream resource and should be called
-                    // while the stream is still valid. Call it now before fclose().
-                    $exit_status = @ssh2_get_exit_status($stream);
-                }
                 // Close streams after retrieving exit status
                 fclose($stream);
                 fclose($errorStream);
@@ -165,6 +162,25 @@ if (!class_exists('SSHConnectionManager')) {
                     error_log("SSH command timed out: $command");
                     self::$last_exit_status = null;
                     return false;
+                }
+                // Determine exit status from marker or fall back to ssh2_get_exit_status
+                $exit_status = null;
+                if (!$isBackground) {
+                    $markerPos = strrpos($output, $exit_marker);
+                    if ($markerPos !== false) {
+                        $statusStr = substr($output, $markerPos + strlen($exit_marker));
+                        $output = substr($output, 0, $markerPos);
+                        $statusStr = trim($statusStr);
+                        if ($statusStr === '') {
+                            $exit_status = 0;
+                        } elseif (preg_match('/^-?\d+$/', $statusStr)) {
+                            $exit_status = (int)$statusStr;
+                        }
+                    }
+                }
+                // Fallback to ssh2_get_exit_status if marker missing
+                if ($exit_status === null && function_exists('ssh2_get_exit_status')) {
+                    $exit_status = @ssh2_get_exit_status($stream);
                 }
                 self::$last_exit_status = $exit_status;
                 // Return stdout and stderr combined for better diagnostics
