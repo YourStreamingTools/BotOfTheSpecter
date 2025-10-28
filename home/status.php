@@ -134,17 +134,10 @@ while ($row = $result->fetch_assoc()) {
     $metrics[] = $row;
 }
 
-// Fetch beta users
-$betaUsers = [];
-$result = $conn->query("SELECT twitch_display_name FROM users WHERE beta_access = '1' AND twitch_display_name NOT IN ('BotOfTheSpecter', 'GamingForAustralia') ORDER BY id");
-while ($row = $result->fetch_assoc()) {
-    $betaUsers[] = $row['twitch_display_name'];
-}
-
-// Split users into two columns, each with up to 16 users
-$leftUsers = array_slice($betaUsers, 0, 16);
-$rightUsers = array_slice($betaUsers, 16, 16);
-$userColumns = [$leftUsers, $rightUsers];
+// Do not preload beta users on the initial render so the client-side
+// polling (AJAX) always fetches the latest data. The AJAX endpoint below
+// still queries the database for fresh beta users on each request.
+$userColumns = [[], []];
 
 // Fetch total users
 $totalUsers = $conn->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
@@ -411,7 +404,8 @@ function renderServiceStatus(name, statusData) {
 
 // Fetch and update data every 60 seconds
 function fetchAndUpdateStatus() {
-    let url = window.location.pathname + '?ajax=1&metrics=1';
+    // Add a cache-busting timestamp so each fetch returns fresh data
+    let url = window.location.pathname + '?ajax=1&metrics=1&_=' + Date.now();
     fetch(url)
         .then(res => res.json())
         .then(data => {
@@ -454,8 +448,9 @@ function fetchAndUpdateStatus() {
                 });
                 document.getElementById('system-metrics').innerHTML = metricsHtml;
             }
-            // Update beta users if present
-            if (data.betaUsersLeft && data.betaUsersRight) {
+            // Update beta users if the AJAX response includes them.
+            // Use strict undefined check so empty arrays (no users) still replace the DOM.
+            if (data.betaUsersLeft !== undefined && data.betaUsersRight !== undefined) {
                 const userColumns = [data.betaUsersLeft, data.betaUsersRight];
                 let usersHtml = '';
                 userColumns.forEach(column => {
