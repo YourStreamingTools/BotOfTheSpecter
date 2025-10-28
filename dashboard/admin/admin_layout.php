@@ -57,6 +57,9 @@ if (!function_exists('isAdmin') || !isAdmin()) {
         <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <!-- Custom CSS -->
+        <link rel="stylesheet" href="../css/custom.css?v=<?php echo uuidv4(); ?>">
+        <link rel="stylesheet" href="admin.css?v=<?php echo uuidv4(); ?>">
     </head>
     <body>
         <div style="background:rgb(0, 0, 0); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;">
