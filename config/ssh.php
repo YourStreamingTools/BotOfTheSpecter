@@ -150,6 +150,14 @@ if (!class_exists('SSHConnectionManager')) {
                 $output = stream_get_contents($stream);
                 $errOutput = stream_get_contents($errorStream);
                 $info = stream_get_meta_data($stream);
+                // Retrieve exit status if available BEFORE closing the streams
+                $exit_status = null;
+                if (function_exists('ssh2_get_exit_status')) {
+                    // ssh2_get_exit_status expects the original stream resource and should be called
+                    // while the stream is still valid. Call it now before fclose().
+                    $exit_status = @ssh2_get_exit_status($stream);
+                }
+                // Close streams after retrieving exit status
                 fclose($stream);
                 fclose($errorStream);
                 // Check if stream timed out
@@ -157,12 +165,6 @@ if (!class_exists('SSHConnectionManager')) {
                     error_log("SSH command timed out: $command");
                     self::$last_exit_status = null;
                     return false;
-                }
-                // Retrieve exit status if available
-                $exit_status = null;
-                if (function_exists('ssh2_get_exit_status')) {
-                    // ssh2_get_exit_status expects the original stream resource
-                    $exit_status = @ssh2_get_exit_status($stream);
                 }
                 self::$last_exit_status = $exit_status;
                 // Return stdout and stderr combined for better diagnostics
