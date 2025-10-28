@@ -13,6 +13,9 @@ include "../userdata.php";
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_POST['service'])) {
     $action = $_POST['action'];
     $service = $_POST['service'];
+    // Initialize defaults so we always return useful JSON
+    $success = false;
+    $output = '';
     // Define allowed services
     $allowedServices = ['discordbot.service', 'fastapi.service', 'websocket.service', 'mysql.service'];
     if (in_array($service, $allowedServices)) {
@@ -37,13 +40,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_password = $sql_server_password;
             }
             $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
-            if ($connection) {
+            if (!$connection) {
+                $output = "SSH connection failed to host: {$ssh_host} (check config/ssh.php and network)";
+                $success = false;
+            } else {
                 // Use non-interactive sudo (-n) so the command fails quickly if a password is required
                 $command = "sudo -n systemctl $action $service";
                 $output = SSHConnectionManager::executeCommand($connection, $command);
                 // If executeCommand returned false, it likely timed out or failed to run
                 if ($output === false) {
                     $success = false;
+                    if (empty($output)) $output = "Command execution failed or timed out";
                 } else {
                     // First, check the recorded exit status if available (exit 0 = success)
                     $exit_status = SSHConnectionManager::$last_exit_status ?? null;
@@ -57,11 +64,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
             }
         } catch (Exception $e) {
             $success = false;
+            $output = 'Exception: ' . $e->getMessage();
         }
+    } else {
+        $output = 'Invalid service requested';
+        $success = false;
     }
     // Return JSON response instead of redirect. Include command output for diagnostics.
+    if (function_exists('ob_get_length') && ob_get_length() !== false && ob_get_length() > 0) {
+        $prev = ob_get_clean();
+        @error_log("[admin service control] cleared previous output buffer: " . substr(trim(preg_replace('/\s+/', ' ', $prev)), 0, 1000));
+        // Start a fresh buffer to ensure headers can be sent
+        ob_start();
+    }
+    // Log the result server-side to aid debugging (will appear in PHP error log)
+    @error_log("[admin service control] service={$service} action={$action} success=" . ($success ? '1' : '0') . " exit_status=" . (SSHConnectionManager::$last_exit_status ?? 'null') . " output=" . str_replace("\n", "\\n", substr($output ?? '', 0, 1000)));
     header('Content-Type: application/json');
-    echo json_encode(['success' => $success, 'output' => $output ?? null]);
+    $exit_status = SSHConnectionManager::$last_exit_status ?? null;
+    // Include helpful diagnostics for the browser to show
+    $diagnostics = [
+        'exit_status' => $exit_status,
+        'ssh2_loaded' => extension_loaded('ssh2'),
+        'connection_host' => isset($ssh_host) ? $ssh_host : null,
+        'output_length' => is_string($output) ? strlen($output) : 0,
+    ];
+    echo json_encode(['success' => $success, 'output' => $output ?? '', 'diagnostics' => $diagnostics]);
     exit;
 }
 
@@ -832,30 +859,48 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
-        .then(data => {
-            const success = data.success;
-            const output = data.output || '';
-            if (success) {
-                Swal.fire({
-                    title: 'Success',
-                    html: output ? '<pre style="text-align:left; white-space:pre-wrap;">' + output + '</pre>' : 'Command executed successfully.',
-                    icon: 'success',
-                    confirmButtonText: 'OK',
-                    width: output ? 700 : undefined
-                });
-            } else {
+        .then(async response => {
+            // Read raw text so we can log invalid JSON too
+            const text = await response.text();
+            try {
+                const data = JSON.parse(text);
+                console.log('[admin control] response JSON:', data);
+                const success = data.success;
+                const output = data.output || '';
+                if (success) {
+                    console.log('[admin control] command success output:', output);
+                    Swal.fire({
+                        title: 'Success',
+                        html: output ? '<pre style="text-align:left; white-space:pre-wrap;">' + output + '</pre>' : 'Command executed successfully.',
+                        icon: 'success',
+                        confirmButtonText: 'OK',
+                        width: output ? 700 : undefined
+                    });
+                } else {
+                    console.error('[admin control] command failed output:', output);
+                    Swal.fire({
+                        title: 'Error',
+                        html: '<p>Command failed.</p>' + (output ? '<pre style="text-align:left; white-space:pre-wrap;">' + output + '</pre>' : ''),
+                        icon: 'error',
+                        confirmButtonText: 'OK',
+                        width: output ? 700 : undefined
+                    });
+                }
+            } catch (e) {
+                // Not valid JSON — log raw text for diagnosis and show it to user
+                console.error('[admin control] invalid JSON response:', text);
                 Swal.fire({
                     title: 'Error',
-                    html: '<p>Command failed.</p>' + (output ? '<pre style="text-align:left; white-space:pre-wrap;">' + output + '</pre>' : ''),
+                    html: '<p>Invalid server response (not JSON).</p><pre style="text-align:left; white-space:pre-wrap;">' + text + '</pre>',
                     icon: 'error',
                     confirmButtonText: 'OK',
-                    width: output ? 700 : undefined
+                    width: 800
                 });
             }
             buttons.forEach(btn => btn.disabled = false);
         })
         .catch(error => {
+            console.error('[admin control] fetch error:', error);
             Swal.fire({
                 title: 'Error',
                 text: 'Network error: ' + error.message,
