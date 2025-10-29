@@ -146,6 +146,11 @@ a.has-text-info:hover {
     padding-right: 2vw;
 }
 
+/* Helpers for content pages */
+.content h3.subpoint {
+    margin-left: 1.25rem;
+}
+
 /* Only stretch the two top feature boxes in the first .columns.is-variable.is-4 row */
 .columns.is-variable.is-4.feature-row {
     align-items: stretch;
