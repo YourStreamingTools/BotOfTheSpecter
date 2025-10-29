@@ -149,6 +149,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="../css/custom.css?v=<?php echo uuidv4(); ?>">
+    <link rel="stylesheet" href="admin.css?v=<?php echo uuidv4(); ?>">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
