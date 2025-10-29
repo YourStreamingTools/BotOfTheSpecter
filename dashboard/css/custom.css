@@ -1800,6 +1800,16 @@ nav.top-navbar,
     .title.is-4-tablet {
         font-size: 1.5rem !important;
     }
+
+#mobileTopNavbar {
+    z-index: 10050 !important; /* above cookieConsentBox (9999) */
+    pointer-events: auto !important;
+}
+#mobileTopNavbar #mobileSidebarToggle,
+#mobileTopNavbar .mobile-sidebar-toggle {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
     .subtitle.is-5-desktop {
         font-size: 1.25rem !important;
     }
