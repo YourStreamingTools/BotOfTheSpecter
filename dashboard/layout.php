@@ -64,6 +64,172 @@ function uuidv4() {
             <button id="cookieDeclineBtn" class="button is-danger has-text-weight-bold"><?php echo t('cookie_decline_btn'); ?></button>
         </div>
     </div>
+    <!-- Mobile Top Navbar: visible only on mobile devices -->
+    <nav class="top-navbar mobile-only" id="mobileTopNavbar" style="position:fixed; top:0; left:0; right:0; z-index:1100; display:flex; align-items:center; padding:0.5rem 0.75rem; background:rgba(20,20,20,0.95);">
+        <div style="display:flex; align-items:center; gap:0.5rem; width:100%;">
+            <button id="mobileSidebarToggle" class="button is-dark" aria-label="Open navigation" style="min-width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center;">
+                <span class="icon"><i class="fas fa-bars"></i></span>
+            </button>
+            <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+                <a href="dashboard.php" style="color:#fff; font-weight:700; text-decoration:none;">BotOfTheSpecter</a>
+            </div>
+            <div style="width:44px; height:44px;"></div>
+        </div>
+    </nav>
+    <!-- Mobile Menu (off-canvas panel) -->
+    <div id="mobileMenu" class="mobile-menu" aria-hidden="true">
+        <div class="mobile-menu-header" style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem; background:#141414;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <img src="https://cdn.botofthespecter.com/logo.png" alt="logo" style="width:28px; height:28px;">
+                <span style="color:#fff; font-weight:700;">BotOfTheSpecter</span>
+            </div>
+            <button id="mobileMenuClose" class="button is-dark" aria-label="Close navigation">
+                <span class="icon"><i class="fas fa-times"></i></span>
+            </button>
+        </div>
+        <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
+            <ul class="sidebar-menu">
+                <li class="sidebar-menu-item">
+                    <a href="dashboard.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-home"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_home'); ?></span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="bot.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-robot"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_bot_control'); ?></span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-terminal"></i></span>
+                        <span class="sidebar-menu-text">Commands</span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li>
+                            <a href="custom_commands.php" class="sidebar-submenu-link">
+                                <span class="sidebar-submenu-icon"><i class="fas fa-terminal"></i></span>
+                                <span class="sidebar-menu-text">Custom Commands</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="manage_custom_user_commands.php" class="sidebar-submenu-link">
+                                <span class="sidebar-submenu-icon"><i class="fas fa-user-cog"></i></span>
+                                <span class="sidebar-menu-text">User Commands</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="builtin.php" class="sidebar-submenu-link">
+                                <span class="sidebar-submenu-icon"><i class="fas fa-terminal"></i></span>
+                                <span class="sidebar-menu-text">Builtin Commands</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-cogs"></i></span>
+                        <span class="sidebar-menu-text">Settings</span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li><a href="timed_messages.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-clock"></i></span><span class="sidebar-menu-text">Auto Messages</span></a></li>
+                        <li><a href="edit_counters.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-pen-to-square"></i></span><span class="sidebar-menu-text">Stream Counters</span></a></li>
+                        <li><a href="bot_points.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-coins"></i></span><span class="sidebar-menu-text">Loyalty Points</span></a></li>
+                        <li><a href="subathon.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-hourglass-half"></i></span><span class="sidebar-menu-text">Subathon</span></a></li>
+                        <li><a href="known_users.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-users"></i></span><span class="sidebar-menu-text">Welcome Messages</span></a></li>
+                        <li><a href="channel_rewards.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-gift"></i></span><span class="sidebar-menu-text">Channel Rewards</span></a></li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-chart-line"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_analytics'); ?></span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li><a href="logs.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-clipboard-list"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_bot_logs'); ?></span></a></li>
+                        <li><a href="counters.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-calculator"></i></span><span class="sidebar-menu-text">Counter Stats</span></a></li>
+                        <li><a href="followers.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-user-plus"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_followers'); ?></span></a></li>
+                        <li><a href="subscribers.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-star"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_subscribers'); ?></span></a></li>
+                        <li><a href="mods.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-user-shield"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_moderators'); ?></span></a></li>
+                        <li><a href="vips.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-crown"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_vips'); ?></span></a></li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-video"></i></span>
+                        <span class="sidebar-menu-text">Stream Tools</span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li><a href="streaming.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-video"></i></span><span class="sidebar-menu-text">Recording</span></a></li>
+                        <li><a href="overlays.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-layer-group"></i></span><span class="sidebar-menu-text">Overlays</span></a></li>
+                        <li><a href="sound-alerts.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-volume-up"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_sound_alerts'); ?></span></a></li>
+                        <li><a href="video-alerts.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-film"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_video_alerts'); ?></span></a></li>
+                        <li><a href="walkons.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-door-open"></i></span><span class="sidebar-menu-text">Walk-on Alerts</span></a></li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-plug"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_integrations'); ?></span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li><a href="modules.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fa fa-puzzle-piece"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_specter_modules'); ?></span></a></li>
+                        <li><a href="discordbot.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fab fa-discord"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_discord_bot'); ?></span></a></li>
+                        <li><a href="spotifylink.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fab fa-spotify"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_spotify'); ?></span></a></li>
+                        <li><a href="streamelements.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_streamelements'); ?></span></a></li>
+                        <li><a href="bingo.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-trophy"></i></span><span class="sidebar-menu-text">Stream Bingo</span></a></li>
+                        <li><a href="integrations.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_platform_integrations'); ?></span></a></li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="premium.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-crown"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_premium'); ?></span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="music.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-music"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_vod_music'); ?></span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="todolist/index.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-list-check"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_todo_list'); ?></span>
+                    </a>
+                </li>
+            </ul>
+            <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
+                <?php if (!empty($showModDropdown) && !empty($modChannels)): ?>
+                <a href="mod_channels.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                    <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
+                    <span class="sidebar-user-text">Mod Channels</span>
+                </a>
+                <?php endif; ?>
+                <?php if (!empty($is_admin)): ?>
+                <a href="admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                    <span class="sidebar-user-icon"><i class="fas fa-shield-alt has-text-danger"></i></span>
+                    <span class="sidebar-user-text"><?php echo t('navbar_admin_panel'); ?></span>
+                </a>
+                <?php endif; ?>
+                <a href="profile.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                    <span class="sidebar-user-icon"><i class="fas fa-id-card"></i></span>
+                    <span class="sidebar-user-text"><?php echo isset($_SESSION['username']) ? $_SESSION['username'] : 'User'; ?></span>
+                </a>
+                <a href="logout.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                    <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
+                    <span class="sidebar-user-text"><?php echo t('navbar_logout'); ?></span>
+                </a>
+            </div>
+        </div>
+    </div>
     <!-- Sidebar Navigation (Desktop Only - Hidden on Mobile/Tablet) -->
     <aside class="sidebar-nav desktop-only" id="sidebarNav">
         <div class="sidebar-header">
@@ -440,6 +606,7 @@ function uuidv4() {
 <script src="js/dashboard.js?v=<?php echo uuidv4(); ?>"></script>
 <script src="/js/search.js?v=<?php echo uuidv4(); ?>"></script>
 <script src="/js/bulmaModals.js?v=<?php echo uuidv4(); ?>"></script>
+<script src="js/sidebar-mobile.js?v=<?php echo uuidv4(); ?>"></script>
 <?php echo $scripts; ?>
 <?php include_once "usr_database.php"; ?>
 <script>
