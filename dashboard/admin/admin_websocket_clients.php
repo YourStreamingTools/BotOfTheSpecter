@@ -98,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['refresh_data'])) {
 // Fetch the real websocket data
 $websocketData = fetchWebsocketClients($conn);
 $lastUpdated = date('Y-m-d H:i:s');
+$lastUpdatedIso = date('c'); // ISO 8601 timestamp so client can render in local timezone
 $apiError = false;
 
 // Check if API returned empty data (might indicate an error)
@@ -196,7 +197,7 @@ ob_start();
             Warning: Unable to connect to the websocket server API. Displaying cached or empty data.
         </div>
     <?php else: ?>
-        <div class="notification is-info is-light" id="last-updated">
+        <div class="notification is-info is-light" id="last-updated" data-last-updated="<?php echo htmlspecialchars($lastUpdatedIso); ?>">
             <small>Last Updated: <?php echo htmlspecialchars($lastUpdated); ?></small>
         </div>
     <?php endif; ?>
@@ -429,6 +430,22 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('client-search').addEventListener('keyup', function(e) {
         filterClients();
     });
+    // Render initial server-provided last-updated timestamp using client's locale so it matches refresh formatting
+    try {
+        const lastUpdatedEl = document.getElementById('last-updated');
+        if (lastUpdatedEl) {
+            const iso = lastUpdatedEl.getAttribute('data-last-updated');
+            if (iso) {
+                const dt = new Date(iso);
+                if (!isNaN(dt.getTime())) {
+                    lastUpdatedEl.innerHTML = `<small>Last Updated: ${dt.toLocaleString()}</small>`;
+                }
+            }
+        }
+    } catch (e) {
+        // fail silently if anything goes wrong
+        console.error('Failed to render initial last-updated timestamp', e);
+    }
 });
 
 async function refreshData(silent = false) {
