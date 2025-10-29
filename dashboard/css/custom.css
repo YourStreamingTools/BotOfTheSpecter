@@ -1869,3 +1869,163 @@ nav.top-navbar,
         padding: 0.5rem 1rem !important;
     }
 }
+
+/* Mobile-only top navbar and overlay styles */
+.mobile-only { display: none !important; }
+@media screen and (max-width: 1023px) {
+    .mobile-only { display: flex !important; }
+    /* ensure desktop sidebar is off-canvas by default on mobile (toggle controls visibility) */
+    .desktop-only { display: block !important; }
+    .sidebar-nav, aside.sidebar-nav, #sidebarNav {
+        /* keep off-canvas by default, revealed by body.sidebar-open */
+        transform: translateX(-100%);
+        transition: transform 220ms ease;
+        z-index: 1105;
+        position: fixed;
+        top: 3.25rem;
+        left: 0;
+        height: calc(100vh - 3.25rem);
+    }
+    body.sidebar-open .sidebar-nav,
+    body.sidebar-open aside.sidebar-nav,
+    body.sidebar-open #sidebarNav {
+        transform: translateX(0) !important;
+    }
+    /* small tweak: ensure main content doesn't get hidden under fixed top bar */
+    .page-content { padding-top: 3.75rem; }
+    /* Mobile menu panel (matches sidebar links) */
+    .mobile-menu {
+        position: fixed;
+        top: 3.25rem;
+        left: 0;
+        bottom: 0;
+        width: 280px;
+        background: #141414;
+        z-index: 1110;
+        transform: translateX(-110%);
+        transition: transform 220ms ease;
+        box-shadow: 4px 0 18px rgba(0,0,0,0.6);
+        display: block;
+        /* Use flex column so header stays fixed and body scrolls */
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 3.25rem);
+    }
+    body.sidebar-open .mobile-menu {
+        transform: translateX(0) !important;
+    }
+    /* Hide mobile menu on wider screens just in case */
+}
+
+/* ===== Scoped override: show sidebar-menu inside the mobile panel ===== */
+@media screen and (max-width: 1023px) {
+    /* The global mobile rules hide .sidebar-menu and its children; make an explicit exception
+       for the mobile menu panel so its links are visible and interactive. */
+    .mobile-menu .sidebar-menu,
+    .mobile-menu .sidebar-menu * {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        z-index: 1111 !important;
+        clip: auto !important;
+        clip-path: none !important;
+        white-space: normal !important;
+    }
+
+    /* Ensure text and icons are readable on the mobile menu */
+    .mobile-menu .sidebar-menu-link,
+    .mobile-menu .sidebar-submenu-link,
+    .mobile-menu .sidebar-user-item {
+        color: #b5b5b5 !important;
+        text-decoration: none !important;
+    }
+
+    .mobile-menu .sidebar-menu-link:hover,
+    .mobile-menu .sidebar-submenu-link:hover,
+    .mobile-menu .sidebar-user-item:hover {
+        background-color: rgba(50,115,220,0.06) !important;
+        color: #ffffff !important;
+    }
+
+    /* Expand submenu items to full width inside mobile menu */
+    .mobile-menu .sidebar-submenu {
+        background: transparent !important;
+        padding-left: 0 !important;
+    }
+}
+
+/* Make the mobile menu body take remaining height and scroll properly */
+@media screen and (max-width: 1023px) {
+    .mobile-menu .mobile-menu-body {
+        /* override inline max-height and allow flex behavior */
+        max-height: none !important;
+        height: auto !important;
+        flex: 1 1 auto !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding-bottom: 1rem !important; /* give space so last item isn't flush to edge */
+    }
+
+    /* Ensure footer-like user links remain at bottom if desired */
+    .mobile-menu .mobile-menu-body > .sidebar-user-section,
+    .mobile-menu .mobile-menu-body > .sidebar-user-item {
+        /* no absolute positioning, stay in flow */
+        position: relative !important;
+    }
+}
+
+/* ===== Mobile icon alignment: keep icons and labels on one line ===== */
+@media screen and (max-width: 1023px) {
+    /* list reset inside the mobile panel */
+    .mobile-menu .sidebar-menu {
+        list-style: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Ensure link elements are flex rows so icons align with text */
+    .mobile-menu .sidebar-menu-link,
+    .mobile-menu .sidebar-submenu-link,
+    .mobile-menu .sidebar-user-item {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+        padding: 0.65rem 0.75rem !important;
+        white-space: normal !important;
+    }
+
+    /* Icon sizing and spacing inside mobile menu */
+    .mobile-menu .sidebar-menu-icon,
+    .mobile-menu .sidebar-submenu-icon,
+    .mobile-menu .sidebar-user-icon {
+        width: 28px !important;
+        min-width: 28px !important;
+        text-align: center !important;
+        margin-right: 0.5rem !important;
+        opacity: 0.95 !important;
+        font-size: 1rem !important;
+    }
+
+    /* Make submenu links indent a bit while still aligned */
+    .mobile-menu .sidebar-submenu {
+        padding-left: 0.5rem !important;
+    }
+
+    /* Ensure the text portion won't wrap awkwardly next to the icon */
+    .mobile-menu .sidebar-menu-text,
+    .mobile-menu .sidebar-user-text {
+        display: inline-block !important;
+        vertical-align: middle !important;
+    }
+}
