@@ -63,6 +63,79 @@ $maintenanceMode = $config['maintenanceMode'];
             <button id="cookieDeclineBtn" class="button is-danger has-text-weight-bold"><?php echo t('cookie_decline_btn'); ?></button>
         </div>
     </div>
+    <!-- Mobile Top Navbar: visible only on mobile devices -->
+    <nav class="top-navbar mobile-only" id="mobileTopNavbar" style="position:fixed; top:0; left:0; right:0; z-index:1100; display:flex; align-items:center; padding:0.5rem 0.75rem; background:rgba(20,20,20,0.95);">
+        <div style="display:flex; align-items:center; gap:0.5rem; width:100%;">
+            <button id="mobileSidebarToggle" class="button is-dark" aria-label="Open navigation" style="min-width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center;">
+                <span class="icon"><i class="fas fa-bars"></i></span>
+            </button>
+            <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+                <a href="../dashboard.php" style="color:#fff; font-weight:700; text-decoration:none;">BotOfTheSpecter</a>
+            </div>
+            <div style="width:44px; height:44px;"></div>
+        </div>
+    </nav>
+    <!-- Mobile Menu (off-canvas panel) -->
+    <div id="mobileMenu" class="mobile-menu" aria-hidden="true">
+        <div class="mobile-menu-header" style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem; background:#141414;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <img src="https://cdn.botofthespecter.com/logo.png" alt="logo" style="width:28px; height:28px;">
+                <span style="color:#fff; font-weight:700;">BotOfTheSpecter</span>
+            </div>
+            <button id="mobileMenuClose" class="button is-dark" aria-label="Close navigation">
+                <span class="icon"><i class="fas fa-times"></i></span>
+            </button>
+        </div>
+        <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
+            <ul class="sidebar-menu">
+                <li class="sidebar-menu-item">
+                    <a href="index.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-list-check"></i></span>
+                        <span class="sidebar-menu-text">View Tasks</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-tasks"></i></span>
+                        <span class="sidebar-menu-text">Tasks</span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li><a href="insert.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-plus"></i></span><span class="sidebar-menu-text">Add Task</span></a></li>
+                        <li><a href="remove.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-trash"></i></span><span class="sidebar-menu-text">Remove Task</span></a></li>
+                        <li><a href="update_objective.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-edit"></i></span><span class="sidebar-menu-text">Update Task</span></a></li>
+                        <li><a href="completed.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-check-double"></i></span><span class="sidebar-menu-text">Completed Tasks</span></a></li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-folder"></i></span>
+                        <span class="sidebar-menu-text">Categories</span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li><a href="categories.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-folder"></i></span><span class="sidebar-menu-text">View Categories</span></a></li>
+                        <li><a href="add_category.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-plus-square"></i></span><span class="sidebar-menu-text">Add Category</span></a></li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="obs_options.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-cog"></i></span>
+                        <span class="sidebar-menu-text">OBS Options</span>
+                    </a>
+                </li>
+            </ul>
+            <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
+                <a href="../bot.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                    <span class="sidebar-user-icon"><i class="fas fa-arrow-left"></i></span>
+                    <span class="sidebar-user-text">Back to Bot</span>
+                </a>
+                <div class="sidebar-version">
+                    <span class="tag is-info is-light">v<?php echo $dashboardVersion; ?></span>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Sidebar Navigation (Desktop Only - Hidden on Mobile/Tablet) -->
     <aside class="sidebar-nav desktop-only" id="sidebarNav">
         <div class="sidebar-header">

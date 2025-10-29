@@ -82,6 +82,112 @@ if ($current_file == 'index.php') {
             <button id="cookieDeclineBtn" class="button is-danger has-text-weight-bold"><?php echo t('cookie_decline_btn'); ?></button>
         </div>
     </div>
+    <!-- Mobile Top Navbar: visible only on mobile devices -->
+    <nav class="top-navbar mobile-only" id="mobileTopNavbar" style="position:fixed; top:0; left:0; right:0; z-index:1100; display:flex; align-items:center; padding:0.5rem 0.75rem; background:rgba(20,20,20,0.95);">
+        <div style="display:flex; align-items:center; gap:0.5rem; width:100%;">
+            <button id="mobileSidebarToggle" class="button is-dark" aria-label="Open navigation" style="min-width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center;">
+                <span class="icon"><i class="fas fa-bars"></i></span>
+            </button>
+            <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+                <a href="index.php" style="color:#fff; font-weight:700; text-decoration:none;">Moderator Panel</a>
+            </div>
+            <div style="width:44px; height:44px;"></div>
+        </div>
+    </nav>
+    <!-- Mobile Menu (off-canvas panel) -->
+    <div id="mobileMenu" class="mobile-menu" aria-hidden="true">
+        <div class="mobile-menu-header" style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem; background:#141414;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <img src="https://cdn.botofthespecter.com/logo.png" alt="logo" style="width:28px; height:28px;">
+                <span style="color:#fff; font-weight:700;">Moderator Panel</span>
+            </div>
+            <button id="mobileMenuClose" class="button is-dark" aria-label="Close navigation">
+                <span class="icon"><i class="fas fa-times"></i></span>
+            </button>
+        </div>
+        <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
+            <ul class="sidebar-menu">
+                <li class="sidebar-menu-item">
+                    <a href="index.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-shield-alt"></i></span>
+                        <span class="sidebar-menu-text">Mod Dashboard</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-terminal"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_commands'); ?></span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li><a href="commands.php" class="sidebar-submenu-link"><?php echo t('navbar_view_custom_commands'); ?></a></li>
+                        <li><a href="builtin.php" class="sidebar-submenu-link"><?php echo t('navbar_view_builtin_commands'); ?></a></li>
+                        <li><a href="manage_custom_commands.php" class="sidebar-submenu-link"><?php echo t('navbar_edit_custom_commands'); ?></a></li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="timed_messages.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-clock"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_timed_messages'); ?></span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="bot_points.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-coins"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_points_system'); ?></span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-calculator"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_counters'); ?></span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li><a href="counters.php" class="sidebar-submenu-link"><?php echo t('navbar_counters'); ?></a></li>
+                        <li><a href="edit_counters.php" class="sidebar-submenu-link"><?php echo t('navbar_edit_counters'); ?></a></li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="known_users.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-users"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('known_users_title'); ?></span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item has-submenu">
+                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                        <span class="sidebar-menu-icon"><i class="fas fa-bell"></i></span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_alerts'); ?></span>
+                        <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
+                    </a>
+                    <ul class="sidebar-submenu">
+                        <li><a href="sound-alerts.php" class="sidebar-submenu-link"><?php echo t('navbar_sound_alerts'); ?></a></li>
+                        <li><a href="video-alerts.php" class="sidebar-submenu-link"><?php echo t('navbar_video_alerts'); ?></a></li>
+                        <li><a href="walkons.php" class="sidebar-submenu-link"><?php echo t('navbar_walkon_alerts'); ?></a></li>
+                    </ul>
+                </li>
+            </ul>
+            <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
+                <?php if (!empty($showModDropdown) && !empty($modChannels)): ?>
+                <a href="../mod_channels.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                    <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
+                    <span class="sidebar-user-text"><?php echo t('navbar_mod_for'); ?></span>
+                </a>
+                <?php endif; ?>
+                <a href="../profile.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                    <span class="sidebar-user-icon"><i class="fas fa-user"></i></span>
+                    <span class="sidebar-user-text"><?php echo t('navbar_profile'); ?></span>
+                </a>
+                <a href="mod_return_home.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                    <span class="sidebar-user-icon"><i class="fas fa-home"></i></span>
+                    <span class="sidebar-user-text"><?php echo t('navbar_return_home'); ?></span>
+                </a>
+                <div class="sidebar-version">
+                    <span class="tag is-info is-light">Mod v<?php echo $dashboardVersion; ?></span>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Moderator Notice Banner -->
     <div style="background:rgb(0, 123, 255); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;">
         <span>
@@ -271,6 +377,7 @@ if ($current_file == 'index.php') {
     <script src="../js/dashboard.js"></script>
     <script src="../js/search.js"></script>
     <script src="../js/bulmaModals.js"></script>
+    <script src="../js/sidebar-mobile.js?v=<?php echo uuidv4(); ?>"></script>
     <?php if (!empty($scripts)) { echo $scripts; } ?>
     <?php include_once "../usr_database.php"; ?>
     <script>

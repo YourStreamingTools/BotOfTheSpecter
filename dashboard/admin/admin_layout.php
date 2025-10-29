@@ -160,6 +160,88 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
             <button id="cookieDeclineBtn" class="button is-danger has-text-weight-bold"><?php echo t('cookie_decline_btn'); ?></button>
         </div>
     </div>
+    <!-- Mobile Top Navbar: visible only on mobile devices -->
+    <nav class="top-navbar mobile-only" id="mobileTopNavbar" style="position:fixed; top:0; left:0; right:0; z-index:1100; display:flex; align-items:center; padding:0.5rem 0.75rem; background:rgba(20,20,20,0.95);">
+        <div style="display:flex; align-items:center; gap:0.5rem; width:100%;">
+            <button id="mobileSidebarToggle" class="button is-dark" aria-label="Open navigation" style="min-width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center;">
+                <span class="icon"><i class="fas fa-bars"></i></span>
+            </button>
+            <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+                <a href="/admin" style="color:#fff; font-weight:700; text-decoration:none;">Admin Panel</a>
+            </div>
+            <div style="width:44px; height:44px;"></div>
+        </div>
+    </nav>
+    <!-- Mobile Menu (off-canvas panel) -->
+    <div id="mobileMenu" class="mobile-menu" aria-hidden="true">
+        <div class="mobile-menu-header" style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem; background:#141414;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <img src="https://cdn.botofthespecter.com/logo.png" alt="logo" style="width:28px; height:28px;">
+                <span style="color:#fff; font-weight:700;">Admin Panel</span>
+            </div>
+            <button id="mobileMenuClose" class="button is-dark" aria-label="Close navigation">
+                <span class="icon"><i class="fas fa-times"></i></span>
+            </button>
+        </div>
+        <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
+            <ul class="sidebar-menu">
+                <li class="sidebar-menu-item">
+                    <a href="/admin" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fas fa-tachometer-alt"></i></span>
+                        <span class="sidebar-menu-text">Dashboard</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="admin_users.php" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fas fa-users-cog"></i></span>
+                        <span class="sidebar-menu-text">User Management</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="admin_logs.php" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fas fa-clipboard-list"></i></span>
+                        <span class="sidebar-menu-text">Log Management</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="admin_feedback.php" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fas fa-comments"></i></span>
+                        <span class="sidebar-menu-text">Feedback</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="admin_twitch_tokens.php" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fab fa-twitch"></i></span>
+                        <span class="sidebar-menu-text">Twitch Tokens</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="admin_discord_tracking.php" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fab fa-discord"></i></span>
+                        <span class="sidebar-menu-text">Discord Tracking</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="admin_websocket_clients.php" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fas fa-plug"></i></span>
+                        <span class="sidebar-menu-text">Websocket Clients</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="admin_terminal.php" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fas fa-terminal"></i></span>
+                        <span class="sidebar-menu-text">Web Terminal</span>
+                    </a>
+                </li>
+            </ul>
+            <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
+                <a href="../bot.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                    <span class="icon sidebar-menu-icon"><i class="fas fa-home"></i></span>
+                    <span class="sidebar-menu-text">Back to Bot</span>
+                </a>
+            </div>
+        </div>
+    </div>
     <!-- Admin Banner -->
     <div style="background:rgb(0, 0, 0); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;">
         <span>
@@ -328,6 +410,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
     <script src="../js/dashboard.js"></script>
     <script src="../js/search.js"></script>
     <script src="../js/bulmaModals.js"></script>
+    <script src="../js/sidebar-mobile.js?v=<?php echo uuidv4(); ?>"></script>
     <?php echo $scripts; ?>
     <?php include_once "../usr_database.php"; ?>
     <script>
