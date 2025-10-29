@@ -26,3 +26,53 @@
 .fa-chevron-down.rotated {
     transform: rotate(180deg);
 }
+
+/* Modern admin page additions moved from admin_websocket_clients.php */
+.box {
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(12,17,43,0.06);
+}
+.table-container {
+    border-radius: 8px; overflow: hidden;
+}
+.table thead {
+    background: linear-gradient(90deg, #1f2937, #111827);
+}
+.table tbody tr:hover {
+    background: rgba(99,102,241,0.04); }
+.button.is-primary {
+    border-radius: 8px; box-shadow: 0 6px 18px rgba(59,130,246,0.12); }
+.button.is-small {
+    border-radius: 6px;
+}
+.masked-api-key, .full-api-key {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.04);
+}
+.full-api-key {
+    background: rgba(0,0,0,0.06);
+}
+#last-updated {
+    font-size: 0.95rem;
+}
+.subtitle.is-6 {
+    color: #6b7280;
+}
+.modal-card {
+    border-radius: 12px;
+}
+.tag.is-info {
+    background: linear-gradient(90deg,#06b6d4,#3b82f6);
+    color: white;
+}
+.tag.is-success {
+    background: linear-gradient(90deg,#34d399,#10b981);
+    color: white;
+}
+.level .level-right .button.is-primary {
+    display:flex;
+    align-items:center;
+    gap:0.5rem;
+}
