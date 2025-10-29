@@ -6,6 +6,26 @@ include_once __DIR__ . '/lang/i18n.php';
 include_once "/var/www/config/ssh.php";
 
 /**
+ * Sanitize raw SSH command output to remove any appended exit-code markers
+ * or internal markers injected by the SSH connection manager. This ensures
+ * downstream parsing (numeric checks, exact string matches) isn't broken
+ * by things like "[exit_code:0]".
+ *
+ * @param string|false|null $output
+ * @return string|false|null
+ */
+function sanitizeSSHOutput($output) {
+    if ($output === false || $output === null) return $output;
+    // Cast to string to be safe
+    $o = (string)$output;
+    // Remove any trailing [exit_code:NN] marker (with optional surrounding whitespace/newlines)
+    $o = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', $o);
+    // Remove any internal unique marker used by the SSH wrapper
+    $o = preg_replace('/__SSH_EXIT_STATUS__-?\d+\s*$/', '', $o);
+    return trim($o);
+}
+
+/**
     * Check if a bot is running
     * @param string $username - The username of the bot owner
     * @param string $botType - Type of bot (stable, beta)
@@ -55,7 +75,8 @@ function checkBotRunning($username, $botType = 'stable') {
         // Get PID of the running bot
         $command = "python $statusScriptPath -system $botType -channel $username";
         $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput !== false) {
+        $statusOutput = sanitizeSSHOutput($statusOutput);
+        if ($statusOutput !== false && $statusOutput !== null) {
             $statusOutput = trim($statusOutput);
             // Parse the output to get PID
             if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches) || 
@@ -74,7 +95,8 @@ function checkBotRunning($username, $botType = 'stable') {
             // Try to read version file via SSH
             $versionCmd = "cat " . escapeshellarg($versionFilePath);
             $versionOutput = SSHConnectionManager::executeCommand($connection, $versionCmd);
-            if ($versionOutput !== false) {
+            $versionOutput = sanitizeSSHOutput($versionOutput);
+            if ($versionOutput !== false && $versionOutput !== null) {
                 $result['version'] = trim($versionOutput);
             } else {
                 $result['version'] = '';
@@ -85,7 +107,8 @@ function checkBotRunning($username, $botType = 'stable') {
         // Get file details - don't fail if this doesn't work
         $lastModified = "stat -c %Y " . escapeshellarg($botScriptPath);
         $output = SSHConnectionManager::executeCommand($connection, $lastModified);
-        if ($output !== false) {
+        $output = sanitizeSSHOutput($output);
+        if ($output !== false && $output !== null) {
             $output = trim($output);
             // Parse the output to get last modified time
             if ($output && is_numeric($output)) {
@@ -160,9 +183,10 @@ function performBotAction($action, $botType, $params) {
         }
         // Check current bot status
         $command = "python $statusScriptPath -system $botType -channel $username";
-        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput === false) { throw new Exception('Unable to check bot status. Please try again later.'); }
-        $statusOutput = trim($statusOutput);
+    $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+    $statusOutput = sanitizeSSHOutput($statusOutput);
+    if ($statusOutput === false || $statusOutput === null) { throw new Exception('Unable to check bot status. Please try again later.'); }
+    $statusOutput = trim($statusOutput);
         // Get current PID
         $currentPid = 0;
         if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches) || 
@@ -176,8 +200,9 @@ function performBotAction($action, $botType, $params) {
                 $otherBotScriptPath = "/home/botofthespecter/" . ($otherBotType === 'beta' ? "beta.py" : "bot.py");
                 $otherCommand = "python $statusScriptPath -system $otherBotType -channel $username";
                 $otherStatusOutput = SSHConnectionManager::executeCommand($connection, $otherCommand);
+                $otherStatusOutput = sanitizeSSHOutput($otherStatusOutput);
                 $otherBotStoppedMessage = '';
-                if ($otherStatusOutput !== false) {
+                if ($otherStatusOutput !== false && $otherStatusOutput !== null) {
                     $otherStatusOutput = trim($otherStatusOutput);
                     $otherPid = 0;
                     if (preg_match('/process ID:\s*(\d+)/i', $otherStatusOutput, $matches) || 
@@ -211,8 +236,9 @@ function performBotAction($action, $botType, $params) {
                     }
                     // Construct proper bot start command with all required parameters - MAKE IT BACKGROUND
                     $startCommand = "nohup python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey > /dev/null 2>&1 &";
-                    $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
-                    if ($startOutput === false) {
+                        $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
+                        $startOutput = sanitizeSSHOutput($startOutput);
+                    if ($startOutput === false || $startOutput === null) {
                         $result['message'] = 'Failed to start bot - SSH command execution failed.';
                     } else {
                         // Check timeout before starting bot
@@ -223,7 +249,8 @@ function performBotAction($action, $botType, $params) {
                         usleep(500000); // 0.5 seconds instead of 3 seconds
                         // Quick status check with short timeout
                         $quickStatusOutput = SSHConnectionManager::executeCommand($connection, $command);
-                        if ($quickStatusOutput !== false) {
+                        $quickStatusOutput = sanitizeSSHOutput($quickStatusOutput);
+                        if ($quickStatusOutput !== false && $quickStatusOutput !== null) {
                             if (preg_match('/process ID:\s*(\\d+)/i', $quickStatusOutput, $matches) || preg_match('/PID\\s+(\\d+)/i', $quickStatusOutput, $matches)) {
                                 $result['pid'] = intval($matches[1]);
                                 $result['success'] = true;
@@ -249,7 +276,8 @@ function performBotAction($action, $botType, $params) {
                 if ($currentPid > 0) {
                     $killCommand = "kill -s kill $currentPid";
                     $killOutput = SSHConnectionManager::executeCommand($connection, $killCommand);
-                    if ($killOutput === false) {
+                    $killOutput = sanitizeSSHOutput($killOutput);
+                    if ($killOutput === false || $killOutput === null) {
                         $result['message'] = 'Unable to stop bot. Please try again later.';
                     } else {
                         // Don't wait - killing is instant

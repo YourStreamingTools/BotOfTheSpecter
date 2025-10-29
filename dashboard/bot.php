@@ -110,7 +110,15 @@ function checkSSHFileStatus($username) {
     $filePath = "/home/botofthespecter/logs/online/" . escapeshellarg($username) . ".txt";
     $command = "cat " . $filePath . " 2>/dev/null";
     $output = SSHConnectionManager::executeCommand($connection, $command);
-    if ($output !== false) {
+    if ($output !== false && $output !== null) {
+      // Sanitize output to remove any appended exit code markers
+      if (function_exists('sanitizeSSHOutput')) {
+        $output = sanitizeSSHOutput($output);
+      } else {
+        // Fallback: remove trailing [exit_code:NN] style markers
+        $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output);
+        $output = preg_replace('/__SSH_EXIT_STATUS__-?\d+\s*$/', '', (string)$output);
+      }
       $status = trim($output);
       // Return the status if it's either 'True' or 'False'
       if ($status === 'True' || $status === 'False') {

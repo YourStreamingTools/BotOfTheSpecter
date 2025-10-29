@@ -72,7 +72,9 @@ function getRemoteFileMTime($remoteFile) {
     $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
     $cmd = "stat -c %Y " . escapeshellarg($remoteFile);
     $output = SSHConnectionManager::executeCommand($connection, $cmd);
-    if ($output !== false) {
+    if ($output !== false && $output !== null) {
+      if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
+      else { $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output); }
       $output = trim($output);
       if (is_numeric($output)) return (int)$output;
     }
@@ -89,7 +91,9 @@ function getRemoteFileContents($remoteFile) {
     $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
     $cmd = "cat " . escapeshellarg($remoteFile) . " 2>/dev/null";
     $output = SSHConnectionManager::executeCommand($connection, $cmd);
-    if ($output !== false) {
+    if ($output !== false && $output !== null) {
+      if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
+      else { $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output); }
       return trim($output);
     }
   } catch (Exception $e) {
