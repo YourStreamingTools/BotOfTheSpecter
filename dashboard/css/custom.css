@@ -11,6 +11,19 @@
     --sidebar-collapsed-width: 70px;
 }
 
+@media screen and (min-width: 1024px) {
+    #mobileTopNavbar {
+        z-index: 1200 !important;
+        pointer-events: auto !important;
+    }
+    /* make sure the toggle itself is interactive and shows a pointer */
+    #mobileTopNavbar #mobileSidebarToggle,
+    #mobileTopNavbar .mobile-sidebar-toggle {
+        pointer-events: auto !important;
+        cursor: pointer !important;
+    }
+}
+
 html, body {
     min-height: 100vh;
     background-color: var(--bg-color);
