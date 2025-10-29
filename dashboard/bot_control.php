@@ -93,9 +93,11 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
         $system = 'stable';
         if (strpos($botScriptPath, 'beta.py') !== false) { $system = 'beta'; } 
         $command = "python $statusScriptPath -system $system -channel $username";
-        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput === false) { throw new Exception('Failed to get bot status'); }
-        $statusOutput = trim($statusOutput);
+    $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+    if ($statusOutput === false || $statusOutput === null) { throw new Exception('Failed to get bot status'); }
+    if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
+    else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
+    $statusOutput = trim($statusOutput);
         if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
             $pid = intval($matches[1]);
         } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
@@ -120,7 +122,9 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                 $otherCommand = "python $statusScriptPath -system $otherSystem -channel $username";
                 $otherStatusOutput = SSHConnectionManager::executeCommand($connection, $otherCommand);
                 $otherBotStoppedMessage = '';
-                if ($otherStatusOutput !== false) {
+                if ($otherStatusOutput !== false && $otherStatusOutput !== null) {
+                    if (function_exists('sanitizeSSHOutput')) { $otherStatusOutput = sanitizeSSHOutput($otherStatusOutput); }
+                    else { $otherStatusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$otherStatusOutput); }
                     $otherStatusOutput = trim($otherStatusOutput);
                     $otherPid = 0;
                     if (preg_match('/process ID:\s*(\d+)/i', $otherStatusOutput, $matches)) {
@@ -146,7 +150,9 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     sleep(2);
                     // Check status again using connection manager
                     $statusOutput = SSHConnectionManager::executeCommand($connection, "python $statusScriptPath -system $system -channel $username");
-                    if ($statusOutput !== false) {
+                    if ($statusOutput !== false && $statusOutput !== null) {
+                        if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
+                        else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
                         $statusOutput = trim($statusOutput);
                         if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
                             $pid = intval($matches[1]);
@@ -200,9 +206,11 @@ function getBotsStatus($statusScriptPath, $username, $system = 'stable') {
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         // Run the command to get the bot's status
         $command = "python $statusScriptPath -system $system -channel $username";
-        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput === false) { return "<div class='status-message error'>Status: SSH command execution failed</div>"; }
-        $statusOutput = trim($statusOutput);
+    $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+    if ($statusOutput === false || $statusOutput === null) { return "<div class='status-message error'>Status: SSH command execution failed</div>"; }
+    if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
+    else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
+    $statusOutput = trim($statusOutput);
         if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
             preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
             $pid = intval($matches[1]);
@@ -218,9 +226,11 @@ function isBotRunning($statusScriptPath, $username) {
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         $command = "python $statusScriptPath -system stable -channel $username";
-        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput === false) { throw new Exception('SSH command execution failed'); }
-        $statusOutput = trim($statusOutput);
+    $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+    if ($statusOutput === false || $statusOutput === null) { throw new Exception('SSH command execution failed'); }
+    if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
+    else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
+    $statusOutput = trim($statusOutput);
         if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
             $pid = intval($matches[1]);
         } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
@@ -236,9 +246,11 @@ function getBotPID($statusScriptPath, $username) {
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         $command = "python $statusScriptPath -system stable -channel $username";
-        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput === false) { throw new Exception('SSH command execution failed'); }
-        $statusOutput = trim($statusOutput);
+    $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+    if ($statusOutput === false || $statusOutput === null) { throw new Exception('SSH command execution failed'); }
+    if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
+    else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
+    $statusOutput = trim($statusOutput);
         if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
             $pid = intval($matches[1]);
         } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
@@ -256,9 +268,11 @@ function checkBotsRunning($statusScriptPath, $username, $system = 'stable') {
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         $command = "python $statusScriptPath -system $system -channel $username";
-        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput === false) { return false; }
-        $statusOutput = trim($statusOutput);
+    $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+    if ($statusOutput === false || $statusOutput === null) { return false; }
+    if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
+    else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
+    $statusOutput = trim($statusOutput);
         if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
             preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
             $pid = intval($matches[1]);
@@ -275,8 +289,10 @@ function killBot($pid) {
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         $command = "kill -s kill $pid";
-        $output = SSHConnectionManager::executeCommand($connection, $command);
-        if ($output === false) { throw new Exception('SSH command execution failed'); }
+    $output = SSHConnectionManager::executeCommand($connection, $command);
+    if ($output === false || $output === null) { throw new Exception('SSH command execution failed'); }
+    if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
+    else { $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output); }
         sleep(1);
     } catch (Exception $e) { throw $e; }
     if (empty($output) || strpos($output, 'No such process') === false) { return true;
@@ -289,8 +305,10 @@ function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refresh
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key &";
-        $output = SSHConnectionManager::executeCommand($connection, $command);
-        if ($output === false) { throw new Exception('SSH command execution failed'); }
+    $output = SSHConnectionManager::executeCommand($connection, $command);
+    if ($output === false || $output === null) { throw new Exception('SSH command execution failed'); }
+    if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
+    else { $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output); }
         return true;
     } catch (Exception $e) {
         throw $e;
@@ -311,7 +329,9 @@ function getRunningVersion($versionFilePath, $newVersion, $type = '') {
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         $versionCmd = "cat " . escapeshellarg($versionFilePath);
         $output = SSHConnectionManager::executeCommand($connection, $versionCmd);
-        if ($output !== false) {
+        if ($output !== false && $output !== null) {
+            if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
+            else { $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output); }
             return trim($output);
         } else {
             return $newVersion;
@@ -330,8 +350,14 @@ function testSSHConnection() {
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         // Test a simple command
         $output = SSHConnectionManager::executeCommand($connection, 'echo "test"');
-        if ($output !== false && trim($output) === 'test') {
-            return ['success' => true, 'message' => 'SSH connection successful'];
+        if ($output !== false && $output !== null) {
+            if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
+            else { $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output); }
+            if (trim($output) === 'test') {
+                return ['success' => true, 'message' => 'SSH connection successful'];
+            } else {
+                return ['success' => false, 'message' => 'SSH command test failed'];
+            }
         } else {
             return ['success' => false, 'message' => 'SSH command test failed'];
         }
