@@ -19,6 +19,16 @@ html, body {
     cursor: auto;
 }
 
+/* Global safeguard: keep mobile UI hidden by default; mobile media queries will enable it */
+.mobile-only,
+.mobile-menu,
+#mobileMenu,
+#mobileSidebarOverlay {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 .columns.is-fullheight {
     min-height: calc(100vh - 3.25rem);
     max-height: calc(100vh - 3.25rem);
@@ -1488,11 +1498,14 @@ nav.top-navbar,
         min-width: var(--sidebar-collapsed-width) !important;
     }
     
-    /* HIDE NAVBAR ON DESKTOP */
+    /* HIDE NAVBAR AND MOBILE PANEL ON DESKTOP */
     .mobile-only,
     nav.navbar,
     nav.top-navbar,
-    #topNavbar {
+    #topNavbar,
+    .mobile-menu,
+    #mobileMenu,
+    #mobileSidebarOverlay {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
