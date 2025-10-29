@@ -295,7 +295,14 @@ ob_start();
     <p class="mb-4">Users with active websocket connections grouped by their API keys.</p>
     <div class="field mb-4">
         <div class="control">
-            <input type="text" id="client-search" placeholder="Search by display name or API key..." class="input">
+            <div class="search-wrapper">
+                <span class="search-icon"><i class="fas fa-search"></i></span>
+                <input type="text" id="client-search" placeholder="Search by display name or API key..." class="search-input" aria-label="Search clients">
+                <button type="button" id="client-search-clear" class="button is-white is-small search-clear" aria-label="Clear search" title="Clear search" style="display:none;">
+                    <span class="icon"><i class="fas fa-times"></i></span>
+                </button>
+                <span id="client-search-count" class="search-count" aria-live="polite">0 results</span>
+            </div>
         </div>
     </div>
     <?php if (empty($websocketData['registered_clients'])): ?>
@@ -433,10 +440,31 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(function() {
         refreshData(true); // true = silent refresh
     }, 60000);
-    // Search functionality
-    document.getElementById('client-search').addEventListener('keyup', function(e) {
-        filterClients();
-    });
+    // Search functionality: debounce input, show clear button, and update visible result count
+    const clientSearchInput = document.getElementById('client-search');
+    const clientSearchClear = document.getElementById('client-search-clear');
+    const clientSearchCount = document.getElementById('client-search-count');
+    let searchDebounceTimer = null;
+    if (clientSearchInput) {
+        clientSearchInput.addEventListener('input', function(e) {
+            // Toggle clear button visibility
+            if (clientSearchInput.value && clientSearchInput.value.length > 0) {
+                if (clientSearchClear) clientSearchClear.style.display = '';
+            } else {
+                if (clientSearchClear) clientSearchClear.style.display = 'none';
+            }
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => filterClients(), 180);
+        });
+    }
+    if (clientSearchClear) {
+        clientSearchClear.addEventListener('click', function() {
+            clientSearchInput.value = '';
+            clientSearchClear.style.display = 'none';
+            filterClients();
+            clientSearchInput.focus();
+        });
+    }
     // Render initial server-provided last-updated timestamp using client's locale so it matches refresh formatting
     try {
         const lastUpdatedEl = document.getElementById('last-updated');
@@ -448,6 +476,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     lastUpdatedEl.innerHTML = `<small>Last Updated: ${dt.toLocaleString()}</small>`;
                 }
             }
+        }
+        // Initialize search UI state and result count on page load
+        try {
+            const clientSearchInput = document.getElementById('client-search');
+            const clientSearchClear = document.getElementById('client-search-clear');
+            if (clientSearchInput) {
+                if (clientSearchClear) {
+                    clientSearchClear.style.display = clientSearchInput.value && clientSearchInput.value.length > 0 ? '' : 'none';
+                }
+            }
+            // Run an initial filter to set the result count correctly
+            if (typeof filterClients === 'function') filterClients();
+        } catch (e) {
+            // ignore
         }
     } catch (e) {
         // fail silently if anything goes wrong
@@ -552,6 +594,12 @@ function updateClientsTable(registeredClients) {
         `;
         tbody.appendChild(row);
     }
+    // Re-run the filter to update the visible count and clear button state
+    try {
+        if (typeof filterClients === 'function') filterClients();
+    } catch (e) {
+        console.error('filterClients() failed after updating clients table', e);
+    }
 }
 
 function updateGlobalListenersTable(globalListeners) {
@@ -647,23 +695,33 @@ function toggleApiKey(button) {
 }
 
 function filterClients() {
-    const input = document.getElementById('client-search').value.toLowerCase();
+    const inputEl = document.getElementById('client-search');
+    const input = inputEl ? (inputEl.value || '').toLowerCase() : '';
     const table = document.getElementById('clients-table');
     if (!table) return;
     const rows = table.getElementsByTagName('tr');
+    let visibleCount = 0;
     for (let i = 1; i < rows.length; i++) { // Skip header row
         const row = rows[i];
         const cells = row.getElementsByTagName('td');
         let shouldShow = false;
         // Search through display name and API key columns
         for (let j = 0; j < 2; j++) { // Only search display name and API key columns
-            const cellText = cells[j].textContent.toLowerCase();
-            if (cellText.includes(input)) {
+            const cell = cells[j];
+            if (!cell) continue;
+            const cellText = (cell.textContent || cell.innerText || '').toLowerCase();
+            if (cellText.indexOf(input) !== -1) {
                 shouldShow = true;
                 break;
             }
         }
         row.style.display = shouldShow ? '' : 'none';
+        if (shouldShow) visibleCount++;
+    }
+    // Update result count
+    const countEl = document.getElementById('client-search-count');
+    if (countEl) {
+        countEl.textContent = visibleCount + (visibleCount === 1 ? ' result' : ' results');
     }
 }
 
