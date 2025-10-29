@@ -320,7 +320,14 @@ ob_start();
                                 <?php echo htmlspecialchars($userData['twitch_display_name']); ?>
                             </td>
                             <td>
-                                <code><?php echo htmlspecialchars($apiKey); ?></code>
+                                <div style="display:flex;align-items:center;gap:0.5rem;">
+                                    <?php $maskLen = min(strlen($apiKey), 32); $masked = str_repeat('•', $maskLen); ?>
+                                    <code class="masked-api-key"><?php echo htmlspecialchars($masked); ?></code>
+                                    <code class="full-api-key" style="display:none;"><?php echo htmlspecialchars($apiKey); ?></code>
+                                    <button class="button is-small" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
+                                        <span class="icon"><i class="fas fa-eye"></i></span>
+                                    </button>
+                                </div>
                             </td>
                             <td>
                                 <span class="tag is-info"><?php echo $userData['client_count']; ?> clients</span>
@@ -524,7 +531,15 @@ function updateClientsTable(registeredClients) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${escapeHtml(userData.twitch_display_name)}</td>
-            <td><code>${escapeHtml(apiKey)}</code></td>
+            <td>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    <code class="masked-api-key">${'•'.repeat(Math.min(apiKey.length, 32))}</code>
+                    <code class="full-api-key" style="display:none;">${escapeHtml(apiKey)}</code>
+                    <button class="button is-small" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
+                        <span class="icon"><i class="fas fa-eye"></i></span>
+                    </button>
+                </div>
+            </td>
             <td><span class="tag is-info">${userData.client_count} clients</span></td>
             <td>
                 <div class="buttons are-small">
@@ -599,6 +614,38 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Toggle API key visibility (button should be inside the same container as .masked-api-key and .full-api-key)
+function toggleApiKey(button) {
+    try {
+        // Button might be inside a <p> or div; find nearest container with masked/full elements
+        let container = button.parentElement;
+        // If the button was rendered inside the <p> that also contains text nodes, parentElement is fine
+        // Keep walking up if necessary to find the masked/full elements
+        while (container && !container.querySelector('.masked-api-key')) {
+            container = container.parentElement;
+        }
+        if (!container) return;
+        const masked = container.querySelector('.masked-api-key');
+        const full = container.querySelector('.full-api-key');
+        const icon = button.querySelector('i');
+        if (!masked || !full || !icon) return;
+        const showing = full.style.display !== 'none';
+        if (showing) {
+            full.style.display = 'none';
+            masked.style.display = '';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        } else {
+            full.style.display = '';
+            masked.style.display = 'none';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        }
+    } catch (e) {
+        console.error('toggleApiKey error', e);
+    }
+}
+
 function filterClients() {
     const input = document.getElementById('client-search').value.toLowerCase();
     const table = document.getElementById('clients-table');
@@ -628,13 +675,18 @@ async function showUserClients(apiKey, displayName) {
             throw new Error(data.error);
         }
         document.getElementById('modal-user-name').textContent = displayName;
+        const maskedKey = '•'.repeat(Math.min(apiKey.length, 32));
         let content = `
             <div class="box">
                 <div class="level">
                     <div class="level-left">
                         <div class="level-item">
                             <div>
-                                <p class="title is-6">API Key: <code>${escapeHtml(apiKey)}</code></p>
+                                <p class="title is-6">API Key: <code class="masked-api-key">${maskedKey}</code><code class="full-api-key" style="display:none;">${escapeHtml(apiKey)}</code>
+                                    <button class="button is-small" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
+                                        <span class="icon"><i class="fas fa-eye"></i></span>
+                                    </button>
+                                </p>
                                 <p class="subtitle is-6">${data.client_count} connected clients</p>
                             </div>
                         </div>
