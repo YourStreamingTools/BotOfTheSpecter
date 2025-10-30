@@ -2065,3 +2065,19 @@ nav.top-navbar,
         vertical-align: middle !important;
     }
 }
+
+.quick-actions .card {
+    height: 100%;
+}
+.quick-actions .card .card-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 180px;
+}
+.quick-actions .card .button {
+    margin-top: auto;
+    white-space: nowrap;
+}
+.quick-actions .icon.is-large {
+    font-size: 2.25rem;
+}
