@@ -11,6 +11,7 @@ if (!isset($_SESSION['access_token'])) {
 
 // Include necessary files
 require_once "/var/www/config/db_connect.php";
+require_once "/var/www/config/twitch.php";
 include 'userdata.php';
 include 'bot_control.php';
 include "mod_access.php";
@@ -97,6 +98,37 @@ if (isset($_SESSION['profile_message'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    // AJAX endpoint to resolve bot username to Twitch ID
+    if ($action === 'resolve_bot_id') {
+        header('Content-Type: application/json');
+        $botName = trim($_POST['bot_username'] ?? '');
+        if ($botName === '') {
+            echo json_encode(['success' => false, 'error' => t('bot_username_empty')]);
+            exit();
+        }
+        $url = 'https://api.twitch.tv/helix/users?login=' . urlencode($botName);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Client-ID: ' . $clientID,
+            'Authorization: Bearer ' . $authToken,
+        ]);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+        if ($resp === false || $code !== 200) {
+            echo json_encode(['success' => false, 'error' => t('twitch_api_error') . ': ' . ($err ?: "HTTP {$code}")]);
+            exit();
+        }
+        $data = json_decode($resp, true);
+        if (!isset($data['data'][0]['id'])) {
+            echo json_encode(['success' => false, 'error' => t('twitch_user_not_found')]);
+            exit();
+        }
+        echo json_encode(['success' => true, 'bot_id' => $data['data'][0]['id']]);
+        exit();
+    }
     if ($action === 'update_timezone') {
         $timezone = $_POST['timezone'] ?? 'UTC';
         $updateQuery = "UPDATE profile SET timezone = ?";
@@ -789,15 +821,136 @@ ob_start();
         </div>
     </div>
     <div class="column is-12">
-        <div class="box" id="custom-bot-coming-soon">
-            <h2 class="title is-4 mb-4">Custom Bot (Coming Soon)</h2>
+        <div class="box" id="custom-bot">
+            <h2 class="title is-4 mb-4">Custom Bot <span class="tag is-warning" style="margin-left:0.5rem;">Coming Soon</span></h2>
             <div class="content">
-                <p>This section will allow you to choose a custom bot name for your channel and follow guided steps to connect it. The feature is coming soon — there are no settings available yet.</p>
-                <p class="help">When available you'll be able to set a bot display name and follow the setup instructions to connect it to your channel.</p>
-                <div style="margin-top:1rem;">
-                    <span class="tag is-warning">Coming Soon</span>
-                </div>
+                <p>Set a custom bot for your channel by entering the bot's Twitch username. We'll resolve the Twitch user ID for you.</p>
             </div>
+            <?php
+            // Handle saving custom bot via POST
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_custom_bot') {
+                $botName = trim($_POST['bot_username'] ?? '');
+                $botId = trim($_POST['bot_channel_id'] ?? '');
+                if ($botName === '') {
+                    $message = 'Please provide a bot username.';
+                    $alertClass = 'is-danger';
+                } else {
+                    // If bot ID not provided, try to resolve via Helix
+                    if ($botId === '') {
+                        $url = 'https://api.twitch.tv/helix/users?login=' . urlencode($botName);
+                        $ch = curl_init($url);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Client-ID: ' . $clientID,
+                            'Authorization: Bearer ' . $authToken,
+                        ]);
+                        $resp = curl_exec($ch);
+                        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        $err = curl_error($ch);
+                        curl_close($ch);
+                        if ($resp === false || $code !== 200) {
+                            $message = t('twitch_api_error') . ': ' . ($err ?: "HTTP {$code}");
+                            $alertClass = 'is-danger';
+                            goto _custom_bot_output;
+                        }
+                        $data = json_decode($resp, true);
+                        if (!isset($data['data'][0]['id'])) {
+                            $message = t('twitch_user_not_found');
+                            $alertClass = 'is-danger';
+                            goto _custom_bot_output;
+                        }
+                        $botId = $data['data'][0]['id'];
+                    }
+                    // Now insert or update into custom_bots table
+                    // Use $conn for DB (project convention)
+                    $channelId = $userId; // channel which is setting up the custom bot
+                    // When saving, mark as not verified until user validates via the linking page
+                    $isVerified = 0;
+                    // Upsert: try update first, otherwise insert. Always reset is_verified to 0 on save.
+                    $updateSQL = "UPDATE custom_bots SET bot_username = ?, bot_channel_id = ?, is_verified = 0 WHERE channel_id = ?";
+                    $stmt = mysqli_prepare($conn, $updateSQL);
+                    if ($stmt) {
+                        mysqli_stmt_bind_param($stmt, 'ssi', $botName, $botId, $channelId);
+                        if (mysqli_stmt_execute($stmt) && mysqli_stmt_affected_rows($stmt) > 0) {
+                            $message = t('custom_bot_updated_success');
+                            $alertClass = 'is-success';
+                        } else {
+                            // Insert if update did not affect rows
+                            $insertSQL = "INSERT INTO custom_bots (channel_id, bot_username, bot_channel_id, is_verified) VALUES (?, ?, ?, ?)";
+                            $stmt2 = mysqli_prepare($conn, $insertSQL);
+                            if ($stmt2) {
+                                mysqli_stmt_bind_param($stmt2, 'issi', $channelId, $botName, $botId, $isVerified);
+                                if (mysqli_stmt_execute($stmt2)) {
+                                    $message = t('custom_bot_saved_success');
+                                    $alertClass = 'is-success';
+                                } else {
+                                    $message = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                                    $alertClass = 'is-danger';
+                                }
+                            } else {
+                                $message = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                                $alertClass = 'is-danger';
+                            }
+                        }
+                    } else {
+                        $message = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                        $alertClass = 'is-danger';
+                    }
+                }
+            }
+            _custom_bot_output:
+            // Load existing custom bot for this channel if present (include verification state)
+            $existingBot = null;
+            $cbStmt = $conn->prepare("SELECT bot_username, bot_channel_id, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
+            if ($cbStmt) {
+                $cbStmt->bind_param('i', $userId);
+                $cbStmt->execute();
+                $cbRes = $cbStmt->get_result();
+                if ($row = $cbRes->fetch_assoc()) {
+                    $existingBot = $row;
+                }
+            }
+            ?>
+            <?php if (!empty($message)): ?>
+                <div class="notification <?php echo $alertClass; ?>">
+                    <button class="delete"></button>
+                    <?php echo htmlspecialchars($message); ?>
+                </div>
+            <?php endif; ?>
+            <form method="post" id="custom-bot-form" style="margin-top:1rem;">
+                <input type="hidden" name="action" value="save_custom_bot">
+                <div style="margin-bottom:0.5rem;">
+                    <?php if (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) !== 1): ?>
+                        <span class="tag is-danger">NOT VERIFIED</span>
+                        <span class="help" style="margin-left:0.5rem;">To verify this bot, sign in as the bot at <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a></span>
+                    <?php elseif (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) === 1): ?>
+                        <span class="tag is-success">Verified</span>
+                    <?php endif; ?>
+                </div>
+                <div class="field">
+                    <label class="label">Bot Name</label>
+                    <div class="control has-icons-right">
+                        <input class="input" type="text" name="bot_username" id="bot-username" value="<?php echo htmlspecialchars($existingBot['bot_username'] ?? '', ENT_QUOTES); ?>" required>
+                        <span class="icon is-small is-right" id="bot-lookup-status" style="display:none;"></span>
+                    </div>
+                    <p class="help">Enter the Twitch username of the bot (without @).</p>
+                </div>
+                <div class="field">
+                    <label class="label">Bot ID</label>
+                    <div class="control">
+                        <input class="input" type="text" name="bot_channel_id" id="bot-id" value="<?php echo htmlspecialchars($existingBot['bot_channel_id'] ?? '', ENT_QUOTES); ?>" readonly>
+                    </div>
+                    <p class="help">This is the resolved Twitch user ID for the bot.</p>
+                </div>
+                <div class="field is-grouped">
+                    <div class="control">
+                        <button type="submit" class="button is-primary">Save</button>
+                    </div>
+                    <div class="control">
+                        <button type="button" class="button" id="resolve-bot-btn">Resolve ID</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -807,6 +960,44 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+(function(){
+    const resolveBtn = document.getElementById('resolve-bot-btn');
+    const usernameInput = document.getElementById('bot-username');
+    const idField = document.getElementById('bot-id');
+    const status = document.getElementById('bot-lookup-status');
+    function setStatus(html, cls) {
+        if (!status) return;
+        status.style.display = html ? '' : 'none';
+        status.innerHTML = html || '';
+        status.className = cls || '';
+    }
+    resolveBtn && resolveBtn.addEventListener('click', function(e){
+        const name = usernameInput.value.trim();
+        if (!name) {
+            setStatus('<i class="fas fa-exclamation-triangle has-text-danger"></i>', '');
+            return;
+        }
+        setStatus('<i class="fas fa-spinner fa-spin"></i>','');
+        fetch(window.location.pathname, {
+            method: 'POST',
+            headers: {'Content-Type':'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({action:'resolve_bot_id', bot_username: name})
+        }).then(r=>r.json()).then(j=>{
+            if (j && j.success) {
+                idField.value = j.bot_id || '';
+                setStatus('<i class="fas fa-check has-text-success"></i>','');
+            } else {
+                setStatus('<i class="fas fa-times has-text-danger"></i>','');
+                alert(j.error || 'Unable to resolve bot ID');
+            }
+        }).catch(err=>{
+            setStatus('<i class="fas fa-times has-text-danger"></i>','');
+            console.error(err);
+            alert('Error resolving bot ID');
+        });
+    });
+})();
+
 function copyApiKey() {
     const apiKeyField = document.getElementById('api-key-field');
     const copyBtn = document.getElementById('copy-api-key-btn');
