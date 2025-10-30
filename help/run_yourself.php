@@ -563,6 +563,24 @@ CREATE TABLE IF NOT EXISTS users (
     app_password VARCHAR(50) DEFAULT NULL,
     language VARCHAR(5) DEFAULT 'EN'
 );
+
+-- custom_bots: Stores any user-created/custom bot entries
+CREATE TABLE IF NOT EXISTS custom_bots (
+    channel_id VARCHAR(255) NOT NULL,
+    bot_username VARCHAR(255),
+    bot_channel_id VARCHAR(255),
+    is_verified INT DEFAULT 0,
+    PRIMARY KEY (channel_id)
+);
+
+-- feedback: User-submitted feedback/messages for the site & services
+CREATE TABLE IF NOT EXISTS feedback (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    twitch_user_id VARCHAR(64),
+    display_name VARCHAR(255),
+    message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 </code></pre>
 
         <p class="mt-3">Then create your database user with access to all databases:</p>
