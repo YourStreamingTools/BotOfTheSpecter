@@ -667,14 +667,14 @@ ob_start();
         <div class="box" id="connections">
             <h2 class="title is-4 mb-4"><?php echo t('connected_accounts_title'); ?></h2>
             <div class="columns is-multiline">
-                <div class="column is-3">
+                <div class="column is-3-desktop is-6-tablet is-12-mobile">
                     <div class="box has-background-dark">
                         <div class="level">
                             <div class="level-left">
                                 <div class="level-item">
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
                                         <i class="fab fa-twitch fa-2x has-text-primary" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
-                                        <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:-5px;right:-5px;background:white;border-radius:50%;font-size:0.8em;"></i>
+                                        <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
                                     </span>
                                 </div>
                                 <div class="level-item">
@@ -694,7 +694,7 @@ ob_start();
                         </div>
                     </div>
                 </div>
-                <div class="column is-3">
+                <div class="column is-3-desktop is-6-tablet is-12-mobile">
                     <div class="box has-background-dark">
                         <div class="level">
                             <div class="level-left">
@@ -702,7 +702,7 @@ ob_start();
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
                                         <i class="fab fa-discord fa-2x has-text-info" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
                                         <?php if ($discordLinked): ?>
-                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:-5px;right:-5px;background:white;border-radius:50%;font-size:0.8em;"></i>
+                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
                                         <?php endif; ?>
                                     </span>
                                 </div>
@@ -730,7 +730,7 @@ ob_start();
                         </div>
                     </div>
                 </div>
-                <div class="column is-3">
+                <div class="column is-3-desktop is-6-tablet is-12-mobile">
                     <div class="box has-background-dark">
                         <div class="level">
                             <div class="level-left">
@@ -738,7 +738,7 @@ ob_start();
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
                                         <i class="fab fa-spotify fa-2x has-text-success" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
                                         <?php if ($spotifyLinked): ?>
-                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:-5px;right:-5px;background:white;border-radius:50%;font-size:0.8em;"></i>
+                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
                                         <?php endif; ?>
                                     </span>
                                 </div>
@@ -766,7 +766,7 @@ ob_start();
                         </div>
                     </div>
                 </div>
-                <div class="column is-3">
+                <div class="column is-3-desktop is-6-tablet is-12-mobile">
                     <div class="box has-background-dark">
                         <div class="level">
                             <div class="level-left">
@@ -774,7 +774,7 @@ ob_start();
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
                                         <img src="https://cdn.brandfetch.io/idj4DI2QBL/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B" alt="StreamElements" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
                                         <?php if ($streamelementsLinked): ?>
-                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:-5px;right:-5px;background:white;border-radius:50%;font-size:0.8em;"></i>
+                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
                                         <?php endif; ?>
                                     </span>
                                 </div>
