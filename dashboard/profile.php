@@ -669,7 +669,7 @@ ob_start();
             <div class="columns is-multiline">
                 <div class="column is-3-desktop is-6-tablet is-12-mobile">
                     <div class="box has-background-dark">
-                        <div class="level">
+                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
                             <div class="level-left">
                                 <div class="level-item">
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
@@ -683,7 +683,7 @@ ob_start();
                                     </div>
                                 </div>
                             </div>
-                            <div class="level-right">
+                            <div class="level-right" style="margin-left:auto;">
                                 <div class="level-item">
                                     <button type="button" class="button is-danger is-small" onclick="disconnectTwitch()">
                                         <span class="icon is-small"><i class="fas fa-sign-out-alt"></i></span>
@@ -696,7 +696,7 @@ ob_start();
                 </div>
                 <div class="column is-3-desktop is-6-tablet is-12-mobile">
                     <div class="box has-background-dark">
-                        <div class="level">
+                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
                             <div class="level-left">
                                 <div class="level-item">
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
@@ -712,7 +712,7 @@ ob_start();
                                     </div>
                                 </div>
                             </div>
-                            <div class="level-right">
+                            <div class="level-right" style="margin-left:auto;">
                                 <div class="level-item">
                                     <?php if ($discordLinked): ?>
                                         <button type="button" class="button is-danger is-small" onclick="disconnectDiscord()">
@@ -732,7 +732,7 @@ ob_start();
                 </div>
                 <div class="column is-3-desktop is-6-tablet is-12-mobile">
                     <div class="box has-background-dark">
-                        <div class="level">
+                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
                             <div class="level-left">
                                 <div class="level-item">
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
@@ -748,7 +748,7 @@ ob_start();
                                     </div>
                                 </div>
                             </div>
-                            <div class="level-right">
+                            <div class="level-right" style="margin-left:auto;">
                                 <div class="level-item">
                                     <?php if ($spotifyLinked): ?>
                                         <button type="button" class="button is-danger is-small" onclick="disconnectSpotify()">
@@ -768,7 +768,7 @@ ob_start();
                 </div>
                 <div class="column is-3-desktop is-6-tablet is-12-mobile">
                     <div class="box has-background-dark">
-                        <div class="level">
+                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
                             <div class="level-left">
                                 <div class="level-item">
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
@@ -784,7 +784,7 @@ ob_start();
                                     </div>
                                 </div>
                             </div>
-                            <div class="level-right">
+                            <div class="level-right" style="margin-left:auto;">
                                 <div class="level-item">
                                     <?php if ($streamelementsLinked): ?>
                                         <button type="button" class="button is-danger is-small" onclick="disconnectStreamelements()">
