@@ -110,6 +110,9 @@ $lastLoginFormatted = isset($user['last_login']) ? formatUserDate($user['last_lo
 // Handle profile update
 $message = '';
 $alertClass = '';
+// Custom-bot specific messages (so global $message doesn't duplicate inside the custom bot box)
+$customBotMessage = '';
+$customBotAlertClass = '';
 
 // Show session message after redirect (e.g. after language change)
 if (isset($_SESSION['profile_message'])) {
@@ -858,15 +861,15 @@ ob_start();
                 $botName = trim($_POST['bot_username'] ?? '');
                 $botId = trim($_POST['bot_channel_id'] ?? '');
                 if ($botName === '') {
-                    $message = 'Please provide a bot username.';
-                    $alertClass = 'is-danger';
+                    $customBotMessage = 'Please provide a bot username.';
+                    $customBotAlertClass = 'is-danger';
                 } else {
                     // If bot ID not provided, try to resolve via Helix
                     if ($botId === '') {
                         list($resolvedId, $resolveErr) = resolveTwitchUserId($botName);
                         if ($resolvedId === false) {
-                            $message = $resolveErr;
-                            $alertClass = 'is-danger';
+                            $customBotMessage = $resolveErr;
+                            $customBotAlertClass = 'is-danger';
                             goto _custom_bot_output;
                         }
                         $botId = $resolvedId;
@@ -906,11 +909,11 @@ ob_start();
                     // Upsert: try update first (set is_verified appropriately), otherwise insert.
                     $updateSQL = "UPDATE custom_bots SET bot_username = ?, bot_channel_id = ?, is_verified = ? WHERE channel_id = ?";
                     $stmt = mysqli_prepare($conn, $updateSQL);
-                    if ($stmt) {
+                            if ($stmt) {
                         mysqli_stmt_bind_param($stmt, 'ssii', $botName, $botId, $isVerified, $channelId);
                         if (mysqli_stmt_execute($stmt) && mysqli_stmt_affected_rows($stmt) > 0) {
-                            $message = t('custom_bot_updated_success');
-                            $alertClass = 'is-success';
+                            $customBotMessage = t('custom_bot_updated_success');
+                            $customBotAlertClass = 'is-success';
                         } else {
                             // Insert if update did not affect rows
                             $insertSQL = "INSERT INTO custom_bots (channel_id, bot_username, bot_channel_id, is_verified) VALUES (?, ?, ?, ?)";
@@ -918,21 +921,21 @@ ob_start();
                             if ($stmt2) {
                                 mysqli_stmt_bind_param($stmt2, 'issi', $channelId, $botName, $botId, $isVerified);
                                 if (mysqli_stmt_execute($stmt2)) {
-                                    $message = t('custom_bot_saved_success');
-                                    $alertClass = 'is-success';
+                                    $customBotMessage = t('custom_bot_saved_success');
+                                    $customBotAlertClass = 'is-success';
                                 } else {
-                                    $message = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
-                                    $alertClass = 'is-danger';
+                                    $customBotMessage = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                                    $customBotAlertClass = 'is-danger';
                                 }
                             } else {
-                                $message = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
-                                $alertClass = 'is-danger';
+                                $customBotMessage = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                                $customBotAlertClass = 'is-danger';
                             }
                         }
                         mysqli_stmt_close($stmt);
                     } else {
-                        $message = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
-                        $alertClass = 'is-danger';
+                        $customBotMessage = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                        $customBotAlertClass = 'is-danger';
                     }
                 }
             }
@@ -949,10 +952,10 @@ ob_start();
                 }
             }
             ?>
-            <?php if (!empty($message)): ?>
-                <div class="notification <?php echo $alertClass; ?>">
+            <?php if (!empty($customBotMessage)): ?>
+                <div class="notification <?php echo $customBotAlertClass; ?>">
                     <button class="delete"></button>
-                    <?php echo htmlspecialchars($message); ?>
+                    <?php echo htmlspecialchars($customBotMessage); ?>
                 </div>
             <?php endif; ?>
             <form method="post" id="custom-bot-form" style="margin-top:1rem;">
