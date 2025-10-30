@@ -788,6 +788,18 @@ ob_start();
             </div>
         </div>
     </div>
+    <div class="column is-12">
+        <div class="box" id="custom-bot-coming-soon">
+            <h2 class="title is-4 mb-4">Custom Bot (Coming Soon)</h2>
+            <div class="content">
+                <p>This section will allow you to choose a custom bot name for your channel and follow guided steps to connect it. The feature is coming soon — there are no settings available yet.</p>
+                <p class="help">When available you'll be able to set a bot display name and follow the setup instructions to connect it to your channel.</p>
+                <div style="margin-top:1rem;">
+                    <span class="tag is-warning">Coming Soon</span>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 <?php
 $content = ob_get_clean();
