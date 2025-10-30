@@ -41,7 +41,7 @@ if ($isLoggedIn) {
         </div>
     </div>
     <!-- Quick Actions Section -->
-    <div class="section">
+    <div class="section quick-actions">
         <div class="container">
             <h2 class="title is-3">Quick Actions</h2>
             <div class="columns is-multiline">
