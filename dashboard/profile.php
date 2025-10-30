@@ -17,8 +17,8 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
+    $timezone = $profile['timezone'];
+    $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
 
@@ -47,6 +47,31 @@ include_once __DIR__ . '/lang/i18n.php';
 
 // Page title
 $pageTitle = t('profile_title');
+
+function resolveTwitchUserId($username) {
+    global $clientID, $authToken;
+    $username = trim($username);
+    if ($username === '') return array(false, t('bot_username_empty'));
+    $url = 'https://api.twitch.tv/helix/users?login=' . urlencode($username);
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Client-ID: ' . $clientID,
+        'Authorization: Bearer ' . $authToken,
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($resp === false || $code !== 200) {
+        return array(false, t('twitch_api_error') . ': ' . ($err ?: "HTTP {$code}"));
+    }
+    $data = json_decode($resp, true);
+    if (!isset($data['data'][0]['id'])) {
+        return array(false, t('twitch_user_not_found'));
+    }
+    return array($data['data'][0]['id'], null);
+}
 
 // Fetch profile data
 $profileQuery = "SELECT * FROM profile";
@@ -106,27 +131,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['success' => false, 'error' => t('bot_username_empty')]);
             exit();
         }
-        $url = 'https://api.twitch.tv/helix/users?login=' . urlencode($botName);
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Client-ID: ' . $clientID,
-            'Authorization: Bearer ' . $authToken,
-        ]);
-        $resp = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err = curl_error($ch);
-        curl_close($ch);
-        if ($resp === false || $code !== 200) {
-            echo json_encode(['success' => false, 'error' => t('twitch_api_error') . ': ' . ($err ?: "HTTP {$code}")]);
+        list($resolvedId, $resolveErr) = resolveTwitchUserId($botName);
+        if ($resolvedId === false) {
+            echo json_encode(['success' => false, 'error' => $resolveErr]);
             exit();
         }
-        $data = json_decode($resp, true);
-        if (!isset($data['data'][0]['id'])) {
-            echo json_encode(['success' => false, 'error' => t('twitch_user_not_found')]);
-            exit();
-        }
-        echo json_encode(['success' => true, 'bot_id' => $data['data'][0]['id']]);
+        echo json_encode(['success' => true, 'bot_id' => $resolvedId]);
         exit();
     }
     if ($action === 'update_timezone') {
@@ -837,32 +847,15 @@ ob_start();
                 } else {
                     // If bot ID not provided, try to resolve via Helix
                     if ($botId === '') {
-                        $url = 'https://api.twitch.tv/helix/users?login=' . urlencode($botName);
-                        $ch = curl_init($url);
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                            'Client-ID: ' . $clientID,
-                            'Authorization: Bearer ' . $authToken,
-                        ]);
-                        $resp = curl_exec($ch);
-                        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                        $err = curl_error($ch);
-                        curl_close($ch);
-                        if ($resp === false || $code !== 200) {
-                            $message = t('twitch_api_error') . ': ' . ($err ?: "HTTP {$code}");
+                        list($resolvedId, $resolveErr) = resolveTwitchUserId($botName);
+                        if ($resolvedId === false) {
+                            $message = $resolveErr;
                             $alertClass = 'is-danger';
                             goto _custom_bot_output;
                         }
-                        $data = json_decode($resp, true);
-                        if (!isset($data['data'][0]['id'])) {
-                            $message = t('twitch_user_not_found');
-                            $alertClass = 'is-danger';
-                            goto _custom_bot_output;
-                        }
-                        $botId = $data['data'][0]['id'];
+                        $botId = $resolvedId;
                     }
                     // Now insert or update into custom_bots table
-                    // Use $conn for DB (project convention)
                     $channelId = $userId; // channel which is setting up the custom bot
                     // Determine whether an existing custom bot record exists so we only reset verification on changes
                     $isVerified = 0; // default for new records or when changed
