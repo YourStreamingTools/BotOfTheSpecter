@@ -579,7 +579,7 @@ ob_start();
                 <label class="label"><?php echo t('api_key_label'); ?></label>
                 <div class="control">
                     <div class="is-flex">
-                        <input class="input" type="text" value="<?php echo $user['api_key'] ?? ''; ?>" id="api-key-field" readonly>
+                        <input class="input" type="text" name="api_key_display" value="<?php echo $user['api_key'] ?? ''; ?>" id="api-key-field" readonly autocomplete="off" form="regenerate-api-key-form">
                         <button class="button ml-2" onclick="copyApiKey()" title="<?php echo t('copy_api_key'); ?>" id="copy-api-key-btn" style="height: 2.5em; width: 2.5em; display: flex; align-items: center; justify-content: center;">
                             <span class="icon is-medium"><i class="fas fa-copy" id="copy-icon"></i></span>
                         </button>
