@@ -340,20 +340,7 @@ if ($current_file == 'index.php') {
     <footer class="footer is-dark has-text-white" style="display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
         <div class="is-hidden-mobile">
             &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-            <?php
-                $tz = new DateTimeZone("Australia/Sydney");
-                $launchDate = new DateTime("2023-10-17 11:54:58", $tz);
-                $now = new DateTime("now", $tz);
-                $interval = $launchDate->diff($now);
-                echo "Project has been running since 17th October 2023, 11:54:58 AEDT";
-                echo "<br>";
-                echo "As of now, ";
-                echo "it's been {$interval->y} year" . ($interval->y != 1 ? "s" : "") . ", ";
-                echo "{$interval->m} month" . ($interval->m != 1 ? "s" : "") . ", ";
-                echo "{$interval->d} day" . ($interval->d != 1 ? "s" : "") . ", ";
-                echo "{$interval->h} hour" . ($interval->h != 1 ? "s" : "") . ", ";
-                echo "{$interval->i} minute" . ($interval->i != 1 ? "s" : "") . " since launch.<br>";
-            ?>
+            <?php include '/var/www/config/project-time.php'; ?>
             BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
             This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
             All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are used for identification purposes only.
