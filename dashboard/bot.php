@@ -1327,8 +1327,11 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Function to check for latest version updates
   function checkForUpdates() {
-    return fetchWithTimeout('https://api.botofthespecter.com/versions?_t=' + Date.now(), {}, 5000)
-      .then(response => response.json())
+    return fetchWithTimeout('https://api.botofthespecter.com/versions', {}, 5000)
+      .then(response => {
+        // attempt to parse JSON; if parsing fails it will be handled by catch below
+        return response.json();
+      })
       .then(data => {
         if (data.stable_version && data.stable_version !== latestStableVersion) {
           console.log('Stable version updated from', latestStableVersion, 'to', data.stable_version);
@@ -1343,7 +1346,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return data;
       })
       .catch(error => {
-        console.error('Error checking for updates:', error);
+        // Use debug-level logging so transient network/CORS failures don't spam the console as errors
+        console.debug('Update check skipped or failed (non-fatal):', error && error.message ? error.message : error);
         return null;
       });
   }
