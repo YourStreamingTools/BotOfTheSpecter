@@ -1,21 +1,18 @@
 <?php
 // Dashboard landing page - main entry point
-session_start();
 
 // Set session timeout to 24 hours (86400 seconds)
 session_set_cookie_params(86400, "/", "", true, true);
 ini_set('session.gc_maxlifetime', 86400);
 ini_set('session.cookie_lifetime', 86400);
 
+// Start session
+session_start();
+
 // Check if user is logged in
 $isLoggedIn = isset($_SESSION['access_token']);
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
-
-// Function to generate a UUID v4 for cache busting
-function uuidv4() {
-    return bin2hex(random_bytes(4));
-}
 
 if ($isLoggedIn) {
     // User is logged in - show dashboard interface
@@ -592,6 +589,8 @@ if ($isLoggedIn) {
     <?php
     $content = ob_get_clean();
     // For non-logged in users, we'll create a custom layout without the dashboard navigation
+    // Function to generate a UUID v4 for cache busting
+    function uuidv4() { return bin2hex(random_bytes(4)); }
     ?>
     <!DOCTYPE html>
     <html lang="en" class="theme-dark">
