@@ -143,36 +143,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $timezone = $_POST['timezone'] ?? 'UTC';
         $updateQuery = "UPDATE profile SET timezone = ?";
         $stmt = mysqli_prepare($db, $updateQuery);
-        mysqli_stmt_bind_param($stmt, 's', $timezone);
-        if (mysqli_stmt_execute($stmt)) {
-            $message = t('timezone_updated_success');
-            $alertClass = 'is-success';
-            $_SESSION['timezone'] = $timezone;
-            // Reload profile data
-            $stmt = mysqli_prepare($db, $profileQuery);
-            mysqli_stmt_execute($stmt);
-            $result = mysqli_stmt_get_result($stmt);
-            $profileData = mysqli_fetch_assoc($result);
-        } else {
+        if ($stmt === false) {
             $message = t('timezone_update_error') . ': ' . mysqli_error($db);
             $alertClass = 'is-danger';
+        } else {
+            mysqli_stmt_bind_param($stmt, 's', $timezone);
+            if (mysqli_stmt_execute($stmt)) {
+                $message = t('timezone_updated_success');
+                $alertClass = 'is-success';
+                $_SESSION['timezone'] = $timezone;
+                // Reload profile data in a mysqlnd-independent way
+                $row = $db->query($profileQuery);
+                if ($row) {
+                    $profileData = $row->fetch_assoc();
+                }
+            } else {
+                $message = t('timezone_update_error') . ': ' . mysqli_error($db);
+                $alertClass = 'is-danger';
+            }
         }
     } elseif ($action === 'update_weather_location') {
         $weatherLocation = $_POST['weather_location'] ?? '';
         $updateQuery = "UPDATE profile SET weather_location = ?";
         $stmt = mysqli_prepare($db, $updateQuery);
-        mysqli_stmt_bind_param($stmt, 's', $weatherLocation);
-        if (mysqli_stmt_execute($stmt)) {
-            $message = t('weather_location_updated_success');
-            $alertClass = 'is-success';
-            // Reload profile data
-            $stmt = mysqli_prepare($db, $profileQuery);
-            mysqli_stmt_execute($stmt);
-            $result = mysqli_stmt_get_result($stmt);
-            $profileData = mysqli_fetch_assoc($result);
-        } else {
+        if ($stmt === false) {
             $message = t('weather_location_update_error') . ': ' . mysqli_error($db);
             $alertClass = 'is-danger';
+        } else {
+            mysqli_stmt_bind_param($stmt, 's', $weatherLocation);
+            if (mysqli_stmt_execute($stmt)) {
+                $message = t('weather_location_updated_success');
+                $alertClass = 'is-success';
+                // Reload profile data in a mysqlnd-independent way
+                $row = $db->query($profileQuery);
+                if ($row) {
+                    $profileData = $row->fetch_assoc();
+                }
+            } else {
+                $message = t('weather_location_update_error') . ': ' . mysqli_error($db);
+                $alertClass = 'is-danger';
+            }
         }
     } elseif ($action === 'regenerate_api_key') {
         // Handle API key regeneration
@@ -194,9 +204,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newCode = trim($_POST['heartrate_code'] ?? '');
         if ($newCode !== '') {
             $updateQuery = "UPDATE users SET heartrate_code = ? WHERE id = ?";
-            $stmt = mysqli_prepare($db, $updateQuery);
-            mysqli_stmt_bind_param($stmt, 'si', $newCode, $userId);
-            if (mysqli_stmt_execute($stmt)) {
+            // users table belongs to the website DB ($conn)
+            $stmt = mysqli_prepare($conn, $updateQuery);
+            if ($stmt === false) {
+                $message = t('heartrate_code_update_error') . ': ' . mysqli_error($conn);
+                $alertClass = 'is-danger';
+            } else {
+                mysqli_stmt_bind_param($stmt, 'si', $newCode, $userId);
+                if (mysqli_stmt_execute($stmt)) {
                 $message = t('heartrate_code_updated_success');
                 $alertClass = 'is-success';
                 // Refresh user data to get the latest code from DB
@@ -206,9 +221,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 mysqli_stmt_execute($stmt2);
                 $result2 = mysqli_stmt_get_result($stmt2);
                 $userRow = mysqli_fetch_assoc($result2);
-            } else {
-                $message = t('heartrate_code_update_error') . ': ' . mysqli_error($db);
-                $alertClass = 'is-danger';
+                } else {
+                    $message = t('heartrate_code_update_error') . ': ' . mysqli_error($conn);
+                    $alertClass = 'is-danger';
+                }
             }
         } else {
             $message = t('heartrate_code_update_empty_error');
