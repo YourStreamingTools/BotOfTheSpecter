@@ -9,6 +9,13 @@ ini_set('session.cookie_lifetime', 86400);
 
 // Check if user is logged in
 $isLoggedIn = isset($_SESSION['access_token']);
+$config = include '/var/www/config/main.php';
+$dashboardVersion = $config['dashboardVersion'];
+
+// Function to generate a UUID v4 for cache busting
+function uuidv4() {
+    return bin2hex(random_bytes(4));
+}
 
 if ($isLoggedIn) {
     // User is logged in - show dashboard interface
@@ -597,7 +604,7 @@ if ($isLoggedIn) {
         <!-- Font Awesome -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
         <!-- Custom CSS -->
-        <link rel="stylesheet" href="css/custom.css?v=2.0.4">
+        <link rel="stylesheet" href="css/custom.css?v=<?php echo uuidv4(); ?>">
         <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
         <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
         <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
@@ -610,7 +617,7 @@ if ($isLoggedIn) {
         <!-- Footer -->
         <footer class="footer is-dark has-text-white" style="width:100%; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
             <div style="position: absolute; bottom: 12px; left: 12px;" class="is-hidden-mobile">
-                <span class="tag is-info is-light">Dashboard Version: 2.0.4</span>
+                <span class="tag is-info is-light">Dashboard Version: <?php echo $dashboardVersion; ?></span>
             </div>
             <div style="max-width: 1500px; padding-left: 140px;" class="is-hidden-mobile">
                 &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
@@ -634,7 +641,7 @@ if ($isLoggedIn) {
             </div>
             <div style="max-width: 1500px;" class="is-hidden-tablet">
                 &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-                <span class="tag is-info is-light mt-2">Dashboard Version: 2.0.4</span><br>
+                <span class="tag is-info is-light mt-2">Dashboard Version: <?php echo $dashboardVersion; ?></span><br>
                 BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
                 This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
                 All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
