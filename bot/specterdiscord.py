@@ -1414,26 +1414,34 @@ class BotOfTheSpecter(commands.Bot):
             await self.update_presence()  # Update the presence
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
 
-    async def _send_message_with_fallback(self, channel, embed=None, fallback_text="", logger_context=""):
+    async def _send_message_with_fallback(self, channel, embed=None, fallback_text="", content=None, logger_context=""):
         try:
             if embed:
-                await channel.send(embed=embed)
+                # If both content and embed provided, include both
+                if content:
+                    await channel.send(content=content, embed=embed)
+                else:
+                    await channel.send(embed=embed)
             else:
-                await channel.send(fallback_text)
+                # Prefer explicit content over fallback_text
+                await channel.send(content if content is not None else fallback_text)
             return True
         except discord.Forbidden:
             self.logger.error(f"Missing permissions to send {logger_context} message in #{channel.name} (ID: {channel.id})")
             # Try sending as plain text if embed failed
-            if embed and fallback_text:
+            fallback = content if content is not None else fallback_text
+            if fallback:
                 try:
-                    await channel.send(fallback_text)
+                    await channel.send(fallback)
                     self.logger.info(f"Sent {logger_context} as plain text fallback in #{channel.name}")
                     return True
                 except Exception as fallback_error:
                     self.logger.error(f"Fallback text message also failed in #{channel.name}: {fallback_error}")
             return False
         except Exception as e:
-            self.logger.error(f"Failed to send {logger_context} message to #{channel.name}: {e}")
+            # Channel.name may not exist for DMChannel etc; guard log formatting
+            chan_name = getattr(channel, 'name', str(channel))
+            self.logger.error(f"Failed to send {logger_context} message to #{chan_name}: {type(e).__name__}: {e}")
             return False
 
     async def handle_twitch_event(self, event_type, data):
