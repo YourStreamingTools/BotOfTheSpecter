@@ -193,32 +193,6 @@ if ($isLoggedIn) {
     // Start output buffering for content
     ob_start();
     ?>
-    <style>
-        .hero-gradient {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .feature-card {
-            transition: transform 0.3s ease;
-            height: 100%;
-        }
-        .feature-card:hover {
-            transform: translateY(-5px);
-        }
-        .login-section {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .twitch-purple {
-            background-color: #9146ff !important;
-        }
-        .twitch-purple:hover {
-            background-color: #7c3aed !important;
-        }
-        body {
-            background-color: #121212 !important;
-        }
-    </style>
     <!-- Hero Section -->
     <section class="hero is-small hero-gradient">
         <div class="hero-body">
