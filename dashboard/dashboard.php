@@ -603,44 +603,6 @@ if ($isLoggedIn) {
         <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     </head>
     <body style="display: flex; flex-direction: column; min-height: 100vh;">
-        <!-- Simple Navigation for Non-logged in Users -->
-        <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
-            <div class="navbar-brand">
-                <div class="navbar-item">
-                    <img src="https://cdn.botofthespecter.com/logo.png" width="28" height="28" alt="BotOfTheSpecter Logo">
-                    <strong class="ml-2">BotOfTheSpecter</strong>
-                </div>
-                <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMain">
-                    <span aria-hidden="true"></span>
-                    <span aria-hidden="true"></span>
-                    <span aria-hidden="true"></span>
-                </a>
-            </div>
-            <div id="navbarMain" class="navbar-menu">
-                <div class="navbar-start">
-                    <a class="navbar-item" href="https://botofthespecter.com/">
-                        <span class="icon"><i class="fas fa-home"></i></span>
-                        <span>Home</span>
-                    </a>
-                    <a class="navbar-item" href="https://botofthespecter.com/privacy-policy.php">
-                        <span class="icon"><i class="fas fa-shield-alt"></i></span>
-                        <span>Privacy Policy</span>
-                    </a>
-                    <a class="navbar-item" href="https://botofthespecter.com/terms-of-service.php">
-                        <span class="icon"><i class="fas fa-file-contract"></i></span>
-                        <span>Terms of Service</span>
-                    </a>
-                </div>
-                <div class="navbar-end">
-                    <div class="navbar-item">
-                        <a href="login.php" class="button is-primary">
-                            <span class="icon"><i class="fab fa-twitch"></i></span>
-                            <span>LOGIN</span>
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </nav>
         <!-- Main content -->
         <div style="flex: 1 0 auto;">
             <?php echo $content; ?>
@@ -679,16 +641,8 @@ if ($isLoggedIn) {
             </div>
         </footer>
         <!-- JavaScript dependencies -->
+        <!-- jQuery is still included because some page scripts (animations) rely on it -->
         <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-        <script>
-            // Navbar burger menu toggle
-            $(document).ready(function() {
-                $('.navbar-burger').click(function() {
-                    $('.navbar-burger').toggleClass('is-active');
-                    $('.navbar-menu').toggleClass('is-active');
-                });
-            });
-        </script>
     </body>
     </html>
     <?php
