@@ -864,13 +864,41 @@ ob_start();
                     // Now insert or update into custom_bots table
                     // Use $conn for DB (project convention)
                     $channelId = $userId; // channel which is setting up the custom bot
-                    // When saving, mark as not verified until user validates via the linking page
-                    $isVerified = 0;
-                    // Upsert: try update first, otherwise insert. Always reset is_verified to 0 on save.
-                    $updateSQL = "UPDATE custom_bots SET bot_username = ?, bot_channel_id = ?, is_verified = 0 WHERE channel_id = ?";
+                    // Determine whether an existing custom bot record exists so we only reset verification on changes
+                    $isVerified = 0; // default for new records or when changed
+                    $selectSQL = "SELECT bot_username, bot_channel_id, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1";
+                    $selStmt = mysqli_prepare($conn, $selectSQL);
+                    $existingRow = null;
+                    if ($selStmt) {
+                        mysqli_stmt_bind_param($selStmt, 'i', $channelId);
+                        mysqli_stmt_execute($selStmt);
+                        $res = mysqli_stmt_get_result($selStmt);
+                        if ($res && ($row = mysqli_fetch_assoc($res))) {
+                            $existingRow = $row;
+                        }
+                        mysqli_stmt_close($selStmt);
+                    }
+                    // If an existing record exists and the username+id did not change, preserve its verified state
+                    if ($existingRow) {
+                        $storedName = $existingRow['bot_username'] ?? '';
+                        $storedId = $existingRow['bot_channel_id'] ?? '';
+                        $storedVerified = intval($existingRow['is_verified'] ?? 0);
+                        if (strtolower(trim($storedName)) === strtolower(trim($botName)) && trim($storedId) === trim($botId)) {
+                            // No change to bot identity; keep previous verified state
+                            $isVerified = $storedVerified;
+                        } else {
+                            // Bot name or id changed — reset verification
+                            $isVerified = 0;
+                        }
+                    } else {
+                        // No existing record — default not verified
+                        $isVerified = 0;
+                    }
+                    // Upsert: try update first (set is_verified appropriately), otherwise insert.
+                    $updateSQL = "UPDATE custom_bots SET bot_username = ?, bot_channel_id = ?, is_verified = ? WHERE channel_id = ?";
                     $stmt = mysqli_prepare($conn, $updateSQL);
                     if ($stmt) {
-                        mysqli_stmt_bind_param($stmt, 'ssi', $botName, $botId, $channelId);
+                        mysqli_stmt_bind_param($stmt, 'ssii', $botName, $botId, $isVerified, $channelId);
                         if (mysqli_stmt_execute($stmt) && mysqli_stmt_affected_rows($stmt) > 0) {
                             $message = t('custom_bot_updated_success');
                             $alertClass = 'is-success';
@@ -892,6 +920,7 @@ ob_start();
                                 $alertClass = 'is-danger';
                             }
                         }
+                        mysqli_stmt_close($stmt);
                     } else {
                         $message = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
                         $alertClass = 'is-danger';
