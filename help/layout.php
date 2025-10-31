@@ -39,6 +39,7 @@ $maintenanceMode = $config['maintenanceMode'];
                 <li><a href="spotify_setup.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Spotify Setup</a></li>
                 <li><a href="custom_command_variables.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Custom Command Variables</a></li>
                 <li><a href="twitch_channel_points.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Twitch Channel Points</a></li>
+                <li><a href="custom_api.php" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Custom API</a></li>
                 <li><a href="https://api.botofthespecter.com/docs" target="_blank" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">API Documentation</a></li>
                 <li><a href="https://dashboard.botofthespecter.com/dashboard.php" target="_blank" style="background: none;" onmouseover="this.style.color='#3273dc'" onmouseout="this.style.color=''">Bot Dashboard</a></li>
             </ul>
