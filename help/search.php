@@ -12,7 +12,11 @@ $pages = [
     'faq.php',
     'obs_audio_monitoring.php',
     'troubleshooting.php',
-    'twitch_channel_points.php'
+    'twitch_channel_points.php',
+    'setup.php',
+    'run_yourself.php',
+    'spotify_setup.php',
+    'custom_api.php'
 ];
 
 $index = [];
