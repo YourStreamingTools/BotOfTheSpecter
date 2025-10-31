@@ -5,6 +5,11 @@ if (!isset($pageDescription)) $pageDescription = "Comprehensive help and documen
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
+
+// Function to generate a UUID v4 for cache busting
+function uuidv4() {
+    return bin2hex(random_bytes(4));
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" class="theme-dark" data-theme="dark">
@@ -13,12 +18,12 @@ $maintenanceMode = $config['maintenanceMode'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($pageTitle) ? $pageTitle . ' - ' : ''; ?>BotOfTheSpecter Help & Wiki</title>
     <!-- Bulma CSS 1.0.4 -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.css">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
     <!-- CUSTOM -->
-    <script src="navbar.js" defer></script>
-    <script src="search.js" defer></script>
+    <script src="navbar.js?v=<?php echo uuidv4(); ?>" defer></script>
+    <script src="search.js?v=<?php echo uuidv4(); ?>" defer></script>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
