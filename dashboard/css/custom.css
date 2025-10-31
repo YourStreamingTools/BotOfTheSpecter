@@ -2098,6 +2098,10 @@ nav.top-navbar,
     display: inline-block;
     overflow: visible;
     white-space: nowrap;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    hyphens: none !important;
+    line-height: 1.2;
 }
 .quick-actions .icon.is-large {
     font-size: 2.25rem;
@@ -2111,6 +2115,47 @@ nav.top-navbar,
         word-break: normal;
     }
     .quick-actions .card .card-content { min-height: 0; }
+}
+
+.quick-actions .card .button,
+.feature-card .button {
+    box-sizing: border-box;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    overflow: hidden !important; /* clip any overflow */
+    text-overflow: ellipsis;     /* show ellipsis if needed */
+    white-space: nowrap !important;
+    padding-left: 0.9rem !important;
+    padding-right: 0.9rem !important;
+}
+.quick-actions .card .button span,
+.feature-card .button span {
+    flex: 1 1 auto;
+    min-width: 0; /* needed so flex children can shrink below content width */
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+.quick-actions .card .button .icon,
+.feature-card .button .icon {
+    flex: 0 0 auto;
+    margin: 0 !important;
+}
+
+@media (max-width: 420px) {
+    /* On very small screens, allow button labels to wrap within the button
+       but still not overflow the button box. */
+    .quick-actions .card .button,
+    .feature-card .button {
+        white-space: normal !important;
+        overflow-wrap: break-word !important;
+    }
+    .quick-actions .card .button span,
+    .feature-card .button span {
+        white-space: normal !important;
+    }
 }
 
 /* Styles moved from dashboard.php (non-logged-in landing) */
