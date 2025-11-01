@@ -195,6 +195,31 @@ if (!class_exists('SSHConnectionManager')) {
                 return $combined;
             }
         }
+        public static function executeCommandNoMarker($connection, $command, $timeoutSeconds = 5) {
+            $stream = @ssh2_exec($connection, $command);
+            if (!$stream) {
+                return false;
+            }
+            $errorStream = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
+            stream_set_blocking($stream, true);
+            stream_set_blocking($errorStream, true);
+            stream_set_timeout($stream, $timeoutSeconds);
+            stream_set_timeout($errorStream, $timeoutSeconds);
+            $output = stream_get_contents($stream);
+            $errOutput = stream_get_contents($errorStream);
+            $info = stream_get_meta_data($stream);
+            fclose($stream);
+            fclose($errorStream);
+            if ($info['timed_out']) {
+                error_log("SSH command timed out (no-marker): $command");
+                return false;
+            }
+            $combined = trim($output);
+            if (!empty(trim($errOutput))) {
+                $combined .= "\n[stderr]\n" . trim($errOutput);
+            }
+            return $combined;
+        }
         public static function executeCommandStream($connection, $command) {
             $stream = ssh2_exec($connection, $command);
             if (!$stream) {
