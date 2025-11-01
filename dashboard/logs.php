@@ -42,19 +42,19 @@ function read_log_file($file_path) {
   try {
     $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
     $checkCommand = "test -f " . escapeshellarg($file_path) . " && echo '1' || echo '0'";
-    $checkResult = SSHConnectionManager::executeCommand($connection, $checkCommand);
+    $checkResult = SSHConnectionManager::executeCommandNoMarker($connection, $checkCommand);
     if (trim($checkResult) !== '1') {
       $dirname = dirname($file_path);
       $dirCheckCommand = "test -d " . escapeshellarg($dirname) . " && echo '1' || echo '0'";
-      $dirCheckResult = SSHConnectionManager::executeCommand($connection, $dirCheckCommand);
+      $dirCheckResult = SSHConnectionManager::executeCommandNoMarker($connection, $dirCheckCommand);
       if (trim($dirCheckResult) !== '1') {
         return ['error' => "Log directory not found: $dirname"];
       }
       return ['error' => "Log file not found: $file_path"];
     }
-    // Read the entire file
+    // Read the entire file using the no-marker function to avoid appended exit markers
     $readCommand = "cat " . escapeshellarg($file_path);
-    $logContent = SSHConnectionManager::executeCommand($connection, $readCommand);
+    $logContent = SSHConnectionManager::executeCommandNoMarker($connection, $readCommand, 10);
     if ($logContent === false) {
       return ['error' => 'Failed to read log file'];
     }
