@@ -57,49 +57,78 @@ if (isset($_GET['code'])) {
     } else {
         $tokenData = json_decode($resp, true);
         $access_token = $tokenData['access_token'] ?? null;
-        if (!$access_token) {
-            $error = 'No access token returned from Twitch.';
-        } else {
-            // Get the authenticated user's id
-            $ch = curl_init('https://api.twitch.tv/helix/users');
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Bearer ' . $access_token,
-                'Client-ID: ' . $client_id,
-            ]);
-            $userResp = curl_exec($ch);
-            $userCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $userErr = curl_error($ch);
-            curl_close($ch);
-            if ($userResp === false || $userCode !== 200) {
-                $error = 'Failed to fetch Twitch user: ' . ($userErr ?: "HTTP {$userCode}");
+            if (!$access_token) {
+                $error = 'No access token returned from Twitch.';
             } else {
-                $userData = json_decode($userResp, true);
-                $twitchUserId = $userData['data'][0]['id'] ?? null;
-                $twitchLogin = $userData['data'][0]['login'] ?? null;
-                if (!$twitchUserId) {
-                    $error = 'Could not determine Twitch user id.';
+                // Validate the access token (to get scopes and expires_in)
+                $validateCh = curl_init('https://id.twitch.tv/oauth2/validate');
+                curl_setopt($validateCh, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($validateCh, CURLOPT_HTTPHEADER, [
+                    'Authorization: OAuth ' . $access_token,
+                ]);
+                $validateResp = curl_exec($validateCh);
+                $validateCode = curl_getinfo($validateCh, CURLINFO_HTTP_CODE);
+                $validateErr = curl_error($validateCh);
+                curl_close($validateCh);
+                if ($validateResp === false || $validateCode !== 200) {
+                    $error = 'Token validation failed: ' . ($validateErr ?: "HTTP {$validateCode}");
                 } else {
-                    // Update custom_bots row where bot_channel_id matches
-                    $conn = $conn ?? null; // from db_connect
-                    if (!$conn) {
-                        $error = 'Database connection not available.';
+                    $validateData = json_decode($validateResp, true);
+                    $scopes = $validateData['scopes'] ?? [];
+                    // Ensure the token has the required IRC chat scopes
+                    $required = ['chat:read', 'chat:edit'];
+                    $missing = array_diff($required, $scopes);
+                    if (!empty($missing)) {
+                        $error = 'The token is missing required scopes: ' . implode(', ', $missing) . '. Please authorize with chat:read and chat:edit.';
                     } else {
-                        $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1 WHERE bot_channel_id = ? LIMIT 1');
-                        if ($stmt) {
-                            $stmt->bind_param('s', $twitchUserId);
-                            if ($stmt->execute() && $stmt->affected_rows > 0) {
-                                $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
-                            } else {
-                                $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
-                            }
+                        // Token scopes are acceptable - fetch user info to get id/login
+                        $ch = curl_init('https://api.twitch.tv/helix/users');
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Authorization: Bearer ' . $access_token,
+                            'Client-ID: ' . $client_id,
+                        ]);
+                        $userResp = curl_exec($ch);
+                        $userCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        $userErr = curl_error($ch);
+                        curl_close($ch);
+                        if ($userResp === false || $userCode !== 200) {
+                            $error = 'Failed to fetch Twitch user: ' . ($userErr ?: "HTTP {$userCode}");
                         } else {
-                            $error = 'Failed to prepare DB statement: ' . $conn->error;
+                            $userData = json_decode($userResp, true);
+                            $twitchUserId = $userData['data'][0]['id'] ?? null;
+                            $twitchLogin = $userData['data'][0]['login'] ?? null;
+                            if (!$twitchUserId) {
+                                $error = 'Could not determine Twitch user id.';
+                            } else {
+                                // Update custom_bots row where bot_channel_id matches
+                                $conn = $conn ?? null; // from db_connect
+                                if (!$conn) {
+                                    $error = 'Database connection not available.';
+                                } else {
+                                    // Compute token expiry datetime in SQL DATETIME format
+                                    $expiresIn = $validateData['expires_in'] ?? $tokenData['expires_in'] ?? null;
+                                    $tokenExpires = null;
+                                    if ($expiresIn !== null) {
+                                        $tokenExpires = date('Y-m-d H:i:s', time() + intval($expiresIn));
+                                    }
+                                    $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
+                                    if ($stmt) {
+                                        $stmt->bind_param('sss', $access_token, $tokenExpires, $twitchUserId);
+                                        if ($stmt->execute() && $stmt->affected_rows > 0) {
+                                            $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
+                                        } else {
+                                            $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
+                                        }
+                                    } else {
+                                        $error = 'Failed to prepare DB statement: ' . $conn->error;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
     }
     }
 
@@ -109,7 +138,8 @@ if (isset($_GET['code'])) {
 if (isset($_GET['action']) && $_GET['action'] === 'login') {
     $state = bin2hex(random_bytes(8));
     $_SESSION['twitch_oauth_state'] = $state;
-    $scope = 'user:read:email';
+    // Request chat scopes so the returned token can be used for IRC/chat actions
+    $scope = 'user:read:email chat:read chat:edit';
     $authorize = 'https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=' . urlencode($client_id) . '&redirect_uri=' . urlencode($redirect_uri) . '&scope=' . urlencode($scope) . '&state=' . urlencode($state);
     header('Location: ' . $authorize);
     exit();
