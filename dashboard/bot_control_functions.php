@@ -4,6 +4,8 @@ include_once __DIR__ . '/lang/i18n.php';
 
 // SSH Connection parameters - Include SSH configuration and connection manager
 include_once "/var/www/config/ssh.php";
+// Database connection for token lookups
+require_once "/var/www/config/db_connect.php";
 
 /**
  * Sanitize raw SSH command output to remove any appended exit-code markers
@@ -208,27 +210,30 @@ function performBotAction($action, $botType, $params) {
         }
         switch ($action) {
             case 'run':
-                // Before starting this bot, ensure the other bot is stopped
-                $otherBotType = ($botType === 'stable') ? 'beta' : 'stable';
-                $otherBotScriptPath = "/home/botofthespecter/" . ($otherBotType === 'beta' ? "beta.py" : "bot.py");
-                $otherCommand = "python $statusScriptPath -system $otherBotType -channel $username";
-                $otherStatusOutput = SSHConnectionManager::executeCommand($connection, $otherCommand);
-                $otherStatusOutput = sanitizeSSHOutput($otherStatusOutput);
+                // Before starting this bot, ensure any other bot types are stopped
+                // We check the full set ['stable','beta','custom'] and stop any that are running
+                $otherTypes = ['stable', 'beta', 'custom'];
                 $otherBotStoppedMessage = '';
-                if ($otherStatusOutput !== false && $otherStatusOutput !== null) {
-                    $otherStatusOutput = trim($otherStatusOutput);
-                    $otherPid = 0;
-                    if (preg_match('/process ID:\s*(\d+)/i', $otherStatusOutput, $matches) || 
-                        preg_match('/PID\s+(\d+)/i', $otherStatusOutput, $matches)) {
-                        $otherPid = intval($matches[1]);
-                    }
-                    if ($otherPid > 0) {    
-                        // Stop the other bot
-                        $killCommand = "kill -s kill $otherPid";
-                        SSHConnectionManager::executeCommand($connection, $killCommand);
-                        // Wait a moment for the process to terminate
-                        usleep(500000); // 0.5 seconds
-                        $otherBotStoppedMessage = "Found $otherBotType bot running, stopping it. ";
+                foreach ($otherTypes as $ot) {
+                    if ($ot === $botType) continue; // skip the bot we're about to start
+                    // Build the correct command to check status for the other bot type
+                    $otherCommand = "python $statusScriptPath -system $ot -channel $username";
+                    $otherStatusOutput = SSHConnectionManager::executeCommand($connection, $otherCommand);
+                    $otherStatusOutput = sanitizeSSHOutput($otherStatusOutput);
+                    if ($otherStatusOutput !== false && $otherStatusOutput !== null) {
+                        $otherStatusOutput = trim($otherStatusOutput);
+                        $otherPid = 0;
+                        if (preg_match('/process ID:\s*(\d+)/i', $otherStatusOutput, $matches) || preg_match('/PID\s+(\d+)/i', $otherStatusOutput, $matches)) {
+                            $otherPid = intval($matches[1]);
+                        }
+                        if ($otherPid > 0) {
+                            // Stop the other bot
+                            $killCommand = "kill -s kill $otherPid";
+                            SSHConnectionManager::executeCommand($connection, $killCommand);
+                            // Wait a moment for the process to terminate
+                            usleep(500000); // 0.5 seconds
+                            $otherBotStoppedMessage .= "Found $ot bot running, stopping it. ";
+                        }
                     }
                 }
                 if ($currentPid > 0) {
@@ -247,8 +252,45 @@ function performBotAction($action, $botType, $params) {
                         $result['message'] = 'Missing required bot parameters (username, tokens, etc.)';
                         break;
                     }
+                    // If this is a custom bot, fetch bot username and bot access token from custom_bots
+                    $extraBotArgs = '';
+                    if ($botType === 'custom') {
+                        try {
+                            $stmt = $conn->prepare("SELECT bot_username, access_token FROM custom_bots WHERE channel_id = ? LIMIT 1");
+                            if ($stmt) {
+                                $stmt->bind_param('s', $twitchUserId);
+                                $stmt->execute();
+                                $res = $stmt->get_result();
+                                $crow = $res ? $res->fetch_assoc() : null;
+                                $stmt->close();
+                                if ($crow && !empty($crow['bot_username']) && !empty($crow['access_token'])) {
+                                    $botUsernameParam = $crow['bot_username'];
+                                    $botTokenParam = $crow['access_token'];
+                                    // Append botusername and bottoken args (access_token stored without oauth: prefix)
+                                    $extraBotArgs = ' -botusername ' . escapeshellarg($botUsernameParam) . ' -bottoken ' . escapeshellarg($botTokenParam);
+                                } else {
+                                    $result['message'] = 'Custom bot configuration missing (bot username or token). Please verify the custom bot first.';
+                                    break;
+                                }
+                            } else {
+                                $result['message'] = 'Database error preparing custom bot lookup.';
+                                break;
+                            }
+                        } catch (Exception $e) {
+                            $result['message'] = 'Error fetching custom bot data: ' . $e->getMessage();
+                            break;
+                        }
+                    }
                     // Construct proper bot start command with all required parameters - MAKE IT BACKGROUND
-                    $startCommand = "nohup python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey > /dev/null 2>&1 &";
+                    // Use escapeshellarg for safety on dynamic fields
+                    $startCommand = "nohup python " . escapeshellarg($botScriptPath) .
+                                    " -channel " . escapeshellarg($username) .
+                                    " -channelid " . escapeshellarg($twitchUserId) .
+                                    " -token " . escapeshellarg($authToken) .
+                                    " -refresh " . escapeshellarg($refreshToken) .
+                                    " -apitoken " . escapeshellarg($apiKey) .
+                                    $extraBotArgs .
+                                    " > /dev/null 2>&1 &";
                         $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
                         $startOutput = sanitizeSSHOutput($startOutput);
                     if ($startOutput === false || $startOutput === null) {
