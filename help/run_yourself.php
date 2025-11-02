@@ -569,6 +569,9 @@ CREATE TABLE IF NOT EXISTS custom_bots (
     channel_id VARCHAR(255) NOT NULL,
     bot_username VARCHAR(255),
     bot_channel_id VARCHAR(255),
+    access_token VARCHAR(255),
+    refresh_token VARCHAR(255),
+    token_expires DATETIME,
     is_verified INT DEFAULT 0,
     PRIMARY KEY (channel_id)
 );
