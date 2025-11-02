@@ -112,16 +112,85 @@ if (isset($_GET['code'])) {
                                     if ($expiresIn !== null) {
                                         $tokenExpires = date('Y-m-d H:i:s', time() + intval($expiresIn));
                                     }
-                                    $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
-                                    if ($stmt) {
-                                        $stmt->bind_param('sss', $access_token, $tokenExpires, $twitchUserId);
-                                        if ($stmt->execute() && $stmt->affected_rows > 0) {
-                                            $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
+                                    // Detect whether the custom_bots table has a refresh_token column
+                                    $hasRefreshColumn = false;
+                                    try {
+                                        $colCheck = $conn->query("SHOW COLUMNS FROM custom_bots LIKE 'refresh_token'");
+                                        if ($colCheck && $colCheck->num_rows > 0) { $hasRefreshColumn = true; }
+                                    } catch (Exception $e) {
+                                        // Ignore - we'll fall back to the safer update
+                                    }
+                                    $refresh_token = $tokenData['refresh_token'] ?? null;
+                                    if ($hasRefreshColumn) {
+                                        $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1');
+                                        if ($stmt) {
+                                            $stmt->bind_param('ssss', $access_token, $tokenExpires, $refresh_token, $twitchUserId);
+                                            if ($stmt->execute() && $stmt->affected_rows > 0) {
+                                                $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
+                                            } else {
+                                                $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
+                                            }
                                         } else {
-                                            $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
+                                            $error = 'Failed to prepare DB statement: ' . $conn->error;
                                         }
                                     } else {
-                                        $error = 'Failed to prepare DB statement: ' . $conn->error;
+                                        // Fallback if refresh_token column is not present
+                                        $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
+                                        if ($stmt) {
+                                            $stmt->bind_param('sss', $access_token, $tokenExpires, $twitchUserId);
+                                            if ($stmt->execute() && $stmt->affected_rows > 0) {
+                                                $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
+                                            } else {
+                                                $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
+                                            }
+                                        } else {
+                                            $error = 'Failed to prepare DB statement: ' . $conn->error;
+                                        }
+                                    }
+                                    // If we have a refresh token, try to refresh immediately to rotate tokens and extend validity
+                                    if (empty($error) && !empty($refresh_token) && !empty($client_id) && !empty($client_secret)) {
+                                        try {
+                                            $refreshPost = http_build_query([
+                                                'grant_type' => 'refresh_token',
+                                                'refresh_token' => $refresh_token,
+                                                'client_id' => $client_id,
+                                                'client_secret' => $client_secret,
+                                            ]);
+                                            $rch = curl_init('https://id.twitch.tv/oauth2/token');
+                                            curl_setopt($rch, CURLOPT_POST, true);
+                                            curl_setopt($rch, CURLOPT_POSTFIELDS, $refreshPost);
+                                            curl_setopt($rch, CURLOPT_RETURNTRANSFER, true);
+                                            $refreshResp = curl_exec($rch);
+                                            $refreshCode = curl_getinfo($rch, CURLINFO_HTTP_CODE);
+                                            $refreshErr = curl_error($rch);
+                                            curl_close($rch);
+                                            if ($refreshResp !== false && $refreshCode === 200) {
+                                                $refreshData = json_decode($refreshResp, true);
+                                                $newAccess = $refreshData['access_token'] ?? null;
+                                                $newRefresh = $refreshData['refresh_token'] ?? null;
+                                                $newExpiresIn = $refreshData['expires_in'] ?? null;
+                                                if ($newAccess) {
+                                                    $newTokenExpires = $newExpiresIn ? date('Y-m-d H:i:s', time() + intval($newExpiresIn)) : $tokenExpires;
+                                                    // Persist rotated tokens
+                                                    if ($hasRefreshColumn) {
+                                                        $upd = $conn->prepare('UPDATE custom_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1');
+                                                        if ($upd) { $upd->bind_param('ssss', $newAccess, $newTokenExpires, $newRefresh, $twitchUserId); $upd->execute(); $upd->close(); }
+                                                    } else {
+                                                        $upd = $conn->prepare('UPDATE custom_bots SET access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
+                                                        if ($upd) { $upd->bind_param('sss', $newAccess, $newTokenExpires, $twitchUserId); $upd->execute(); $upd->close(); }
+                                                    }
+                                                    // Reflect rotated token in the local variables
+                                                    $access_token = $newAccess;
+                                                    if (!empty($newRefresh)) { $refresh_token = $newRefresh; }
+                                                    $tokenExpires = $newTokenExpires;
+                                                    $message .= ' (token refreshed)';
+                                                }
+                                            } else {
+                                                error_log('Token refresh failed: ' . ($refreshErr ?: "HTTP {$refreshCode}") );
+                                            }
+                                        } catch (Exception $e) {
+                                            error_log('Token refresh exception: ' . $e->getMessage());
+                                        }
                                     }
                                 }
                             }
@@ -131,7 +200,6 @@ if (isset($_GET['code'])) {
             }
     }
     }
-
 }
 
 // If no code param and user clicked sign-in, redirect to Twitch authorize
