@@ -413,6 +413,45 @@ ob_start();
         </tbody>
     </table>
 </div>
+<div class="box">
+    <h3 class="title is-5">Custom Bot Tokens</h3>
+    <p class="mb-4">List of stored custom bot tokens with their associated bot accounts.</p>
+    <table class="table is-fullwidth">
+        <thead>
+            <tr>
+                <th>Bot Username</th>
+                <th>Bot Channel ID</th>
+                <th>Status</th>
+                <th>Expires At</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="custom-tokens-table-body">
+            <?php
+            $sqlc = "SELECT channel_id, bot_username, bot_channel_id, access_token, token_expires FROM custom_bots";
+            $resc = $conn->query($sqlc);
+            if ($resc && $resc->num_rows > 0) {
+                while ($crow = $resc->fetch_assoc()) {
+                    $botUsername = htmlspecialchars($crow['bot_username'] ?? '');
+                    $botChannelId = htmlspecialchars($crow['bot_channel_id'] ?? '');
+                    $accessToken = $crow['access_token'] ?? '';
+                    $expiresAt = $crow['token_expires'] ?? '-';
+                    $tokenId = md5(($botChannelId ?: $botUsername) . ($accessToken ?? ''));
+                    echo "<tr id='custom-row-$tokenId' data-token='" . htmlspecialchars($accessToken) . "' data-bot-channel-id='" . htmlspecialchars($botChannelId) . "'>";
+                    echo "<td>$botUsername</td>";
+                    echo "<td>$botChannelId</td>";
+                    echo "<td id='status-custom-$tokenId'>Not Validated</td>";
+                    echo "<td id='expiry-custom-$tokenId'>" . htmlspecialchars($expiresAt) . "</td>";
+                    echo "<td><button class='button is-small is-info' onclick='validateCustomToken(" . json_encode($accessToken) . ", \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewCustomToken(\"$botChannelId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "</tr>";
+                }
+            } else {
+                echo "<tr><td colspan='5'>No custom bots found.</td></tr>";
+            }
+            ?>
+        </tbody>
+    </table>
+</div>
 <?php
 $content = ob_get_clean();
 ob_start();
@@ -864,6 +903,95 @@ function renewChatToken(userId) {
         .finally(() => {
             if (renewBtn) { renewBtn.disabled = false; renewBtn.classList.remove('is-loading'); }
             if (validateBtn) { validateBtn.disabled = false; }
+        });
+}
+
+function validateCustomToken(token, tokenId) {
+    const statusCell = document.getElementById(`status-custom-${tokenId}`);
+    const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
+    const row = document.getElementById(`custom-row-${tokenId}`);
+    statusCell.textContent = 'Validating...';
+    // Disable the validate button in this row
+    const btn = row.querySelector('button');
+    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
+    const formData = new FormData();
+    formData.append('validate_token', '1');
+    formData.append('access_token', token);
+    fetch('', { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const val = data.validation;
+                const expiresIn = val.expires_in || 0;
+                let remaining = expiresIn;
+                const months = Math.floor(remaining / (30 * 24 * 3600));
+                remaining %= (30 * 24 * 3600);
+                const days = Math.floor(remaining / (24 * 3600));
+                remaining %= (24 * 3600);
+                const hours = Math.floor(remaining / 3600);
+                remaining %= 3600;
+                const minutes = Math.floor(remaining / 60);
+                const seconds = remaining % 60;
+                let timeParts = [];
+                if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
+                if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
+                if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+                if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+                if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
+                const timeString = timeParts.join(', ') || '0 seconds';
+                statusCell.textContent = 'Valid';
+                statusCell.className = 'has-text-success';
+                expiryCell.textContent = timeString;
+            } else {
+                statusCell.textContent = 'Invalid';
+                statusCell.className = 'has-text-danger';
+                expiryCell.textContent = '-';
+            }
+        })
+        .catch(() => {
+            statusCell.textContent = 'Error';
+            statusCell.className = 'has-text-danger';
+            expiryCell.textContent = '-';
+        })
+        .finally(() => {
+            if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
+        });
+}
+
+function renewCustomToken(botChannelId, tokenId) {
+    const row = document.getElementById(`custom-row-${tokenId}`);
+    const buttons = row.querySelectorAll('button');
+    buttons.forEach(btn => { btn.disabled = true; btn.classList.add('is-loading'); });
+    const statusCell = document.getElementById(`status-custom-${tokenId}`);
+    const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
+    statusCell.textContent = 'Renewing...';
+    const formData = new FormData();
+    formData.append('renew_custom', '1');
+    formData.append('bot_channel_id', botChannelId);
+    fetch('', { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const newToken = data.new_token || data.new_token || '';
+                const expiresAt = data.expires_at || data.expires_at || '';
+                // Update row data-token and expiry display
+                row.setAttribute('data-token', newToken);
+                expiryCell.textContent = expiresAt || '-';
+                statusCell.textContent = 'Renewed';
+                statusCell.className = 'has-text-warning';
+                // Optionally auto-validate
+                setTimeout(() => validateCustomToken(newToken, tokenId), 500);
+            } else {
+                statusCell.textContent = 'Renew Failed';
+                statusCell.className = 'has-text-danger';
+            }
+        })
+        .catch(() => {
+            statusCell.textContent = 'Error';
+            statusCell.className = 'has-text-danger';
+        })
+        .finally(() => {
+            buttons.forEach(btn => { btn.disabled = false; btn.classList.remove('is-loading'); });
         });
 }
 
