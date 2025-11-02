@@ -20,7 +20,7 @@ if (!isset($_GET['bot'])) {
 }
 
 $bot = $_GET['bot'];
-if (!in_array($bot, ['stable', 'beta'])) {
+if (!in_array($bot, ['stable', 'beta', 'custom'])) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Invalid bot type']);
   exit();
@@ -44,7 +44,8 @@ $versionApiData = @file_get_contents($versionApiUrl);
 $latestVersion = '';
 if ($versionApiData !== false) {
   $versionInfo = json_decode($versionApiData, true);
-  if ($bot === 'stable') {
+  if ($bot === 'stable' || $bot === 'custom') {
+    // Custom uses the stable channel for version info
     $latestVersion = $versionInfo['stable_version'] ?? '';
   } elseif ($bot === 'beta') {
     $latestVersion = $versionInfo['beta_version'] ?? '';
@@ -60,7 +61,12 @@ if ($versionApiData !== false) {
 // Determine the version control file path for last run (on the bot server)
 $remoteVersionFile = "/home/botofthespecter/logs/version/";
 if ($bot === 'stable') {
+  // Stable bot writes to the top-level version directory
   $remoteVersionFile .= "{$username}_version_control.txt";
+} elseif ($bot === 'custom') {
+  // Custom bot writes its own version file into the custom subdirectory
+  // (matches bot's update_version_control behaviour: *_custom_version_control.txt)
+  $remoteVersionFile .= "custom/{$username}_custom_version_control.txt";
 } elseif ($bot === 'beta') {
   $remoteVersionFile .= "beta/{$username}_beta_version_control.txt";
 }
