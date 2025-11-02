@@ -146,6 +146,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
     exit;
 }
 
+// Handle AJAX request to renew a custom bot's user token using its refresh_token
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
+    header('Content-Type: application/json');
+    $botChannelId = isset($_POST['bot_channel_id']) ? trim($_POST['bot_channel_id']) : '';
+    if (empty($botChannelId)) {
+        echo json_encode(['success' => false, 'error' => 'bot_channel_id is required']);
+        exit;
+    }
+    // Load client credentials from config
+    $clientID = $GLOBALS['clientID'] ?? '';
+    $clientSecret = $GLOBALS['clientSecret'] ?? '';
+    if (empty($clientID) || empty($clientSecret)) {
+        echo json_encode(['success' => false, 'error' => 'Client credentials not configured.']);
+        exit;
+    }
+    // Find the custom bot row
+    $stmt = $conn->prepare("SELECT id, refresh_token FROM custom_bots WHERE bot_channel_id = ? LIMIT 1");
+    if (!$stmt) {
+        echo json_encode(['success' => false, 'error' => 'DB error: ' . $conn->error]);
+        exit;
+    }
+    $stmt->bind_param('s', $botChannelId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    if (!$row) {
+        echo json_encode(['success' => false, 'error' => 'Custom bot not found']);
+        exit;
+    }
+    $refreshToken = $row['refresh_token'] ?? '';
+    if (empty($refreshToken)) {
+        echo json_encode(['success' => false, 'error' => 'No refresh token available for this custom bot']);
+        exit;
+    }
+    // Call Twitch token endpoint to refresh
+    $url = 'https://id.twitch.tv/oauth2/token';
+    $data = [
+        'grant_type' => 'refresh_token',
+        'refresh_token' => $refreshToken,
+        'client_id' => $clientID,
+        'client_secret' => $clientSecret
+    ];
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/x-www-form-urlencoded'
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($httpCode !== 200) {
+        $errMsg = $response ? (json_decode($response, true)['message'] ?? $response) : $err;
+        echo json_encode(['success' => false, 'error' => 'Failed to refresh token: ' . $errMsg]);
+        exit;
+    }
+    $result = json_decode($response, true);
+    if (!isset($result['access_token'])) {
+        echo json_encode(['success' => false, 'error' => 'Invalid response from Twitch']);
+        exit;
+    }
+    $newAccess = $result['access_token'];
+    $newRefresh = $result['refresh_token'] ?? $refreshToken;
+    $newExpiresIn = $result['expires_in'] ?? null;
+    $newExpiresAt = $newExpiresIn ? date('Y-m-d H:i:s', time() + intval($newExpiresIn)) : null;
+    // Persist into custom_bots
+    $upd = $conn->prepare("UPDATE custom_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1");
+    if (!$upd) {
+        echo json_encode(['success' => false, 'error' => 'DB update failed: ' . $conn->error]);
+        exit;
+    }
+    $upd->bind_param('ssss', $newAccess, $newExpiresAt, $newRefresh, $botChannelId);
+    if (!$upd->execute()) {
+        $err = $upd->error;
+        $upd->close();
+        echo json_encode(['success' => false, 'error' => 'DB update failed: ' . $err]);
+        exit;
+    }
+    $upd->close();
+    echo json_encode(['success' => true, 'new_token' => $newAccess, 'expires_at' => $newExpiresAt]);
+    exit;
+}
+
 ob_start();
 ?>
 <div class="box">
