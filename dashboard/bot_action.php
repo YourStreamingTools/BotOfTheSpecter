@@ -38,7 +38,7 @@ if (!in_array($action, ['run', 'stop', 'status'])) {
   exit();
 }
 
-if (!in_array($bot, ['stable', 'beta'])) {
+if (!in_array($bot, ['stable', 'beta', 'custom'])) {
   ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Invalid bot type']);
@@ -82,6 +82,36 @@ $params = [
 $startTime = time();
 $maxExecutionTime = 12; // Leave buffer for cleanup
 try {
+  // If attempting to start the custom bot, require that a verified custom bot is configured
+  if ($bot === 'custom' && ($actionMap[$action] ?? '') === 'run') {
+    $channelOwnerId = $_SESSION['user_id'] ?? 0;
+    if (empty($channelOwnerId)) {
+      ob_clean(); header('Content-Type: application/json'); echo json_encode(['success'=>false,'message'=>'User not identified.']); exit();
+    }
+    // Check custom_bots table for this channel
+    $cbStmt = $conn->prepare("SELECT bot_username, bot_channel_id, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
+    if ($cbStmt) {
+      $cbStmt->bind_param('i', $channelOwnerId);
+      $cbStmt->execute();
+      $cbRes = $cbStmt->get_result();
+      $cbRow = $cbRes->fetch_assoc();
+      if (!$cbRow) {
+        ob_clean(); header('Content-Type: application/json'); echo json_encode(['success'=>false,'message'=>'Custom bot is not configured. Please add and verify a custom bot on the Profile page.']); exit();
+      }
+      if (intval($cbRow['is_verified']) !== 1) {
+        ob_clean(); header('Content-Type: application/json'); echo json_encode(['success'=>false,'message'=>'Custom bot is not verified. Please verify the custom bot on the Profile page before starting it.']); exit();
+      }
+      if (empty($cbRow['bot_channel_id']) || empty($cbRow['bot_username'])) {
+        ob_clean(); header('Content-Type: application/json'); echo json_encode(['success'=>false,'message'=>'Custom bot credentials are incomplete. Please check the Profile page.']); exit();
+      }
+      // Optionally attach custom bot info to params for performBotAction if needed in future
+      $params['custom_bot_username'] = $cbRow['bot_username'];
+      $params['custom_bot_channel_id'] = $cbRow['bot_channel_id'];
+    } else {
+      // DB prepare failed - fallback to denying start to be safe
+      ob_clean(); header('Content-Type: application/json'); echo json_encode(['success'=>false,'message'=>'Unable to validate custom bot configuration.']); exit();
+    }
+  }
   $result = performBotAction($actionMap[$action], $bot, $params);
   // Check if we're approaching timeout
   if ((time() - $startTime) >= $maxExecutionTime) {

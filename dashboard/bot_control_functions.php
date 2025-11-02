@@ -34,14 +34,23 @@ function sanitizeSSHOutput($output) {
 function checkBotRunning($username, $botType = 'stable') {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
     $statusScriptPath = "/home/botofthespecter/status.py";
-    // Stable remains in /logs/version, beta now lives in /logs/version/beta
+    // Version file locations and bot script path vary by system
     $versionFilePath = "/home/botofthespecter/logs/version";
     if ($botType === 'beta') {
         $versionFilePath .= "/beta/{$username}_beta_version_control.txt";
+    } elseif ($botType === 'custom') {
+        $versionFilePath .= "/custom/{$username}_custom_version_control.txt";
     } else {
         $versionFilePath .= "/{$username}_version_control.txt";
     }
-    $botScriptPath = "/home/botofthespecter/" . ($botType === 'beta' ? "beta.py" : "bot.py");
+    // Choose the bot script based on type
+    if ($botType === 'beta') {
+        $botScriptPath = "/home/botofthespecter/beta.py";
+    } elseif ($botType === 'custom') {
+        $botScriptPath = "/home/botofthespecter/custom.py";
+    } else {
+        $botScriptPath = "/home/botofthespecter/bot.py";
+    }
     // Initialize result
     $result = [
         'success' => false,
@@ -148,12 +157,16 @@ function performBotAction($action, $botType, $params) {
     $apiKey = $params['api_key'] ?? '';
     // Define paths
     $statusScriptPath = "/home/botofthespecter/status.py";
-    $botScriptPath = "/home/botofthespecter/" . ($botType === 'beta' ? "beta.py" : "bot.py");
-    $versionFilePath = "/home/botofthespecter/logs/version";
+    // Determine bot script and version path based on bot type
     if ($botType === 'beta') {
-        $versionFilePath .= "/beta/{$username}_beta_version_control.txt";
+        $botScriptPath = "/home/botofthespecter/beta.py";
+        $versionFilePath = "/home/botofthespecter/logs/version/beta/{$username}_beta_version_control.txt";
+    } elseif ($botType === 'custom') {
+        $botScriptPath = "/home/botofthespecter/custom.py";
+        $versionFilePath = "/home/botofthespecter/logs/version/custom/{$username}_custom_version_control.txt";
     } else {
-        $versionFilePath .= "/{$username}_version_control.txt";
+        $botScriptPath = "/home/botofthespecter/bot.py";
+        $versionFilePath = "/home/botofthespecter/logs/version/{$username}_version_control.txt";
     }
     // Get version information from API
     $versionApiUrl = 'https://api.botofthespecter.com/versions';
