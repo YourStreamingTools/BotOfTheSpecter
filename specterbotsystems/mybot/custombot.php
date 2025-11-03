@@ -77,7 +77,7 @@ if (isset($_GET['code'])) {
                     $scopes = $validateData['scopes'] ?? [];
                     // Ensure the token has the required IRC/chat and bot scopes
                     // user:write:chat and user:bot are required for sending messages as a bot
-                    $required = ['chat:read', 'chat:edit', 'user:write:chat', 'user:bot'];
+                    $required = ['chat:read', 'chat:edit', 'user:write:chat', 'user:bot', 'moderator:read:chatters'];
                     $missing = array_diff($required, $scopes);
                     if (!empty($missing)) {
                         $error = 'The token is missing required scopes: ' . implode(', ', $missing) . '. Please authorize with chat:read, chat:edit, user:write:chat and user:bot.';
@@ -208,8 +208,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'login') {
     $state = bin2hex(random_bytes(8));
     $_SESSION['twitch_oauth_state'] = $state;
     // Request chat scopes so the returned token can be used for IRC/chat actions
-    // Include user:write:chat and user:bot so the bot can send messages as the verified bot account
-    $scope = 'user:read:email chat:read chat:edit user:write:chat user:bot';
+    $scope = 'user:read:email chat:read chat:edit user:write:chat user:bot moderator:read:chatters';
     $authorize = 'https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=' . urlencode($client_id) . '&redirect_uri=' . urlencode($redirect_uri) . '&scope=' . urlencode($scope) . '&state=' . urlencode($state);
     header('Location: ' . $authorize);
     exit();
