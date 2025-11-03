@@ -8654,6 +8654,7 @@ async def builtin_commands_creation():
 
 # Function to tell the website what version of the bot is currently running
 async def update_version_control():
+    global SYSTEM, VERSION, CHANNEL_NAME
     try:
         # Define the directory path
         directory = "/home/botofthespecter/logs/version/"
