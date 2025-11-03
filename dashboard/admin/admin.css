@@ -27,10 +27,17 @@
     transform: rotate(180deg);
 }
 
-/* Modern admin page additions moved from admin_websocket_clients.php */
 .box {
     border-radius: 10px;
-    box-shadow: 0 6px 18px rgba(12,17,43,0.06);
+    box-shadow: 0 20px 40px rgba(2,6,23,0.20), 0 8px 18px rgba(2,6,23,0.10);
+    border: 1px solid rgba(2,6,23,0.10);
+    background-clip: padding-box;
+    transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.box:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 30px 70px rgba(2,6,23,0.26), 0 12px 28px rgba(2,6,23,0.12);
 }
 .table-container {
     border-radius: 8px; overflow: hidden;
@@ -70,6 +77,11 @@
 .tag.is-success {
     background: linear-gradient(90deg,#34d399,#10b981);
     color: white;
+}
+.tag.bot-type-tag.is-dark {
+    background: linear-gradient(90deg, #6b7280, #374151);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.04);
 }
 .level .level-right .button.is-primary {
     display:flex;
