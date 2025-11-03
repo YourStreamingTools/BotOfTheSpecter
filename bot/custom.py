@@ -8780,6 +8780,7 @@ async def builtin_commands_creation():
 
 # Function to tell the website what version of the bot is currently running
 async def update_version_control():
+    global SYSTEM, VERSION, CHANNEL_NAME
     try:
         # Define the directory path
         directory = "/home/botofthespecter/logs/version/"
@@ -9524,7 +9525,7 @@ async def midnight():
 
 async def reload_env_vars():
     # Load in all the globals
-    global SQL_HOST, SQL_USER, SQL_PASSWORD, ADMIN_API_KEY, USE_BACKUP_SYSTEM
+    global SQL_HOST, SQL_USER, SQL_PASSWORD, ADMIN_API_KEY
     global CLIENT_ID, CLIENT_SECRET, TWITCH_GQL, SHAZAM_API, STEAM_API
     global EXCHANGE_RATE_API_KEY, HYPERATE_API_KEY, CHANNEL_AUTH
     global TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
