@@ -95,55 +95,75 @@ $config = $ssh_configs[$server];
 try {
     // Get SSH connection
     $connection = SSHConnectionManager::getConnection($config['host'], $config['username'], $config['password']);
-    
     if (!$connection) {
         sse_send("Error: Could not connect to {$config['name']}", 'error');
         sse_send(json_encode(['error' => 'SSH connection failed']), 'done');
         exit;
     }
-    
     sse_send("Executing on {$config['name']}: {$command}");
-    
     // Execute command with streaming output
     $stream = SSHConnectionManager::executeCommandStream($connection, $command);
-    
     if (!$stream) {
         sse_send('Error: Could not execute command', 'error');
         sse_send(json_encode(['error' => 'Command execution failed']), 'done');
         exit;
     }
-    
-    // Stream output line by line
-    $buffer = '';
-    while (!feof($stream)) {
-        $data = fread($stream, 1024);
-        if ($data === false) break;
-        
-        $buffer .= $data;
-        
-        // Process complete lines
-        while (($pos = strpos($buffer, "\n")) !== false) {
-            $line = substr($buffer, 0, $pos);
-            $buffer = substr($buffer, $pos + 1);
-            
+    if (is_array($stream)) {
+        $stdout = $stream['stdout'] ?? null;
+        $stderr = $stream['stderr'] ?? null;
+    } else {
+        $stdout = $stream;
+        $stderr = null;
+    }
+    $buffers = ['out' => '', 'err' => ''];
+    // Read until both streams reach EOF
+    while (($stdout && !feof($stdout)) || ($stderr && !feof($stderr))) {
+        $dataRead = false;
+        if ($stdout && !feof($stdout)) {
+            $data = @fread($stdout, 1024);
+            if ($data !== false && $data !== '') {
+                $buffers['out'] .= $data;
+                $dataRead = true;
+            }
+        }
+        if ($stderr && !feof($stderr)) {
+            $edata = @fread($stderr, 1024);
+            if ($edata !== false && $edata !== '') {
+                $buffers['err'] .= $edata;
+                $dataRead = true;
+            }
+        }
+        // Process complete lines from stdout buffer
+        while (($pos = strpos($buffers['out'], "\n")) !== false) {
+            $line = substr($buffers['out'], 0, $pos);
+            $buffers['out'] = substr($buffers['out'], $pos + 1);
             if (!empty(trim($line))) {
                 sse_send($line);
             }
         }
-        
-        // Small delay to prevent overwhelming the browser
-        usleep(10000); // 10ms
+        // Process complete lines from stderr buffer (label as stderr)
+        while (($pos = strpos($buffers['err'], "\n")) !== false) {
+            $line = substr($buffers['err'], 0, $pos);
+            $buffers['err'] = substr($buffers['err'], $pos + 1);
+            if (!empty(trim($line))) {
+                sse_send('[stderr] ' . $line);
+            }
+        }
+        if (!$dataRead) {
+            // No data this loop - small sleep to avoid busy-wait
+            usleep(10000); // 10ms
+        }
     }
-    
-    // Send any remaining buffer content
-    if (!empty(trim($buffer))) {
-        sse_send($buffer);
+    // Flush any remaining content
+    if (!empty(trim($buffers['out']))) {
+        sse_send($buffers['out']);
     }
-    
-    fclose($stream);
-    
+    if (!empty(trim($buffers['err']))) {
+        sse_send('[stderr] ' . $buffers['err']);
+    }
+    if ($stdout && is_resource($stdout)) { fclose($stdout); }
+    if ($stderr && is_resource($stderr)) { fclose($stderr); }
     sse_send(json_encode(['success' => true, 'exit_code' => 0]), 'done');
-    
 } catch (Exception $e) {
     sse_send("Error: " . $e->getMessage(), 'error');
     sse_send(json_encode(['error' => $e->getMessage()]), 'done');
