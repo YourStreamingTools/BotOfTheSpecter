@@ -2554,7 +2554,7 @@ class TwitchBot(commands.Bot):
             return ai_text
         else:
             api_logger.info("AI access denied due to lack of premium.")
-            return "This channel doesn't have a premium subscription to use this feature."
+            return False
 
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
@@ -3534,7 +3534,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("Sorry, there was an error retrieving the current song.")
                 else:
                     # No premium access
-                    await send_chat_message("This channel doesn't have a premium subscription to use the alternative method.")
+                    await send_chat_message("Sorry, I couldn't determine the current song.")
                 # Record usage
                 add_usage('song', bucket_key, cooldown_bucket)
         except Exception as e:
