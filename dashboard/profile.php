@@ -851,7 +851,7 @@ ob_start();
     </div>
     <div class="column is-12">
         <div class="box" id="custom-bot">
-            <h2 class="title is-4 mb-4">Custom Bot <span class="tag is-warning" style="margin-left:0.5rem;">Coming Soon</span></h2>
+        <h2 class="title is-4 mb-4">Custom Bot <span class="tag is-warning" style="margin-left:0.5rem;">Experimental</span></h2>
             <div class="content">
                 <p>Set a custom bot for your channel by entering the bot's Twitch username. We'll resolve the Twitch user ID for you.</p>
             </div>
