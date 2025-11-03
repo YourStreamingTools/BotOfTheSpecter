@@ -150,7 +150,7 @@ function checkBotRunning($username, $botType = 'stable') {
     * @return array - Result of the operation
 */
 function performBotAction($action, $botType, $params) {
-    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password, $conn;
     $username = $params['username'] ?? '';
     // Extract parameters
     $twitchUserId = $params['twitch_user_id'] ?? '';
