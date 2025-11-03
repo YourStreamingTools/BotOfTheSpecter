@@ -8,8 +8,8 @@ parser.add_argument(
     "-system",
     dest="system",
     required=True,
-    choices=["stable", "alpha", "beta"],
-    help="System to check (stable, alpha, beta)"
+    choices=["stable", "alpha", "beta", "custom"],
+    help="System to check (stable, alpha, beta, custom)"
 )
 parser.add_argument("-channel", dest="channel_username", required=True, help="Channel username to check")
 args = parser.parse_args()
@@ -20,7 +20,8 @@ channel_username = args.channel_username.lower()
 script_map = {
     "stable": "bot.py",
     "alpha": "alpha.py",
-    "beta": "beta.py"
+    "beta": "beta.py",
+    "custom": "custom.py"
 }
 
 script_name = script_map[args.system]
