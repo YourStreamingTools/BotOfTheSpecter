@@ -256,30 +256,44 @@ function performBotAction($action, $botType, $params) {
                     $extraBotArgs = '';
                     if ($botType === 'custom') {
                         try {
-                            $stmt = $conn->prepare("SELECT bot_username, access_token FROM custom_bots WHERE channel_id = ? LIMIT 1");
-                            if ($stmt) {
-                                $stmt->bind_param('s', $twitchUserId);
-                                $stmt->execute();
-                                $res = $stmt->get_result();
-                                $crow = $res ? $res->fetch_assoc() : null;
-                                $stmt->close();
-                                if ($crow && !empty($crow['bot_username']) && !empty($crow['access_token'])) {
-                                    $botUsernameParam = $crow['bot_username'];
-                                    $botTokenParam = $crow['access_token'];
-                                    // Append botusername and bottoken args (access_token stored without oauth: prefix)
+                                // Prefer using pre-fetched custom bot info if provided in params
+                                $botUsernameParam = $params['custom_bot_username'] ?? null;
+                                $botTokenParam = $params['auth_token'] ?? null; // bot_action.php may have set auth_token to the custom bot token
+                                $botChannelIdParam = $params['custom_bot_channel_id'] ?? null;
+                                if (!empty($botUsernameParam) && !empty($botTokenParam) && !empty($botChannelIdParam)) {
+                                    // We have everything we need from the caller
                                     $extraBotArgs = ' -botusername ' . escapeshellarg($botUsernameParam) . ' -bottoken ' . escapeshellarg($botTokenParam);
                                 } else {
-                                    $result['message'] = 'Custom bot configuration missing (bot username or token). Please verify the custom bot first.';
-                                    break;
+                                    // Fallback: strict lookup by site owner id (channel_id) as required
+                                        $searchOwnerId = $params['channel_owner_id'] ?? $params['user_id'] ?? ($_SESSION['user_id'] ?? null);
+                                        if (empty($searchOwnerId)) {
+                                            $result['message'] = 'Missing channel owner id for custom bot lookup.';
+                                            break;
+                                        }
+                                        $stmt = $conn->prepare("SELECT bot_username, access_token FROM custom_bots WHERE channel_id = ? LIMIT 1");
+                                        if ($stmt) {
+                                            $stmt->bind_param('s', $searchOwnerId);
+                                            $stmt->execute();
+                                            $res = $stmt->get_result();
+                                            $crow = $res ? $res->fetch_assoc() : null;
+                                            $stmt->close();
+                                            if ($crow && !empty($crow['bot_username']) && !empty($crow['access_token'])) {
+                                                $botUsernameParam = $crow['bot_username'];
+                                                $botTokenParam = $crow['access_token'];
+                                                $extraBotArgs = ' -botusername ' . escapeshellarg($botUsernameParam) . ' -bottoken ' . escapeshellarg($botTokenParam);
+                                            } else {
+                                                $result['message'] = 'Custom bot configuration missing (bot username or token). Please verify the custom bot first.';
+                                                break;
+                                            }
+                                        } else {
+                                            $result['message'] = 'Database error preparing custom bot lookup.';
+                                            break;
+                                        }
                                 }
-                            } else {
-                                $result['message'] = 'Database error preparing custom bot lookup.';
+                            } catch (Exception $e) {
+                                $result['message'] = 'Error fetching custom bot data: ' . $e->getMessage();
                                 break;
                             }
-                        } catch (Exception $e) {
-                            $result['message'] = 'Error fetching custom bot data: ' . $e->getMessage();
-                            break;
-                        }
                     }
                     // Construct proper bot start command with all required parameters - MAKE IT BACKGROUND
                     // Use escapeshellarg for safety on dynamic fields
