@@ -175,8 +175,16 @@ function performBotAction($action, $botType, $params) {
     $versionInfo = json_decode(@file_get_contents($versionApiUrl), true);
     $newVersion = '';
     if ($versionInfo) {
-        $newVersion = $botType === 'stable' ? ($versionInfo['stable_version'] ?? '5.2') : 
-                     ($botType === 'beta' ? ($versionInfo['beta_version'] ?? '5.4') : '5.2');
+        // stable and custom should follow the same public/stable release number
+        if ($botType === 'stable') {
+            $newVersion = $versionInfo['stable_version'];
+        } elseif ($botType === 'beta') {
+            $newVersion = $versionInfo['beta_version'];
+        } elseif ($botType === 'custom') {
+            $newVersion = $versionInfo['custom_version'] ?? $versionInfo['stable_version'];
+        } else {
+            $newVersion = $versionInfo['stable_version'];
+        }
     }
     $result = [
         'success' => false,
