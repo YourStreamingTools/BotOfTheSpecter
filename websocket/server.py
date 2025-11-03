@@ -24,6 +24,7 @@ from event_handler import EventHandler
 from security_manager import SecurityManager
 from donation_handler import DonationEventHandler
 from settings_manager import SettingsManager
+from obs_handler import ObsHandler
 
 # Load ENV file
 from dotenv import load_dotenv, find_dotenv
@@ -137,6 +138,8 @@ class BotOfTheSpecter_WebsocketServer:
         self.settings_manager = SettingsManager(logger)
         self.tts_handler = TTSHandler(logger, self.ssh_manager)
         self.event_handler = EventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid)
+        # OBS handler: dedicated OBS websocket event routing and state tracking
+        self.obs_handler = ObsHandler(logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid)
         self.donation_handler = DonationEventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals)
         socketio_logger = logging.getLogger('socketio')
         socketio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from socketio
@@ -153,6 +156,9 @@ class BotOfTheSpecter_WebsocketServer:
         # Update event handlers with the sio instance
         self.event_handler.sio = self.sio
         self.donation_handler.sio = self.sio
+        # Update OBS handler with socketio instance and clients accessor
+        self.obs_handler.sio = self.sio
+        self.obs_handler.get_clients = lambda: self.registered_clients
         # Update TTS handler with socketio instance and get_clients function
         self.tts_handler.sio = self.sio
         self.tts_handler.get_clients = lambda: self.registered_clients
@@ -214,8 +220,11 @@ class BotOfTheSpecter_WebsocketServer:
             ("KOFI", self.handle_kofi_event),
             ("PATREON", self.handle_patreon_event),
             ("SYSTEM_UPDATE", self.event_handler.handle_system_update),
-            ("SEND_OBS_EVENT", self.event_handler.handle_obs_event),
-            ("OBS_EVENT_RECEIVED", self.handle_obs_event_received),
+            # OBS events: FROM OBS TO Specter (incoming notifications from OBS)
+            ("OBS_EVENT", self.obs_handler.handle_obs_event),
+            ("OBS_EVENT_RECEIVED", self.obs_handler.handle_obs_event_received),
+            # OBS commands: FROM Specter TO OBS (outgoing commands to control OBS)
+            ("OBS_REQUEST", self.obs_handler.handle_obs_request),
             ("MUSIC_COMMAND", self.music_handler.music_command),
             ("*", self.event)
         ]
@@ -596,12 +605,8 @@ class BotOfTheSpecter_WebsocketServer:
         return await self.donation_handler.handle_patreon_event(code, data)
 
     async def handle_obs_event(self, sid, data):
-        # Redirect to event handler for proper global broadcasting
-        return await self.event_handler.handle_obs_event(sid, data)
-
-    async def handle_obs_event_received(self, sid, data):
-        # Broadcast OBS_EVENT_RECEIVED to all global listeners
-        await self.broadcast_event_with_globals("OBS_EVENT_RECEIVED", data, None)
+        # Redirect OBS events to the dedicated OBS handler
+        return await self.obs_handler.handle_obs_event(sid, data)
 
     async def tts(self, sid, data):
         # Handle TTS event for SocketIO
