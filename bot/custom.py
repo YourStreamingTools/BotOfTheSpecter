@@ -10063,6 +10063,27 @@ async def check_next_ad_after_completion(ads_api_url, headers):
     except Exception as e:
         api_logger.error(f"Error checking next ad after completion: {e}")
 
+async def get_bot_channel_id(bot_username: str | None = None):
+    connection = None
+    try:
+        username = bot_username or globals().get('BOT_USERNAME')
+        if not username:
+            bot_logger.debug("get_bot_channel_id: no BOT_USERNAME available")
+            return None
+        connection = await mysql_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT bot_channel_id FROM custom_bots WHERE bot_username = %s LIMIT 1", (username,))
+            row = await cursor.fetchone()
+            if row and row.get('bot_channel_id'):
+                return str(row.get('bot_channel_id'))
+            return None
+    except Exception as e:
+        bot_logger.error(f"Error fetching bot_channel_id for '{bot_username or BOT_USERNAME}': {e}")
+        return None
+    finally:
+        if connection:
+            await connection.ensure_closed()
+
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     if len(message) > 255:
         chat_logger.error(f"Message too long: {len(message)} characters (max 255)")
@@ -10073,9 +10094,10 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
         "Client-Id": TWITCH_OAUTH_API_CLIENT_ID,
         "Content-Type": "application/json"
     }
+    sender_id_value = await get_bot_channel_id() or "971436498"
     data = {
         "broadcaster_id": CHANNEL_ID,
-        "sender_id": "971436498",
+        "sender_id": sender_id_value,
         "message": message
     }
     if reply_parent_message_id:
