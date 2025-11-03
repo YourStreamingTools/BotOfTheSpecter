@@ -64,6 +64,12 @@ $ssh_configs = [
         'password' => $api_server_password,
         'name' => 'API Server'
     ],
+    'web' => [
+        'host' => 'localhost',
+        'username' => $server_username,
+        'password' => $server_password,
+        'name' => 'Web Server'
+    ],
     'websocket' => [
         'host' => $websocket_server_host,
         'username' => $websocket_server_username,

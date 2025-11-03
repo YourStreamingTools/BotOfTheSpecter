@@ -21,6 +21,7 @@ ob_start();
                 <select id="server-select">
                     <option value="">Choose a server...</option>
                     <option value="bots">Bot Server</option>
+                    <option value="web">Web Server</option>
                     <option value="api">API Server</option>
                     <option value="websocket">WebSocket Server</option>
                     <option value="sql">SQL Server</option>
