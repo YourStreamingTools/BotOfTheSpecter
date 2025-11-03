@@ -4,10 +4,12 @@ import os
 # Define the script names for stable and beta
 stable_script = "bot.py"
 beta_script = "beta.py"
+custom_script = "custom.py"
 
 # Dictionaries to hold running bots
 stable_bots = []
 beta_bots = []
+custom_bots = []
 
 # Iterate through all processes
 for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
@@ -46,6 +48,22 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
         if channel_index >= 0 and channel_index + 1 < len(cmdline):
             channel = cmdline[channel_index + 1]
             beta_bots.append((channel, process.info['pid']))
+    # If it's a custom bot, find the channel (custom.py)
+    if custom_script:
+        script_match_custom = False
+        for arg in cmdline:
+            if arg.endswith(custom_script):
+                base_name = os.path.basename(arg)
+                if base_name == custom_script:
+                    script_match_custom = True
+                    break
+        if script_match_custom:
+            channel_index = -1
+            if "-channel" in cmdline:
+                channel_index = cmdline.index("-channel")
+            if channel_index >= 0 and channel_index + 1 < len(cmdline):
+                channel = cmdline[channel_index + 1]
+                custom_bots.append((channel, process.info['pid']))
 
 # Print results
 print("Stable bots running:")
@@ -61,5 +79,13 @@ if beta_bots:
     for channel, pid in beta_bots:
         print(f"- Channel: {channel}, PID: {pid}")
     print(f"Total: {len(beta_bots)}")
+else:
+    print("None")
+
+print("\nCustom bots running:")
+if custom_bots:
+    for channel, pid in custom_bots:
+        print(f"- Channel: {channel}, PID: {pid}")
+    print(f"Total: {len(custom_bots)}")
 else:
     print("None")

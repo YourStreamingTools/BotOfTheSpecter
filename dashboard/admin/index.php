@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
@@ -303,6 +307,7 @@ if (isset($_GET['ajax'])) {
         $bot_output = getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         $stable_bots = [];
         $beta_bots = [];
+        $custom_bots = [];
         $lines = explode("\n", $bot_output);
         $section = '';
         foreach ($lines as $line) {
@@ -311,12 +316,16 @@ if (isset($_GET['ajax'])) {
                 $section = 'stable';
             } elseif (strpos($line, 'Beta bots running:') === 0) {
                 $section = 'beta';
+            } elseif (strpos($line, 'Custom bots running:') === 0) {
+                $section = 'custom';
             } elseif (preg_match('/- Channel: (\S+), PID: (\d+)/', $line, $matches)) {
                 $bot = ['channel' => $matches[1], 'pid' => $matches[2]];
                 if ($section == 'stable') {
                     $stable_bots[] = $bot;
                 } elseif ($section == 'beta') {
                     $beta_bots[] = $bot;
+                } elseif ($section == 'custom') {
+                    $custom_bots[] = $bot;
                 }
             }
         }
@@ -327,6 +336,10 @@ if (isset($_GET['ajax'])) {
         }
         foreach ($stable_bots as $bot) {
             $bot['type'] = 'stable';
+            $all_bots[] = $bot;
+        }
+        foreach ($custom_bots as $bot) {
+            $bot['type'] = 'custom';
             $all_bots[] = $bot;
         }
         // Fetch user IDs and profile images
@@ -1178,8 +1191,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to generate HTML for a single bot (returns element HTML and uses stable data attributes)
     function generateBotHtml(bot) {
         const profileImage = bot.profile_image || '';
-        const iconColor = bot.type === 'beta' ? 'has-text-warning' : 'has-text-primary';
-        const tagClass = bot.type === 'beta' ? 'is-warning' : 'is-primary';
+        const iconColor = bot.type === 'beta' ? 'has-text-warning' : (bot.type === 'custom' ? 'has-text-grey' : 'has-text-primary');
+        const tagClass = bot.type === 'beta' ? 'is-warning' : (bot.type === 'custom' ? 'is-dark' : 'is-primary');
         const typeLabel = bot.type.charAt(0).toUpperCase() + bot.type.slice(1);
         const safeId = 'bot-' + sanitizeId(bot.channel);
         let html = '<div class="column is-one-third" id="' + safeId + '" data-bot-id="' + safeId + '">';
