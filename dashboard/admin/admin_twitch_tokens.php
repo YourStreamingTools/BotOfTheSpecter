@@ -674,11 +674,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusCell.className = 'has-text-danger';
                 }
                 
-                if (cached.expires_at) {
-                    const expiryDate = new Date(cached.expires_at);
-                    const now = new Date();
-                    const remaining = Math.floor((expiryDate - now) / 1000);
-                    
+                if (cached.expires_in && cached.timestamp) {
+                    // Recalculate remaining time based on cache timestamp + original expires_in
+                    const cachedTime = cached.timestamp * 1000; // Convert to milliseconds
+                    const expiryTime = cachedTime + (cached.expires_in * 1000); // Add expires_in seconds
+                    const now = new Date().getTime();
+                    const remaining = Math.floor((expiryTime - now) / 1000);
                     if (remaining > 0) {
                         expiryCell.textContent = formatTimeRemaining(remaining);
                     } else {
@@ -705,11 +706,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusCell.textContent = 'Invalid';
                     statusCell.className = 'has-text-danger';
                 }
-                
-                if (cached.expires_at) {
-                    const expiryDate = new Date(cached.expires_at);
-                    const now = new Date();
-                    const remaining = Math.floor((expiryDate - now) / 1000);
+                if (cached.expires_in && cached.timestamp) {
+                    // Recalculate remaining time based on cache timestamp + original expires_in
+                    const cachedTime = cached.timestamp * 1000; // Convert to milliseconds
+                    const expiryTime = cachedTime + (cached.expires_in * 1000); // Add expires_in seconds
+                    const now = new Date().getTime();
+                    const remaining = Math.floor((expiryTime - now) / 1000);
                     
                     if (remaining > 0) {
                         expiryCell.textContent = formatTimeRemaining(remaining);
