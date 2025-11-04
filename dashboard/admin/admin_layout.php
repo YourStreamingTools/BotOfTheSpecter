@@ -109,19 +109,19 @@ $current_uri = $_SERVER['REQUEST_URI'] ?? '';
 $active_menu = '';
 if ($current_file == 'index.php' || $current_uri == '/admin') {
     $active_menu = 'dashboard';
-} elseif ($current_file == 'admin_users.php') {
+} elseif ($current_file == 'users.php') {
     $active_menu = 'users';
-} elseif ($current_file == 'admin_logs.php') {
+} elseif ($current_file == 'logs.php') {
     $active_menu = 'logs';
-} elseif ($current_file == 'admin_feedback.php') {
+} elseif ($current_file == 'feedback.php') {
     $active_menu = 'feedback';
-} elseif ($current_file == 'admin_twitch_tokens.php') {
+} elseif ($current_file == 'twitch_tokens.php') {
     $active_menu = 'twitch';
-} elseif ($current_file == 'admin_discord_tracking.php') {
+} elseif ($current_file == 'discord_tracking.php') {
     $active_menu = 'discord';
-} elseif ($current_file == 'admin_websocket_clients.php') {
+} elseif ($current_file == 'websocket_clients.php') {
     $active_menu = 'websocket';
-} elseif ($current_file == 'admin_terminal.php') {
+} elseif ($current_file == 'terminal.php') {
     $active_menu = 'terminal';
 }
 ?>
@@ -192,43 +192,43 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a href="admin_users.php" class="sidebar-menu-link">
+                    <a href="users.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fas fa-users-cog"></i></span>
                         <span class="sidebar-menu-text">User Management</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a href="admin_logs.php" class="sidebar-menu-link">
+                    <a href="logs.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fas fa-clipboard-list"></i></span>
                         <span class="sidebar-menu-text">Log Management</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a href="admin_feedback.php" class="sidebar-menu-link">
+                    <a href="feedback.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fas fa-comments"></i></span>
                         <span class="sidebar-menu-text">Feedback</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a href="admin_twitch_tokens.php" class="sidebar-menu-link">
+                    <a href="twitch_tokens.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fab fa-twitch"></i></span>
                         <span class="sidebar-menu-text">Twitch Tokens</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a href="admin_discord_tracking.php" class="sidebar-menu-link">
+                    <a href="discord_tracking.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fab fa-discord"></i></span>
                         <span class="sidebar-menu-text">Discord Tracking</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a href="admin_websocket_clients.php" class="sidebar-menu-link">
+                    <a href="websocket_clients.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fas fa-plug"></i></span>
                         <span class="sidebar-menu-text">Websocket Clients</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a href="admin_terminal.php" class="sidebar-menu-link">
+                    <a href="terminal.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fas fa-terminal"></i></span>
                         <span class="sidebar-menu-text">Web Terminal</span>
                     </a>
@@ -269,49 +269,49 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                 <div class="sidebar-tooltip">Dashboard</div>
             </li>
             <li class="sidebar-menu-item">
-                <a href="admin_users.php" class="sidebar-menu-link <?php echo $active_menu == 'users' ? 'active' : ''; ?>">
+                <a href="users.php" class="sidebar-menu-link <?php echo $active_menu == 'users' ? 'active' : ''; ?>">
                     <span class="icon sidebar-menu-icon"><i class="fas fa-users-cog"></i></span>
                     <span class="sidebar-menu-text">User Management</span>
                 </a>
                 <div class="sidebar-tooltip">User Management</div>
             </li>
             <li class="sidebar-menu-item">
-                <a href="admin_logs.php" class="sidebar-menu-link <?php echo $active_menu == 'logs' ? 'active' : ''; ?>">
+                <a href="logs.php" class="sidebar-menu-link <?php echo $active_menu == 'logs' ? 'active' : ''; ?>">
                     <span class="icon sidebar-menu-icon"><i class="fas fa-clipboard-list"></i></span>
                     <span class="sidebar-menu-text">Log Management</span>
                 </a>
                 <div class="sidebar-tooltip">Log Management</div>
             </li>
             <li class="sidebar-menu-item">
-                <a href="admin_feedback.php" class="sidebar-menu-link <?php echo $active_menu == 'feedback' ? 'active' : ''; ?>">
+                <a href="feedback.php" class="sidebar-menu-link <?php echo $active_menu == 'feedback' ? 'active' : ''; ?>">
                     <span class="icon sidebar-menu-icon"><i class="fas fa-comments"></i></span>
                     <span class="sidebar-menu-text">Feedback</span>
                 </a>
                 <div class="sidebar-tooltip">User Feedback</div>
             </li>
             <li class="sidebar-menu-item">
-                <a href="admin_twitch_tokens.php" class="sidebar-menu-link <?php echo $active_menu == 'twitch' ? 'active' : ''; ?>">
+                <a href="twitch_tokens.php" class="sidebar-menu-link <?php echo $active_menu == 'twitch' ? 'active' : ''; ?>">
                     <span class="icon sidebar-menu-icon"><i class="fab fa-twitch"></i></span>
                     <span class="sidebar-menu-text">Twitch Tokens</span>
                 </a>
                 <div class="sidebar-tooltip">Twitch Tokens</div>
             </li>
             <li class="sidebar-menu-item">
-                <a href="admin_discord_tracking.php" class="sidebar-menu-link <?php echo $active_menu == 'discord' ? 'active' : ''; ?>">
+                <a href="discord_tracking.php" class="sidebar-menu-link <?php echo $active_menu == 'discord' ? 'active' : ''; ?>">
                     <span class="icon sidebar-menu-icon"><i class="fab fa-discord"></i></span>
                     <span class="sidebar-menu-text">Discord Tracking</span>
                 </a>
                 <div class="sidebar-tooltip">Discord Tracking</div>
             </li>
             <li class="sidebar-menu-item">
-                <a href="admin_websocket_clients.php" class="sidebar-menu-link <?php echo $active_menu == 'websocket' ? 'active' : ''; ?>">
+                <a href="websocket_clients.php" class="sidebar-menu-link <?php echo $active_menu == 'websocket' ? 'active' : ''; ?>">
                     <span class="icon sidebar-menu-icon"><i class="fas fa-plug"></i></span>
                     <span class="sidebar-menu-text">Websocket Clients</span>
                 </a>
                 <div class="sidebar-tooltip">Websocket Clients</div>
             </li>
             <li class="sidebar-menu-item">
-                <a href="admin_terminal.php" class="sidebar-menu-link <?php echo $active_menu == 'terminal' ? 'active' : ''; ?>">
+                <a href="terminal.php" class="sidebar-menu-link <?php echo $active_menu == 'terminal' ? 'active' : ''; ?>">
                     <span class="icon sidebar-menu-icon"><i class="fas fa-terminal"></i></span>
                     <span class="sidebar-menu-text">Web Terminal</span>
                 </a>
@@ -472,58 +472,58 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
         document.querySelectorAll('.sidebar-menu-link.active').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.navbar-item.is-active').forEach(el => el.classList.remove('is-active'));
         // Admin active menu logic
-        if (currentPath.includes('/admin') && !currentPath.includes('admin_users.php') && !currentPath.includes('admin_logs.php') && !currentPath.includes('admin_feedback.php') && !currentPath.includes('admin_twitch_tokens.php') && !currentPath.includes('admin_discord_tracking.php') && !currentPath.includes('admin_websocket_clients.php') && !currentPath.includes('admin_terminal.php')) {
+        if (currentPath.includes('/admin') && !currentPath.includes('users.php') && !currentPath.includes('logs.php') && !currentPath.includes('feedback.php') && !currentPath.includes('twitch_tokens.php') && !currentPath.includes('discord_tracking.php') && !currentPath.includes('websocket_clients.php') && !currentPath.includes('terminal.php')) {
             // Dashboard
             const dashboardLinks = document.querySelectorAll('a[href="/admin"]');
             dashboardLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
-        } else if (currentPath.includes('admin_users.php')) {
+        } else if (currentPath.includes('users.php')) {
             // User Management
-            const userLinks = document.querySelectorAll('a[href*="admin_users.php"]');
+            const userLinks = document.querySelectorAll('a[href*="users.php"]');
             userLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
-        } else if (currentPath.includes('admin_logs.php')) {
+        } else if (currentPath.includes('logs.php')) {
             // Log Management
-            const logLinks = document.querySelectorAll('a[href*="admin_logs.php"]');
+            const logLinks = document.querySelectorAll('a[href*="logs.php"]');
             logLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
-        } else if (currentPath.includes('admin_feedback.php')) {
+        } else if (currentPath.includes('feedback.php')) {
             // Feedback
-            const feedbackLinks = document.querySelectorAll('a[href*="admin_feedback.php"]');
+            const feedbackLinks = document.querySelectorAll('a[href*="feedback.php"]');
             feedbackLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
-        } else if (currentPath.includes('admin_twitch_tokens.php')) {
+        } else if (currentPath.includes('twitch_tokens.php')) {
             // Twitch Tokens
-            const twitchLinks = document.querySelectorAll('a[href*="admin_twitch_tokens.php"]');
+            const twitchLinks = document.querySelectorAll('a[href*="twitch_tokens.php"]');
             twitchLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
-        } else if (currentPath.includes('admin_discord_tracking.php')) {
+        } else if (currentPath.includes('discord_tracking.php')) {
             // Discord Tracking
-            const discordLinks = document.querySelectorAll('a[href*="admin_discord_tracking.php"]');
+            const discordLinks = document.querySelectorAll('a[href*="discord_tracking.php"]');
             discordLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
-        } else if (currentPath.includes('admin_websocket_clients.php')) {
+        } else if (currentPath.includes('websocket_clients.php')) {
             // Websocket Clients
-            const websocketLinks = document.querySelectorAll('a[href*="admin_websocket_clients.php"]');
+            const websocketLinks = document.querySelectorAll('a[href*="websocket_clients.php"]');
             websocketLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
-        } else if (currentPath.includes('admin_terminal.php')) {
+        } else if (currentPath.includes('terminal.php')) {
             // Web Terminal
-            const terminalLinks = document.querySelectorAll('a[href*="admin_terminal.php"]');
+            const terminalLinks = document.querySelectorAll('a[href*="terminal.php"]');
             terminalLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');

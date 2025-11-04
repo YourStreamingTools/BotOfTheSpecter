@@ -213,7 +213,7 @@ function executeCommand() {
     // Create EventSource for streaming output
     const encodedCommand = encodeURIComponent(command);
     const encodedServer = encodeURIComponent(server);
-    currentEventSource = new EventSource(`admin_terminal_stream.php?server=${encodedServer}&command=${encodedCommand}`);
+    currentEventSource = new EventSource(`terminal_stream.php?server=${encodedServer}&command=${encodedCommand}`);
     
     currentEventSource.onmessage = function(event) {
         if (event.data) {
