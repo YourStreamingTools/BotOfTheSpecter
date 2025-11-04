@@ -849,7 +849,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let since = loadMore ? adminLogLoaded : 0;
         if (loadMore && adminLogLoaded >= adminLogLastLine) return;
         try {
-            const resp = await fetch(`admin_logs.php?admin_log_user=${encodeURIComponent(adminLogUser)}&admin_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
+            const resp = await fetch(`logs.php?admin_log_user=${encodeURIComponent(adminLogUser)}&admin_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
             const json = await resp.json();
             if (json.error) {
                 if (json.error === "not_found") {
@@ -882,7 +882,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let since = loadMore ? adminLogLoaded : 0;
         if (loadMore && adminLogLoaded >= adminLogLastLine) return;
         try {
-            const resp = await fetch(`admin_logs.php?admin_system_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
+            const resp = await fetch(`logs.php?admin_system_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
             const json = await resp.json();
             if (json.error) {
                 if (json.error === "not_found") {

@@ -524,23 +524,23 @@ ob_start();
     <h1 class="title is-3"><span class="icon"><i class="fas fa-shield-alt"></i></span> Administrator Dashboard</h1>
     <p class="mb-4">This is the admin dashboard. Use the links below to manage users, view logs, and perform other administrative tasks.</p>
     <div class="buttons">
-        <a href="admin_logs.php" class="button is-info is-light">
+        <a href="logs.php" class="button is-info is-light">
             <span class="icon"><i class="fas fa-clipboard-list"></i></span>
             <span>Log Management</span>
         </a>
-        <a href="admin_twitch_tokens.php" class="button is-primary is-light">
+        <a href="twitch_tokens.php" class="button is-primary is-light">
             <span class="icon"><i class="fab fa-twitch"></i></span>
             <span>Twitch Tokens</span>
         </a>
-        <a href="admin_discord_tracking.php" class="button is-link is-light">
+        <a href="discord_tracking.php" class="button is-link is-light">
             <span class="icon"><i class="fab fa-discord"></i></span>
             <span>Discord Tracking</span>
         </a>
-        <a href="admin_websocket_clients.php" class="button is-success is-light">
+        <a href="websocket_clients.php" class="button is-success is-light">
             <span class="icon"><i class="fas fa-plug"></i></span>
             <span>Websocket Clients</span>
         </a>
-        <a href="admin_terminal.php" class="button is-warning is-light">
+        <a href="terminal.php" class="button is-warning is-light">
             <span class="icon"><i class="fas fa-terminal"></i></span>
             <span>Web Terminal</span>
         </a>
@@ -747,7 +747,7 @@ ob_start();
                             <li><strong>Regular Users:</strong> <?php echo $regular_count; ?></li>
                         </ul>
                     </div>
-                    <a href="admin_users.php" class="button is-link is-light mt-4">
+                    <a href="users.php" class="button is-link is-light mt-4">
                         <span class="icon"><i class="fas fa-users-cog"></i></span>
                         <span>Manage Users</span>
                     </a>
@@ -1053,7 +1053,7 @@ document.addEventListener('DOMContentLoaded', function() {
             width: 800,
             didOpen: () => {
                 const outputEl = document.getElementById('stream-output');
-                const es = new EventSource('admin_stream_command.php?script=' + encodeURIComponent(scriptKey));
+                const es = new EventSource('stream_command.php?script=' + encodeURIComponent(scriptKey));
                 es.onmessage = function(e) {
                     // Generic messages
                     outputEl.textContent += e.data + '\n';
@@ -1100,7 +1100,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     // Function to update service status
     function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
-        fetch(`admin_service_status.php?service=${service}`)
+        fetch(`service_status.php?service=${service}`)
             .then(response => response.json())
             .then(data => {
                 const statusElement = document.getElementById(statusElementId);
