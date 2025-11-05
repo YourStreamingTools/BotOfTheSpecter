@@ -341,7 +341,8 @@ ob_start();
         <ul>
             <li><span class="has-text-weight-bold">AI Chat:</span> Have conversations with an AI in your chat</li>
             <li><span class="has-text-weight-bold">Advanced Music:</span> Use <code>!song</code> without connecting Spotify</li>
-            <li><span class="has-text-weight-bold">Custom Bot Name:</span> Use your own bot username instead of "BotOfTheSpecter" (Coming Soon)</li>
+            <li><span class="has-text-weight-bold">Shared Bot Name (BotOfTheSpecter):</span> The default shared bot username used across the platform.</li>
+            <li><span class="has-text-weight-bold">Custom Bot Name (Your Custom Bot Name, Experimental/Coming Soon):</span> Use your own bot username instead of "BotOfTheSpecter". This feature is experimental & is coming soon.</li>
         </ul>
         <p style="margin-top: 1rem;">Support the developer on Twitch to unlock these features!</p>
         <div style="margin-top: 1rem;">

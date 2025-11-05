@@ -38,7 +38,7 @@ $plans = [
             ['text' => t('premium_plan_tier1_feature_support'), 'tip' => t('premium_plan_tier1_feature_support_tip')],
             ['text' => t('premium_plan_tier1_feature_beta'), 'tip' => t('premium_plan_tier1_feature_beta_tip')],
             ['text' => t('premium_plan_tier1_feature_storage'), 'tip' => t('premium_plan_tier1_feature_storage_tip')],
-            ['text' => t('premium_plan_tier1_feature_shared_bot'), 'tip' => t('premium_plan_tier1_feature_shared_bot_tip')],
+            /* Shared bot name is included in the Free plan; removed from Tier 1 features */
         ],
     ],
     '2000' => [
@@ -49,7 +49,7 @@ $plans = [
             ['text' => t('premium_plan_tier2_feature_personal_support'), 'tip' => t('premium_plan_tier2_feature_personal_support_tip')],
             ['text' => t('premium_plan_tier2_feature_ai'), 'tip' => t('premium_plan_tier2_feature_ai_tip')],
             ['text' => t('premium_plan_tier2_feature_storage'), 'tip' => t('premium_plan_tier2_feature_storage_tip')],
-            ['text' => t('premium_plan_tier2_feature_shared_bot'), 'tip' => t('premium_plan_tier2_feature_shared_bot_tip')],
+            /* Shared bot name is included in the Free plan; removed from Tier 2 features */
         ],
     ],
     '3000' => [
@@ -58,7 +58,6 @@ $plans = [
         'features' => [
             ['text' => t('premium_plan_tier3_feature_everything_t2'), 'tip' => t('premium_plan_tier3_feature_everything_t2_tip')],
             ['text' => t('premium_plan_tier3_feature_storage'), 'tip' => t('premium_plan_tier3_feature_storage_tip')],
-            ['text' => t('premium_plan_tier3_feature_dedicated_bot'), 'tip' => t('premium_plan_tier3_feature_dedicated_bot_tip')],
         ],
     ],
 ];
@@ -196,15 +195,15 @@ ob_start();
                     <div class="content">
                         <h2 class="title is-4 has-text-weight-bold">
                             <span class="icon has-text-info">
-                                <i class="fas fa-rocket"></i>
+                                <i class="fas fa-flask"></i>
                             </span>
-                            <?php echo t('premium_coming_soon_title'); ?>
+                            <?php echo t('premium_experimental_title', 'Experimental Features'); ?>
                         </h2>
                         <h3 class="subtitle is-5 has-text-weight-semibold mb-3">
-                            <?php echo t('premium_alternative_payment_title'); ?>
+                            <?php echo t('premium_experimental_subtitle', 'Features may be incomplete or unstable'); ?>
                         </h3>
                         <p class="is-size-6 mb-4">
-                            <?php echo t('premium_alternative_payment_description'); ?>
+                            <?php echo t('premium_experimental_description', 'Some premium features are available as experimental. Use with caution.'); ?>
                         </p>
                         <div class="field is-grouped is-grouped-centered">
                             <div class="control">
@@ -265,6 +264,10 @@ ob_start();
                                 <span class="icon has-text-success"><i class="fas fa-check"></i></span>
                                 <?php echo t('premium_plan_free_feature_shared_bot'); ?>
                             </li>
+                            <li class="mb-2" title="Custom Bot Name - Experimental or Coming Soon">
+                                                <span class="icon has-text-warning"><i class="fas fa-flask"></i></span>
+                                                Custom Bot Name (Your Custom Bot Name, Experimental/Coming Soon)
+                                            </li>
                         </ul>
                         <p class="is-size-7 has-text-grey mt-3 has-text-centered">
                             <strong>90-95% of the bot is FREE!</strong>

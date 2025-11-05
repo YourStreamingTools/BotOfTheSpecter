@@ -61,7 +61,8 @@ A higher major number doesn’t necessarily mean the release has big or breaking
 Some of BotOfTheSpecter's features require a Twitch Subscription to use. To use these extra features, please support gfaUnDead’s Twitch channel with a subscription. These features include:
 - Using the `!song` command without connecting a Spotify account.
 - Accessing AI features and having conversations with the AI.
-- (Coming soon) Getting a dedicated bot with a custom name, so you don't have to use "BotOfTheSpecter".
+- Shared Bot Name (BotOfTheSpecter): the default shared bot username used across the platform.
+- Custom Bot Name (Your Custom Bot Name, Experimental/Coming Soon): an option to use a custom bot username instead of "BotOfTheSpecter".
 
 The main parts of BotOfTheSpecter are free and open source, so everyone can use and improve them!
 

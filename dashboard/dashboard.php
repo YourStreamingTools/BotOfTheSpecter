@@ -428,7 +428,11 @@ if ($isLoggedIn) {
                                     </li>
                                     <li class="mb-2">
                                         <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                        Shared Bot Instance
+                                        Shared Bot Name (BotOfTheSpecter)
+                                    </li>
+                                    <li class="mb-2">
+                                        <span class="icon has-text-warning"><i class="fas fa-flask"></i></span>
+                                        Custom Bot Name (Your Custom Bot Name, Experimental/Coming Soon)
                                     </li>
                                 </ul>
                                 <p class="is-size-7 has-text-grey mt-3 has-text-centered">
@@ -450,12 +454,11 @@ if ($isLoggedIn) {
                     '1000' => [
                         'name' => 'Tier 1',
                         'price' => '$4.99/month',
-                        'features' => [
+                            'features' => [
                             'Song Request Command',
                             'Priority Support',
                             'Beta Access',
                             '50MB Storage',
-                            'Shared Bot Instance',
                         ],
                         'icon' => 'fas fa-star',
                         'color' => 'has-text-info',
@@ -468,18 +471,16 @@ if ($isLoggedIn) {
                             'Personal Support',
                             'AI Features',
                             '100MB Storage',
-                            'Shared Bot Instance',
                         ],
                         'icon' => 'fas fa-crown',
                         'color' => 'has-text-warning',
                     ],
                     '3000' => [
                         'name' => 'Tier 3',
-                        'price' => '$14.99/month',
-                        'features' => [
+                        'price' => '$24.99/month',
+                            'features' => [
                             'Everything in Tier 2',
                             '200MB Storage',
-                            'Dedicated Bot Instance',
                         ],
                         'icon' => 'fas fa-gem',
                         'color' => 'has-text-danger',
