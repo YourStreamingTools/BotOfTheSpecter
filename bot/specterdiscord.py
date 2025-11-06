@@ -1047,7 +1047,7 @@ class BotOfTheSpecter(commands.Bot):
                     self.logger.debug(f"Fetching system instructions from {OPENAI_INSTRUCTIONS_ENDPOINT}")
                     async with aiohttp.ClientSession() as session:
                         try:
-                            async with session.get(OPENAI_INSTRUCTIONS_ENDPOINT, timeout=10) as resp:
+                            async with session.get(OPENAI_INSTRUCTIONS_ENDPOINT + "?discord", timeout=10) as resp:
                                 if resp.status == 200:
                                     sys_instr = await resp.json()
                                     _cached_instructions = sys_instr
