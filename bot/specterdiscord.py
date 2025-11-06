@@ -102,6 +102,83 @@ def ensure_directory_exists(directory_path, description=""):
         print(f"Error creating {description} directory {directory_path}: {e}")
         return False
 
+def split_message_preserve_markdown(text: str, max_len: int):
+    if not text:
+        return [""]
+    paragraphs = text.split('\n\n')
+    chunks = []
+    current = ""
+    def finalize_chunk(chunk):
+        # Ensure code fence balance within chunk. If odd number of ``` present, close it.
+        backticks = '```'
+        count = chunk.count(backticks)
+        if count % 2 == 1:
+            # Try to find language on the last opening fence
+            idx = chunk.rfind(backticks)
+            lang = ''
+            # Attempt to capture language token after the fence
+            rest = chunk[idx + len(backticks):]
+            if rest and '\n' in rest:
+                first_line = rest.split('\n', 1)[0].strip()
+                if first_line and len(first_line) <= 32 and ' ' not in first_line:
+                    lang = first_line
+            # Close the fence to keep Discord rendering correct
+            chunk = chunk + '\n' + backticks
+            # Return chunk plus reopen info for next chunk
+            reopen = backticks + (lang if lang else '') + '\n'
+            return chunk, reopen
+        return chunk, None
+    reopen_prefix = ''
+    for p in paragraphs:
+        piece = (reopen_prefix + p).strip()
+        reopen_prefix = ''
+        if not current:
+            current = piece
+        elif len(current) + 2 + len(piece) <= max_len:
+            current = current + '\n\n' + piece
+        else:
+            # finalize current
+            finalized, reopen = finalize_chunk(current)
+            chunks.append(finalized)
+            if reopen:
+                reopen_prefix = reopen
+            current = piece
+            # If single paragraph is still too large, split by words
+            if len(current) > max_len:
+                words = current.split(' ')
+                cur2 = ''
+                for w in words:
+                    if not cur2:
+                        cur2 = w
+                    elif len(cur2) + 1 + len(w) <= max_len:
+                        cur2 = cur2 + ' ' + w
+                    else:
+                        f, r = finalize_chunk(cur2)
+                        chunks.append(f)
+                        cur2 = w
+                        if r:
+                            reopen_prefix = r
+                if cur2:
+                    current = cur2
+                else:
+                    current = ''
+    if current:
+        finalized, reopen = finalize_chunk(current)
+        chunks.append(finalized)
+        if reopen:
+            # If reopen remains (unlikely at final chunk), just append closing fence already done.
+            pass
+    # As a safety: ensure no chunk exceeds max_len by forcing splits
+    safe_chunks = []
+    for c in chunks:
+        if len(c) <= max_len:
+            safe_chunks.append(c)
+        else:
+            # naive split
+            for i in range(0, len(c), max_len):
+                safe_chunks.append(c[i:i+max_len])
+    return safe_chunks
+
 # Ensure all required directories exist
 directories_to_create = [
     (config.logs_directory, "logs"),
@@ -1160,7 +1237,7 @@ class BotOfTheSpecter(commands.Bot):
                 self.logger.debug(f"Error while persisting chat history for {channel_name}: {e}")
             # Split into chunks that fit within Discord's message limit and return
             try:
-                chunks = [ai_text[i:i + MAX_CHAT_MESSAGE_LENGTH] for i in range(0, len(ai_text), MAX_CHAT_MESSAGE_LENGTH)]
+                chunks = split_message_preserve_markdown(ai_text, MAX_CHAT_MESSAGE_LENGTH)
                 return chunks
             except Exception as e:
                 self.logger.error(f"Error chunking AI response: {e}")
@@ -1573,13 +1650,12 @@ class BotOfTheSpecter(commands.Bot):
                             buffer += delta
                         # Streaming finished. Send final content in one or more messages (chunked).
                         if buffer:
-                            chunks = [buffer[i:i + MAX_CHAT_MESSAGE_LENGTH] for i in range(0, len(buffer), MAX_CHAT_MESSAGE_LENGTH)]
+                            chunks = split_message_preserve_markdown(buffer, MAX_CHAT_MESSAGE_LENGTH)
                             for chunk in chunks:
                                 # Simulate typing delay proportional to length for UX
                                 typing_delay = len(chunk) / self.typing_speed
                                 await asyncio.sleep(min(typing_delay, 3))
                                 await message.author.send(chunk)
-                                self.logger.info(f"Sent AI response to {message.author}: {chunk[:200]}")
                         else:
                             await message.author.send("The AI did not return any text.")
                     except Exception as stream_exc:
@@ -1592,7 +1668,6 @@ class BotOfTheSpecter(commands.Bot):
                                     typing_delay = len(ai_response) / self.typing_speed
                                     await asyncio.sleep(typing_delay)
                                     await message.author.send(ai_response)
-                                    self.logger.info(f"Sent AI response to {message.author}: {ai_response[:200]}")
                                 else:
                                     self.logger.error("AI response chunk was empty, not sending.")
                     except Exception as stream_exc:
@@ -1605,7 +1680,6 @@ class BotOfTheSpecter(commands.Bot):
                                     typing_delay = len(ai_response) / self.typing_speed
                                     await asyncio.sleep(typing_delay)
                                     await message.author.send(ai_response)
-                                    self.logger.info(f"Sent AI response to {message.author}: {ai_response}")
                                 else:
                                     self.logger.error("AI response chunk was empty, not sending.")
             except discord.HTTPException as e:
