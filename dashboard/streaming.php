@@ -390,6 +390,16 @@ if ($selected_server == 'au-east-1') {
 // Start output buffering for layout
 ob_start();
 ?>
+<div class="notification is-danger is-light mb-4" style="max-width: 600px; margin: 50px auto;">
+    <div class="is-flex is-align-items-center">
+        <span class="icon mr-3"><i class="fas fa-exclamation-circle"></i></span>
+        <div>
+            <p class="has-text-weight-bold">Streaming Service - Terminated</p>
+            <p class="mt-2">The streaming service has been terminated and is no longer available. The core code has been preserved in case this project resumes at a later stage in the future. For assistance, please contact support.</p>
+        </div>
+    </div>
+</div>
+<?php /* CONTENT HIDDEN - SERVICE TERMINATED
 <?php if (isset($_SESSION['settings_saved'])): ?>
     <?php unset($_SESSION['settings_saved']); ?>
     <div class="notification is-success is-light mb-4">
@@ -675,9 +685,9 @@ ob_start();
         </footer>
     </div>
 </div>
-<?php
+<?php*/ 
 $content = ob_get_clean();
-
+/*
 ob_start();
 ?>
 <script>
@@ -937,6 +947,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php
 // Get the buffered content
 $scripts = ob_get_clean();
+*/
 // Include the layout template
 include 'layout.php';
 ?>
