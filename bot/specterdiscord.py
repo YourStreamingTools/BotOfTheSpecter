@@ -26,7 +26,7 @@ from pathlib import Path
 from openai import AsyncOpenAI
 
 # Bot version
-VERSION = "5.7"
+VERSION = "5.8"
 
 # Global configuration class
 class Config:
