@@ -1351,6 +1351,8 @@ class BotOfTheSpecter(commands.Bot):
                         else:
                             try:
                                 self.logger.info(f"Persisted AI history for {channel_name} (len={len(buffer)})")
+                                full_response = buffer.replace(os.linesep, ' ')
+                                self.logger.info(f"Final AI response for {channel_name}: {full_response}")
                             except Exception:
                                 pass
                 except Exception as e:
@@ -1493,6 +1495,8 @@ class BotOfTheSpecter(commands.Bot):
                         else:
                             try:
                                 self.logger.info(f"Persisted AI history for {channel_name} (len={len(buffer)})")
+                                full_response = buffer.replace(os.linesep, ' ')
+                                self.logger.info(f"Final AI response for {channel_name}: {full_response}")
                             except Exception:
                                 pass
                 except Exception as e:
@@ -1528,44 +1532,36 @@ class BotOfTheSpecter(commands.Bot):
                 # Start typing immediately and stream the AI response so the user sees typing right away
                 self.logger.info(f"Processing message from {message.author}: {message.content} (streaming)")
                 async with channel.typing():
-                    sent_msg = None
                     buffer = ""
-                    last_edit_time = time.monotonic()
-                    edit_interval = 0.6  # seconds between edit attempts
                     try:
                         async for delta in self.get_ai_response_stream(message.content, channel_name):
                             if not delta:
                                 continue
                             buffer += delta
-                            now = time.monotonic()
-                            # Send initial message once we have some content
-                            if sent_msg is None and len(buffer) > 0:
-                                try:
-                                    sent_msg = await message.author.send(buffer)
-                                    last_edit_time = now
-                                except Exception as e:
-                                    self.logger.error(f"Failed to send initial streamed DM: {e}")
-                                    sent_msg = None
-                            # Periodically edit the message to reflect new content
-                            elif sent_msg and (now - last_edit_time) >= edit_interval:
-                                try:
-                                    await sent_msg.edit(content=buffer)
-                                except Exception:
-                                    # Ignore edit errors (rate limits, permissions)
-                                    pass
-                                last_edit_time = now
-                        # Streaming finished; ensure final content is present
-                        if sent_msg is None:
-                            # Nothing was sent yet; send final buffer or an error
-                            if buffer:
-                                await message.author.send(buffer)
-                            else:
-                                await message.author.send("The AI did not return any text.")
+                        # Streaming finished. Send final content in one or more messages (chunked).
+                        if buffer:
+                            chunks = [buffer[i:i + MAX_CHAT_MESSAGE_LENGTH] for i in range(0, len(buffer), MAX_CHAT_MESSAGE_LENGTH)]
+                            for chunk in chunks:
+                                # Simulate typing delay proportional to length for UX
+                                typing_delay = len(chunk) / self.typing_speed
+                                await asyncio.sleep(min(typing_delay, 3))
+                                await message.author.send(chunk)
+                                self.logger.info(f"Sent AI response to {message.author}: {chunk[:200]}")
                         else:
-                            try:
-                                await sent_msg.edit(content=buffer)
-                            except Exception:
-                                pass
+                            await message.author.send("The AI did not return any text.")
+                    except Exception as stream_exc:
+                        self.logger.error(f"Streaming failed: {stream_exc}; falling back to non-streaming send")
+                        # Fallback: call the non-streaming API and send chunks as before
+                        ai_responses = await self.get_ai_response(message.content, channel_name)
+                        if ai_responses:
+                            for ai_response in ai_responses:
+                                if ai_response:
+                                    typing_delay = len(ai_response) / self.typing_speed
+                                    await asyncio.sleep(typing_delay)
+                                    await message.author.send(ai_response)
+                                    self.logger.info(f"Sent AI response to {message.author}: {ai_response[:200]}")
+                                else:
+                                    self.logger.error("AI response chunk was empty, not sending.")
                     except Exception as stream_exc:
                         self.logger.error(f"Streaming failed: {stream_exc}; falling back to non-streaming send")
                         # Fallback: call the non-streaming API and send chunks as before
