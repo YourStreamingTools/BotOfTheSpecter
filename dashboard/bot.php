@@ -805,6 +805,9 @@ ob_start();
               <?php if ($isTechnical): ?>
                 <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
                   <div class="has-text-grey-light">
+                    <span class="has-text-grey">PID:</span> <span id="discord-service-pid">--</span>
+                  </div>
+                  <div class="has-text-grey-light">
                     <span class="has-text-grey">Latency:</span> <span id="discord-service-latency">Not Recorded</span>
                   </div>
                   <div class="has-text-grey-light">
@@ -1906,6 +1909,7 @@ document.addEventListener('DOMContentLoaded', function() {
       { id: 'databaseService',      api: 'database',              statusId: 'db-service-status',      latencyId: 'db-service-latency',      lastCheckId: 'db-service-lastcheck' },
       { id: 'notificationService',  api: 'websocket',             statusId: 'notif-service-status',   latencyId: 'notif-service-latency',   lastCheckId: 'notif-service-lastcheck' },
       { id: 'botsService',          api: 'bots',                  statusId: 'bots-service-status',    latencyId: 'bots-service-latency',    lastCheckId: 'bots-service-lastcheck' },
+      { id: 'discordService',       api: 'discordbot',            statusId: 'discord-service-status', latencyId: 'discord-service-latency', lastCheckId: 'discord-service-lastcheck', pidId: 'discord-service-pid' },
       { id: 'auEast1Service',       api: 'streamingService',      statusId: 'auEast1-service-status', latencyId: 'auEast1-service-latency', lastCheckId: 'auEast1-service-lastcheck' },
       { id: 'usWest1Service',       api: 'streamingServiceWest',  statusId: 'usWest1-service-status', latencyId: 'usWest1-service-latency', lastCheckId: 'usWest1-service-lastcheck' },
       { id: 'usEast1Service',       api: 'streamingServiceEast',  statusId: 'usEast1-service-status', latencyId: 'usEast1-service-latency', lastCheckId: 'usEast1-service-lastcheck' }
@@ -1947,6 +1951,18 @@ document.addEventListener('DOMContentLoaded', function() {
           }
           // Update technical information if in technical mode
           if (isTechnical) {
+            // Update Discord bot PID if available
+            if (svc.pidId) {
+              const pidElem = document.getElementById(svc.pidId);
+              if (pidElem) {
+                if (data.pid) {
+                  const pidStatus = data.pid_running ? 'has-text-success' : 'has-text-danger';
+                  pidElem.innerHTML = `<span class="${pidStatus}">${data.pid}${!data.pid_running ? ' (Dead)' : ''}</span>`;
+                } else {
+                  pidElem.innerHTML = '<span class="has-text-grey">--</span>';
+                }
+              }
+            }
             const latencyElem = document.getElementById(svc.latencyId);
             const lastCheckElem = document.getElementById(svc.lastCheckId);
             if (latencyElem) {
@@ -1983,6 +1999,13 @@ document.addEventListener('DOMContentLoaded', function() {
           }
           // Update technical information on error if in technical mode
           if (isTechnical) {
+            // Clear PID on error if applicable
+            if (svc.pidId) {
+              const pidElem = document.getElementById(svc.pidId);
+              if (pidElem) {
+                pidElem.innerHTML = '<span class="has-text-danger">ERROR</span>';
+              }
+            }
             const latencyElem = document.getElementById(svc.latencyId);
             const lastCheckElem = document.getElementById(svc.lastCheckId);
             if (latencyElem) {
