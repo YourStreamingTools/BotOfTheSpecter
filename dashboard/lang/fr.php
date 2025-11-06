@@ -86,9 +86,6 @@ return [
     'location_not_found' => "Emplacement introuvable. Veuillez vérifier votre saisie.",
     'privacy_policy' => 'Politique de confidentialité',
     'beta_banner' => 'Vous utilisez la version <strong>BÊTA</strong> du tableau de bord BotOfTheSpecter. Certaines fonctionnalités peuvent être incomplètes ou ne pas fonctionner comme prévu.<br>Si vous souhaitez utiliser le tableau de bord <strong>BÊTA</strong>, veuillez d\'abord arrêter le bot depuis l\'ancien tableau de bord.',
-    'premium_experimental_title' => 'Fonctionnalités expérimentales',
-    'premium_experimental_subtitle' => 'Les fonctionnalités peuvent être incomplètes ou instables',
-    'premium_experimental_description' => 'Certaines fonctionnalités premium sont disponibles en mode expérimental. À utiliser avec précaution.',
     'navbar_bot_control' => 'Contrôle du Bot',
     'navbar_configuration' => 'Configuration',
     'navbar_edit_custom_commands' => 'Modifier les commandes personnalisées',
@@ -1284,5 +1281,4 @@ return [
     'premium_alternative_payment_title' => 'Accès Premium Alternatif',
     'premium_alternative_payment_description' => 'Impossible de vous abonner sur Twitch ? Pas de problème ! Bientôt, vous pourrez soutenir BotOfTheSpecter directement via notre boutique et obtenir un accès premium complet d\'un an à toutes les fonctionnalités.',
     'premium_visit_store' => 'Visiter Notre Boutique',
-    'premium_coming_soon_note' => 'Cette fonctionnalité sera disponible dans la version 5.6',
 ];

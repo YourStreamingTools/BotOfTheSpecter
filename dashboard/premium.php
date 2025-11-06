@@ -187,43 +187,6 @@ ob_start();
         </div>
     </div>
 </div>
-<div class="hero">
-    <div class="hero-body">
-        <div class="container has-text-centered">
-            <div class="is-centered">
-                <div class="box has-background-dark">
-                    <div class="content">
-                        <h2 class="title is-4 has-text-weight-bold">
-                            <span class="icon has-text-info">
-                                <i class="fas fa-flask"></i>
-                            </span>
-                            <?php echo t('premium_experimental_title', 'Experimental Features'); ?>
-                        </h2>
-                        <h3 class="subtitle is-5 has-text-weight-semibold mb-3">
-                            <?php echo t('premium_experimental_subtitle', 'Features may be incomplete or unstable'); ?>
-                        </h3>
-                        <p class="is-size-6 mb-4">
-                            <?php echo t('premium_experimental_description', 'Some premium features are available as experimental. Use with caution.'); ?>
-                        </p>
-                        <div class="field is-grouped is-grouped-centered">
-                            <div class="control">
-                                <a href="https://store.botofthespecter.com/en-usd" target="_blank" class="button is-info is-rounded has-text-weight-semibold">
-                                    <span class="icon">
-                                        <i class="fas fa-store"></i>
-                                    </span>
-                                    <span><?php echo t('premium_visit_store', 'Visit Our Store'); ?></span>
-                                </a>
-                            </div>
-                        </div>
-                        <p class="is-size-7 has-text-grey">
-                            <strong><?php echo t('premium_coming_soon_note', 'This feature will be available in version 5.6'); ?></strong>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 <div class="container">
     <div class="columns is-multiline is-variable is-5">
         <!-- Free Plan Card -->

@@ -107,9 +107,6 @@ return [
     'location_not_found' => 'Location not found. Please check your entry.',
     'privacy_policy' => 'Privacy Policy',
     'beta_banner' => 'You are using the <strong>BETA</strong> version of the BotOfTheSpecter Dashboard. Some features may be unfinished or not working as expected.<br>If you\'d like you use the <strong>BETA</strong> Dashboard please ensure you\'ve stopped the bot from the old dashboard first.',
-    'premium_experimental_title' => 'Experimental Features',
-    'premium_experimental_subtitle' => 'Features may be incomplete or unstable',
-    'premium_experimental_description' => 'Some premium features are available as experimental. Use with caution.',
     'navbar_home' => 'Dashboard',
     'navbar_bot_control' => 'Bot Control',
     'navbar_configuration' => 'Configuration',
@@ -1341,5 +1338,4 @@ return [
     'premium_alternative_payment_title' => 'Alternative Premium Access',
     'premium_alternative_payment_description' => 'Can\'t subscribe on Twitch? No problem! Soon you\'ll be able to support BotOfTheSpecter directly through our store and get a full year of premium access to all features.',
     'premium_visit_store' => 'Visit Our Store',
-    'premium_coming_soon_note' => 'This feature will be available in version 5.6',
 ];
