@@ -278,6 +278,16 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
 ob_start();
 ?>
 <h1 class="title"><?php echo t('persistent_storage_title'); ?></h1>
+<div class="notification is-danger is-light mb-4" style="max-width: 600px; margin: 50px auto;">
+    <div class="is-flex is-align-items-center">
+        <span class="icon mr-3"><i class="fas fa-exclamation-circle"></i></span>
+        <div>
+            <p class="has-text-weight-bold">Persistent Storage Service - Terminated</p>
+            <p class="mt-2">The persistent storage service has been terminated and is no longer available. The core code has been preserved in case this project resumes at a later stage in the future. For assistance, please contact support.</p>
+        </div>
+    </div>
+</div>
+<?php /* CONTENT HIDDEN - SERVICE TERMINATED
 <?php if (isset($_SESSION['delete_success'])): ?>
     <?php unset($_SESSION['delete_success']); ?>
     <div class="notification is-success">
@@ -497,9 +507,9 @@ ob_start();
         </div>
     </div>
 </div>
-<?php
+<?php*/
 $content = ob_get_clean();
-
+/*
 ob_start();
 ?>
 <script>
@@ -580,6 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php
 // Get the buffered content
 $scripts = ob_get_clean();
+*/
 // Include the layout template
 include 'layout.php';
 ?>
