@@ -16,27 +16,43 @@ if (!isset($_SESSION['access_token'])) {
 $service = $_GET['service'] ?? '';
 
 // Helper function to check TCP port
-function checkPort($host, $port, $timeout = 3) {
+function checkPort($host, $port, $timeout = 2) {
     $start = microtime(true);
     $fp = @fsockopen($host, $port, $errno, $errstr, $timeout);
     $latency = round((microtime(true) - $start) * 1000); // ms
-    if ($fp) { fclose($fp); return ['status' => 'OK', 'latency_ms' => $latency];}
-    else { return ['status' => 'ERROR', 'message' => "Connection failed: $errstr ($errno)"]; }
+    if ($fp) { 
+        fclose($fp); 
+        return ['status' => 'OK', 'latency_ms' => $latency];
+    } else { 
+        return ['status' => 'ERROR', 'message' => "Connection failed: $errstr ($errno)"]; 
+    }
 }
 
 // Helper function to check service status via SSH
-function checkSSHService($host, $username, $password, $serviceName, $timeout = 5) {
+function checkSSHService($host, $username, $password, $serviceName, $timeout = 3) {
     $start = microtime(true);
     // Check if SSH2 extension is available
-    if (!extension_loaded('ssh2')) { return ['status' => 'ERROR', 'message' => 'SSH2 PHP extension not available']; }
-    $connection = @ssh2_connect($host, 22);
-    if (!$connection) { return ['status' => 'ERROR', 'message' => 'SSH connection failed']; }
-    if (!@ssh2_auth_password($connection, $username, $password)) { return ['status' => 'ERROR', 'message' => 'SSH authentication failed']; }    // Execute systemctl status command to get detailed status
+    if (!extension_loaded('ssh2')) { 
+        return ['status' => 'ERROR', 'message' => 'SSH2 PHP extension not available']; 
+    }
+    // Set a stream context with timeout
+    $connection = @ssh2_connect($host, 22, [], true);
+    if (!$connection) { 
+        return ['status' => 'ERROR', 'message' => 'SSH connection failed']; 
+    }
+    if (!@ssh2_auth_password($connection, $username, $password)) { 
+        return ['status' => 'ERROR', 'message' => 'SSH authentication failed']; 
+    }
+    // Execute systemctl status command to get detailed status
     $stream = ssh2_exec($connection, "systemctl status $serviceName");
-    if (!$stream) { return ['status' => 'ERROR', 'message' => 'Failed to execute SSH command']; }
+    if (!$stream) { 
+        return ['status' => 'ERROR', 'message' => 'Failed to execute SSH command']; 
+    }
     stream_set_blocking($stream, true);
+    stream_set_timeout($stream, $timeout);
     $output = stream_get_contents($stream);
     fclose($stream);
+    fclose($connection);
     $latency = round((microtime(true) - $start) * 1000);
     // Parse the systemctl status output
     if (strpos($output, 'Active: active (running)') !== false) {
@@ -100,7 +116,7 @@ $serviceMap = [
         'name' => 'AU-EAST-1 Streaming Service',
         'host' => 'au-east-1.botofthespecter.video',
         'port' => 1935,
-        'disabled' => false
+        'disabled' => true
     ],
     'streamingServiceWest' => [
         'name' => 'US-WEST-1 Streaming Service',
