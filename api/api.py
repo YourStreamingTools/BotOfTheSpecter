@@ -700,15 +700,22 @@ async def database_heartbeat():
     tags=["BotOfTheSpecter"],
     operation_id="get_chat_instructions"
 )
-async def chat_instructions():
-    path = "/home/botofthespecter/ai.json"
+async def chat_instructions(request: Request):
+    # If the caller requests discord-specific instructions, prefer ai.discord.json
+    # Check the actual request query parameters for 'discord'
+    use_discord = 'discord' in request.query_params
+    # Decide which file to load
+    base_dir = "/home/botofthespecter"
+    discord_path = os.path.join(base_dir, "ai.discord.json")
+    default_path = os.path.join(base_dir, "ai.json")
+    path = discord_path if use_discord and os.path.exists(discord_path) else default_path
     try:
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return JSONResponse(status_code=200, content=data)
         # Not found
-        raise HTTPException(status_code=404, detail="AI instructions not found at /home/botofthespecter/ai.json")
+        raise HTTPException(status_code=404, detail=f"AI instructions not found at {path}")
     except HTTPException:
         raise
     except Exception as e:
