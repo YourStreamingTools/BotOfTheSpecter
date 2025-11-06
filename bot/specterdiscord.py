@@ -1529,12 +1529,45 @@ class BotOfTheSpecter(commands.Bot):
                 self.logger.info("Processed messages file not found, creating new one")
                 processed_messages = []
             try:
+                # If the message includes attachments, attempt to fetch small text attachments
+                attachment_info = ""
+                try:
+                    if message.attachments:
+                        att_texts = []
+                        for att in message.attachments:
+                            try:
+                                # Skip very large files
+                                if getattr(att, 'size', 0) and att.size > 200_000:  # 200KB
+                                    att_texts.append(f"[Attachment: {att.filename} - skipped (size {att.size} bytes)]")
+                                    continue
+                                # Try to download and decode as text
+                                async with aiohttp.ClientSession() as session:
+                                    async with session.get(att.url, timeout=10) as resp:
+                                        if resp.status == 200:
+                                            try:
+                                                txt = await resp.text()
+                                                # Limit included text
+                                                if len(txt) > 10000:
+                                                    txt = txt[:10000] + "\n...[truncated]"
+                                                att_texts.append(f"[Attachment: {att.filename}]\n" + txt)
+                                            except UnicodeDecodeError:
+                                                att_texts.append(f"[Attachment: {att.filename} - binary content omitted]")
+                                        else:
+                                            att_texts.append(f"[Attachment: {att.filename} - failed to fetch (HTTP {resp.status})]")
+                            except Exception:
+                                att_texts.append(f"[Attachment: {getattr(att, 'filename', 'unknown')} - error fetching]")
+                        if att_texts:
+                            attachment_info = "\n\n" + os.linesep.join(att_texts)
+                except Exception:
+                    # Non-fatal: if attachments handling fails, continue with original message
+                    attachment_info = ""
+                user_input_for_ai = (message.content or "") + attachment_info
                 # Start typing immediately and stream the AI response so the user sees typing right away
                 self.logger.info(f"Processing message from {message.author}: {message.content} (streaming)")
                 async with channel.typing():
                     buffer = ""
                     try:
-                        async for delta in self.get_ai_response_stream(message.content, channel_name):
+                        async for delta in self.get_ai_response_stream(user_input_for_ai, channel_name):
                             if not delta:
                                 continue
                             buffer += delta
