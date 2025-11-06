@@ -15,6 +15,34 @@ if (!isset($_SESSION['access_token'])) {
 // Get the service to check
 $service = $_GET['service'] ?? '';
 
+// Helper function to check if a PID process is running via SSH
+function checkPIDExists($host, $username, $password, $pid, $timeout = 3) {
+    if (!$pid || !is_numeric($pid)) { return false; }
+    // Check if SSH2 extension is available
+    if (!extension_loaded('ssh2')) { return false; }
+    try {
+        $connection = @ssh2_connect($host, 22);
+        if (!$connection) { return false; }
+        if (!@ssh2_auth_password($connection, $username, $password)) { 
+            @ssh2_disconnect($connection);
+            return false; 
+        }
+        // Execute ps command to check if PID exists
+        $stream = ssh2_exec($connection, "ps -p " . intval($pid));
+        if (!$stream) { 
+            @ssh2_disconnect($connection);
+            return false; 
+        }
+        stream_set_blocking($stream, true);
+        stream_set_timeout($stream, $timeout);
+        $output = stream_get_contents($stream);
+        @fclose($stream);
+        @ssh2_disconnect($connection);
+        // If ps output contains the PID, the process is running
+        return !empty($output) && strpos($output, (string)$pid) !== false;
+    } catch (Exception $e) { return false; }
+}
+
 // Helper function to check TCP port
 function checkPort($host, $port, $timeout = 2) {
     $start = microtime(true);
@@ -33,36 +61,42 @@ function checkSSHService($host, $username, $password, $serviceName, $timeout = 3
     $start = microtime(true);
     // Check if SSH2 extension is available
     if (!extension_loaded('ssh2')) { 
-        return ['status' => 'ERROR', 'message' => 'SSH2 PHP extension not available']; 
+        $latency = round((microtime(true) - $start) * 1000);
+        return ['status' => 'ERROR', 'message' => 'SSH2 PHP extension not available', 'output' => '', 'latency_ms' => $latency]; 
     }
     // Set a stream context with timeout
-    $connection = @ssh2_connect($host, 22, [], true);
+    $connection = @ssh2_connect($host, 22);
     if (!$connection) { 
-        return ['status' => 'ERROR', 'message' => 'SSH connection failed']; 
+        $latency = round((microtime(true) - $start) * 1000);
+        return ['status' => 'ERROR', 'message' => 'SSH connection failed', 'output' => '', 'latency_ms' => $latency]; 
     }
     if (!@ssh2_auth_password($connection, $username, $password)) { 
-        return ['status' => 'ERROR', 'message' => 'SSH authentication failed']; 
+        $latency = round((microtime(true) - $start) * 1000);
+        @ssh2_disconnect($connection);
+        return ['status' => 'ERROR', 'message' => 'SSH authentication failed', 'output' => '', 'latency_ms' => $latency]; 
     }
     // Execute systemctl status command to get detailed status
     $stream = ssh2_exec($connection, "systemctl status $serviceName");
     if (!$stream) { 
-        return ['status' => 'ERROR', 'message' => 'Failed to execute SSH command']; 
+        $latency = round((microtime(true) - $start) * 1000);
+        @ssh2_disconnect($connection);
+        return ['status' => 'ERROR', 'message' => 'Failed to execute SSH command', 'output' => '', 'latency_ms' => $latency]; 
     }
     stream_set_blocking($stream, true);
     stream_set_timeout($stream, $timeout);
     $output = stream_get_contents($stream);
-    fclose($stream);
-    fclose($connection);
+    @fclose($stream);
+    @ssh2_disconnect($connection);
     $latency = round((microtime(true) - $start) * 1000);
     // Parse the systemctl status output
     if (strpos($output, 'Active: active (running)') !== false) {
-        return ['status' => 'OK', 'latency_ms' => $latency];
+        return ['status' => 'OK', 'latency_ms' => $latency, 'output' => $output];
     } else if (strpos($output, 'Active: activating') !== false) {
-        return ['status' => 'OK', 'latency_ms' => $latency];
+        return ['status' => 'OK', 'latency_ms' => $latency, 'output' => $output];
     } else if (strpos($output, 'Active: inactive (dead)') !== false) {
-        return ['status' => 'ERROR', 'message' => 'Service is stopped (inactive/dead)', 'latency_ms' => $latency];
+        return ['status' => 'ERROR', 'message' => 'Service is stopped (inactive/dead)', 'latency_ms' => $latency, 'output' => $output];
     } else if (strpos($output, 'Active: failed') !== false) {
-        return ['status' => 'ERROR', 'message' => 'Service has failed', 'latency_ms' => $latency];
+        return ['status' => 'ERROR', 'message' => 'Service has failed', 'latency_ms' => $latency, 'output' => $output];
     } else {
         // Extract the Active line for detailed error message
         $lines = explode("\n", $output);
@@ -73,7 +107,7 @@ function checkSSHService($host, $username, $password, $serviceName, $timeout = 3
                 break;
             }
         }
-        return ['status' => 'ERROR', 'message' => $activeLine ?: 'Unknown service status', 'latency_ms' => $latency];
+        return ['status' => 'ERROR', 'message' => $activeLine ?: 'Unknown service status', 'latency_ms' => $latency, 'output' => $output];
     }
 }
 
@@ -161,6 +195,16 @@ if (isset($serviceMap[$service])) {
                     $latency_to_show = $botsResult['latency_ms'];
                 }
             }
+            // Extract PID for Discord bot service only
+            $pid = null;
+            $pidIsRunning = false;
+            if ($service === 'discordbot' && isset($result['output'])) {
+                if (preg_match('/Main PID:\s*(\d+)/', $result['output'], $matches)) {
+                    $pid = $matches[1];
+                    // Verify the PID is actually running
+                    $pidIsRunning = checkPIDExists($svc['ssh_host'], $svc['ssh_username'], $svc['ssh_password'], $pid);
+                }
+            }
             $serviceData = [
                 'name' => $svc['name'],
                 'status' => $result['status'],
@@ -172,6 +216,10 @@ if (isset($serviceMap[$service])) {
                 'message' => $result['status'] === 'OK' ? '' : $result['message'],
                 'version' => $discordVersion
             ];
+            if ($pid !== null) {
+                $serviceData['pid'] = $pid;
+                $serviceData['pid_running'] = $pidIsRunning;
+            }
         } else {
             // Regular port check
             $result = checkPort($svc['host'], $svc['port']);
