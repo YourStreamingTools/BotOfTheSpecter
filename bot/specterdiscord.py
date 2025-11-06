@@ -1185,7 +1185,7 @@ class BotOfTheSpecter(commands.Bot):
                 if _cached_instructions and (now - _cached_instructions_time) < INSTRUCTIONS_CACHE_TTL:
                     sys_instr = _cached_instructions
                 else:
-                    self.logger.debug(f"Fetching system instructions from {OPENAI_INSTRUCTIONS_ENDPOINT}")
+                    self.logger.debug(f"Fetching system instructions from {OPENAI_INSTRUCTIONS_ENDPOINT} (discord)")
                     async with aiohttp.ClientSession() as session:
                         try:
                             async with session.get(OPENAI_INSTRUCTIONS_ENDPOINT + "?discord", timeout=10) as resp:
@@ -1250,44 +1250,52 @@ class BotOfTheSpecter(commands.Bot):
                 streamed = False
                 if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'stream'):
                     self.logger.debug("Using openai_client.chat.completions.stream for streaming response")
-                    async for chunk in chat_client.completions.stream(model="gpt-3.5-turbo", messages=messages):
-                        # chunk shapes vary; try common fields
-                        delta = ""
-                        try:
-                            if isinstance(chunk, dict):
-                                choice = chunk.get('choices', [None])[0]
-                                if choice:
-                                    delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
-                            else:
-                                # Some clients return objects with attributes
-                                choice = getattr(chunk, 'choices', None)
-                                if choice and len(choice) > 0:
-                                    delta = getattr(choice[0].delta, 'content', None) or getattr(choice[0], 'text', '')
-                        except Exception:
-                            pass
-                        if delta:
-                            buffer += delta
-                            streamed = True
-                            yield delta
+                    try:
+                        async with chat_client.completions.stream(model="gpt-3.5-turbo", messages=messages) as stream:
+                            async for chunk in stream:
+                                # chunk shapes vary; try common fields
+                                delta = ""
+                                try:
+                                    if isinstance(chunk, dict):
+                                        choice = chunk.get('choices', [None])[0]
+                                        if choice:
+                                            delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
+                                    else:
+                                        # Some clients return objects with attributes
+                                        choice = getattr(chunk, 'choices', None)
+                                        if choice and len(choice) > 0:
+                                            delta = getattr(choice[0].delta, 'content', None) or getattr(choice[0], 'text', '')
+                                except Exception:
+                                    pass
+                                if delta:
+                                    buffer += delta
+                                    streamed = True
+                                    yield delta
+                    except Exception as e:
+                        self.logger.debug(f"Stream context failed for chat.completions.stream: {e}")
                 elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'stream'):
                     self.logger.debug("Using openai_client.chat_completions.stream for streaming response")
-                    async for chunk in openai_client.chat_completions.stream(model="gpt-3.5-turbo", messages=messages):
-                        delta = ""
-                        try:
-                            if isinstance(chunk, dict):
-                                choice = chunk.get('choices', [None])[0]
-                                if choice:
-                                    delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
-                            else:
-                                choice = getattr(chunk, 'choices', None)
-                                if choice and len(choice) > 0:
-                                    delta = getattr(choice[0].delta, 'content', None) or getattr(choice[0], 'text', '')
-                        except Exception:
-                            pass
-                        if delta:
-                            buffer += delta
-                            streamed = True
-                            yield delta
+                    try:
+                        async with openai_client.chat_completions.stream(model="gpt-3.5-turbo", messages=messages) as stream:
+                            async for chunk in stream:
+                                delta = ""
+                                try:
+                                    if isinstance(chunk, dict):
+                                        choice = chunk.get('choices', [None])[0]
+                                        if choice:
+                                            delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
+                                    else:
+                                        choice = getattr(chunk, 'choices', None)
+                                        if choice and len(choice) > 0:
+                                            delta = getattr(choice[0].delta, 'content', None) or getattr(choice[0], 'text', '')
+                                except Exception:
+                                    pass
+                                if delta:
+                                    buffer += delta
+                                    streamed = True
+                                    yield delta
+                    except Exception as e:
+                        self.logger.debug(f"Stream context failed for chat_completions.stream: {e}")
                 # If streaming wasn't used or yielded nothing, fall back to the non-streaming path
                 if not streamed:
                     self.logger.debug("Streaming not available or yielded no content; falling back to non-stream completion")
@@ -1340,6 +1348,153 @@ class BotOfTheSpecter(commands.Bot):
                                 json.dump(history, hf, ensure_ascii=False, indent=2)
                         except Exception as e:
                             self.logger.debug(f"Failed to write history for {channel_name}: {e}")
+                        else:
+                            try:
+                                self.logger.info(f"Persisted AI history for {channel_name} (len={len(buffer)})")
+                            except Exception:
+                                pass
+                except Exception as e:
+                    self.logger.debug(f"Error while persisting streamed chat history for {channel_name}: {e}")
+            except Exception as e:
+                self.logger.error(f"Error streaming chat completion: {e}")
+                yield "An error occurred while contacting the AI chat service."
+        except Exception as e:
+            self.logger.error(f"Unexpected error in get_ai_response_stream: {e}")
+            yield "Sorry, I encountered an error processing your request."
+            try:
+                history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
+                history = []
+                if history_file.exists():
+                    try:
+                        with history_file.open('r', encoding='utf-8') as hf:
+                            history = json.load(hf)
+                    except Exception as e:
+                        self.logger.debug(f"Failed to read history for {channel_name}: {e}")
+                # History is expected to be a list of {role: 'user'|'assistant', content: '...'}
+                if isinstance(history, list) and len(history) > 0:
+                    recent = history[-8:]
+                    for item in recent:
+                        if isinstance(item, dict) and 'role' in item and 'content' in item:
+                            messages.append({'role': item['role'], 'content': item['content']})
+            except Exception as e:
+                self.logger.debug(f"Error loading chat history for {channel_name} (stream): {e}")
+            # Append the current user message as the latest user turn
+            messages.append({'role': 'user', 'content': user_message})
+            # Ensure openai client is available
+            if not openai_client:
+                self.logger.error("OpenAI client is not configured (missing OPENAI_KEY)")
+                yield "AI service is not configured. Please contact the bot administrator."
+                return
+            # Try streaming from the AsyncOpenAI client if supported
+            try:
+                chat_client = getattr(openai_client, 'chat', None)
+                buffer = ""
+                streamed = False
+                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'stream'):
+                    self.logger.debug("Using openai_client.chat.completions.stream for streaming response")
+                    try:
+                        async with chat_client.completions.stream(model="gpt-3.5-turbo", messages=messages) as stream:
+                            async for chunk in stream:
+                                # chunk shapes vary; try common fields
+                                delta = ""
+                                try:
+                                    if isinstance(chunk, dict):
+                                        choice = chunk.get('choices', [None])[0]
+                                        if choice:
+                                            delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
+                                    else:
+                                        # Some clients return objects with attributes
+                                        choice = getattr(chunk, 'choices', None)
+                                        if choice and len(choice) > 0:
+                                            delta = getattr(choice[0].delta, 'content', None) or getattr(choice[0], 'text', '')
+                                except Exception:
+                                    pass
+                                if delta:
+                                    buffer += delta
+                                    streamed = True
+                                    yield delta
+                    except Exception as e:
+                        self.logger.debug(f"Stream context failed for chat.completions.stream: {e}")
+                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'stream'):
+                    self.logger.debug("Using openai_client.chat_completions.stream for streaming response")
+                    try:
+                        async with openai_client.chat_completions.stream(model="gpt-3.5-turbo", messages=messages) as stream:
+                            async for chunk in stream:
+                                delta = ""
+                                try:
+                                    if isinstance(chunk, dict):
+                                        choice = chunk.get('choices', [None])[0]
+                                        if choice:
+                                            delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
+                                    else:
+                                        choice = getattr(chunk, 'choices', None)
+                                        if choice and len(choice) > 0:
+                                            delta = getattr(choice[0].delta, 'content', None) or getattr(choice[0], 'text', '')
+                                except Exception:
+                                    pass
+                                if delta:
+                                    buffer += delta
+                                    streamed = True
+                                    yield delta
+                    except Exception as e:
+                        self.logger.debug(f"Stream context failed for chat_completions.stream: {e}")
+                # If streaming wasn't used or yielded nothing, fall back to the non-streaming path
+                if not streamed:
+                    self.logger.debug("Streaming not available or yielded no content; falling back to non-stream completion")
+                    # Attempt the same completion styles as the non-streaming function
+                    resp = None
+                    ai_text = None
+                    if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
+                        resp = await chat_client.completions.create(model="gpt-3.5-turbo", messages=messages)
+                        if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                            choice = resp['choices'][0]
+                            if 'message' in choice and 'content' in choice['message']:
+                                ai_text = choice['message']['content']
+                            elif 'text' in choice:
+                                ai_text = choice['text']
+                        else:
+                            choices = getattr(resp, 'choices', None)
+                            if choices and len(choices) > 0:
+                                ai_text = getattr(choices[0].message, 'content', None)
+                    elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
+                        resp = await openai_client.chat_completions.create(model="gpt-3.5-turbo", messages=messages)
+                        if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                            ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
+                        else:
+                            choices = getattr(resp, 'choices', None)
+                            if choices and len(choices) > 0:
+                                ai_text = getattr(choices[0].message, 'content', None)
+                    if not ai_text:
+                        self.logger.error(f"Chat completion (fallback) returned no usable text: {resp}")
+                        yield "The AI chat service returned an unexpected response."
+                    else:
+                        buffer = ai_text
+                        yield ai_text
+                # Persist the user message and final AI response to per-user history
+                try:
+                    if buffer:
+                        history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
+                        history = []
+                        if history_file.exists():
+                            try:
+                                with history_file.open('r', encoding='utf-8') as hf:
+                                    history = json.load(hf)
+                            except Exception as e:
+                                self.logger.debug(f"Failed to read existing history for append {channel_name}: {e}")
+                        history.append({'role': 'user', 'content': user_message})
+                        history.append({'role': 'assistant', 'content': buffer})
+                        if len(history) > 200:
+                            history = history[-200:]
+                        try:
+                            with history_file.open('w', encoding='utf-8') as hf:
+                                json.dump(history, hf, ensure_ascii=False, indent=2)
+                        except Exception as e:
+                            self.logger.debug(f"Failed to write history for {channel_name}: {e}")
+                        else:
+                            try:
+                                self.logger.info(f"Persisted AI history for {channel_name} (len={len(buffer)})")
+                            except Exception:
+                                pass
                 except Exception as e:
                     self.logger.debug(f"Error while persisting streamed chat history for {channel_name}: {e}")
             except Exception as e:
