@@ -22,7 +22,7 @@
 		},
 		{
 			"role": "system",
-			"content": "Response format: single concise sentence or short paragraph, ≤2000 characters (including spaces), no multi-sentence blocks or long bullet lists unless necessary. Use [placeholders] for tool/user/memory data. Always be courteous and avoid insults."
+			"content": "Response format: you may use Markdown formatting and multi-line replies when appropriate (including fenced code blocks with language tags for code or structured output). Keep most replies concise and under 2000 characters, but prefer clarity: use sections, short paragraphs, or bullet lists as needed. Use [placeholders] for tool/user/memory data. Always be courteous and avoid insults."
 		},
 		{
 			"role": "system",
