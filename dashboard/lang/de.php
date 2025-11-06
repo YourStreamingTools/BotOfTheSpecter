@@ -110,6 +110,7 @@ return [
     'navbar_video_alerts' => 'Video-Alerts',
     'navbar_walkon_alerts' => 'Walk-On-Alerts',
     'navbar_streamelements' => 'StreamElements',
+    'navbar_streamlabs' => 'StreamLabs',
     'navbar_integrations' => 'Integrationen',
     'navbar_specter_modules' => 'Specter-Module',
     'navbar_discord_bot' => 'Discord-Bot',

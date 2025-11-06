@@ -134,6 +134,7 @@ return [
     'navbar_video_alerts' => 'Video Alerts',
     'navbar_walkon_alerts' => 'Walk-On Alerts',
     'navbar_streamelements' => 'StreamElements',
+    'navbar_streamlabs' => 'StreamLabs',
     'navbar_integrations' => 'Integrations',
     'navbar_specter_modules' => 'Specter Modules',
     'navbar_discord_bot' => 'Discord Bot',
