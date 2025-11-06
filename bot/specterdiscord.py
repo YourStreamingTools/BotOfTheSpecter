@@ -22,6 +22,8 @@ import socketio
 import yt_dlp
 import pytz
 import urllib.parse
+from pathlib import Path
+from openai import AsyncOpenAI
 
 # Bot version
 VERSION = "5.7"
@@ -62,6 +64,19 @@ class Config:
 
 # Initialize the configuration
 config = Config()
+
+# OpenAI / AI system configuration
+OPENAI_API_KEY = os.getenv("OPENAI_KEY")
+OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
+INSTRUCTIONS_CACHE_TTL = 300  # seconds
+_cached_instructions = None
+_cached_instructions_time = 0
+# Directory to persist per-user chat history
+HISTORY_DIR = '/home/botofthespecter/ai/chat-history/discord'
+# Discord max message length
+MAX_CHAT_MESSAGE_LENGTH = 2000
+# Initialize AsyncOpenAI client if key is present
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 # Utility function to safely convert database IDs to integers
 def safe_int_convert(value, default=None, logger=None):
@@ -1015,27 +1030,141 @@ class BotOfTheSpecter(commands.Bot):
 
     async def get_ai_response(self, user_message, channel_name):
         try:
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "message": user_message,
-                    "channel": channel_name,
-                }
-                self.logger.info(f"Sending payload to AI: {payload}")
-                async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
-                    self.logger.info(f"AI server response status: {response.status}")
-                    response.raise_for_status()  # Raise an exception for bad responses
-                    ai_response = await response.text()  # Read response as plain text
-                    self.logger.info(f"AI response received: {ai_response}")
-                    # Split the response into chunks of 2000 characters
-                    if ai_response:  # Ensure response is not empty
-                        chunks = [ai_response[i:i + 2000] for i in range(0, len(ai_response), 2000)]
-                        return chunks
+            # Ensure history directory exists
+            try:
+                Path(HISTORY_DIR).mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                self.logger.debug(f"Could not create history directory {HISTORY_DIR}: {e}")
+            # Build messages list starting from system instructions (with small local cache)
+            messages = []
+            global _cached_instructions, _cached_instructions_time
+            sys_instr = None
+            try:
+                now = time.time()
+                if _cached_instructions and (now - _cached_instructions_time) < INSTRUCTIONS_CACHE_TTL:
+                    sys_instr = _cached_instructions
+                else:
+                    self.logger.debug(f"Fetching system instructions from {OPENAI_INSTRUCTIONS_ENDPOINT}")
+                    async with aiohttp.ClientSession() as session:
+                        try:
+                            async with session.get(OPENAI_INSTRUCTIONS_ENDPOINT, timeout=10) as resp:
+                                if resp.status == 200:
+                                    sys_instr = await resp.json()
+                                    _cached_instructions = sys_instr
+                                    _cached_instructions_time = now
+                                else:
+                                    self.logger.error(f"Failed to fetch instructions: HTTP {resp.status}")
+                        except Exception as e:
+                            self.logger.error(f"HTTP error fetching instructions: {e}")
+            except Exception as e:
+                self.logger.error(f"Error while loading system instructions: {e}")
+            # Accept several JSON shapes: list of messages, {system: '...'}, or {messages: [...]}
+            try:
+                if isinstance(sys_instr, list):
+                    messages.extend(sys_instr)
+                elif isinstance(sys_instr, dict):
+                    if 'system' in sys_instr and isinstance(sys_instr['system'], str):
+                        messages.append({'role': 'system', 'content': sys_instr['system']})
+                    elif 'messages' in sys_instr and isinstance(sys_instr['messages'], list):
+                        messages.extend(sys_instr['messages'])
+            except Exception as e:
+                self.logger.error(f"Failed to parse system instructions JSON: {e}")
+            # Add a system message to tell the AI which Discord user/channel it's speaking to
+            try:
+                user_context = f"You are speaking to Discord user in channel '{channel_name}'. Address them politely and keep responses concise and suitable for Discord chat."
+                messages.append({'role': 'system', 'content': user_context})
+                limiter = f"Important: Keep your final reply under {MAX_CHAT_MESSAGE_LENGTH} characters total so it fits in one Discord message. If you need to be concise, prefer short sentences and avoid long lists."
+                messages.append({'role': 'system', 'content': limiter})
+            except Exception as e:
+                self.logger.debug(f"Failed to build user context for AI: {e}")
+            # Load per-channel/user chat history and insert as prior messages
+            try:
+                history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
+                history = []
+                if history_file.exists():
+                    try:
+                        with history_file.open('r', encoding='utf-8') as hf:
+                            history = json.load(hf)
+                    except Exception as e:
+                        self.logger.debug(f"Failed to read history for {channel_name}: {e}")
+                # History is expected to be a list of {role: 'user'|'assistant', content: '...'}
+                if isinstance(history, list) and len(history) > 0:
+                    recent = history[-8:]
+                    for item in recent:
+                        if isinstance(item, dict) and 'role' in item and 'content' in item:
+                            messages.append({'role': item['role'], 'content': item['content']})
+            except Exception as e:
+                self.logger.debug(f"Error loading chat history for {channel_name}: {e}")
+            # Append the current user message as the latest user turn
+            messages.append({'role': 'user', 'content': user_message})
+            # Ensure openai client is available
+            if not openai_client:
+                self.logger.error("OpenAI client is not configured (missing OPENAI_KEY)")
+                return ["AI service is not configured. Please contact the bot administrator."]
+            # Call OpenAI chat completion via AsyncOpenAI client
+            try:
+                self.logger.debug("Calling OpenAI chat completion from specterdiscord.get_ai_response")
+                chat_client = getattr(openai_client, 'chat', None)
+                ai_text = None
+                resp = None
+                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
+                    resp = await chat_client.completions.create(model="gpt-3.5-turbo", messages=messages)
+                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                        choice = resp['choices'][0]
+                        if 'message' in choice and 'content' in choice['message']:
+                            ai_text = choice['message']['content']
+                        elif 'text' in choice:
+                            ai_text = choice['text']
                     else:
-                        self.logger.error("Received empty AI response")
-                        return ["Sorry, I could not understand your request."]
-        except aiohttp.ClientError as e:
-            self.logger.error(f"Error getting AI response: {e}")
-            return ["Sorry, I could not understand your request."]
+                        choices = getattr(resp, 'choices', None)
+                        if choices and len(choices) > 0:
+                            ai_text = getattr(choices[0].message, 'content', None)
+                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
+                    resp = await openai_client.chat_completions.create(model="gpt-3.5-turbo", messages=messages)
+                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                        ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
+                    else:
+                        choices = getattr(resp, 'choices', None)
+                        if choices and len(choices) > 0:
+                            ai_text = getattr(choices[0].message, 'content', None)
+                else:
+                    self.logger.error("No compatible chat completions method found on openai_client")
+                    return ["AI chat completions API is not available."]
+            except Exception as e:
+                self.logger.error(f"Error calling chat completion API: {e}")
+                return ["An error occurred while contacting the AI chat service."]
+            if not ai_text:
+                self.logger.error(f"Chat completion returned no usable text: {resp}")
+                return ["The AI chat service returned an unexpected response."]
+            self.logger.info("AI response received from chat completion")
+            # Persist the user message and AI response to per-user history
+            try:
+                history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
+                history = []
+                if history_file.exists():
+                    try:
+                        with history_file.open('r', encoding='utf-8') as hf:
+                            history = json.load(hf)
+                    except Exception as e:
+                        self.logger.debug(f"Failed to read existing history for append {channel_name}: {e}")
+                history.append({'role': 'user', 'content': user_message})
+                history.append({'role': 'assistant', 'content': ai_text})
+                if len(history) > 200:
+                    history = history[-200:]
+                try:
+                    with history_file.open('w', encoding='utf-8') as hf:
+                        json.dump(history, hf, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    self.logger.debug(f"Failed to write history for {channel_name}: {e}")
+            except Exception as e:
+                self.logger.debug(f"Error while persisting chat history for {channel_name}: {e}")
+            # Split into chunks that fit within Discord's message limit and return
+            try:
+                chunks = [ai_text[i:i + MAX_CHAT_MESSAGE_LENGTH] for i in range(0, len(ai_text), MAX_CHAT_MESSAGE_LENGTH)]
+                return chunks
+            except Exception as e:
+                self.logger.error(f"Error chunking AI response: {e}")
+                return [ai_text]
         except Exception as e:
             self.logger.error(f"Unexpected error in get_ai_response: {e}")
             return ["Sorry, I encountered an error processing your request."]
