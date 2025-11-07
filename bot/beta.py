@@ -9231,7 +9231,8 @@ async def process_channel_point_rewards(event_data, event_type):
                             if url.startswith('json.'):
                                 json_flag = True
                                 url = url[5:]  # Remove 'json.' prefix for fetching
-                            custom_message = await fetch_api_response(url, json_flag=json_flag)
+                            api_response = await fetch_api_response(url, json_flag=json_flag)
+                            replacements[full_placeholder] = api_response
                     # Apply all replacements
                     for var, value in replacements.items():
                         custom_message = custom_message.replace(var, value)
