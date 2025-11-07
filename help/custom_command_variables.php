@@ -16,9 +16,10 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 250px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(customapi.URL)</span><br>
-                Fetches data from a custom API endpoint. Replace URL with your API endpoint.<br>
-                <span class="has-text-weight-bold">Example:</span><br>
-                <code>(customapi.https://api.example.com/data)</code>
+                Fetches data from a custom API endpoint. Replace URL with your API endpoint. Use <code>json.URL</code> to parse the response as JSON, otherwise returns raw text.<br>
+                <span class="has-text-weight-bold">Examples:</span><br>
+                <code>(customapi.https://api.example.com/data)</code> - Raw response<br>
+                <code>(customapi.json.https://api.example.com/data)</code> - JSON parsed<br>
                 <br><span class="has-text-weight-bold">In Chat:</span><br>
                 <code>API Response: {"status": "success"}</code>
             </div>
