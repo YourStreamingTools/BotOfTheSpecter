@@ -120,6 +120,15 @@ ob_start();
                         </div>
                     </form>
                 </div>
+                <div class="notification is-warning mb-4">
+                    <p class="has-text-weight-bold">
+                        <span class="icon"><i class="fas fa-exclamation-circle"></i></span>
+                        Important Change: Fortune, Lotto, and TTS Variables
+                    </p>
+                    <p>
+                        The <span class="has-text-weight-bold">(fortune)</span>, <span class="has-text-weight-bold">(lotto)</span>, and <span class="has-text-weight-bold">(tts)</span> are now text variables that can be used anywhere in your custom message instead of reward name-based triggers. This allows you to use any reward name you want without conflicts with other rewards.
+                    </p>
+                </div>
                 <div class="notification is-info mb-5">
                     <div class="columns is-multiline">
                         <div class="column is-6">
@@ -157,6 +166,10 @@ ob_start();
                                 <li><span class="has-text-weight-bold">(usercount)</span>: <?php echo t('channel_rewards_var_usercount'); ?></li>
                                 <li><span class="has-text-weight-bold">(userstreak)</span>: <?php echo t('channel_rewards_var_userstreak'); ?></li>
                                 <li><span class="has-text-weight-bold">(track)</span>: Tracks the internal usage count of the reward.</li>
+                                <li><span class="has-text-weight-bold" style="color: #A259FF;">(fortune)</span>: Replaces with a random fortune message.</li>
+                                <li><span class="has-text-weight-bold" style="color: #A259FF;">(lotto)</span>: Replaces with randomly generated lotto numbers.</li>
+                                <li><span class="has-text-weight-bold" style="color: #A259FF;">(tts)</span>: Sends the user input to text-to-speech (removes from message).</li>
+                                <li><span class="has-text-weight-bold" style="color: #A259FF;">(tts.message)</span>: Sends the final complete message to both chat and text-to-speech.</li>
                             </ul>
                         </div>
                     </div>
