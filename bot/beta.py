@@ -9159,83 +9159,90 @@ async def process_channel_point_rewards(event_data, event_type):
             if custom_message_result and custom_message_result["custom_message"]:
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
-                    replacements = {}
-                    # Handle (user)
-                    if '(user)' in custom_message:
-                        replacements['(user)'] = user_name
-                    # Handle (usercount)
-                    if '(usercount)' in custom_message:
-                        try:
-                            # Get the user count for the specific reward
-                            await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
-                            result = await cursor.fetchone()
-                            if result:
-                                user_count = result.get("count")
-                            else:
-                                # If no entry found, initialize it to 0
-                                user_count = 0
-                                await cursor.execute('INSERT INTO reward_counts (reward_id, user, count) VALUES (%s, %s, %s)', (reward_id, user_name, user_count))
+                    # Apply all replacements in a loop until no more variables are found
+                    max_iterations = 5
+                    iteration = 0
+                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(customapi.']
+                    while iteration < max_iterations:
+                        iteration += 1
+                        has_vars = any(var in custom_message for var in vars_to_replace if var != '(customapi.')
+                        has_customapi = '(customapi.' in custom_message
+                        if not (has_vars or has_customapi):
+                            break
+                        # Re-populate replacements for this iteration
+                        replacements = {}
+                        # Handle (user)
+                        if '(user)' in custom_message:
+                            replacements['(user)'] = user_name
+                        # Handle (usercount)
+                        if '(usercount)' in custom_message:
+                            try:
+                                await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
+                                result = await cursor.fetchone()
+                                if result:
+                                    user_count = result.get("count")
+                                else:
+                                    user_count = 0
+                                    await cursor.execute('INSERT INTO reward_counts (reward_id, user, count) VALUES (%s, %s, %s)', (reward_id, user_name, user_count))
+                                    await connection.commit()
+                                user_count += 1
+                                await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
                                 await connection.commit()
-                            # Increment the count
-                            user_count += 1
-                            await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
-                            await connection.commit()
-                            replacements['(usercount)'] = str(user_count)
-                        except Exception as e:
-                            chat_logger.error(f"Error while handling (usercount): {e}")
-                            replacements['(usercount)'] = "Error"
-                    # Handle (userstreak)
-                    if '(userstreak)' in custom_message:
-                        try:
-                            # Fetch current user and streak
-                            await cursor.execute("SELECT `current_user`, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
-                            streak_row = await cursor.fetchone()
-                            if streak_row:
-                                current_user_from_db = streak_row['current_user']
-                                current_streak = streak_row['streak']
-                                if current_user_from_db.lower() == user_name.lower():
-                                    current_user = user_name
-                                    current_streak += 1
+                                replacements['(usercount)'] = str(user_count)
+                            except Exception as e:
+                                chat_logger.error(f"Error while handling (usercount): {e}")
+                                replacements['(usercount)'] = "Error"
+                        # Handle (userstreak)
+                        if '(userstreak)' in custom_message:
+                            try:
+                                await cursor.execute("SELECT `current_user`, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
+                                streak_row = await cursor.fetchone()
+                                if streak_row:
+                                    current_user_from_db = streak_row['current_user']
+                                    current_streak = streak_row['streak']
+                                    if current_user_from_db.lower() == user_name.lower():
+                                        current_user = user_name
+                                        current_streak += 1
+                                    else:
+                                        current_user = user_name
+                                        current_streak = 1
+                                    await cursor.execute("UPDATE reward_streaks SET `current_user` = %s, streak = %s WHERE reward_id = %s", (current_user, current_streak, reward_id))
                                 else:
                                     current_user = user_name
                                     current_streak = 1
-                                await cursor.execute("UPDATE reward_streaks SET `current_user` = %s, streak = %s WHERE reward_id = %s", (current_user, current_streak, reward_id))
-                            else:
-                                current_user = user_name
-                                current_streak = 1
-                                await cursor.execute("INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
-                            await connection.commit()
-                            # Use the calculated current_streak value directly
-                            replacements['(userstreak)'] = str(current_streak)
-                        except Exception as e:
-                            chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
-                            replacements['(userstreak)'] = "Error"
-                    # Handle (track)
-                    if '(track)' in custom_message:
-                        try:
-                            # Increment usage_count
-                            await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (reward_id,))
-                            await connection.commit()
-                            replacements['(track)'] = ''
-                        except Exception as e:
-                            chat_logger.error(f"Error while handling (track): {e}")
-                            replacements['(track)'] = ''
-                    # Handle (customapi.)
-                    if '(customapi.' in custom_message:
-                        pattern = r'\(customapi\.(\S+?)\)'
-                        matches = re.finditer(pattern, custom_message)
-                        for match in matches:
-                            full_placeholder = match.group(0)
-                            url = match.group(1)
-                            json_flag = False
-                            if url.startswith('json.'):
-                                json_flag = True
-                                url = url[5:]  # Remove 'json.' prefix for fetching
-                            api_response = await fetch_api_response(url, json_flag=json_flag)
-                            replacements[full_placeholder] = api_response
-                    # Apply all replacements
-                    for var, value in replacements.items():
-                        custom_message = custom_message.replace(var, value)
+                                    await cursor.execute("INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
+                                await connection.commit()
+                                replacements['(userstreak)'] = str(current_streak)
+                            except Exception as e:
+                                chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
+                                replacements['(userstreak)'] = "Error"
+                        # Handle (track)
+                        if '(track)' in custom_message:
+                            try:
+                                await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (reward_id,))
+                                await connection.commit()
+                                replacements['(track)'] = ''
+                            except Exception as e:
+                                chat_logger.error(f"Error while handling (track): {e}")
+                                replacements['(track)'] = ''
+                        # Handle (customapi.)
+                        if '(customapi.' in custom_message:
+                            pattern = r'\(customapi\.(\S+?)\)'
+                            matches = re.finditer(pattern, custom_message)
+                            for match in matches:
+                                full_placeholder = match.group(0)
+                                url = match.group(1)
+                                json_flag = False
+                                if url.startswith('json.'):
+                                    json_flag = True
+                                    url = url[5:]
+                                api_response = await fetch_api_response(url, json_flag=json_flag)
+                                replacements[full_placeholder] = api_response
+                        # Apply all replacements
+                        for var, value in replacements.items():
+                            if value is None:
+                                value = ""
+                            custom_message = custom_message.replace(var, str(value))
                     # Only send message if it's not empty after replacements
                     if custom_message.strip():
                         await send_chat_message(custom_message)
