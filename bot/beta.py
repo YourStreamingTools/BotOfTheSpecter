@@ -9160,9 +9160,9 @@ async def process_channel_point_rewards(event_data, event_type):
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
                     # Apply all replacements in a loop until no more variables are found
-                    max_iterations = 5
+                    max_iterations = 8
                     iteration = 0
-                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(customapi.']
+                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(customapi.']
                     while iteration < max_iterations:
                         iteration += 1
                         has_vars = any(var in custom_message for var in vars_to_replace if var != '(customapi.')
@@ -9238,6 +9238,23 @@ async def process_channel_point_rewards(event_data, event_type):
                                     url = url[5:]
                                 api_response = await fetch_api_response(url, json_flag=json_flag)
                                 replacements[full_placeholder] = api_response
+                        # Handle (tts)
+                        if '(tts)' in custom_message:
+                            tts_message = event_data.get("user_input", "")
+                            create_task(websocket_notice(event="TTS", text=tts_message))
+                            replacements['(tts)'] = ""
+                        # Handle (lotto)
+                        if '(lotto)' in custom_message:
+                            winning_numbers_str = await generate_user_lotto_numbers(user_name)
+                            if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
+                                replacements['(lotto)'] = f"Error: {winning_numbers_str['error']}"
+                            else:
+                                replacements['(lotto)'] = winning_numbers_str
+                        # Handle (fortune)
+                        if '(fortune)' in custom_message:
+                            fortune_message = await tell_fortune()
+                            fortune_message = fortune_message[0].lower() + fortune_message[1:]
+                            replacements['(fortune)'] = fortune_message
                         # Apply all replacements
                         for var, value in replacements.items():
                             if value is None:
@@ -9246,30 +9263,6 @@ async def process_channel_point_rewards(event_data, event_type):
                     # Only send message if it's not empty after replacements
                     if custom_message.strip():
                         await send_chat_message(custom_message)
-            # Check for TTS reward
-            if "tts" in reward_title.lower():
-                tts_message = event_data["user_input"]
-                create_task(websocket_notice(event="TTS", text=tts_message))
-                return
-            # Check for Lotto Numbers reward
-            elif "lotto" in reward_title.lower():
-                winning_numbers_str = await generate_user_lotto_numbers(user_name)
-                # Handling errors (check if the result is an error message)
-                if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
-                    await send_chat_message(f"Error: {winning_numbers_str['error']}")
-                    return
-                # Send the combined numbers (winning and supplementary) as one message
-                await send_chat_message(f"{user_name} here are your Lotto numbers! {winning_numbers_str}")
-                # Log the generated numbers for debugging and records
-                chat_logger.info(f"Lotto numbers generated: {user_name} - {winning_numbers_str}")
-                return
-            # Check for Fortune reward
-            elif "fortune" in reward_title.lower():
-                fortune_message = await tell_fortune()
-                fortune_message = fortune_message[0].lower() + fortune_message[1:]
-                await send_chat_message(f"{user_name}, {fortune_message}")
-                chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
-                return
             # Sound alert logic
             await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
             sound_result = await cursor.fetchone()
