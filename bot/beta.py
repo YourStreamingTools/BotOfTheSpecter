@@ -9262,7 +9262,13 @@ async def process_channel_point_rewards(event_data, event_type):
                             custom_message = custom_message.replace(var, str(value))
                     # Only send message if it's not empty after replacements
                     if custom_message.strip():
-                        await send_chat_message(custom_message)
+                        # Check for (tts.message) which sends the final message to both TTS and chat
+                        if '(tts.message)' in custom_message:
+                            custom_message = custom_message.replace('(tts.message)', '')
+                            await send_chat_message(custom_message)
+                            create_task(websocket_notice(event="TTS", text=custom_message))
+                        else:
+                            await send_chat_message(custom_message)
             # Sound alert logic
             await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
             sound_result = await cursor.fetchone()
