@@ -9220,6 +9220,18 @@ async def process_channel_point_rewards(event_data, event_type):
                         except Exception as e:
                             chat_logger.error(f"Error while handling (track): {e}")
                             replacements['(track)'] = ''
+                    # Handle (customapi.)
+                    if '(customapi.' in custom_message:
+                        pattern = r'\(customapi\.(\S+?)\)'
+                        matches = re.finditer(pattern, custom_message)
+                        for match in matches:
+                            full_placeholder = match.group(0)
+                            url = match.group(1)
+                            json_flag = False
+                            if url.startswith('json.'):
+                                json_flag = True
+                                url = url[5:]  # Remove 'json.' prefix for fetching
+                            custom_message = await fetch_api_response(url, json_flag=json_flag)
                     # Apply all replacements
                     for var, value in replacements.items():
                         custom_message = custom_message.replace(var, value)
