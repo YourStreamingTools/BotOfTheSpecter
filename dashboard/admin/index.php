@@ -548,7 +548,7 @@ ob_start();
     <div class="columns is-multiline">
         <!-- Discord Bot Service -->
         <div class="column is-full-mobile is-one-quarter-tablet">
-            <div class="box">
+            <div class="box hover-box">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
                         <span class="icon has-text-link">
@@ -578,7 +578,7 @@ ob_start();
         </div>
         <!-- API Server Service -->
         <div class="column is-full-mobile is-one-quarter-tablet">
-            <div class="box">
+            <div class="box hover-box">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
                         <span class="icon has-text-primary">
@@ -608,7 +608,7 @@ ob_start();
         </div>
         <!-- WebSocket Server Service -->
         <div class="column is-full-mobile is-one-quarter-tablet">
-            <div class="box">
+            <div class="box hover-box">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
                         <span class="icon has-text-success">
@@ -638,7 +638,7 @@ ob_start();
         </div>
         <!-- MySQL Server Service -->
         <div class="column is-full-mobile is-one-quarter-tablet">
-            <div class="box">
+            <div class="box hover-box">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
                         <span class="icon has-text-warning">
@@ -672,25 +672,31 @@ ob_start();
     <h2 class="title is-4"><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
     <div style="display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between;">
         <div style="flex: 1; min-width: 250px;">
-            <h3 class="title is-5"><span class="icon"><i class="fab fa-spotify"></i></span> Spotify</h3>
-            <button type="button" class="button is-success is-fullwidth" onclick="refreshSpotifyTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
-                <span class="icon"><i class="fas fa-sync"></i></span>
-                <span>Refresh Spotify Tokens</span>
-            </button>
+            <div class="box hover-box">
+                <h3 class="title is-5"><span class="icon"><i class="fab fa-spotify"></i></span> Spotify</h3>
+                <button type="button" class="button is-success is-fullwidth" onclick="refreshSpotifyTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
+                    <span class="icon"><i class="fas fa-sync"></i></span>
+                    <span>Refresh Spotify Tokens</span>
+                </button>
+            </div>
         </div>
         <div style="flex: 1; min-width: 250px;">
-            <h3 class="title is-5"><span class="icon"><i class="fas fa-stream"></i></span> StreamElements</h3>
-            <button type="button" class="button is-info is-fullwidth" onclick="refreshStreamElementsTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
-                <span class="icon"><i class="fas fa-sync"></i></span>
-                <span>Refresh StreamElements Tokens</span>
-            </button>
+            <div class="box hover-box">
+                <h3 class="title is-5"><span class="icon"><i class="fas fa-stream"></i></span> StreamElements</h3>
+                <button type="button" class="button is-info is-fullwidth" onclick="refreshStreamElementsTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
+                    <span class="icon"><i class="fas fa-sync"></i></span>
+                    <span>Refresh StreamElements Tokens</span>
+                </button>
+            </div>
         </div>
         <div style="flex: 1; min-width: 250px;">
-            <h3 class="title is-5"><span class="icon"><i class="fab fa-discord"></i></span> Discord</h3>
-            <button type="button" class="button is-link is-fullwidth" onclick="refreshDiscordTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
-                <span class="icon"><i class="fas fa-sync"></i></span>
-                <span>Refresh Discord Tokens</span>
-            </button>
+            <div class="box hover-box">
+                <h3 class="title is-5"><span class="icon"><i class="fab fa-discord"></i></span> Discord</h3>
+                <button type="button" class="button is-link is-fullwidth" onclick="refreshDiscordTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
+                    <span class="icon"><i class="fas fa-sync"></i></span>
+                    <span>Refresh Discord Tokens</span>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -1167,8 +1173,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const tagClass = bot.type === 'beta' ? 'is-warning' : (bot.type === 'custom' ? 'is-dark' : 'is-primary');
         const typeLabel = bot.type.charAt(0).toUpperCase() + bot.type.slice(1);
         const safeId = 'bot-' + sanitizeId(bot.channel);
-        let html = '<div class="column is-one-third" id="' + safeId + '" data-bot-id="' + safeId + '">';
-        html += '<div class="box">';
+        let html = '<div class="column is-one-quarter" id="' + safeId + '" data-bot-id="' + safeId + '">';
+        html += '<div class="box hover-box">';
         html += '<div class="level is-mobile">';
         html += '<div class="level-left">';
         html += '<div class="level-item">';
