@@ -1550,7 +1550,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!selectedBot) { selectedBot = 'stable'; }
     // Check for version updates first
     return checkForUpdates().then(() => {
-      return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 5000) // Reduced from 8000 to 5000
+      return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 8000) // 8 second timeout
       .then(async response => {
         const text = await response.text();
         try {
@@ -1731,6 +1731,10 @@ document.addEventListener('DOMContentLoaded', function() {
       })
       .catch(error => {
         console.error('Error fetching bot status:', error);
+        // Only show user-facing error notification if not a silent update or if it's a critical issue
+        if (!silentUpdate && error && error.message && error.message.includes('timeout')) {
+          console.warn('Bot status check timed out - retrying with fallback values');
+        }
         // Set fallback values if fetch fails
         const lastUpdatedElement = document.getElementById('last-updated');
         const lastRunElement = document.getElementById('last-run');
@@ -1747,8 +1751,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return null;
       });
-    });
-  }
+    });  }
   // Function to update API limits from api_limits.php
   function updateApiLimits() {
     fetchWithTimeout('api_limits.php', {}, 8000)

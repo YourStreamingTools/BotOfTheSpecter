@@ -1,11 +1,14 @@
 <?php
 // Set strict timeout limits to prevent hanging
-set_time_limit(10); // Maximum 10 seconds for status check
-ini_set('max_execution_time', 10);
+set_time_limit(8); // Maximum 8 seconds for status check (allows 2s buffer before PHP timeout)
+ini_set('max_execution_time', 8);
 
 while (ob_get_level()) { ob_end_clean(); }
 ob_start();
 session_start();
+
+// Track operation start time for timeout management
+$operationStart = microtime(true);
 
 if (!isset($_SESSION['access_token'])) {
   header('Content-Type: application/json');
@@ -71,9 +74,14 @@ if ($bot === 'stable') {
   $remoteVersionFile .= "beta/{$username}_beta_version_control.txt";
 }
 
-// Function to get remote file mtime via SSH
+// Function to get remote file mtime via SSH with timeout protection
 function getRemoteFileMTime($remoteFile) {
-  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password, $operationStart;
+  // Check if we're running out of time (1.5 second buffer)
+  if ((microtime(true) - $operationStart) > 6.5) {
+    error_log("Timeout protection: skipping getRemoteFileMTime - operation time exceeded");
+    return null;
+  }
   try {
     $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
     $cmd = "stat -c %Y " . escapeshellarg($remoteFile);
@@ -90,9 +98,14 @@ function getRemoteFileMTime($remoteFile) {
   return null;
 }
 
-// Function to get remote file contents via SSH
+// Function to get remote file contents via SSH with timeout protection
 function getRemoteFileContents($remoteFile) {
-  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password, $operationStart;
+  // Check if we're running out of time (1.5 second buffer)
+  if ((microtime(true) - $operationStart) > 6.5) {
+    error_log("Timeout protection: skipping getRemoteFileContents - operation time exceeded");
+    return null;
+  }
   try {
     $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
     $cmd = "cat " . escapeshellarg($remoteFile) . " 2>/dev/null";
