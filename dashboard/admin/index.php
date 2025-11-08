@@ -694,24 +694,24 @@ ob_start();
 </div>
 <div class="box">
     <h2 class="title is-4"><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
-    <div class="columns">
-        <div class="column">
+    <div style="display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between;">
+        <div style="flex: 1; min-width: 250px;">
             <h3 class="title is-5"><span class="icon"><i class="fab fa-spotify"></i></span> Spotify</h3>
-            <button type="button" class="button is-success" onclick="refreshSpotifyTokens()">
+            <button type="button" class="button is-success is-fullwidth" onclick="refreshSpotifyTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
                 <span class="icon"><i class="fas fa-sync"></i></span>
                 <span>Refresh Spotify Tokens</span>
             </button>
         </div>
-        <div class="column">
+        <div style="flex: 1; min-width: 250px;">
             <h3 class="title is-5"><span class="icon"><i class="fas fa-stream"></i></span> StreamElements</h3>
-            <button type="button" class="button is-info" onclick="refreshStreamElementsTokens()">
+            <button type="button" class="button is-info is-fullwidth" onclick="refreshStreamElementsTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
                 <span class="icon"><i class="fas fa-sync"></i></span>
                 <span>Refresh StreamElements Tokens</span>
             </button>
         </div>
-        <div class="column">
+        <div style="flex: 1; min-width: 250px;">
             <h3 class="title is-5"><span class="icon"><i class="fab fa-discord"></i></span> Discord</h3>
-            <button type="button" class="button is-link" onclick="refreshDiscordTokens()">
+            <button type="button" class="button is-link is-fullwidth" onclick="refreshDiscordTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
                 <span class="icon"><i class="fas fa-sync"></i></span>
                 <span>Refresh Discord Tokens</span>
             </button>
