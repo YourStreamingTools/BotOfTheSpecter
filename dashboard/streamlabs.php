@@ -475,21 +475,8 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
-
-if ($isLinked && isset($access_token)):
-ob_start();
 ?>
 <script>
-const accessToken = "<?php echo addslashes($access_token) ?>";
-const accessTokenDotCount = <?php echo (int)strlen($access_token); ?>;
-let accessTokenVisible = false;
-
-<?php if ($socketToken): ?>
-const socketToken = "<?php echo addslashes($socketToken) ?>";
-const socketTokenDotCount = <?php echo (int)strlen($socketToken); ?>;
-let socketTokenVisible = false;
-<?php endif; ?>
-
 document.addEventListener('DOMContentLoaded', function() {
     const unlinkHeaderBtn = document.getElementById('unlinkHeaderBtn');
     
@@ -511,6 +498,25 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+});
+</script>
+<?php
+
+if ($isLinked && isset($access_token)):
+ob_start();
+?>
+<script>
+const accessToken = "<?php echo addslashes($access_token) ?>";
+const accessTokenDotCount = <?php echo (int)strlen($access_token); ?>;
+let accessTokenVisible = false;
+
+<?php if ($socketToken): ?>
+const socketToken = "<?php echo addslashes($socketToken) ?>";
+const socketTokenDotCount = <?php echo (int)strlen($socketToken); ?>;
+let socketTokenVisible = false;
+<?php endif; ?>
+
+document.addEventListener('DOMContentLoaded', function() {
 
     const accessBtn = document.getElementById('showAccessTokenBtn');
     const accessEye = document.getElementById('accessTokenEye');
