@@ -29,7 +29,6 @@ from aiomysql import DictCursor, MySQLError
 from aiomysql import Error as MySQLOtherErrors
 from deep_translator import GoogleTranslator as translator
 from twitchio.ext.commands import Context
-from twitchio import Message
 from twitchio.ext import commands, routines
 from streamlink import Streamlink
 import pytz as set_timezone
@@ -61,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.6"
+VERSION = "5.7"
 SYSTEM = "BETA"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
