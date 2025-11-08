@@ -173,6 +173,7 @@ function uuidv4() {
                         <li><a href="discordbot.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fab fa-discord"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_discord_bot'); ?></span></a></li>
                         <li><a href="spotifylink.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fab fa-spotify"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_spotify'); ?></span></a></li>
                         <li><a href="streamelements.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_streamelements'); ?></span></a></li>
+                        <li><a href="obsconnector.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-plug"></i></span><span class="sidebar-menu-text">OBSConnector</span></a></li>
                         <li><a href="bingo.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-trophy"></i></span><span class="sidebar-menu-text">Stream Bingo</span></a></li>
                         <li><a href="integrations.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_platform_integrations'); ?></span></a></li>
                     </ul>
@@ -439,6 +440,12 @@ function uuidv4() {
                         <a href="streamelements.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span>
                             <span class="sidebar-menu-text"><?php echo t('navbar_streamelements'); ?></span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="obsconnector.php" class="sidebar-submenu-link">
+                            <span class="sidebar-submenu-icon"><i class="fas fa-plug"></i></span>
+                            <span class="sidebar-menu-text">OBSConnector</span>
                         </a>
                     </li>
                     <li>
