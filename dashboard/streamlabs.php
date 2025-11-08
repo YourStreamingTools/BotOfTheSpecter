@@ -47,6 +47,25 @@ $client_secret = $streamlabs_client_secret;
 $redirect_uri = 'https://dashboard.botofthespecter.com/streamlabs.php';
 $scope = 'donations.read socket.token';
 
+// Handle unlinking
+if (isset($_GET['action']) && $_GET['action'] === 'unlink') {
+    if ($twitchUserId) {
+        $stmt = $conn->prepare("DELETE FROM streamlabs_tokens WHERE twitch_user_id = ?");
+        $stmt->bind_param("s", $twitchUserId);
+        if ($stmt->execute()) {
+            $linkingMessage = "StreamLabs account successfully unlinked.";
+            $linkingMessageType = "is-success";
+            $isLinked = false;
+            unset($access_token);
+            unset($socketToken);
+        } else {
+            $linkingMessage = "Failed to unlink StreamLabs account.";
+            $linkingMessageType = "is-danger";
+        }
+        $stmt->close();
+    }
+}
+
 // Handle user denial (error=true in query string)
 if (isset($_GET['error']) && $_GET['error'] === 'true') {
     $linkingMessage = "Authorization was denied. Please allow access to link your StreamLabs account.";
@@ -277,6 +296,14 @@ ob_start();
                 <p class="subtitle is-6 has-text-grey-light">
                     Your StreamLabs account is successfully linked to your profile and ready to track donations.
                 </p>
+                <div style="margin-top: 1rem;">
+                    <button id="unlinkBtn" class="button is-danger is-outlined" style="border-radius: 6px;">
+                        <span class="icon is-small">
+                            <i class="fas fa-unlink"></i>
+                        </span>
+                        <span>Unlink Account</span>
+                    </button>
+                </div>
             </div>
             <!-- Tokens section -->
             <div class="columns is-centered mb-6">
@@ -466,6 +493,27 @@ let socketTokenVisible = false;
 <?php endif; ?>
 
 document.addEventListener('DOMContentLoaded', function() {
+    const unlinkBtn = document.getElementById('unlinkBtn');
+    
+    if (unlinkBtn) {
+        unlinkBtn.addEventListener('click', function() {
+            Swal.fire({
+                title: 'Unlink StreamLabs Account?',
+                text: 'Are you sure you want to unlink your StreamLabs account? This will remove all associated tokens and data.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Unlink',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#f14668',
+                cancelButtonColor: '#6c757d'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = 'streamlabs.php?action=unlink';
+                }
+            });
+        });
+    }
+
     const accessBtn = document.getElementById('showAccessTokenBtn');
     const accessEye = document.getElementById('accessTokenEye');
     const accessDisplay = document.getElementById('accessTokenDisplay');
