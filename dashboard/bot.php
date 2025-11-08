@@ -1516,6 +1516,28 @@ document.addEventListener('DOMContentLoaded', function() {
     // Clear the seen updates cache so new notifications can be shown later if needed
     try { window._seenUpdateNotifications.clear(); } catch(e) { /* ignore */ }
   }
+  // Remove beta code update notification specifically
+  function removeBetaCodeUpdateNotification() {
+    const selector = '.notification.bot-operation-persistent';
+    document.querySelectorAll(selector).forEach(notification => {
+      const text = (notification.textContent || '');
+      if (text.includes('Beta bot code has been updated') || text.includes('restart the bot to apply changes')) {
+        if (notification.parentNode) notification.parentNode.removeChild(notification);
+      }
+    });
+    // Also remove from the seen cache
+    try {
+      if (window._seenUpdateNotifications && window._seenUpdateNotifications.size) {
+        const toRemove = [];
+        window._seenUpdateNotifications.forEach(msg => {
+          if (msg.includes('Beta bot code has been updated') || msg.includes('restart the bot to apply changes')) {
+            toRemove.push(msg);
+          }
+        });
+        toRemove.forEach(m => { try { window._seenUpdateNotifications.delete(m); } catch(e){} });
+      }
+    } catch(e) { /* ignore */ }
+  }
   // Remove update notifications for a specific bot type (stable/beta) or globally
   function removeUpdateNotificationsForBot(botType, latestVersion) {
     const selector = '.notification.bot-operation-persistent';
@@ -1574,6 +1596,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const normalizedLatest = normalizeVersion(latestVersion);
             const normalizedRunning = normalizeVersion(data.version);
             let hasUpdate = false;
+            let isBetaCodeUpdate = false;
             if (data.version && normalizedRunning !== normalizedLatest && latestVersion !== 'N/A') {
               // Always show update notification when there's an update available
               showNotification(`A new ${selectedBot} bot version is available! Current: ${data.version}, Latest: ${latestVersion}`, 'update');
@@ -1582,6 +1605,7 @@ document.addEventListener('DOMContentLoaded', function() {
               // Check for beta code changes only if bot is currently running
               showNotification('Beta bot code has been updated since your last run. Please restart the bot to apply changes.', 'update');
               hasUpdate = true;
+              isBetaCodeUpdate = true;
             }
             if (hasUpdate) {
               // Show update indicator in version card
@@ -1601,6 +1625,10 @@ document.addEventListener('DOMContentLoaded', function() {
               }
               // Remove update notifications for this bot now that running version matches latest
               removeUpdateNotificationsForBot(selectedBot, latestVersion);
+              // Also specifically remove beta code update notifications
+              if (selectedBot === 'beta') {
+                removeBetaCodeUpdateNotification();
+              }
             }
             const statusText = data.running ? 'ONLINE' : 'OFFLINE';
             const statusClass = data.running ? 'success' : 'danger';
