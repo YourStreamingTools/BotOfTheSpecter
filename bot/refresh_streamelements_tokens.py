@@ -14,8 +14,22 @@ DB_PASS = os.getenv('SQL_PASSWORD')
 DB_NAME = "website"
 TOKEN_URL = "https://api.streamelements.com/oauth2/token"
 
+async def get_username(pool, twitch_user_id):
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT username FROM users WHERE twitch_user_id = %s", (twitch_user_id,))
+                result = await cur.fetchone()
+                return result[0] if result else None
+    except Exception as e:
+        print(f"⚠️  Failed to fetch username for twitch_user_id: {twitch_user_id} - {str(e)}")
+        return None
+
 async def refresh_streamelements_token(session, pool, twitch_user_id, refresh_token_value):
     try:
+        # Fetch username for display
+        username = await get_username(pool, twitch_user_id)
+        username_display = f"{username}" if username else ""
         data = {
             'grant_type': 'refresh_token',
             'client_id': CLIENT_ID,
@@ -35,16 +49,16 @@ async def refresh_streamelements_token(session, pool, twitch_user_id, refresh_to
                             (new_access, new_refresh, twitch_user_id)
                         )
                         await conn.commit()
-                print(f"✅ Successfully refreshed StreamElements token for twitch_user_id: {twitch_user_id}")
+                print(f"✅ Successfully refreshed StreamElements token for user: {username_display}")
                 return True
             else:
                 error_msg = result.get('error', 'Unknown error')
                 error_desc = result.get('error_description', '')
-                print(f"❌ Failed to refresh StreamElements token for twitch_user_id: {twitch_user_id}")
+                print(f"❌ Failed to refresh StreamElements token for user: {username_display}")
                 print(f"   Error: {error_msg} - {error_desc}")
                 return False
     except Exception as e:
-        print(f"🔥 Exception refreshing StreamElements token for twitch_user_id: {twitch_user_id} - {str(e)}")
+        print(f"🔥 Exception refreshing StreamElements token for user: {twitch_user_id} - {str(e)}")
         return False
 
 async def main():
