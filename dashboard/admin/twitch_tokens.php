@@ -145,11 +145,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
             echo json_encode(['success' => false, 'error' => 'Database connection failed']);
             exit;
         }
+        // Get the user's refresh token from the users table
+        $stmt = $conn->prepare("SELECT refresh_token FROM users WHERE twitch_user_id = ? LIMIT 1");
+        if (!$stmt) {
+            echo json_encode(['success' => false, 'error' => 'DB error: ' . $conn->error]);
+            exit;
+        }
+        $stmt->bind_param('s', $userId);
+        if (!$stmt->execute()) {
+            echo json_encode(['success' => false, 'error' => 'DB query failed: ' . $stmt->error]);
+            $stmt->close();
+            exit;
+        }
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if (!$row) {
+            echo json_encode(['success' => false, 'error' => 'User not found']);
+            exit;
+        }
+        $refreshToken = $row['refresh_token'] ?? '';
+        if (empty($refreshToken)) {
+            echo json_encode(['success' => false, 'error' => 'No refresh token available for this user. User may need to re-authenticate.']);
+            exit;
+        }
+        // Call Twitch token endpoint to refresh using refresh_token
         $url = 'https://id.twitch.tv/oauth2/token';
         $data = [
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $refreshToken,
             'client_id' => $clientID,
-            'client_secret' => $clientSecret,
-            'grant_type' => 'client_credentials'
+            'client_secret' => $clientSecret
         ];
         $ch = curl_init($url);
         if (!$ch) {
@@ -171,40 +197,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
             echo json_encode(['success' => false, 'error' => 'cURL error: ' . $curlError]);
             exit;
         }
-        if ($httpCode === 200) {
-            $result = json_decode($response, true);
-            if ($result === null) {
-                echo json_encode(['success' => false, 'error' => 'Invalid JSON response from Twitch.']);
-                exit;
-            }
-            if (isset($result['access_token'])) {
-                // Update database
-                $stmt = $conn->prepare("UPDATE twitch_bot_access SET twitch_access_token = ? WHERE twitch_user_id = ?");
-                if (!$stmt) {
-                    echo json_encode(['success' => false, 'error' => 'DB prepare failed: ' . $conn->error]);
-                    exit;
-                }
-                $stmt->bind_param("ss", $result['access_token'], $userId);
-                if (!$stmt->execute()) {
-                    $err = $stmt->error;
-                    $stmt->close();
-                    echo json_encode(['success' => false, 'error' => 'Failed to update database: ' . $err]);
-                    exit;
-                }
-                $stmt->close();
-                echo json_encode([
-                    'success' => true,
-                    'new_token' => $result['access_token'],
-                    'expires_in' => $result['expires_in'] ?? 0
-                ]);
-            } else {
-                echo json_encode(['success' => false, 'error' => 'Invalid response from Twitch API.']);
-            }
-        } else {
-            $error = json_decode($response, true);
-            $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to renew token (HTTP ' . $httpCode . ').';
-            echo json_encode(['success' => false, 'error' => $errorMsg]);
+        if ($httpCode !== 200) {
+            $errMsg = $response ? (json_decode($response, true)['message'] ?? $response) : 'HTTP ' . $httpCode;
+            echo json_encode(['success' => false, 'error' => 'Failed to refresh token: ' . $errMsg]);
+            exit;
         }
+        $result = json_decode($response, true);
+        if ($result === null) {
+            echo json_encode(['success' => false, 'error' => 'Invalid JSON response from Twitch.']);
+            exit;
+        }
+        if (!isset($result['access_token'])) {
+            echo json_encode(['success' => false, 'error' => 'Invalid response from Twitch: ' . json_encode($result)]);
+            exit;
+        }
+        $newAccess = $result['access_token'];
+        $newRefresh = $result['refresh_token'] ?? $refreshToken;
+        $newExpiresIn = $result['expires_in'] ?? null;
+        // Update the users table with new tokens
+        $upd = $conn->prepare("UPDATE users SET access_token = ?, refresh_token = ? WHERE twitch_user_id = ? LIMIT 1");
+        if (!$upd) {
+            echo json_encode(['success' => false, 'error' => 'DB update failed: ' . $conn->error]);
+            exit;
+        }
+        $upd->bind_param('sss', $newAccess, $newRefresh, $userId);
+        if (!$upd->execute()) {
+            $err = $upd->error;
+            $upd->close();
+            echo json_encode(['success' => false, 'error' => 'DB update failed: ' . $err]);
+            exit;
+        }
+        $upd->close();
+        echo json_encode([
+            'success' => true,
+            'new_token' => $newAccess,
+            'expires_in' => $newExpiresIn ?? 0
+        ]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
     }
@@ -530,8 +558,17 @@ ob_start();
     <div id="chat-token-content"></div>
 </div>
 <div class="box">
-    <h3 class="title is-5">View Existing Tokens</h3>
-    <p class="mb-4">List of all stored Twitch App Access Tokens with their associated users.</p>
+    <h3 class="title is-5">View Existing User Tokens</h3>
+    <p class="mb-4">List of all stored Twitch User Tokens with their associated users. These are OAuth tokens with the scopes required for the system to operate (chat, moderation, channel management, analytics, etc.). When renewed, they use the refresh token to maintain authorization with the same scopes.</p>
+    <div class="notification is-info is-light">
+        <p><strong>ℹ️ User Token Information:</strong></p>
+        <ul>
+            <li>These are authenticated user tokens, not app-level tokens</li>
+            <li>They maintain all required scopes for bot and dashboard functionality</li>
+            <li>Renewal uses the refresh token to keep authorization valid</li>
+            <li>If a token shows as "Invalid" repeatedly, the user may need to re-authenticate</li>
+        </ul>
+    </div>
     <div class="field">
         <div class="control">
             <button class="button is-info" id="validate-all-btn">
@@ -555,12 +592,12 @@ ob_start();
         </thead>
         <tbody id="tokens-table-body">
             <?php
-            $sql = "SELECT tba.twitch_user_id, tba.twitch_access_token, u.username FROM twitch_bot_access tba JOIN users u ON tba.twitch_user_id = u.twitch_user_id";
+            $sql = "SELECT twitch_user_id, access_token, username FROM users WHERE access_token IS NOT NULL AND access_token != '' ORDER BY username ASC";
             $result = $conn->query($sql);
             if ($result && $result->num_rows > 0) {
                 while ($row = $result->fetch_assoc()) {
                     $userId = $row['twitch_user_id'];
-                    $token = $row['twitch_access_token'];
+                    $token = $row['access_token'];
                     $username = htmlspecialchars($row['username']);
                     $tokenId = md5($token); // Use hash for unique ID
                     echo "<tr id='row-$tokenId' data-token='$token' data-user-id='$userId'>";
