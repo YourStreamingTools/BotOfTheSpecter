@@ -943,6 +943,18 @@ class BotOfTheSpecter(commands.Bot):
         else:
             return False
 
+    def _is_message_directed_at_bot(self, message) -> bool:
+        # Check if bot is mentioned
+        if self.user in message.mentions:
+            return True
+        # Check if this is a reply to the bot
+        if message.reference:
+            # Try to get the replied-to message
+            replied_to = message.reference.resolved
+            if replied_to and replied_to.author == self.user:
+                return True
+        return False
+
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
@@ -1105,7 +1117,7 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             self.logger.error(f"Failed to send member join notification to websocket server: {e}")
 
-    async def get_ai_response(self, user_message, channel_name):
+    async def get_ai_response(self, user_message, channel_name, guild_id=None):
         try:
             # Ensure history directory exists
             try:
@@ -1148,22 +1160,30 @@ class BotOfTheSpecter(commands.Bot):
                 self.logger.error(f"Failed to parse system instructions JSON: {e}")
             # Add a system message to tell the AI which Discord user/channel it's speaking to
             try:
-                user_context = f"You are speaking to Discord user in channel '{channel_name}'. Address them politely and keep responses concise and suitable for Discord chat."
+                if guild_id:
+                    user_context = f"You are speaking to Discord user in a server channel '{channel_name}'. Address them politely and keep responses concise and suitable for Discord chat."
+                else:
+                    user_context = f"You are speaking to Discord user in DM channel '{channel_name}'. Address them politely and keep responses concise and suitable for Discord chat."
                 messages.append({'role': 'system', 'content': user_context})
                 limiter = f"Important: Keep your final reply under {MAX_CHAT_MESSAGE_LENGTH} characters total so it fits in one Discord message. If you need to be concise, prefer short sentences and avoid long lists."
                 messages.append({'role': 'system', 'content': limiter})
             except Exception as e:
                 self.logger.debug(f"Failed to build user context for AI: {e}")
             # Load per-channel/user chat history and insert as prior messages
+            # If guild_id is provided, use guild_id_user_id.json format, otherwise use channel_name.json
             try:
-                history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
+                if guild_id:
+                    history_filename = f"{guild_id}_{channel_name}.json"
+                else:
+                    history_filename = f"{channel_name}.json"
+                history_file = Path(HISTORY_DIR) / history_filename
                 history = []
                 if history_file.exists():
                     try:
                         with history_file.open('r', encoding='utf-8') as hf:
                             history = json.load(hf)
                     except Exception as e:
-                        self.logger.debug(f"Failed to read history for {channel_name}: {e}")
+                        self.logger.debug(f"Failed to read history for {history_filename}: {e}")
                 # History is expected to be a list of {role: 'user'|'assistant', content: '...'}
                 if isinstance(history, list) and len(history) > 0:
                     recent = history[-8:]
@@ -1171,7 +1191,7 @@ class BotOfTheSpecter(commands.Bot):
                         if isinstance(item, dict) and 'role' in item and 'content' in item:
                             messages.append({'role': item['role'], 'content': item['content']})
             except Exception as e:
-                self.logger.debug(f"Error loading chat history for {channel_name}: {e}")
+                self.logger.debug(f"Error loading chat history: {e}")
             # Append the current user message as the latest user turn
             messages.append({'role': 'user', 'content': user_message})
             # Ensure openai client is available
@@ -1216,14 +1236,18 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.info("AI response received from chat completion")
             # Persist the user message and AI response to per-user history
             try:
-                history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
+                if guild_id:
+                    history_filename = f"{guild_id}_{channel_name}.json"
+                else:
+                    history_filename = f"{channel_name}.json"
+                history_file = Path(HISTORY_DIR) / history_filename
                 history = []
                 if history_file.exists():
                     try:
                         with history_file.open('r', encoding='utf-8') as hf:
                             history = json.load(hf)
                     except Exception as e:
-                        self.logger.debug(f"Failed to read existing history for append {channel_name}: {e}")
+                        self.logger.debug(f"Failed to read existing history for append {history_filename}: {e}")
                 history.append({'role': 'user', 'content': user_message})
                 history.append({'role': 'assistant', 'content': ai_text})
                 if len(history) > 200:
@@ -1232,9 +1256,9 @@ class BotOfTheSpecter(commands.Bot):
                     with history_file.open('w', encoding='utf-8') as hf:
                         json.dump(history, hf, ensure_ascii=False, indent=2)
                 except Exception as e:
-                    self.logger.debug(f"Failed to write history for {channel_name}: {e}")
+                    self.logger.debug(f"Failed to write history for {history_filename}: {e}")
             except Exception as e:
-                self.logger.debug(f"Error while persisting chat history for {channel_name}: {e}")
+                self.logger.debug(f"Error while persisting chat history: {e}")
             # Split into chunks that fit within Discord's message limit and return
             try:
                 chunks = split_message_preserve_markdown(ai_text, MAX_CHAT_MESSAGE_LENGTH)
@@ -1246,7 +1270,7 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.error(f"Unexpected error in get_ai_response: {e}")
             return ["Sorry, I encountered an error processing your request."]
 
-    async def get_ai_response_stream(self, user_message, channel_name):
+    async def get_ai_response_stream(self, user_message, channel_name, guild_id=None):
         try:
             # Ensure history directory exists
             try:
@@ -1289,7 +1313,10 @@ class BotOfTheSpecter(commands.Bot):
                 self.logger.error(f"Failed to parse system instructions JSON: {e}")
             # Add a system message to tell the AI which Discord user/channel it's speaking to
             try:
-                user_context = f"You are speaking to Discord user in channel '{channel_name}'. Address them politely and keep responses concise and suitable for Discord chat."
+                if guild_id:
+                    user_context = f"You are speaking to Discord user in a server channel '{channel_name}'. Address them politely and keep responses concise and suitable for Discord chat."
+                else:
+                    user_context = f"You are speaking to Discord user in DM channel '{channel_name}'. Address them politely and keep responses concise and suitable for Discord chat."
                 messages.append({'role': 'system', 'content': user_context})
                 limiter = f"Important: Keep your final reply under {MAX_CHAT_MESSAGE_LENGTH} characters total so it fits in one Discord message. If you need to be concise, prefer short sentences and avoid long lists."
                 messages.append({'role': 'system', 'content': limiter})
@@ -1297,14 +1324,18 @@ class BotOfTheSpecter(commands.Bot):
                 self.logger.debug(f"Failed to build user context for AI stream: {e}")
             # Load per-channel/user chat history and insert as prior messages
             try:
-                history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
+                if guild_id:
+                    history_filename = f"{guild_id}_{channel_name}.json"
+                else:
+                    history_filename = f"{channel_name}.json"
+                history_file = Path(HISTORY_DIR) / history_filename
                 history = []
                 if history_file.exists():
                     try:
                         with history_file.open('r', encoding='utf-8') as hf:
                             history = json.load(hf)
                     except Exception as e:
-                        self.logger.debug(f"Failed to read history for {channel_name}: {e}")
+                        self.logger.debug(f"Failed to read history for {history_filename}: {e}")
                 # History is expected to be a list of {role: 'user'|'assistant', content: '...'}
                 if isinstance(history, list) and len(history) > 0:
                     recent = history[-8:]
@@ -1312,7 +1343,7 @@ class BotOfTheSpecter(commands.Bot):
                         if isinstance(item, dict) and 'role' in item and 'content' in item:
                             messages.append({'role': item['role'], 'content': item['content']})
             except Exception as e:
-                self.logger.debug(f"Error loading chat history for {channel_name} (stream): {e}")
+                self.logger.debug(f"Error loading chat history (stream): {e}")
             # Append the current user message as the latest user turn
             messages.append({'role': 'user', 'content': user_message})
             # Ensure openai client is available
@@ -1408,14 +1439,18 @@ class BotOfTheSpecter(commands.Bot):
                 # Persist the user message and final AI response to per-user history
                 try:
                     if buffer:
-                        history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
+                        if guild_id:
+                            history_filename = f"{guild_id}_{channel_name}.json"
+                        else:
+                            history_filename = f"{channel_name}.json"
+                        history_file = Path(HISTORY_DIR) / history_filename
                         history = []
                         if history_file.exists():
                             try:
                                 with history_file.open('r', encoding='utf-8') as hf:
                                     history = json.load(hf)
                             except Exception as e:
-                                self.logger.debug(f"Failed to read existing history for append {channel_name}: {e}")
+                                self.logger.debug(f"Failed to read existing history for append {history_filename}: {e}")
                         history.append({'role': 'user', 'content': user_message})
                         history.append({'role': 'assistant', 'content': buffer})
                         if len(history) > 200:
@@ -1424,160 +1459,16 @@ class BotOfTheSpecter(commands.Bot):
                             with history_file.open('w', encoding='utf-8') as hf:
                                 json.dump(history, hf, ensure_ascii=False, indent=2)
                         except Exception as e:
-                            self.logger.debug(f"Failed to write history for {channel_name}: {e}")
+                            self.logger.debug(f"Failed to write history for {history_filename}: {e}")
                         else:
                             try:
-                                self.logger.info(f"Persisted AI history for {channel_name} (len={len(buffer)})")
+                                self.logger.info(f"Persisted AI history for {history_filename} (len={len(buffer)})")
                                 full_response = buffer.replace(os.linesep, ' ')
-                                self.logger.info(f"Final AI response for {channel_name}: {full_response}")
+                                self.logger.info(f"Final AI response for {history_filename}: {full_response}")
                             except Exception:
                                 pass
                 except Exception as e:
-                    self.logger.debug(f"Error while persisting streamed chat history for {channel_name}: {e}")
-            except Exception as e:
-                self.logger.error(f"Error streaming chat completion: {e}")
-                yield "An error occurred while contacting the AI chat service."
-        except Exception as e:
-            self.logger.error(f"Unexpected error in get_ai_response_stream: {e}")
-            yield "Sorry, I encountered an error processing your request."
-            try:
-                history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
-                history = []
-                if history_file.exists():
-                    try:
-                        with history_file.open('r', encoding='utf-8') as hf:
-                            history = json.load(hf)
-                    except Exception as e:
-                        self.logger.debug(f"Failed to read history for {channel_name}: {e}")
-                # History is expected to be a list of {role: 'user'|'assistant', content: '...'}
-                if isinstance(history, list) and len(history) > 0:
-                    recent = history[-8:]
-                    for item in recent:
-                        if isinstance(item, dict) and 'role' in item and 'content' in item:
-                            messages.append({'role': item['role'], 'content': item['content']})
-            except Exception as e:
-                self.logger.debug(f"Error loading chat history for {channel_name} (stream): {e}")
-            # Append the current user message as the latest user turn
-            messages.append({'role': 'user', 'content': user_message})
-            # Ensure openai client is available
-            if not openai_client:
-                self.logger.error("OpenAI client is not configured (missing OPENAI_KEY)")
-                yield "AI service is not configured. Please contact the bot administrator."
-                return
-            # Try streaming from the AsyncOpenAI client if supported
-            try:
-                chat_client = getattr(openai_client, 'chat', None)
-                buffer = ""
-                streamed = False
-                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'stream'):
-                    self.logger.debug("Using openai_client.chat.completions.stream for streaming response")
-                    try:
-                        async with chat_client.completions.stream(model="gpt-5-nano", messages=messages) as stream:
-                            async for chunk in stream:
-                                # chunk shapes vary; try common fields
-                                delta = ""
-                                try:
-                                    if isinstance(chunk, dict):
-                                        choice = chunk.get('choices', [None])[0]
-                                        if choice:
-                                            delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
-                                    else:
-                                        # Some clients return objects with attributes
-                                        choice = getattr(chunk, 'choices', None)
-                                        if choice and len(choice) > 0:
-                                            delta = getattr(choice[0].delta, 'content', None) or getattr(choice[0], 'text', '')
-                                except Exception:
-                                    pass
-                                if delta:
-                                    buffer += delta
-                                    streamed = True
-                                    yield delta
-                    except Exception as e:
-                        self.logger.debug(f"Stream context failed for chat.completions.stream: {e}")
-                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'stream'):
-                    self.logger.debug("Using openai_client.chat_completions.stream for streaming response")
-                    try:
-                        async with openai_client.chat_completions.stream(model="gpt-5-nano", messages=messages) as stream:
-                            async for chunk in stream:
-                                delta = ""
-                                try:
-                                    if isinstance(chunk, dict):
-                                        choice = chunk.get('choices', [None])[0]
-                                        if choice:
-                                            delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
-                                    else:
-                                        choice = getattr(chunk, 'choices', None)
-                                        if choice and len(choice) > 0:
-                                            delta = getattr(choice[0].delta, 'content', None) or getattr(choice[0], 'text', '')
-                                except Exception:
-                                    pass
-                                if delta:
-                                    buffer += delta
-                                    streamed = True
-                                    yield delta
-                    except Exception as e:
-                        self.logger.debug(f"Stream context failed for chat_completions.stream: {e}")
-                # If streaming wasn't used or yielded nothing, fall back to the non-streaming path
-                if not streamed:
-                    self.logger.debug("Streaming not available or yielded no content; falling back to non-stream completion")
-                    # Attempt the same completion styles as the non-streaming function
-                    resp = None
-                    ai_text = None
-                    if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                        resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
-                        if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                            choice = resp['choices'][0]
-                            if 'message' in choice and 'content' in choice['message']:
-                                ai_text = choice['message']['content']
-                            elif 'text' in choice:
-                                ai_text = choice['text']
-                        else:
-                            choices = getattr(resp, 'choices', None)
-                            if choices and len(choices) > 0:
-                                ai_text = getattr(choices[0].message, 'content', None)
-                    elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                        resp = await openai_client.chat_completions.create(model="gpt-5-nano", messages=messages)
-                        if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                            ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
-                        else:
-                            choices = getattr(resp, 'choices', None)
-                            if choices and len(choices) > 0:
-                                ai_text = getattr(choices[0].message, 'content', None)
-                    if not ai_text:
-                        self.logger.error(f"Chat completion (fallback) returned no usable text: {resp}")
-                        yield "The AI chat service returned an unexpected response."
-                    else:
-                        buffer = ai_text
-                        yield ai_text
-                # Persist the user message and final AI response to per-user history
-                try:
-                    if buffer:
-                        history_file = Path(HISTORY_DIR) / f"{channel_name}.json"
-                        history = []
-                        if history_file.exists():
-                            try:
-                                with history_file.open('r', encoding='utf-8') as hf:
-                                    history = json.load(hf)
-                            except Exception as e:
-                                self.logger.debug(f"Failed to read existing history for append {channel_name}: {e}")
-                        history.append({'role': 'user', 'content': user_message})
-                        history.append({'role': 'assistant', 'content': buffer})
-                        if len(history) > 200:
-                            history = history[-200:]
-                        try:
-                            with history_file.open('w', encoding='utf-8') as hf:
-                                json.dump(history, hf, ensure_ascii=False, indent=2)
-                        except Exception as e:
-                            self.logger.debug(f"Failed to write history for {channel_name}: {e}")
-                        else:
-                            try:
-                                self.logger.info(f"Persisted AI history for {channel_name} (len={len(buffer)})")
-                                full_response = buffer.replace(os.linesep, ' ')
-                                self.logger.info(f"Final AI response for {channel_name}: {full_response}")
-                            except Exception:
-                                pass
-                except Exception as e:
-                    self.logger.debug(f"Error while persisting streamed chat history for {channel_name}: {e}")
+                    self.logger.debug(f"Error while persisting streamed chat history: {e}")
             except Exception as e:
                 self.logger.error(f"Error streaming chat completion: {e}")
                 yield "An error occurred while contacting the AI chat service."
@@ -1714,6 +1605,73 @@ class BotOfTheSpecter(commands.Bot):
                             return
             except Exception as e:
                 self.logger.error(f"Error in ticket-info message watcher: {e}")
+            # AI CHAT LOGIC - Check if message is directed at bot (mention or reply)
+            if self._is_message_directed_at_bot(message):
+                try:
+                    # Use guild_id and user_id for chat history file
+                    channel_identifier = str(message.author.id)
+                    guild_id = message.guild.id
+                    # Track if message was already processed to avoid duplicates
+                    message_id = str(message.id)
+                    try:
+                        with open(self.processed_messages_file, 'r') as file:
+                            processed_messages = file.read().splitlines()
+                        if message_id in processed_messages:
+                            self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
+                            return
+                    except FileNotFoundError:
+                        processed_messages = []
+                    user_input_for_ai = message.content or ""
+                    self.logger.info(f"Processing AI request from {message.author} in server {message.guild.name}: {message.content} (streaming)")
+                    # Show typing indicator
+                    async with message.channel.typing():
+                        buffer = ""
+                        try:
+                            # Stream the AI response
+                            async for delta in self.get_ai_response_stream(user_input_for_ai, channel_identifier, guild_id=guild_id):
+                                if not delta:
+                                    continue
+                                buffer += delta
+                            # Streaming finished. Send final content in one or more messages (chunked), replying to the user
+                            if buffer:
+                                chunks = split_message_preserve_markdown(buffer, MAX_CHAT_MESSAGE_LENGTH)
+                                for chunk in chunks:
+                                    # Simulate typing delay proportional to length for UX
+                                    typing_delay = len(chunk) / self.typing_speed
+                                    await asyncio.sleep(min(typing_delay, 3))
+                                    # Reply to the user's message so it's clear who it's for
+                                    await message.reply(chunk, mention_author=False)
+                            else:
+                                await message.reply("The AI did not return any text.", mention_author=False)
+                        except Exception as stream_exc:
+                            self.logger.error(f"Streaming failed: {stream_exc}; falling back to non-streaming send")
+                            # Fallback: call the non-streaming API and send chunks as before
+                            ai_responses = await self.get_ai_response(user_input_for_ai, channel_identifier, guild_id=guild_id)
+                            if ai_responses:
+                                for ai_response in ai_responses:
+                                    if ai_response:
+                                        typing_delay = len(ai_response) / self.typing_speed
+                                        await asyncio.sleep(typing_delay)
+                                        await message.reply(ai_response, mention_author=False)
+                                    else:
+                                        self.logger.error("AI response chunk was empty, not sending.")
+                    # Mark the message as processed
+                    with open(self.processed_messages_file, 'a') as file:
+                        file.write(message_id + os.linesep)
+                    return
+                except discord.HTTPException as e:
+                    self.logger.error(f"Failed to send message: {e}")
+                    try:
+                        await message.reply("Sorry, I failed to send my response. Please try again.", mention_author=False)
+                    except Exception:
+                        pass
+                except Exception as e:
+                    self.logger.error(f"Unexpected error in AI chat for server: {e}")
+                    try:
+                        await message.reply("Sorry, an error occurred processing your request.", mention_author=False)
+                    except Exception:
+                        pass
+                return  # Don't process further if we handled an AI request
             try:
                 # Auto-save logic for ticket channels - delegate to TicketCog
                 if hasattr(message.channel, "name") and message.channel.name.startswith("ticket-"):
