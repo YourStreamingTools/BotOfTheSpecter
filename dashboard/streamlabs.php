@@ -55,14 +55,14 @@ if (isset($_GET['error']) && $_GET['error'] === 'true') {
 
 // Handle OAuth callback
 if (isset($_GET['code'])) {
-    // Optional: Validate state parameter
+    // Validate state parameter
     if (!isset($_GET['state']) || !isset($_SESSION['streamlabs_oauth_state']) || $_GET['state'] !== $_SESSION['streamlabs_oauth_state']) {
         $linkingMessage = "Invalid state parameter. Please try again.";
         $linkingMessageType = "is-danger";
     } else {
         unset($_SESSION['streamlabs_oauth_state']);
         $code = $_GET['code'];
-        $token_url = "https://streamlabs.com/api/v1.0/token";
+        $token_url = "https://streamlabs.com/api/v2.0/token";
         $post_fields = http_build_query([
             'grant_type' => 'authorization_code',
             'client_id' => $client_id,
@@ -74,11 +74,14 @@ if (isset($_GET['code'])) {
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/x-www-form-urlencoded'
         ]);
         $response = curl_exec($ch);
         $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
         curl_close($ch);
         $token_data = json_decode($response, true);
         if ($httpcode === 200 && isset($token_data['access_token'])) {
@@ -103,12 +106,12 @@ if (isset($_GET['code'])) {
                         header("Location: streamlabs.php");
                         exit();
                     } else { 
-                        $linkingMessage = "Linked, but failed to save tokens.";
+                        $linkingMessage = "Linked, but failed to save tokens. Error: " . $stmt->error;
                         $linkingMessageType = "is-warning";
                     }
                     $stmt->close();
                 } else { 
-                    $linkingMessage = "Linked, but failed to prepare statement.";
+                    $linkingMessage = "Linked, but failed to prepare statement. Error: " . $conn->error;
                     $linkingMessageType = "is-warning";
                 }
             } else { 
@@ -133,82 +136,24 @@ $authURL = '';
 if (!$isLinked) {
     $state = bin2hex(random_bytes(16));
     $_SESSION['streamlabs_oauth_state'] = $state;
-    $authURL = "https://streamlabs.com/api/v1.0/authorize"
+    $authURL = "https://streamlabs.com/api/v2.0/authorize"
         . "?response_type=code"
-        . "&client_id={$client_id}"
+        . "&client_id=" . urlencode($client_id)
         . "&redirect_uri=" . urlencode($redirect_uri)
         . "&scope=" . urlencode($scope)
-        . "&state={$state}";
-}
-
-// Function to refresh StreamLabs access token
-function refreshStreamLabsToken($refresh_token, $client_id, $client_secret, $redirect_uri) {
-    $token_url = "https://streamlabs.com/api/v1.0/token";
-    $post_fields = http_build_query([
-        'grant_type' => 'refresh_token',
-        'client_id' => $client_id,
-        'client_secret' => $client_secret,
-        'redirect_uri' => $redirect_uri,
-        'refresh_token' => $refresh_token
-    ]);
-    $ch = curl_init($token_url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/x-www-form-urlencoded'
-    ]);
-    $response = curl_exec($ch);
-    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($httpcode === 200) {
-        $token_data = json_decode($response, true);
-        if (isset($token_data['access_token'])) {
-            return $token_data;
-        }
-    }
-    return null;
-}
-
-// Function to check and refresh token if expired before making API calls
-function ensureValidToken(&$access_token, &$refresh_token, &$expires_in, &$token_created_at, $client_id, $client_secret, $redirect_uri, $conn, $twitchUserId) {
-    $now = time();
-    // Check if token is expired: created_at + expires_in < now()
-    if (($token_created_at + $expires_in) < $now) {
-        // Token is expired, refresh it
-        $refreshed_token = refreshStreamLabsToken($refresh_token, $client_id, $client_secret, $redirect_uri);
-        if ($refreshed_token && isset($refreshed_token['access_token'])) {
-            // Update variables with new token data
-            $access_token = $refreshed_token['access_token'];
-            $refresh_token = $refreshed_token['refresh_token'] ?? $refresh_token;
-            $expires_in = (int)($refreshed_token['expires_in'] ?? 3600);
-            $token_created_at = time();
-            
-            // Update database with new tokens
-            $update_stmt = $conn->prepare("UPDATE streamlabs_tokens SET access_token = ?, refresh_token = ?, expires_in = ?, created_at = ? WHERE twitch_user_id = ?");
-            if ($update_stmt) {
-                $update_stmt->bind_param('sssii', $access_token, $refresh_token, $expires_in, $token_created_at, $twitchUserId);
-                $update_stmt->execute();
-                $update_stmt->close();
-            }
-            return true;
-        }
-        return false;
-    }
-    return true; // Token is still valid
+        . "&state=" . urlencode($state);
 }
 
 // Fetch recent donations if user is linked
 $recentDonations = [];
 $donations_code = null;
 if ($isLinked && isset($access_token) && !empty($access_token)) {
-    // Check and refresh token if expired before making API call
-    ensureValidToken($access_token, $refresh_token, $expires_in, $token_created_at, $client_id, $client_secret, $redirect_uri, $conn, $twitchUserId);
-    $donations_url = "https://streamlabs.com/api/v1.0/donations?access_token=" . urlencode($access_token) . "&limit=100&currency=USD";
+    $donations_url = "https://streamlabs.com/api/v2.0/donations?limit=100&currency=USD";
     $ch = curl_init($donations_url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Accept: application/json"
+        "Accept: application/json",
+        "Authorization: Bearer " . $access_token
     ]);
     $donations_response = curl_exec($ch);
     $donations_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -225,13 +170,12 @@ if ($isLinked && isset($access_token) && !empty($access_token)) {
 $socketToken = null;
 $socketTokenCode = null;
 if ($isLinked && isset($access_token) && !empty($access_token)) {
-    // Check and refresh token if expired before making API call
-    ensureValidToken($access_token, $refresh_token, $expires_in, $token_created_at, $client_id, $client_secret, $redirect_uri, $conn, $twitchUserId);
-    $socket_token_url = "https://streamlabs.com/api/v1.0/socket/token?access_token=" . urlencode($access_token);
+    $socket_token_url = "https://streamlabs.com/api/v2.0/socket/token";
     $ch = curl_init($socket_token_url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Accept: application/json"
+        "Accept: application/json",
+        "Authorization: Bearer " . $access_token
     ]);
     $socket_token_response = curl_exec($ch);
     $socketTokenCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -248,13 +192,12 @@ if ($isLinked && isset($access_token) && !empty($access_token)) {
 $userData = null;
 $userDataCode = null;
 if ($isLinked && isset($access_token) && !empty($access_token)) {
-    // Check and refresh token if expired before making API call
-    ensureValidToken($access_token, $refresh_token, $expires_in, $token_created_at, $client_id, $client_secret, $redirect_uri, $conn, $twitchUserId);
-    $user_url = "https://streamlabs.com/api/v1.0/user?access_token=" . urlencode($access_token);
+    $user_url = "https://streamlabs.com/api/v2.0/user";
     $ch = curl_init($user_url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Accept: application/json"
+        "Accept: application/json",
+        "Authorization: Bearer " . $access_token
     ]);
     $user_response = curl_exec($ch);
     $userDataCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -271,7 +214,7 @@ ob_start();
 ?>
 <div class="columns is-centered">
     <div class="column is-fullwidth">
-        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);">
             <header class="card-header" style="border-bottom: 1px solid #23272f;">
                 <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
                     <span class="card-header-title is-size-4 has-text-white" style="font-weight:700; flex-shrink: 0;">
@@ -293,9 +236,9 @@ ob_start();
                     </div>
                 </div>
             </header>
-            <div class="card-content">
+            <div class="card-content" style="padding: 2rem;">
                 <?php if ($linkingMessage): ?>
-                    <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?> is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
+                    <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?> is-light" style="border-radius: 8px; margin-bottom: 2rem;">
                         <span class="icon">
                             <?php if ($linkingMessageType === 'is-danger'): ?>
                                 <i class="fas fa-exclamation-triangle"></i>
@@ -310,29 +253,29 @@ ob_start();
                 <?php endif; ?>
                 <?php if ($isLinked): ?>
                     <!-- Account status text -->
-                    <div class="has-text-centered mb-5" style="padding: 1rem 2rem 2rem;">
-                        <p class="subtitle is-6 has-text-grey-light mb-4" style="max-width: 600px; margin: 0 auto;">
-                            Your StreamLabs account is successfully linked to your profile.
+                    <div class="has-text-centered mb-6" style="padding: 1rem 0;">
+                        <p class="subtitle is-6 has-text-grey-light" style="max-width: 600px; margin: 0 auto;">
+                            Your StreamLabs account is successfully linked to your profile and ready to track donations.
                         </p>
                     </div>
                     <!-- User Information section -->
                     <?php if ($userData): ?>
-                        <div style="margin: 0 auto 2rem; max-width: 600px;">
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-                                <div class="card-content" style="padding: 1.5rem;">
-                                    <p class="subtitle is-6 has-text-white mb-3">StreamLabs Account Information</p>
-                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="margin: 0 auto 2.5rem; max-width: 700px;">
+                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                                <div class="card-content" style="padding: 1.75rem;">
+                                    <p class="subtitle is-6 has-text-white mb-4" style="margin-bottom: 1.25rem;">StreamLabs Account</p>
+                                    <div style="display: flex; flex-direction: column; gap: 1rem;">
                                         <?php if (isset($userData['twitch'])): ?>
-                                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                                <span style="color: #8b93a1; min-width: 120px;">Twitch ID:</span>
+                                            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                                                <span style="color: #8b93a1; min-width: 100px; font-size: 0.95rem;">Twitch ID:</span>
                                                 <span style="color: #e2e8f0; font-weight: 500;"><?php echo htmlspecialchars($userData['twitch']['id'] ?? 'N/A'); ?></span>
                                             </div>
-                                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                                <span style="color: #8b93a1; min-width: 120px;">Display Name:</span>
+                                            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                                                <span style="color: #8b93a1; min-width: 100px; font-size: 0.95rem;">Display Name:</span>
                                                 <span style="color: #e2e8f0; font-weight: 500;"><?php echo htmlspecialchars($userData['twitch']['display_name'] ?? 'N/A'); ?></span>
                                             </div>
-                                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                                <span style="color: #8b93a1; min-width: 120px;">Username:</span>
+                                            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                                                <span style="color: #8b93a1; min-width: 100px; font-size: 0.95rem;">Username:</span>
                                                 <span style="color: #e2e8f0; font-weight: 500;"><?php echo htmlspecialchars($userData['twitch']['name'] ?? 'N/A'); ?></span>
                                             </div>
                                         <?php endif; ?>
@@ -341,79 +284,77 @@ ob_start();
                             </div>
                         </div>
                     <?php endif; ?>
-                    <!-- Access Token section -->
-                    <?php if ($access_token): ?>
-                        <div style="margin: 0 auto; max-width: 600px;">
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-                                <div class="card-content" style="padding: 1.5rem;">
-                                    <div class="is-flex is-justify-content-space-between is-align-items-center mb-3">
+                    <!-- Tokens section -->
+                    <div style="margin: 0 auto 2.5rem; max-width: 700px;">
+                        <!-- Access Token -->
+                        <?php if ($access_token): ?>
+                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); margin-bottom: 1.5rem;">
+                                <div class="card-content" style="padding: 1.75rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                                         <p class="subtitle is-6 has-text-white" style="margin: 0;">Access Token</p>
-                                        <button class="button is-warning is-small" id="showAccessTokenBtn" title="Show Access Token" style="border-radius: 6px;">
+                                        <button class="button is-warning is-small" id="showAccessTokenBtn" title="Show Access Token" style="border-radius: 6px; transition: all 0.2s ease;">
                                             <span class="icon is-small">
                                                 <i class="fas fa-eye" id="accessTokenEye"></i>
                                             </span>
                                         </button>
                                     </div>
-                                    <input type="text" id="accessTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($access_token)); ?>" readonly style="border-radius: 6px; background-color: #2a2a2a; border-color: #363636; color: #00d1b2; font-family: monospace; font-size: 0.85rem;">
+                                    <input type="text" id="accessTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($access_token)); ?>" readonly style="border-radius: 6px; background-color: #1a1a1a; border-color: #363636; color: #00d1b2; font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                                 </div>
                             </div>
-                        </div>
-                    <?php endif; ?>
-                    <!-- Socket Token section -->
-                    <?php if ($socketToken): ?>
-                        <div style="margin: 1rem auto 0; max-width: 600px;">
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-                                <div class="card-content" style="padding: 1.5rem;">
-                                    <div class="is-flex is-justify-content-space-between is-align-items-center mb-3">
+                        <?php endif; ?>
+                        <!-- Socket Token -->
+                        <?php if ($socketToken): ?>
+                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                                <div class="card-content" style="padding: 1.75rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                                         <p class="subtitle is-6 has-text-white" style="margin: 0;">Socket Token (Real-time Events)</p>
-                                        <button class="button is-info is-small" id="showSocketTokenBtn" title="Show Socket Token" style="border-radius: 6px;">
+                                        <button class="button is-info is-small" id="showSocketTokenBtn" title="Show Socket Token" style="border-radius: 6px; transition: all 0.2s ease;">
                                             <span class="icon is-small">
                                                 <i class="fas fa-eye" id="socketTokenEye"></i>
                                             </span>
                                         </button>
                                     </div>
-                                    <input type="text" id="socketTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($socketToken)); ?>" readonly style="border-radius: 6px; background-color: #2a2a2a; border-color: #363636; color: #3273dc; font-family: monospace; font-size: 0.85rem;">
+                                    <input type="text" id="socketTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($socketToken)); ?>" readonly style="border-radius: 6px; background-color: #1a1a1a; border-color: #363636; color: #3273dc; font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                                 </div>
                             </div>
-                        </div>
-                    <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
                     <!-- Recent Donations section -->
                     <?php if (!empty($recentDonations)): ?>
                         <div style="margin: 2rem auto 0; width: 100%;">
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-                                <div class="card-content" style="padding: 1.5rem;">
-                                    <p class="subtitle is-6 has-text-white mb-4">Recent Donations (Latest 100)</p>
-                                    <div style="overflow-x: auto;">
-                                        <table class="table is-fullwidth" style="background-color: transparent; border-collapse: collapse;">
+                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); overflow: hidden;">
+                                <div class="card-content" style="padding: 1.75rem;">
+                                    <p class="subtitle is-6 has-text-white mb-4" style="margin-bottom: 1.25rem;">Recent Donations <span style="color: #8b93a1; font-size: 0.85rem;">(Latest <?php echo min(20, count($recentDonations)); ?>)</span></p>
+                                    <div style="overflow-x: auto; border-radius: 8px; background-color: rgba(0,0,0,0.2);">
+                                        <table class="table is-fullwidth" style="background-color: transparent; border-collapse: collapse; margin: 0;">
                                             <thead>
-                                                <tr style="border-bottom: 2px solid #363636;">
-                                                    <th style="color: #b5bdc4; padding: 0.75rem; text-align: left;">Donor</th>
-                                                    <th style="color: #b5bdc4; padding: 0.75rem; text-align: right;">Amount</th>
-                                                    <th style="color: #b5bdc4; padding: 0.75rem; text-align: left;">Message</th>
-                                                    <th style="color: #b5bdc4; padding: 0.75rem; text-align: left;">Date</th>
+                                                <tr style="border-bottom: 2px solid #363636; background-color: rgba(0,0,0,0.1);">
+                                                    <th style="color: #b5bdc4; padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Donor</th>
+                                                    <th style="color: #b5bdc4; padding: 1rem 0.75rem; text-align: right; font-weight: 600; font-size: 0.9rem;">Amount</th>
+                                                    <th style="color: #b5bdc4; padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Message</th>
+                                                    <th style="color: #b5bdc4; padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Date</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <?php foreach (array_slice($recentDonations, 0, 20) as $donation): ?>
-                                                    <tr style="border-bottom: 1px solid #2a2a2a; transition: background-color 0.2s;">
-                                                        <td style="color: #e2e8f0; padding: 0.75rem; text-align: left;">
-                                                            <?php echo htmlspecialchars($donation['name'] ?? 'Anonymous'); ?>
+                                                    <tr style="border-bottom: 1px solid rgba(35, 39, 47, 0.5); transition: background-color 0.2s ease;">
+                                                        <td style="color: #e2e8f0; padding: 0.95rem 0.75rem; text-align: left;">
+                                                            <strong><?php echo htmlspecialchars($donation['name'] ?? 'Anonymous'); ?></strong>
                                                         </td>
-                                                        <td style="color: #00d1b2; padding: 0.75rem; text-align: right; font-weight: 600;">
+                                                        <td style="color: #00d1b2; padding: 0.95rem 0.75rem; text-align: right; font-weight: 600;">
                                                             <?php echo htmlspecialchars($donation['currency'] ?? '$'); ?><?php echo htmlspecialchars(number_format($donation['amount'] ?? 0, 2)); ?>
                                                         </td>
-                                                        <td style="color: #b5bdc4; padding: 0.75rem; text-align: left; max-width: 300px; word-break: break-word;">
+                                                        <td style="color: #b5bdc4; padding: 0.95rem 0.75rem; text-align: left; max-width: 250px; word-break: break-word;">
                                                             <?php echo htmlspecialchars($donation['message'] ?? 'No message'); ?>
                                                         </td>
-                                                        <td style="color: #8b93a1; padding: 0.75rem; text-align: left; white-space: nowrap;">
+                                                        <td style="color: #8b93a1; padding: 0.95rem 0.75rem; text-align: left; white-space: nowrap; font-size: 0.9rem;">
                                                             <?php 
                                                             if (isset($donation['created_at'])) {
                                                                 try {
-                                                                    // created_at is a Unix timestamp
                                                                     $timestamp = (int)$donation['created_at'];
                                                                     $dt = new DateTime();
                                                                     $dt->setTimestamp($timestamp);
-                                                                    echo htmlspecialchars($dt->format('M j, Y H:i'));
+                                                                    echo htmlspecialchars($dt->format('M j, Y'));
                                                                 } catch (Exception $e) {
                                                                     echo htmlspecialchars($donation['created_at']);
                                                                 }
@@ -429,33 +370,38 @@ ob_start();
                             </div>
                         </div>
                     <?php endif; ?>
-                    <!-- Debug section for donations -->
-                    <?php if ($isLinked && isset($access_token)): ?>
-                        <?php if (empty($recentDonations)): ?>
-                            <div style="margin: 2rem auto 0; max-width: 1600px;">
-                                <div class="notification is-warning is-light" style="border-radius: 8px;">
-                                    <p class="has-text-weight-semibold">No donations found</p>
-                                    <p style="margin-top: 0.5rem;">There are no recent donations to display, or the API request encountered an issue.</p>
-                                    <?php if ($donations_code !== 200 && $donations_code !== null): ?>
-                                        <p style="margin-top: 0.5rem; font-size: 0.85rem; color: #7a6521;">API Response Code: <?php echo $donations_code; ?></p>
-                                    <?php endif; ?>
+                    <!-- Empty donations message -->
+                    <?php if (empty($recentDonations) && $isLinked && isset($access_token)): ?>
+                        <div style="margin: 2rem auto 0; max-width: 700px;">
+                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px dashed #363636; text-align: center; padding: 2.5rem 1.5rem;">
+                                <div style="color: #8b93a1;">
+                                    <p class="icon mb-2" style="font-size: 2rem;">
+                                        <i class="fas fa-inbox"></i>
+                                    </p>
+                                    <p class="has-text-weight-semibold" style="color: #b5bdc4;">No donations yet</p>
+                                    <p style="margin-top: 0.5rem; font-size: 0.9rem;">When you receive donations, they will appear here.</p>
                                 </div>
                             </div>
-                        <?php endif; ?>
+                        </div>
                     <?php endif; ?>
                 <?php else: ?>
                     <!-- Not linked display -->
                     <div class="has-text-centered">
-                        <div class="content has-text-white mb-5" style="margin: 0 auto;">
-                            <p>Connect your StreamLabs account to enable donation tracking and integration features.</p>
-                            <div class="box has-background-grey-darker has-text-centered" style="max-width: 600px; margin: 0 auto; border-radius: 8px; border: 1px solid #363636;">
-                                <p class="is-size-6 has-text-grey-light">
-                                    StreamLabs allows you to track donations and integrate them with your bot for real-time updates.
-                                </p>
+                        <div style="padding: 2rem 0;">
+                            <p style="font-size: 1.1rem; margin-bottom: 2rem;">Connect your StreamLabs account to enable donation tracking and integration features.</p>
+                            <div class="card has-background-grey-darker" style="max-width: 550px; margin: 0 auto 2.5rem; border-radius: 8px; border: 1px solid #363636;">
+                                <div class="card-content" style="padding: 2rem;">
+                                    <div style="font-size: 2.5rem; margin-bottom: 1rem; color: #8b93a1;">
+                                        <i class="fas fa-link"></i>
+                                    </div>
+                                    <p class="is-size-6 has-text-grey-light">
+                                        Link your StreamLabs account to automatically track and display donations on your dashboard.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                         <?php if ($authURL): ?>
-                            <a href="<?php echo $authURL; ?>" class="button is-info is-large" style="border-radius: 8px; font-weight: 600;">
+                            <a href="<?php echo $authURL; ?>" class="button is-info is-large" style="border-radius: 8px; font-weight: 600; box-shadow: 0 4px 12px rgba(50, 115, 220, 0.3); transition: all 0.3s ease;">
                                 <span class="icon mr-2">
                                     <i class="fas fa-link"></i>
                                 </span>
