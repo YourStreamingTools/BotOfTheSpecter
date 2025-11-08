@@ -811,11 +811,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Renew chat token
     if (renewChatBtn) {
         renewChatBtn.addEventListener('click', function() {
-            // Prefill with configured chat user id if available
-            const prefillUser = "<?php echo addslashes($twitch_chat_user_id ?? $twitch_user_id ?? ''); ?>";
-            const userId = window.prompt('Enter the Twitch user id to renew the chat token for:', prefillUser);
-            if (!userId) return;
-            renewChatToken(userId);
+            // Generate a new token using client credentials (same as "Generate App Access Token")
+            const clientId = document.getElementById('client-id').value.trim();
+            const clientSecret = document.getElementById('client-secret').value.trim();
+            if (!clientId || !clientSecret) {
+                Swal.fire({
+                    title: 'Missing Credentials',
+                    text: 'Please enter both Client ID and Client Secret above to renew the chat token.',
+                    icon: 'warning'
+                });
+                return;
+            }
+            renewChatToken(clientId, clientSecret);
         });
     }
     generateBtn.addEventListener('click', async function() {
@@ -1124,31 +1131,33 @@ function renewToken(userId, tokenId) {
     });
 }
 
-function renewChatToken(userId) {
+function renewChatToken(clientId, clientSecret) {
     const resultBox = document.getElementById('chat-token-result');
     const resultContent = document.getElementById('chat-token-content');
     const validateBtn = document.getElementById('validate-chat-btn');
     const renewBtn = document.getElementById('renew-chat-btn');
     if (renewBtn) { renewBtn.disabled = true; renewBtn.classList.add('is-loading'); }
     if (validateBtn) { validateBtn.disabled = true; }
-    resultContent.innerHTML = '<p>Renewing token...</p>';
+    resultContent.innerHTML = '<p>Generating new chat token...</p>';
     resultBox.classList.remove('is-hidden');
     const formData = new FormData();
-    formData.append('renew_token', '1');
-    formData.append('twitch_user_id', userId);
+    formData.append('generate_token', '1');
+    formData.append('client_id', clientId);
+    formData.append('client_secret', clientSecret);
     fetch('', { method: 'POST', body: formData })
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.new_token) {
-                const newToken = data.new_token;
-                // If token unchanged, show brief message and hide token field
-                if (newToken === chatToken) {
-                    resultContent.innerHTML = '<p class="has-text-info">Token renewed but is unchanged from the currently configured chat token.</p>';
-                } else {
-                    chatToken = newToken; // update for future validation
-                    // Show masked input with eye toggle and copy
-                    resultContent.innerHTML = `
-                        <h4 class="title is-6">Chat Token Renewed</h4>
+            if (data.success && data.access_token) {
+                const newToken = data.access_token;
+                const expiresIn = data.expires_in || 0;
+                chatToken = newToken; // update for future validation
+                const dateOptions = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+                const expiryDate = new Date(Date.now() + expiresIn * 1000).toLocaleString('en-AU', dateOptions);
+                // Show masked input with eye toggle and copy
+                resultContent.innerHTML = `
+                    <div class="notification is-success is-light">
+                        <p><strong>✓ New Chat Token Generated Successfully</strong></p>
+                        <p class="mt-3"><strong>Token:</strong></p>
                         <div class="field has-addons">
                             <div class="control is-expanded">
                                 <input class="input" type="password" id="chat-token-input" value="${newToken}" readonly>
@@ -1157,26 +1166,27 @@ function renewChatToken(userId) {
                                 <button class="button" id="toggle-chat-eye" title="Show/Hide Token"><span class="icon"><i class="fas fa-eye"></i></span></button>
                             </div>
                             <div class="control">
-                                <button class="button is-small" id="copy-chat-token"><span class="icon"><i class="fas fa-copy"></i></span></button>
+                                <button class="button" id="copy-chat-token"><span class="icon"><i class="fas fa-copy"></i></span></button>
                             </div>
                         </div>
-                        <p class="help">The token is masked by default. Click the eye to reveal.</p>
-                    `;
-                    // attach handlers
-                    document.getElementById('toggle-chat-eye').addEventListener('click', function() {
-                        toggleChatTokenVisibility('chat-token-input', this.querySelector('i'));
-                    });
-                    document.getElementById('copy-chat-token').addEventListener('click', function() {
-                        copyChatToken('chat-token-input');
-                    });
-                }
+                        <p class="help">Token expires at: ${expiryDate}</p>
+                        <p class="help mt-2"><strong>⚠️ Important:</strong> Update your bot's configuration with this new token.</p>
+                    </div>
+                `;
+                // attach handlers
+                document.getElementById('toggle-chat-eye').addEventListener('click', function() {
+                    toggleChatTokenVisibility('chat-token-input', this.querySelector('i'));
+                });
+                document.getElementById('copy-chat-token').addEventListener('click', function() {
+                    copyChatToken('chat-token-input');
+                });
             } else {
-                const err = data.error || 'Failed to renew chat token.';
+                const err = data.error || 'Failed to generate new chat token.';
                 resultContent.innerHTML = `<p class="has-text-danger">${err}</p>`;
             }
         })
         .catch(() => {
-            resultContent.innerHTML = '<p class="has-text-danger">An error occurred while renewing the chat token.</p>';
+            resultContent.innerHTML = '<p class="has-text-danger">An error occurred while generating the chat token.</p>';
         })
         .finally(() => {
             if (renewBtn) { renewBtn.disabled = false; renewBtn.classList.remove('is-loading'); }
