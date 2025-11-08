@@ -298,6 +298,11 @@ ob_start();
                                             </div>
                                             <div class="level-right">
                                                 <div class="level-item">
+                                                    <button class="button is-info is-small" id="copyAccessTokenBtn" title="Copy Access Token" style="border-radius: 6px; transition: all 0.2s ease; margin-right: 0.5rem;">
+                                                        <span class="icon is-small">
+                                                            <i class="fas fa-copy" id="copyAccessTokenIcon"></i>
+                                                        </span>
+                                                    </button>
                                                     <button class="button is-warning is-small" id="showAccessTokenBtn" title="Show Access Token" style="border-radius: 6px; transition: all 0.2s ease;">
                                                         <span class="icon is-small">
                                                             <i class="fas fa-eye" id="accessTokenEye"></i>
@@ -324,6 +329,11 @@ ob_start();
                                             </div>
                                             <div class="level-right">
                                                 <div class="level-item">
+                                                    <button class="button is-info is-small" id="copySocketTokenBtn" title="Copy Socket Token" style="border-radius: 6px; transition: all 0.2s ease; margin-right: 0.5rem;">
+                                                        <span class="icon is-small">
+                                                            <i class="fas fa-copy" id="copySocketTokenIcon"></i>
+                                                        </span>
+                                                    </button>
                                                     <button class="button is-info is-small" id="showSocketTokenBtn" title="Show Socket Token" style="border-radius: 6px; transition: all 0.2s ease;">
                                                         <span class="icon is-small">
                                                             <i class="fas fa-eye" id="socketTokenEye"></i>
@@ -462,6 +472,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const accessBtn = document.getElementById('showAccessTokenBtn');
     const accessEye = document.getElementById('accessTokenEye');
     const accessDisplay = document.getElementById('accessTokenDisplay');
+    const copyAccessBtn = document.getElementById('copyAccessTokenBtn');
+    const copyAccessIcon = document.getElementById('copyAccessTokenIcon');
+    
+    if (copyAccessBtn) {
+        copyAccessBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(accessToken).then(() => {
+                copyAccessIcon.classList.remove('fa-copy');
+                copyAccessIcon.classList.add('fa-check');
+                copyAccessBtn.classList.add('is-success');
+                copyAccessBtn.classList.remove('is-info');
+                setTimeout(() => {
+                    copyAccessIcon.classList.add('fa-copy');
+                    copyAccessIcon.classList.remove('fa-check');
+                    copyAccessBtn.classList.remove('is-success');
+                    copyAccessBtn.classList.add('is-info');
+                }, 2000);
+            }).catch(() => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Copy Failed',
+                    text: 'Could not copy token to clipboard'
+                });
+            });
+        });
+    }
+    
     if (accessBtn && accessEye && accessDisplay) {
         accessBtn.addEventListener('click', function() {
             if (!accessTokenVisible) {
@@ -501,6 +537,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const socketBtn = document.getElementById('showSocketTokenBtn');
     const socketEye = document.getElementById('socketTokenEye');
     const socketDisplay = document.getElementById('socketTokenDisplay');
+    const copySocketBtn = document.getElementById('copySocketTokenBtn');
+    const copySocketIcon = document.getElementById('copySocketTokenIcon');
+    
+    if (copySocketBtn) {
+        copySocketBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(socketToken).then(() => {
+                copySocketIcon.classList.remove('fa-copy');
+                copySocketIcon.classList.add('fa-check');
+                copySocketBtn.classList.add('is-success');
+                copySocketBtn.classList.remove('is-info');
+                setTimeout(() => {
+                    copySocketIcon.classList.add('fa-copy');
+                    copySocketIcon.classList.remove('fa-check');
+                    copySocketBtn.classList.remove('is-success');
+                    copySocketBtn.classList.add('is-info');
+                }, 2000);
+            }).catch(() => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Copy Failed',
+                    text: 'Could not copy token to clipboard'
+                });
+            });
+        }
+    }
+    
     if (socketBtn && socketEye && socketDisplay) {
         socketBtn.addEventListener('click', function() {
             if (!socketTokenVisible) {
