@@ -131,31 +131,7 @@ ob_start();
                 </div>
                 <div class="notification is-info mb-5">
                     <div class="columns is-multiline">
-                        <div class="column is-6">
-                            <p class="has-text-weight-bold">
-                                <span class="icon"><i class="fas fa-tags"></i></span>
-                                <?php echo t('channel_rewards_builtin_tags_title'); ?>
-                            </p>
-                            <p>
-                                <?php echo t('channel_rewards_builtin_tags_desc'); ?>
-                            </p>
-                            <ul>
-                                <li>
-                                    <span class="icon"><i class="fas fa-comment-dots"></i></span>
-                                    <span class="has-text-weight-bold"><?php echo t('channel_rewards_fortunes'); ?></span>: <?php echo t('channel_rewards_fortunes_desc'); ?>
-                                </li>
-                                <li>
-                                    <span class="icon"><i class="fas fa-ticket-alt"></i></span>
-                                    <span class="has-text-weight-bold"><?php echo t('channel_rewards_lotto'); ?></span>: <?php echo t('channel_rewards_lotto_desc'); ?>
-                                </li>
-                                <li>
-                                    <span class="icon"><i class="fas fa-volume-up"></i></span>
-                                    <span class="has-text-weight-bold"><?php echo t('channel_rewards_tts'); ?></span>: <?php echo t('channel_rewards_tts_desc'); ?><br>
-                                    <?php echo t('channel_rewards_tts_overlay'); ?>
-                                </li>
-                            </ul>
-                        </div>
-                        <div class="column is-6">
+                        <div class="column is-12">
                             <p class="has-text-weight-bold">
                                 <span class="icon"><i class="fas fa-code"></i></span>
                                 <?php echo t('channel_rewards_custom_vars_title'); ?>
@@ -166,10 +142,10 @@ ob_start();
                                 <li><span class="has-text-weight-bold">(usercount)</span>: <?php echo t('channel_rewards_var_usercount'); ?></li>
                                 <li><span class="has-text-weight-bold">(userstreak)</span>: <?php echo t('channel_rewards_var_userstreak'); ?></li>
                                 <li><span class="has-text-weight-bold">(track)</span>: Tracks the internal usage count of the reward.</li>
-                                <li><span class="has-text-weight-bold" style="color: #A259FF;">(fortune)</span>: Replaces with a random fortune message.</li>
-                                <li><span class="has-text-weight-bold" style="color: #A259FF;">(lotto)</span>: Replaces with randomly generated lotto numbers.</li>
-                                <li><span class="has-text-weight-bold" style="color: #A259FF;">(tts)</span>: Sends the user input to text-to-speech (removes from message).</li>
-                                <li><span class="has-text-weight-bold" style="color: #A259FF;">(tts.message)</span>: Sends the final complete message to both chat and text-to-speech.</li>
+                                <li><span class="has-text-weight-bold">(fortune)</span>: Replaces with a random fortune message.</li>
+                                <li><span class="has-text-weight-bold">(lotto)</span>: Replaces with randomly generated lotto numbers.</li>
+                                <li><span class="has-text-weight-bold">(tts)</span>: Sends the user input to text-to-speech (removes from message).</li>
+                                <li><span class="has-text-weight-bold">(tts.message)</span>: Sends the final complete message to both chat and text-to-speech.</li>
                             </ul>
                         </div>
                     </div>
