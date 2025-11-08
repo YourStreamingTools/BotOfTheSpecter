@@ -328,23 +328,22 @@ class ObsHandler:
 
     async def handle_obs_event_received(self, sid, data):
         self.logger.info(f"OBS Event Received from SID [{sid}]: {data}")
-        # Broadcast OBS_EVENT_RECEIVED to all global listeners
-        await self.broadcast_with_globals("OBS_EVENT_RECEIVED", data, None)
+        # Extract the channel code from the data payload
+        code = data.get("code")
+        if not code:
+            # Fallback to getting code by sid if not in data
+            code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
+        self.logger.info(f"Broadcasting OBS_EVENT_RECEIVED with code: {code}")
+        # Broadcast OBS_EVENT_RECEIVED to all global listeners and specific channel
+        await self.broadcast_with_globals("OBS_EVENT_RECEIVED", data, code)
 
     async def handle_obs_request(self, sid, data):
-        """
-        Handle OBS_REQUEST - commands/actions being sent FROM Specter TO OBS.
-        Examples: set scene, toggle source visibility, start recording, etc.
-        """
         self.logger.info(f"OBS Request from SID [{sid}]: {data}")
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
-        
         request_type = data.get("request_type") or data.get("action")
         action_id = data.get("action_id") or data.get("id")
-        
         # Log the request for auditing
         self.logger.info(f"OBS Request: type={request_type}, action_id={action_id}, code={code}")
-        
         # Forward the request to OBS-connected client(s) for the same code
         if code and code in self.get_clients():
             forwarded_count = 0
@@ -354,7 +353,6 @@ class ObsHandler:
                     await self.sio.emit("OBS_REQUEST", data, to=client['sid'])
                     self.logger.info(f"Forwarded OBS request to {client['name']} [{client['sid']}]")
                     forwarded_count += 1
-            
             if forwarded_count == 0:
                 self.logger.warning(f"No OBS connector found for code {code} to forward request")
                 # Broadcast error back to requestor
