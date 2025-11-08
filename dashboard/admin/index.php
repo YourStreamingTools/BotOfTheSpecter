@@ -1193,7 +1193,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const safeId = 'bot-' + sanitizeId(bot.channel);
         let html = '<div class="column is-one-third" id="' + safeId + '" data-bot-id="' + safeId + '">';
         html += '<div class="box">';
-        html += '<div class="level">';
+        html += '<div class="level is-mobile">';
         html += '<div class="level-left">';
         html += '<div class="level-item">';
         if (profileImage) {
@@ -1210,18 +1210,18 @@ document.addEventListener('DOMContentLoaded', function() {
         html += '<p class="heading bot-channel">' + bot.channel + '</p>';
         html += '</div>';
         html += '</div>';
-        html += '<div class="level-right">';
-        html += '<div class="level-item">';
+        html += '</div>';
+        html += '<div class="columns is-multiline is-mobile is-gapless">';
+        html += '<div class="column is-full-mobile is-auto-tablet">';
         html += '<span class="tag bot-type-tag ' + tagClass + '">' + typeLabel + '</span>';
         html += '</div>';
-        html += '<div class="level-item">';
+        html += '<div class="column is-full-mobile is-auto-tablet">';
         html += '<span class="tag is-light has-text-black bot-pid">PID: ' + bot.pid + '</span>';
         html += '</div>';
-        html += '<div class="level-item">';
+        html += '<div class="column is-full-mobile is-auto-tablet">';
         html += '<button type="button" class="button is-danger is-small bot-stop-button" data-pid="' + bot.pid + '">';
         html += '<span class="icon"><i class="fas fa-stop"></i></span>';
         html += '</button>';
-        html += '</div>';
         html += '</div>';
         html += '</div>';
         html += '</div>';
