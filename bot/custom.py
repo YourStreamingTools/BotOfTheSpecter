@@ -12,6 +12,7 @@ from logging import getLogger
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
+from pathlib import Path
 
 # Third-party imports
 from websockets import connect as WebSocketConnect
@@ -37,6 +38,7 @@ from jokeapi import Jokes
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
+from openai import AsyncOpenAI
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -61,7 +63,7 @@ REFRESH_TOKEN = args.refresh_token
 OAUTH_TOKEN = f"oauth:{args.bot_auth_token}"
 API_TOKEN = args.api_token
 BOT_USERNAME = args.bot_username
-VERSION = "5.5.1"
+VERSION = "5.6"
 SYSTEM = "CUSTOM"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -76,6 +78,15 @@ SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_KEY')
+OPENAI_VECTOR_ID = os.getenv("OPENAI_VECTOR_ID")
+OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
+_cached_instructions = None
+_cached_instructions_time = 0
+INSTRUCTIONS_CACHE_TTL = int('300') # seconds
+HISTORY_DIR = '/home/botofthespecter/ai/chat-history'
+# Max allowed characters per chat message; reserve room for possible prefixes like @username
+MAX_CHAT_MESSAGE_LENGTH = 240
 SSH_USERNAME = os.getenv('SSH_USERNAME')
 SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 SSH_HOSTS = {
@@ -99,7 +110,7 @@ builtin_commands = {
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong", "wsstatus"
+    "skipsong", "wsstatus", "obs"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip"
@@ -180,6 +191,7 @@ message_tasks = {}                                      # Dictionary to track in
 # Initialize global variables
 specterSocket = AsyncClient()                           # Specter Socket Client instance
 streamelements_socket = AsyncClient()                   # StreamElements Socket Client instance
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)     # OpenAI client for AI responses
 bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
 next_spotify_refresh_time = None                        # Time for the next Spotify token refresh 
@@ -1094,7 +1106,7 @@ async def process_twitch_eventsub_message(message):
                             try:
                                 # Determine which user ID to use for the API request
                                 use_streamer = False  # Use bot token to make it appear as bot denied
-                                api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+                                api_user_id = CHANNEL_ID if use_streamer else "971436498"
                                 # Fetch settings from the twitch_bot_access table
                                 await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
                                 result = await cursor.fetchone()
@@ -1126,7 +1138,7 @@ async def process_twitch_eventsub_message(message):
                             try:
                                 # Determine which user ID to use for the API request
                                 use_streamer = False  # Use bot token to make it appear as bot denied
-                                api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+                                api_user_id = CHANNEL_ID if use_streamer else "971436498"
                                 # Fetch settings from the twitch_bot_access table
                                 await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
                                 result = await cursor.fetchone()
@@ -1379,6 +1391,29 @@ async def SYSTEM_UPDATE(data):
                     websocket_logger.error(f"Failed to fetch version data from API: HTTP {response.status}")
     except Exception as e:
         websocket_logger.error(f"Failed to process system update event: {e}")
+
+@specterSocket.event
+async def OBS_EVENT_RECEIVED(data):
+    websocket_logger.info(f"OBS event received: {data}")
+    try:
+        # Extract action and scene information from the data
+        action = data.get('action')
+        scene = data.get('scene')
+        # Handle set_current_program_scene action
+        if action == 'set_current_program_scene':
+            if scene:
+                websocket_logger.info(f"OBS scene successfully changed to: {scene}")
+                await send_chat_message(f"OBS scene changed to {scene}!")
+            else:
+                websocket_logger.warning("Scene change action received but no scene name provided")
+        # Handle other OBS actions as needed
+        elif action:
+            websocket_logger.info(f"OBS action executed: {action}")
+            await send_chat_message(f"OBS action executed: {action}")
+        else:
+            websocket_logger.warning(f"OBS event received but no action specified: {data}")
+    except Exception as e:
+        websocket_logger.error(f"Error processing OBS event: {e}", exc_info=True)
 
 # Helper function for manual websocket reconnection (can be called from commands)
 async def force_websocket_reconnect():
@@ -2374,37 +2409,279 @@ class TwitchBot(commands.Bot):
 
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id, message_author_name)
-        # Split the response if it's longer than 255 characters
-        messages = [ai_response[i:i+255] for i in range(0, len(ai_response), 255)]
-        # Send each part of the response as a separate message
+        if not ai_response:
+            return
+        # Normalize duplicate mentions that may be produced by the AI itself
+        try:
+            name = message_author_name or ''
+            if name:
+                # Collapse repeated adjacent @mentions of the same user (e.g. "@name @name," -> "@name,")
+                dup_pattern = re.compile(r'(@' + re.escape(name) + r'\b)(?:[\s,;:]+@' + re.escape(name) + r'\b)+', re.IGNORECASE)
+                ai_response = dup_pattern.sub(r'\1', ai_response)
+        except Exception as e:
+            api_logger.debug(f"Failed to normalize duplicate mentions: {e}")
+        # Split the response into message-sized chunks (max 255 chars)
+        messages = []
+        try:
+            text = ai_response.strip()
+            if not text:
+                messages = [""]
+            else:
+                # First, try splitting on sentence boundaries using punctuation
+                sentences = re.split(r'(?<=[\.\!\?])\s+', text)
+                current = ''
+                for sent in sentences:
+                    if not sent:
+                        continue
+                    # If adding the sentence keeps us under limit, append it
+                    if len(current) + (1 if current else 0) + len(sent) <= 255:
+                        current = (current + ' ' + sent).strip() if current else sent
+                    else:
+                        # Flush current if present
+                        if current:
+                            messages.append(current)
+                            current = ''
+                        # If the sentence itself is longer than limit, split by words
+                        if len(sent) > 255:
+                            words = re.split(r'\s+', sent)
+                            wcur = ''
+                            for w in words:
+                                if not w:
+                                    continue
+                                if len(wcur) + (1 if wcur else 0) + len(w) <= 255:
+                                    wcur = (wcur + ' ' + w).strip() if wcur else w
+                                else:
+                                    if wcur:
+                                        messages.append(wcur)
+                                    # If single word longer than 255, hard-split it
+                                    if len(w) > 255:
+                                        for i in range(0, len(w), 255):
+                                            messages.append(w[i:i+255])
+                                        wcur = ''
+                                    else:
+                                        wcur = w
+                            if wcur:
+                                messages.append(wcur)
+                        else:
+                            # Sentence fits within a chunk by itself
+                            messages.append(sent)
+                if current:
+                    messages.append(current)
+        except Exception as e:
+            api_logger.debug(f"Sentence-based chunking failed, falling back to simple splits: {e}")
+            messages = [ai_response[i:i+255] for i in range(0, len(ai_response), 255)]
+        # Send each part of the response as a separate message, addressing the user on the first message
+        first = True
+        # Precompute a full-response mention check to avoid double-prefixing
+        try:
+            full_lower = ai_response.lower()
+            mention_token = f"@{message_author_name.lower()}"
+            has_any_mention = mention_token in full_lower
+        except Exception:
+            has_any_mention = False
         for part in messages:
-            await send_chat_message(f"{part}")
+            part_to_send = part
+            if first:
+                # If any @username appears anywhere in the AI response, don't add another prefix
+                if has_any_mention:
+                    prefix = ''
+                else:
+                    # Fallback: check start-of-message patterns (in case of minor mismatches)
+                    trimmed = part.lstrip()
+                    lower_trim = trimmed.lower()
+                    name_mention = f"@{message_author_name.lower()}"
+                    name_plain = message_author_name.lower()
+                    already_addressed = False
+                    try:
+                        if lower_trim.startswith(name_mention) or lower_trim.startswith(name_mention + ',') or lower_trim.startswith(name_mention + ':'):
+                            already_addressed = True
+                        elif lower_trim.startswith(name_plain + ',') or lower_trim.startswith(name_plain + ':') or lower_trim == name_plain:
+                            already_addressed = True
+                    except Exception:
+                        already_addressed = False
+                    prefix = '' if already_addressed else f"@{message_author_name} "
+                # Calculate available space for this message after accounting for prefix
+                try:
+                    total_limit = 255
+                    available = total_limit - len(prefix)
+                    if available < 10:
+                        # Fallback to conservative default
+                        available = max(32, total_limit - len(prefix))
+                except Exception:
+                    available = 255
+                # If part is too long, truncate at last space within available-3 and append ellipsis
+                if len(part_to_send) > available:
+                    try:
+                        cut_at = part_to_send.rfind(' ', 0, max(0, available - 3))
+                        if cut_at == -1:
+                            # No space found; hard cut
+                            truncated = part_to_send[:max(0, available - 3)]
+                        else:
+                            truncated = part_to_send[:cut_at]
+                        part_to_send = (truncated.rstrip() + '...')
+                    except Exception:
+                        part_to_send = part_to_send[:max(0, available - 3)] + '...'
+                # Send with prefix if needed
+                if prefix:
+                    await send_chat_message(prefix + part_to_send)
+                else:
+                    await send_chat_message(part_to_send)
+                first = False
+            else:
+                # For subsequent parts, ensure they also respect the total limit
+                try:
+                    if len(part_to_send) > 255:
+                        cut_at = part_to_send.rfind(' ', 0, 252)
+                        if cut_at == -1:
+                            part_to_send = part_to_send[:252] + '...'
+                        else:
+                            part_to_send = part_to_send[:cut_at].rstrip() + '...'
+                except Exception:
+                    part_to_send = part_to_send[:255]
+                await send_chat_message(part_to_send)
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
-        global bot_owner
-        premium_tier = await check_premium_feature()
+        global INSTRUCTIONS_CACHE_TTL, OPENAI_INSTRUCTIONS_ENDPOINT, bot_owner
+        global OPENAI_VECTOR_ID
+        # Ensure history directory exists
+        try:
+            Path(HISTORY_DIR).mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            api_logger.debug(f"Could not create history directory {HISTORY_DIR}: {e}")
+        premium_tier = await check_premium_feature(message_author_name)
         # Allow bot owner access even without premium subscription
-        if premium_tier in (2000, 3000, 4000) or message_author_name.lower() == bot_owner.lower():
-            # Premium feature access granted or bot owner access
+        if premium_tier in (2000, 3000, 4000):
+            # Chat-based behavior: read system instructions JSON if available and call the chat completions API
+            messages = []
+            # Fetch system instructions from the remote endpoint with a small local cache
+            global _cached_instructions, _cached_instructions_time
+            sys_instr = None
             try:
-                async with httpClientSession() as session:
-                    payload = {
-                        "message": user_message,
-                        "channel": CHANNEL_NAME,
-                        "message_user": user_id
-                    }
-                    async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
-                        response.raise_for_status()
-                        ai_response = await response.text()
-                        api_logger.info(f"AI response received: {ai_response}")
-                        return ai_response
-            except aiohttpClientError as e:
-                api_logger.error(f"Error getting AI response: {e}")
-                return "Sorry, I could not understand your request."
+                now = time.time()
+                if _cached_instructions and (now - _cached_instructions_time) < INSTRUCTIONS_CACHE_TTL:
+                    sys_instr = _cached_instructions
+                else:
+                    api_logger.debug(f"Fetching system instructions from {OPENAI_INSTRUCTIONS_ENDPOINT}")
+                    async with httpClientSession() as session:
+                        try:
+                            async with session.get(OPENAI_INSTRUCTIONS_ENDPOINT, timeout=10) as resp:
+                                if resp.status == 200:
+                                    sys_instr = await resp.json()
+                                    _cached_instructions = sys_instr
+                                    _cached_instructions_time = now
+                                else:
+                                    api_logger.error(f"Failed to fetch instructions: HTTP {resp.status}")
+                        except Exception as e:
+                            api_logger.error(f"HTTP error fetching instructions: {e}")
+            except Exception as e:
+                api_logger.error(f"Error while loading system instructions: {e}")
+            # Accept several JSON shapes: list of messages, {system: '...'}, or {messages: [...]}
+            try:
+                if isinstance(sys_instr, list):
+                    messages.extend(sys_instr)
+                elif isinstance(sys_instr, dict):
+                    if 'system' in sys_instr and isinstance(sys_instr['system'], str):
+                        messages.append({'role': 'system', 'content': sys_instr['system']})
+                    elif 'messages' in sys_instr and isinstance(sys_instr['messages'], list):
+                        messages.extend(sys_instr['messages'])
+            except Exception as e:
+                api_logger.error(f"Failed to parse system instructions JSON: {e}")
+            # Add a system message to tell the AI which Twitch user it's speaking to
+            try:
+                user_context = f"You are speaking to Twitch user '{message_author_name}' (id: {user_id}). Address them by their display name @{message_author_name} and tailor the response to them. Keep responses concise and suitable for Twitch chat."
+                messages.append({'role': 'system', 'content': user_context})
+                # Instruct the AI to keep replies within the chat length limit
+                try:
+                    limiter = f"Important: Keep your final reply under {MAX_CHAT_MESSAGE_LENGTH} characters total so it fits in one Twitch chat message. If you need to be concise, prefer short sentences and avoid long lists."
+                    messages.append({'role': 'system', 'content': limiter})
+                except Exception:
+                    pass
+            except Exception as e:
+                api_logger.error(f"Failed to build user context for AI: {e}")
+            # Load per-user chat history and insert as prior messages
+            try:
+                history_file = Path(HISTORY_DIR) / f"{user_id}.json"
+                history = []
+                if history_file.exists():
+                    try:
+                        with history_file.open('r', encoding='utf-8') as hf:
+                            history = json.load(hf)
+                    except Exception as e:
+                        api_logger.debug(f"Failed to read history for {user_id}: {e}")
+                # History is expected to be a list of {role: 'user'|'assistant', content: '...'}
+                if isinstance(history, list) and len(history) > 0:
+                    # Keep only the last 8 turns to avoid long prompts
+                    recent = history[-8:]
+                    for item in recent:
+                        if isinstance(item, dict) and 'role' in item and 'content' in item:
+                            messages.append({'role': item['role'], 'content': item['content']})
+            except Exception as e:
+                api_logger.debug(f"Error loading chat history for {user_id}: {e}")
+            # Append the current user message as the latest user turn
+            messages.append({'role': 'user', 'content': user_message})
+            # Call OpenAI chat completion via AsyncOpenAI client
+            try:
+                api_logger.debug("Calling OpenAI chat completion from get_ai_response")
+                chat_client = getattr(openai_client, 'chat', None)
+                ai_text = None
+                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
+                    resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
+                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                        choice = resp['choices'][0]
+                        if 'message' in choice and 'content' in choice['message']:
+                            ai_text = choice['message']['content']
+                        elif 'text' in choice:
+                            ai_text = choice['text']
+                    else:
+                        # Try attribute access
+                        choices = getattr(resp, 'choices', None)
+                        if choices and len(choices) > 0:
+                            ai_text = getattr(choices[0].message, 'content', None)
+                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
+                    resp = await openai_client.chat_completions.create(model="gpt-5-nano", messages=messages)
+                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                        ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
+                    else:
+                        choices = getattr(resp, 'choices', None)
+                        if choices and len(choices) > 0:
+                            ai_text = getattr(choices[0].message, 'content', None)
+                else:
+                    api_logger.error("No compatible chat completions method found on openai_client")
+                    return "AI chat completions API is not available."
+            except Exception as e:
+                api_logger.error(f"Error calling chat completion API: {e}")
+                return "An error occurred while contacting the AI chat service."
+            if not ai_text:
+                api_logger.error(f"Chat completion returned no usable text: {resp}")
+                return "The AI chat service returned an unexpected response."
+            api_logger.info("AI response received from chat completion")
+            # Persist the user message and AI response to per-user history
+            try:
+                history_file = Path(HISTORY_DIR) / f"{user_id}.json"
+                history = []
+                if history_file.exists():
+                    try:
+                        with history_file.open('r', encoding='utf-8') as hf:
+                            history = json.load(hf)
+                    except Exception as e:
+                        api_logger.debug(f"Failed to read existing history for append {user_id}: {e}")
+                # Append entries
+                history.append({'role': 'user', 'content': user_message})
+                history.append({'role': 'assistant', 'content': ai_text})
+                # Trim history to last 200 entries
+                if len(history) > 200:
+                    history = history[-200:]
+                try:
+                    with history_file.open('w', encoding='utf-8') as hf:
+                        json.dump(history, hf, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    api_logger.debug(f"Failed to write history for {user_id}: {e}")
+            except Exception as e:
+                api_logger.debug(f"Error while persisting chat history for {user_id}: {e}")
+            return ai_text
         else:
             api_logger.info("AI access denied due to lack of premium.")
-            # No premium access and not the bot owner
-            return "This channel doesn't have a premium subscription to use this feature."
+            return False
 
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
@@ -2632,7 +2909,8 @@ class TwitchBot(commands.Bot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         # Check premium feature status
-                        premium_tier = await check_premium_feature()
+                        message_user = ctx.author.name
+                        premium_tier = await check_premium_feature(message_user)
                         uptime = time_right_now()- bot_started
                         uptime_days = uptime.days
                         uptime_hours, remainder = divmod(uptime.seconds, 3600)
@@ -2653,7 +2931,9 @@ class TwitchBot(commands.Bot):
                         elif uptime_minutes > 1 or (uptime_days == 0 and uptime_hours == 0):
                             message += f"{uptime_minutes} minutes, "
                         # Add premium status information
-                        if premium_tier == 4000:
+                        if message_user == bot_owner:
+                            premium_status = "Premium Features: Bot Owner Control"
+                        elif premium_tier == 4000:
                             premium_status = "Premium Features: Beta User Access"
                         elif premium_tier == 3000:
                             premium_status = "Premium Features: Tier 3 Subscriber"
@@ -3367,7 +3647,8 @@ class TwitchBot(commands.Bot):
                     await send_chat_message("Sorry, I can only get the current playing song while the stream is online.")
                     return
                 # Check if premium is available for Shazam failover
-                premium_tier = await check_premium_feature()
+                message_user = ctx.author.name
+                premium_tier = await check_premium_feature(message_user)
                 if premium_tier in (1000, 2000, 3000, 4000):
                     # Premium feature access granted - use Shazam as failover
                     await send_chat_message("Please stand by, checking what song is currently playing...")
@@ -3380,7 +3661,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("Sorry, there was an error retrieving the current song.")
                 else:
                     # No premium access
-                    await send_chat_message("This channel doesn't have a premium subscription to use the alternative method.")
+                    await send_chat_message("Sorry, I couldn't determine the current song.")
                 # Record usage
                 add_usage('song', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -6336,9 +6617,14 @@ class TwitchBot(commands.Bot):
                 if len(words) < 5:
                     await send_chat_message(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
                     return
-                template = "Once upon a time, there was a {0} who loved to {1}. One day, they found a {2} {3} and decided to {4}."
-                story = template.format(*words)
-                response = await self.handle_ai_response(story, ctx.author.id, ctx.author.name)
+                # Build a user-provided seed prompt and send to AI for creative generation
+                seed_prompt = (
+                    f"Create a short, creative story using these five words provided by the user: "
+                    f"noun={words[0]}, verb={words[1]}, adjective={words[2]}, adverb={words[3]}, action={words[4]}. "
+                    f"Make the story engaging, about 3-5 sentences, and keep it safe for a general audience. "
+                    f"Do not include the words list in the final story output."
+                )
+                response = await self.handle_ai_response(seed_prompt, ctx.author.id, ctx.author.name)
                 await send_chat_message(response)
                 # Record usage
                 add_usage('story', bucket_key, cooldown_bucket)
@@ -6814,6 +7100,56 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
+        finally:
+            await connection.ensure_closed()
+
+    @commands.command(name='obs')
+    async def obs_command(self, ctx):
+        global bot_owner
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("obs",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('obs', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        message_parts = ctx.message.content.split()
+                        if len(message_parts) > 1:
+                            subcommand = message_parts[1].lower()
+                            if subcommand == "scene":
+                                if len(message_parts) > 2:
+                                    scene_name = " ".join(message_parts[2:])
+                                    await websocket_notice(event="SEND_OBS_EVENT", additional_data={"command": "obs", "subcommand": "scene", "scene_name": scene_name})
+                                    chat_logger.info(f"{ctx.author.name} triggered OBS scene change to {scene_name}")
+                                else:
+                                    await send_chat_message("Please specify a scene name: !obs scene <name>")
+                            else:
+                                await send_chat_message("Unknown subcommand.")
+                        else:
+                            await websocket_notice(event="SEND_OBS_EVENT", additional_data={"command": "obs_triggered"})
+                            chat_logger.info(f"{ctx.author.name} triggered OBS event")
+                        # Record usage
+                        add_usage('obs', bucket_key, cooldown_bucket)
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to trigger OBS event but lacked permissions.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"Error in obs_command: {e}")
+            await send_chat_message("An error occurred while sending OBS event.")
         finally:
             await connection.ensure_closed()
 
@@ -7844,8 +8180,6 @@ async def handle_chat_message(messageAuthor, messageContent=""):
     # Don't count bot messages
     if messageAuthor.lower() == BOT_USERNAME.lower():
         return
-    if BACKUP_SYSTEM and messageAuthor.lower() == CHANNEL_NAME.lower():
-        return
     # Don't count command messages (starting with !)
     if messageContent and messageContent.strip().startswith('!'):
         return
@@ -8571,7 +8905,7 @@ async def ban_user(username, user_id, use_streamer=False):
         connection = await mysql_connection(db_name="website")
         async with connection.cursor(DictCursor) as cursor:
             # Determine which user ID to use for the API request
-            api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+            api_user_id = CHANNEL_ID if use_streamer else "971436498"
             # Fetch settings from the twitch_bot_access table
             await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
             result = await cursor.fetchone()
@@ -8677,6 +9011,12 @@ async def websocket_notice(
                         params['language'] = 'en'
                     params['text'] = text
                 elif event in ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]:
+                    if additional_data:
+                        params.update(additional_data)
+                    else:
+                        websocket_logger.error(f"Event '{event}' requires additional parameters.")
+                        return
+                elif event == "SEND_OBS_EVENT":
                     if additional_data:
                         params.update(additional_data)
                     else:
@@ -8950,97 +9290,116 @@ async def process_channel_point_rewards(event_data, event_type):
             if custom_message_result and custom_message_result["custom_message"]:
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
-                    replacements = {}
-                    # Handle (user)
-                    if '(user)' in custom_message:
-                        replacements['(user)'] = user_name
-                    # Handle (usercount)
-                    if '(usercount)' in custom_message:
-                        try:
-                            # Get the user count for the specific reward
-                            await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
-                            result = await cursor.fetchone()
-                            if result:
-                                user_count = result.get("count")
-                            else:
-                                # If no entry found, initialize it to 0
-                                user_count = 0
-                                await cursor.execute('INSERT INTO reward_counts (reward_id, user, count) VALUES (%s, %s, %s)', (reward_id, user_name, user_count))
+                    # Apply all replacements in a loop until no more variables are found
+                    max_iterations = 8
+                    iteration = 0
+                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(customapi.']
+                    while iteration < max_iterations:
+                        iteration += 1
+                        has_vars = any(var in custom_message for var in vars_to_replace if var != '(customapi.')
+                        has_customapi = '(customapi.' in custom_message
+                        if not (has_vars or has_customapi):
+                            break
+                        # Re-populate replacements for this iteration
+                        replacements = {}
+                        # Handle (user)
+                        if '(user)' in custom_message:
+                            replacements['(user)'] = user_name
+                        # Handle (usercount)
+                        if '(usercount)' in custom_message:
+                            try:
+                                await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
+                                result = await cursor.fetchone()
+                                if result:
+                                    user_count = result.get("count")
+                                else:
+                                    user_count = 0
+                                    await cursor.execute('INSERT INTO reward_counts (reward_id, user, count) VALUES (%s, %s, %s)', (reward_id, user_name, user_count))
+                                    await connection.commit()
+                                user_count += 1
+                                await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
                                 await connection.commit()
-                            # Increment the count
-                            user_count += 1
-                            await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
-                            await connection.commit()
-                            replacements['(usercount)'] = str(user_count)
-                        except Exception as e:
-                            chat_logger.error(f"Error while handling (usercount): {e}")
-                            replacements['(usercount)'] = "Error"
-                    # Handle (userstreak)
-                    if '(userstreak)' in custom_message:
-                        try:
-                            # Fetch current user and streak
-                            await cursor.execute("SELECT `current_user`, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
-                            streak_row = await cursor.fetchone()
-                            if streak_row:
-                                current_user_from_db = streak_row['current_user']
-                                current_streak = streak_row['streak']
-                                if current_user_from_db.lower() == user_name.lower():
-                                    current_user = user_name
-                                    current_streak += 1
+                                replacements['(usercount)'] = str(user_count)
+                            except Exception as e:
+                                chat_logger.error(f"Error while handling (usercount): {e}")
+                                replacements['(usercount)'] = "Error"
+                        # Handle (userstreak)
+                        if '(userstreak)' in custom_message:
+                            try:
+                                await cursor.execute("SELECT `current_user`, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
+                                streak_row = await cursor.fetchone()
+                                if streak_row:
+                                    current_user_from_db = streak_row['current_user']
+                                    current_streak = streak_row['streak']
+                                    if current_user_from_db.lower() == user_name.lower():
+                                        current_user = user_name
+                                        current_streak += 1
+                                    else:
+                                        current_user = user_name
+                                        current_streak = 1
+                                    await cursor.execute("UPDATE reward_streaks SET `current_user` = %s, streak = %s WHERE reward_id = %s", (current_user, current_streak, reward_id))
                                 else:
                                     current_user = user_name
                                     current_streak = 1
-                                await cursor.execute("UPDATE reward_streaks SET `current_user` = %s, streak = %s WHERE reward_id = %s", (current_user, current_streak, reward_id))
+                                    await cursor.execute("INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
+                                await connection.commit()
+                                replacements['(userstreak)'] = str(current_streak)
+                            except Exception as e:
+                                chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
+                                replacements['(userstreak)'] = "Error"
+                        # Handle (track)
+                        if '(track)' in custom_message:
+                            try:
+                                await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (reward_id,))
+                                await connection.commit()
+                                replacements['(track)'] = ''
+                            except Exception as e:
+                                chat_logger.error(f"Error while handling (track): {e}")
+                                replacements['(track)'] = ''
+                        # Handle (customapi.)
+                        if '(customapi.' in custom_message:
+                            pattern = r'\(customapi\.(\S+?)\)'
+                            matches = re.finditer(pattern, custom_message)
+                            for match in matches:
+                                full_placeholder = match.group(0)
+                                url = match.group(1)
+                                json_flag = False
+                                if url.startswith('json.'):
+                                    json_flag = True
+                                    url = url[5:]
+                                api_response = await fetch_api_response(url, json_flag=json_flag)
+                                replacements[full_placeholder] = api_response
+                        # Handle (tts)
+                        if '(tts)' in custom_message:
+                            tts_message = event_data.get("user_input", "")
+                            create_task(websocket_notice(event="TTS", text=tts_message))
+                            replacements['(tts)'] = ""
+                        # Handle (lotto)
+                        if '(lotto)' in custom_message:
+                            winning_numbers_str = await generate_user_lotto_numbers(user_name)
+                            if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
+                                replacements['(lotto)'] = f"Error: {winning_numbers_str['error']}"
                             else:
-                                current_user = user_name
-                                current_streak = 1
-                                await cursor.execute("INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
-                            await connection.commit()
-                            # Use the calculated current_streak value directly
-                            replacements['(userstreak)'] = str(current_streak)
-                        except Exception as e:
-                            chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
-                            replacements['(userstreak)'] = "Error"
-                    # Handle (track)
-                    if '(track)' in custom_message:
-                        try:
-                            # Increment usage_count
-                            await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (reward_id,))
-                            await connection.commit()
-                            replacements['(track)'] = ''
-                        except Exception as e:
-                            chat_logger.error(f"Error while handling (track): {e}")
-                            replacements['(track)'] = ''
-                    # Apply all replacements
-                    for var, value in replacements.items():
-                        custom_message = custom_message.replace(var, value)
+                                replacements['(lotto)'] = winning_numbers_str
+                        # Handle (fortune)
+                        if '(fortune)' in custom_message:
+                            fortune_message = await tell_fortune()
+                            fortune_message = fortune_message[0].lower() + fortune_message[1:]
+                            replacements['(fortune)'] = fortune_message
+                        # Apply all replacements
+                        for var, value in replacements.items():
+                            if value is None:
+                                value = ""
+                            custom_message = custom_message.replace(var, str(value))
                     # Only send message if it's not empty after replacements
                     if custom_message.strip():
-                        await send_chat_message(custom_message)
-            # Check for TTS reward
-            if "tts" in reward_title.lower():
-                tts_message = event_data["user_input"]
-                create_task(websocket_notice(event="TTS", text=tts_message))
-                return
-            # Check for Lotto Numbers reward
-            elif "lotto" in reward_title.lower():
-                winning_numbers_str = await generate_user_lotto_numbers(user_name)
-                # Handling errors (check if the result is an error message)
-                if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
-                    await send_chat_message(f"Error: {winning_numbers_str['error']}")
-                    return
-                # Send the combined numbers (winning and supplementary) as one message
-                await send_chat_message(f"{user_name} here are your Lotto numbers! {winning_numbers_str}")
-                # Log the generated numbers for debugging and records
-                chat_logger.info(f"Lotto numbers generated: {user_name} - {winning_numbers_str}")
-                return
-            # Check for Fortune reward
-            elif "fortune" in reward_title.lower():
-                fortune_message = await tell_fortune()
-                fortune_message = fortune_message[0].lower() + fortune_message[1:]
-                await send_chat_message(f"{user_name}, {fortune_message}")
-                chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
-                return
+                        # Check for (tts.message) which sends the final message to both TTS and chat
+                        if '(tts.message)' in custom_message:
+                            custom_message = custom_message.replace('(tts.message)', '')
+                            await send_chat_message(custom_message)
+                            create_task(websocket_notice(event="TTS", text=custom_message))
+                        else:
+                            await send_chat_message(custom_message)
             # Sound alert logic
             await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
             sound_result = await cursor.fetchone()
@@ -9634,10 +9993,13 @@ async def known_users():
     finally:
         await connection.ensure_closed()
 
-async def check_premium_feature():
-    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, CHANNEL_NAME
+async def check_premium_feature(user):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, CHANNEL_NAME, bot_owner
     api_logger.info("Starting premium feature check")
     connection = None
+    if user == bot_owner:
+        api_logger.info("User is bot owner, returning 4000")
+        return 4000
     try:
         connection = await mysql_connection(db_name="website")
         async with connection.cursor(DictCursor) as cursor:
@@ -10064,27 +10426,6 @@ async def check_next_ad_after_completion(ads_api_url, headers):
     except Exception as e:
         api_logger.error(f"Error checking next ad after completion: {e}")
 
-async def get_bot_channel_id(bot_username: str | None = None):
-    connection = None
-    try:
-        username = bot_username or globals().get('BOT_USERNAME')
-        if not username:
-            bot_logger.debug("get_bot_channel_id: no BOT_USERNAME available")
-            return None
-        connection = await mysql_connection(db_name="website")
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT bot_channel_id FROM custom_bots WHERE bot_username = %s LIMIT 1", (username,))
-            row = await cursor.fetchone()
-            if row and row.get('bot_channel_id'):
-                return str(row.get('bot_channel_id'))
-            return None
-    except Exception as e:
-        bot_logger.error(f"Error fetching bot_channel_id for '{bot_username or BOT_USERNAME}': {e}")
-        return None
-    finally:
-        if connection:
-            await connection.ensure_closed()
-
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     if len(message) > 255:
         chat_logger.error(f"Message too long: {len(message)} characters (max 255)")
@@ -10095,10 +10436,9 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
         "Client-Id": TWITCH_OAUTH_API_CLIENT_ID,
         "Content-Type": "application/json"
     }
-    sender_id_value = await get_bot_channel_id() or "971436498"
     data = {
         "broadcaster_id": CHANNEL_ID,
-        "sender_id": sender_id_value,
+        "sender_id": "971436498",
         "message": message
     }
     if reply_parent_message_id:
