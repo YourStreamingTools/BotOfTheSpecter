@@ -212,6 +212,22 @@ if ($isLinked && isset($access_token) && !empty($access_token)) {
 
 ob_start();
 ?>
+<div class="notification is-warning is-dark" style="border-radius: 8px; margin-bottom: 1.5rem;">
+    <div style="display: flex; gap: 0.75rem;">
+        <span class="icon" style="flex-shrink: 0; margin-top: 0.25rem;">
+            <i class="fas fa-tools"></i>
+        </span>
+        <div style="flex: 1;">
+            <p class="has-text-weight-bold" style="margin-bottom: 0.5rem;">StreamLabs Integration Coming Soon</p>
+            <p style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">
+                We're actively building this feature and appreciate your patience. While the authorization button may redirect you to StreamLabs, our API is currently in the beta testing phase and requires manual whitelisting for security purposes.
+            </p>
+            <p style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">
+                We have submitted an application to StreamLabs for full API access and are working towards becoming a developer-partner with them. We'll be rolling out access gradually as development progresses, so stay tuned!
+            </p>
+        </div>
+    </div>
+</div>
 <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);">
     <header class="card-header" style="border-bottom: 1px solid #23272f;">
         <div class="level is-mobile" style="width: 100%;">
@@ -262,25 +278,6 @@ ob_start();
                     Your StreamLabs account is successfully linked to your profile and ready to track donations.
                 </p>
             </div>
-            <!-- User Information section -->
-            <?php if ($userData): ?>
-                <div class="columns is-centered mb-6">
-                    <div class="column is-two-thirds">
-                        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-                            <div class="card-content">
-                                <p class="subtitle is-6 has-text-white mb-4">StreamLabs Account</p>
-                                <?php if (isset($userData['twitch'])): ?>
-                                    <div class="content has-text-white">
-                                        <p><strong>Twitch ID:</strong> <span style="color: #e2e8f0;"><?php echo htmlspecialchars($userData['twitch']['id'] ?? 'N/A'); ?></span></p>
-                                        <p><strong>Display Name:</strong> <span style="color: #e2e8f0;"><?php echo htmlspecialchars($userData['twitch']['display_name'] ?? 'N/A'); ?></span></p>
-                                        <p><strong>Username:</strong> <span style="color: #e2e8f0;"><?php echo htmlspecialchars($userData['twitch']['name'] ?? 'N/A'); ?></span></p>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            <?php endif; ?>
             <!-- Tokens section -->
             <div class="columns is-centered mb-6">
                 <div class="column is-full">

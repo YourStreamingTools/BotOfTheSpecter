@@ -175,6 +175,7 @@ function uuidv4() {
                         <li><a href="streamelements.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_streamelements'); ?></span></a></li>
                         <li><a href="obsconnector.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-plug"></i></span><span class="sidebar-menu-text">OBSConnector</span></a></li>
                         <li><a href="bingo.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-trophy"></i></span><span class="sidebar-menu-text">Stream Bingo</span></a></li>
+                        <li><a href="streamlabs.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-gift"></i></span><span class="sidebar-menu-text">StreamLabs</span></a></li>
                         <li><a href="integrations.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_platform_integrations'); ?></span></a></li>
                     </ul>
                 </li>
@@ -452,6 +453,12 @@ function uuidv4() {
                         <a href="bingo.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-trophy"></i></span>
                             <span class="sidebar-menu-text">Stream Bingo</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="streamlabs.php" class="sidebar-submenu-link">
+                            <span class="sidebar-submenu-icon"><i class="fas fa-gift"></i></span>
+                            <span class="sidebar-menu-text">StreamLabs</span>
                         </a>
                     </li>
                     <li><hr class="navbar-divider" style="margin: 0.5rem 0; background-color: #333;"></li>
