@@ -259,12 +259,18 @@ ob_start();
                 </div>
             </div>
             <div class="level-right">
-                <div class="level-item">
+                <div class="level-item" style="display: flex; gap: 0.75rem; align-items: center;">
                     <?php if ($isLinked): ?>
                         <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
                             <span class="icon is-small"><i class="fas fa-check-circle"></i></span>
                             <span>Linked</span>
                         </span>
+                        <button id="unlinkHeaderBtn" class="button is-danger is-medium" style="border-radius: 6px; padding: 0.375rem 0.75rem; height: auto;" title="Unlink StreamLabs Account">
+                            <span class="icon is-small">
+                                <i class="fas fa-unlink"></i>
+                            </span>
+                            <span>Unlink</span>
+                        </button>
                     <?php else: ?>
                         <span class="tag is-danger is-medium" style="border-radius: 6px; font-weight: 600;">
                             <span class="icon is-small"><i class="fas fa-exclamation-circle"></i></span>
@@ -296,14 +302,6 @@ ob_start();
                 <p class="subtitle is-6 has-text-grey-light">
                     Your StreamLabs account is successfully linked to your profile and ready to track donations.
                 </p>
-                <div style="margin-top: 1rem;">
-                    <button id="unlinkBtn" class="button is-danger is-outlined" style="border-radius: 6px;">
-                        <span class="icon is-small">
-                            <i class="fas fa-unlink"></i>
-                        </span>
-                        <span>Unlink Account</span>
-                    </button>
-                </div>
             </div>
             <!-- Tokens section -->
             <div class="columns is-centered mb-6">
@@ -493,10 +491,10 @@ let socketTokenVisible = false;
 <?php endif; ?>
 
 document.addEventListener('DOMContentLoaded', function() {
-    const unlinkBtn = document.getElementById('unlinkBtn');
+    const unlinkHeaderBtn = document.getElementById('unlinkHeaderBtn');
     
-    if (unlinkBtn) {
-        unlinkBtn.addEventListener('click', function() {
+    if (unlinkHeaderBtn) {
+        unlinkHeaderBtn.addEventListener('click', function() {
             Swal.fire({
                 title: 'Unlink StreamLabs Account?',
                 text: 'Are you sure you want to unlink your StreamLabs account? This will remove all associated tokens and data.',
