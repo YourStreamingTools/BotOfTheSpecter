@@ -212,206 +212,233 @@ if ($isLinked && isset($access_token) && !empty($access_token)) {
 
 ob_start();
 ?>
-<div class="columns is-centered">
-    <div class="column is-fullwidth">
-        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);">
-            <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
-                    <span class="card-header-title is-size-4 has-text-white" style="font-weight:700; flex-shrink: 0;">
+<div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);">
+    <header class="card-header" style="border-bottom: 1px solid #23272f;">
+        <div class="level is-mobile" style="width: 100%;">
+            <div class="level-left">
+                <div class="level-item">
+                    <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
                         <span class="icon mr-2"><i class="fas fa-gift"></i></span>
                         StreamLabs Integration
                     </span>
-                    <div class="se-badges" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-left: 1rem;">
-                        <?php if ($isLinked): ?>
-                            <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
-                                <span class="icon is-small"><i class="fas fa-check-circle"></i></span>
-                                <span>Linked</span>
-                            </span>
-                        <?php else: ?>
-                            <span class="tag is-danger is-medium" style="border-radius: 6px; font-weight: 600;">
-                                <span class="icon is-small"><i class="fas fa-exclamation-circle"></i></span>
-                                <span>Not Linked</span>
-                            </span>
-                        <?php endif; ?>
-                    </div>
                 </div>
-            </header>
-            <div class="card-content" style="padding: 2rem;">
-                <?php if ($linkingMessage): ?>
-                    <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?> is-light" style="border-radius: 8px; margin-bottom: 2rem;">
-                        <span class="icon">
-                            <?php if ($linkingMessageType === 'is-danger'): ?>
-                                <i class="fas fa-exclamation-triangle"></i>
-                            <?php elseif ($linkingMessageType === 'is-success'): ?>
-                                <i class="fas fa-check"></i>
-                            <?php else: ?>
-                                <i class="fas fa-info-circle"></i>
-                            <?php endif; ?>
+            </div>
+            <div class="level-right">
+                <div class="level-item">
+                    <?php if ($isLinked): ?>
+                        <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
+                            <span class="icon is-small"><i class="fas fa-check-circle"></i></span>
+                            <span>Linked</span>
                         </span>
-                        <?php echo $linkingMessage; ?>
-                    </div>
-                <?php endif; ?>
-                <?php if ($isLinked): ?>
-                    <!-- Account status text -->
-                    <div class="has-text-centered mb-6" style="padding: 1rem 0;">
-                        <p class="subtitle is-6 has-text-grey-light" style="max-width: 600px; margin: 0 auto;">
-                            Your StreamLabs account is successfully linked to your profile and ready to track donations.
-                        </p>
-                    </div>
-                    <!-- User Information section -->
-                    <?php if ($userData): ?>
-                        <div style="margin: 0 auto 2.5rem; max-width: 700px;">
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-                                <div class="card-content" style="padding: 1.75rem;">
-                                    <p class="subtitle is-6 has-text-white mb-4" style="margin-bottom: 1.25rem;">StreamLabs Account</p>
-                                    <div style="display: flex; flex-direction: column; gap: 1rem;">
-                                        <?php if (isset($userData['twitch'])): ?>
-                                            <div style="display: flex; align-items: center; gap: 1.5rem;">
-                                                <span style="color: #8b93a1; min-width: 100px; font-size: 0.95rem;">Twitch ID:</span>
-                                                <span style="color: #e2e8f0; font-weight: 500;"><?php echo htmlspecialchars($userData['twitch']['id'] ?? 'N/A'); ?></span>
-                                            </div>
-                                            <div style="display: flex; align-items: center; gap: 1.5rem;">
-                                                <span style="color: #8b93a1; min-width: 100px; font-size: 0.95rem;">Display Name:</span>
-                                                <span style="color: #e2e8f0; font-weight: 500;"><?php echo htmlspecialchars($userData['twitch']['display_name'] ?? 'N/A'); ?></span>
-                                            </div>
-                                            <div style="display: flex; align-items: center; gap: 1.5rem;">
-                                                <span style="color: #8b93a1; min-width: 100px; font-size: 0.95rem;">Username:</span>
-                                                <span style="color: #e2e8f0; font-weight: 500;"><?php echo htmlspecialchars($userData['twitch']['name'] ?? 'N/A'); ?></span>
-                                            </div>
-                                        <?php endif; ?>
+                    <?php else: ?>
+                        <span class="tag is-danger is-medium" style="border-radius: 6px; font-weight: 600;">
+                            <span class="icon is-small"><i class="fas fa-exclamation-circle"></i></span>
+                            <span>Not Linked</span>
+                        </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </header>
+    <div class="card-content">
+        <?php if ($linkingMessage): ?>
+            <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?> is-light mb-5" style="border-radius: 8px;">
+                <span class="icon">
+                    <?php if ($linkingMessageType === 'is-danger'): ?>
+                        <i class="fas fa-exclamation-triangle"></i>
+                    <?php elseif ($linkingMessageType === 'is-success'): ?>
+                        <i class="fas fa-check"></i>
+                    <?php else: ?>
+                        <i class="fas fa-info-circle"></i>
+                    <?php endif; ?>
+                </span>
+                <?php echo $linkingMessage; ?>
+            </div>
+        <?php endif; ?>
+        <?php if ($isLinked): ?>
+            <!-- Account status text -->
+            <div class="has-text-centered mb-6">
+                <p class="subtitle is-6 has-text-grey-light">
+                    Your StreamLabs account is successfully linked to your profile and ready to track donations.
+                </p>
+            </div>
+            <!-- User Information section -->
+            <?php if ($userData): ?>
+                <div class="columns is-centered mb-6">
+                    <div class="column is-two-thirds">
+                        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                            <div class="card-content">
+                                <p class="subtitle is-6 has-text-white mb-4">StreamLabs Account</p>
+                                <?php if (isset($userData['twitch'])): ?>
+                                    <div class="content has-text-white">
+                                        <p><strong>Twitch ID:</strong> <span style="color: #e2e8f0;"><?php echo htmlspecialchars($userData['twitch']['id'] ?? 'N/A'); ?></span></p>
+                                        <p><strong>Display Name:</strong> <span style="color: #e2e8f0;"><?php echo htmlspecialchars($userData['twitch']['display_name'] ?? 'N/A'); ?></span></p>
+                                        <p><strong>Username:</strong> <span style="color: #e2e8f0;"><?php echo htmlspecialchars($userData['twitch']['name'] ?? 'N/A'); ?></span></p>
                                     </div>
-                                </div>
+                                <?php endif; ?>
                             </div>
                         </div>
-                    <?php endif; ?>
-                    <!-- Tokens section -->
-                    <div style="margin: 0 auto 2.5rem; max-width: 700px;">
+                    </div>
+                </div>
+            <?php endif; ?>
+            <!-- Tokens section -->
+            <div class="columns is-centered mb-6">
+                <div class="column is-full">
+                    <div class="columns is-multiline">
                         <!-- Access Token -->
                         <?php if ($access_token): ?>
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); margin-bottom: 1.5rem;">
-                                <div class="card-content" style="padding: 1.75rem;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                        <p class="subtitle is-6 has-text-white" style="margin: 0;">Access Token</p>
-                                        <button class="button is-warning is-small" id="showAccessTokenBtn" title="Show Access Token" style="border-radius: 6px; transition: all 0.2s ease;">
-                                            <span class="icon is-small">
-                                                <i class="fas fa-eye" id="accessTokenEye"></i>
-                                            </span>
-                                        </button>
+                            <div class="column is-half-desktop is-full-tablet">
+                                <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); height: 100%;">
+                                    <div class="card-content">
+                                        <div class="level is-mobile mb-3">
+                                            <div class="level-left">
+                                                <div class="level-item">
+                                                    <p class="subtitle is-6 has-text-white" style="margin: 0;">Access Token</p>
+                                                </div>
+                                            </div>
+                                            <div class="level-right">
+                                                <div class="level-item">
+                                                    <button class="button is-warning is-small" id="showAccessTokenBtn" title="Show Access Token" style="border-radius: 6px; transition: all 0.2s ease;">
+                                                        <span class="icon is-small">
+                                                            <i class="fas fa-eye" id="accessTokenEye"></i>
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <input type="text" id="accessTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($access_token)); ?>" readonly style="border-radius: 6px; background-color: #1a1a1a; border-color: #363636; color: #00d1b2; font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                                     </div>
-                                    <input type="text" id="accessTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($access_token)); ?>" readonly style="border-radius: 6px; background-color: #1a1a1a; border-color: #363636; color: #00d1b2; font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                                 </div>
                             </div>
                         <?php endif; ?>
                         <!-- Socket Token -->
                         <?php if ($socketToken): ?>
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-                                <div class="card-content" style="padding: 1.75rem;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                        <p class="subtitle is-6 has-text-white" style="margin: 0;">Socket Token (Real-time Events)</p>
-                                        <button class="button is-info is-small" id="showSocketTokenBtn" title="Show Socket Token" style="border-radius: 6px; transition: all 0.2s ease;">
-                                            <span class="icon is-small">
-                                                <i class="fas fa-eye" id="socketTokenEye"></i>
-                                            </span>
-                                        </button>
+                            <div class="column is-half-desktop is-full-tablet">
+                                <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); height: 100%;">
+                                    <div class="card-content">
+                                        <div class="level is-mobile mb-3">
+                                            <div class="level-left">
+                                                <div class="level-item">
+                                                    <p class="subtitle is-6 has-text-white" style="margin: 0;">Socket Token (Real-time Events)</p>
+                                                </div>
+                                            </div>
+                                            <div class="level-right">
+                                                <div class="level-item">
+                                                    <button class="button is-info is-small" id="showSocketTokenBtn" title="Show Socket Token" style="border-radius: 6px; transition: all 0.2s ease;">
+                                                        <span class="icon is-small">
+                                                            <i class="fas fa-eye" id="socketTokenEye"></i>
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <input type="text" id="socketTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($socketToken)); ?>" readonly style="border-radius: 6px; background-color: #1a1a1a; border-color: #363636; color: #3273dc; font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                                     </div>
-                                    <input type="text" id="socketTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($socketToken)); ?>" readonly style="border-radius: 6px; background-color: #1a1a1a; border-color: #363636; color: #3273dc; font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                                 </div>
                             </div>
                         <?php endif; ?>
                     </div>
-                    <!-- Recent Donations section -->
-                    <?php if (!empty($recentDonations)): ?>
-                        <div style="margin: 2rem auto 0; width: 100%;">
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); overflow: hidden;">
-                                <div class="card-content" style="padding: 1.75rem;">
-                                    <p class="subtitle is-6 has-text-white mb-4" style="margin-bottom: 1.25rem;">Recent Donations <span style="color: #8b93a1; font-size: 0.85rem;">(Latest <?php echo min(20, count($recentDonations)); ?>)</span></p>
-                                    <div style="overflow-x: auto; border-radius: 8px; background-color: rgba(0,0,0,0.2);">
-                                        <table class="table is-fullwidth" style="background-color: transparent; border-collapse: collapse; margin: 0;">
-                                            <thead>
-                                                <tr style="border-bottom: 2px solid #363636; background-color: rgba(0,0,0,0.1);">
-                                                    <th style="color: #b5bdc4; padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Donor</th>
-                                                    <th style="color: #b5bdc4; padding: 1rem 0.75rem; text-align: right; font-weight: 600; font-size: 0.9rem;">Amount</th>
-                                                    <th style="color: #b5bdc4; padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Message</th>
-                                                    <th style="color: #b5bdc4; padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Date</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <?php foreach (array_slice($recentDonations, 0, 20) as $donation): ?>
-                                                    <tr style="border-bottom: 1px solid rgba(35, 39, 47, 0.5); transition: background-color 0.2s ease;">
-                                                        <td style="color: #e2e8f0; padding: 0.95rem 0.75rem; text-align: left;">
-                                                            <strong><?php echo htmlspecialchars($donation['name'] ?? 'Anonymous'); ?></strong>
-                                                        </td>
-                                                        <td style="color: #00d1b2; padding: 0.95rem 0.75rem; text-align: right; font-weight: 600;">
-                                                            <?php echo htmlspecialchars($donation['currency'] ?? '$'); ?><?php echo htmlspecialchars(number_format($donation['amount'] ?? 0, 2)); ?>
-                                                        </td>
-                                                        <td style="color: #b5bdc4; padding: 0.95rem 0.75rem; text-align: left; max-width: 250px; word-break: break-word;">
-                                                            <?php echo htmlspecialchars($donation['message'] ?? 'No message'); ?>
-                                                        </td>
-                                                        <td style="color: #8b93a1; padding: 0.95rem 0.75rem; text-align: left; white-space: nowrap; font-size: 0.9rem;">
-                                                            <?php 
-                                                            if (isset($donation['created_at'])) {
-                                                                try {
-                                                                    $timestamp = (int)$donation['created_at'];
-                                                                    $dt = new DateTime();
-                                                                    $dt->setTimestamp($timestamp);
-                                                                    echo htmlspecialchars($dt->format('M j, Y'));
-                                                                } catch (Exception $e) {
-                                                                    echo htmlspecialchars($donation['created_at']);
-                                                                }
+                </div>
+            </div>
+            <!-- Recent Donations section -->
+            <?php if (!empty($recentDonations)): ?>
+                <div class="columns is-centered mb-6">
+                    <div class="column is-full">
+                        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); overflow: hidden;">
+                            <div class="card-content">
+                                <p class="subtitle is-6 has-text-white mb-4">Recent Donations <span class="has-text-grey" style="font-size: 0.85rem;">(Latest <?php echo min(20, count($recentDonations)); ?>)</span></p>
+                                <div style="overflow-x: auto; border-radius: 8px; background-color: rgba(0,0,0,0.2);">
+                                    <table class="table is-fullwidth" style="background-color: transparent; border-collapse: collapse; margin: 0;">
+                                        <thead>
+                                            <tr style="border-bottom: 2px solid #363636; background-color: rgba(0,0,0,0.1);">
+                                                <th class="has-text-grey-light" style="padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Donor</th>
+                                                <th class="has-text-grey-light" style="padding: 1rem 0.75rem; text-align: right; font-weight: 600; font-size: 0.9rem;">Amount</th>
+                                                <th class="has-text-grey-light" style="padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Message</th>
+                                                <th class="has-text-grey-light" style="padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach (array_slice($recentDonations, 0, 20) as $donation): ?>
+                                                <tr style="border-bottom: 1px solid rgba(35, 39, 47, 0.5); transition: background-color 0.2s ease;">
+                                                    <td style="color: #e2e8f0; padding: 0.95rem 0.75rem; text-align: left;">
+                                                        <strong><?php echo htmlspecialchars($donation['name'] ?? 'Anonymous'); ?></strong>
+                                                    </td>
+                                                    <td style="color: #00d1b2; padding: 0.95rem 0.75rem; text-align: right; font-weight: 600;">
+                                                        <?php echo htmlspecialchars($donation['currency'] ?? '$'); ?><?php echo htmlspecialchars(number_format($donation['amount'] ?? 0, 2)); ?>
+                                                    </td>
+                                                    <td style="color: #b5bdc4; padding: 0.95rem 0.75rem; text-align: left; max-width: 250px; word-break: break-word;">
+                                                        <?php echo htmlspecialchars($donation['message'] ?? 'No message'); ?>
+                                                    </td>
+                                                    <td style="color: #8b93a1; padding: 0.95rem 0.75rem; text-align: left; white-space: nowrap; font-size: 0.9rem;">
+                                                        <?php 
+                                                        if (isset($donation['created_at'])) {
+                                                            try {
+                                                                $timestamp = (int)$donation['created_at'];
+                                                                $dt = new DateTime();
+                                                                $dt->setTimestamp($timestamp);
+                                                                echo htmlspecialchars($dt->format('M j, Y'));
+                                                            } catch (Exception $e) {
+                                                                echo htmlspecialchars($donation['created_at']);
                                                             }
-                                                            ?>
-                                                        </td>
-                                                    </tr>
-                                                <?php endforeach; ?>
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                        }
+                                                        ?>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
-                    <?php endif; ?>
-                    <!-- Empty donations message -->
-                    <?php if (empty($recentDonations) && $isLinked && isset($access_token)): ?>
-                        <div style="margin: 2rem auto 0; max-width: 700px;">
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px dashed #363636; text-align: center; padding: 2.5rem 1.5rem;">
-                                <div style="color: #8b93a1;">
-                                    <p class="icon mb-2" style="font-size: 2rem;">
-                                        <i class="fas fa-inbox"></i>
-                                    </p>
-                                    <p class="has-text-weight-semibold" style="color: #b5bdc4;">No donations yet</p>
-                                    <p style="margin-top: 0.5rem; font-size: 0.9rem;">When you receive donations, they will appear here.</p>
-                                </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+            <!-- Empty donations message -->
+            <?php if (empty($recentDonations) && $isLinked && isset($access_token)): ?>
+                <div class="columns is-centered">
+                    <div class="column is-two-thirds">
+                        <div class="card has-background-grey-darker has-text-centered" style="border-radius: 12px; border: 1px dashed #363636; padding: 3rem 1.5rem;">
+                            <div class="has-text-grey">
+                                <p class="icon mb-3" style="font-size: 2rem;">
+                                    <i class="fas fa-inbox"></i>
+                                </p>
+                                <p class="has-text-weight-semibold has-text-grey-light mb-2">No donations yet</p>
+                                <p class="is-size-7">When you receive donations, they will appear here.</p>
                             </div>
                         </div>
-                    <?php endif; ?>
-                <?php else: ?>
-                    <!-- Not linked display -->
-                    <div class="has-text-centered">
-                        <div style="padding: 2rem 0;">
-                            <p style="font-size: 1.1rem; margin-bottom: 2rem;">Connect your StreamLabs account to enable donation tracking and integration features.</p>
-                            <div class="card has-background-grey-darker" style="max-width: 550px; margin: 0 auto 2.5rem; border-radius: 8px; border: 1px solid #363636;">
-                                <div class="card-content" style="padding: 2rem;">
-                                    <div style="font-size: 2.5rem; margin-bottom: 1rem; color: #8b93a1;">
+                    </div>
+                </div>
+            <?php endif; ?>
+        <?php else: ?>
+            <!-- Not linked display -->
+            <div class="has-text-centered">
+                <div class="mb-6">
+                    <p class="is-size-5 mb-5">Connect your StreamLabs account to enable donation tracking and integration features.</p>
+                    <div class="columns is-centered mb-5">
+                        <div class="column is-half-desktop is-three-quarters-tablet">
+                            <div class="card has-background-grey-darker" style="border-radius: 8px; border: 1px solid #363636;">
+                                <div class="card-content has-text-centered">
+                                    <p class="icon mb-3" style="font-size: 2.5rem; color: #8b93a1;">
                                         <i class="fas fa-link"></i>
-                                    </div>
-                                    <p class="is-size-6 has-text-grey-light">
+                                    </p>
+                                    <p class="subtitle is-6 has-text-grey-light">
                                         Link your StreamLabs account to automatically track and display donations on your dashboard.
                                     </p>
                                 </div>
                             </div>
                         </div>
-                        <?php if ($authURL): ?>
-                            <a href="<?php echo $authURL; ?>" class="button is-info is-large" style="border-radius: 8px; font-weight: 600; box-shadow: 0 4px 12px rgba(50, 115, 220, 0.3); transition: all 0.3s ease;">
-                                <span class="icon mr-2">
-                                    <i class="fas fa-link"></i>
-                                </span>
-                                <span>Link StreamLabs Account</span>
-                            </a>
-                        <?php endif; ?>
                     </div>
+                </div>
+                <?php if ($authURL): ?>
+                    <a href="<?php echo $authURL; ?>" class="button is-info is-large" style="border-radius: 8px; font-weight: 600; box-shadow: 0 4px 12px rgba(50, 115, 220, 0.3); transition: all 0.3s ease;">
+                        <span class="icon mr-2">
+                            <i class="fas fa-link"></i>
+                        </span>
+                        <span>Link StreamLabs Account</span>
+                    </a>
                 <?php endif; ?>
             </div>
-        </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php
