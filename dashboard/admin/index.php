@@ -547,29 +547,23 @@ ob_start();
     <h2 class="title is-4"><span class="icon"><i class="fas fa-server"></i></span> Server Overview</h2>
     <div class="columns is-multiline">
         <!-- Discord Bot Service -->
-        <div class="column is-one-quarter">
+        <div class="column is-full-mobile is-one-quarter-tablet">
             <div class="box">
-                <div class="level">
-                    <div class="level-left">
-                        <div class="level-item">
-                            <span class="icon has-text-link">
-                                <i class="fab fa-discord fa-lg"></i>
-                            </span>
-                        </div>
-                        <div class="level-item">
-                            <div>
-                                <p class="heading">Discord Bot</p>
-                                <p class="title is-6 has-text-info" id="discord-status">Loading...</p>
-                            </div>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon has-text-link">
+                            <i class="fab fa-discord fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <p class="heading">Discord Bot</p>
+                            <p class="title is-6 has-text-info" id="discord-status">Loading...</p>
                         </div>
                     </div>
-                    <div class="level-right">
-                        <div class="level-item">
-                            <span class="tag is-light has-text-black" id="discord-pid">PID: ...</span>
-                        </div>
+                    <div>
+                        <span class="tag is-light has-text-black" id="discord-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small" id="discord-buttons">
+                <div class="buttons are-small mt-4" id="discord-buttons">
                     <button type="button" class="button is-success" onclick="controlService('discordbot.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
@@ -583,29 +577,23 @@ ob_start();
             </div>
         </div>
         <!-- API Server Service -->
-        <div class="column is-one-quarter">
+        <div class="column is-full-mobile is-one-quarter-tablet">
             <div class="box">
-                <div class="level">
-                    <div class="level-left">
-                        <div class="level-item">
-                            <span class="icon has-text-primary">
-                                <i class="fas fa-code fa-lg"></i>
-                            </span>
-                        </div>
-                        <div class="level-item">
-                            <div>
-                                <p class="heading">API Server</p>
-                                <p class="title is-6 has-text-info" id="api-status">Loading...</p>
-                            </div>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon has-text-primary">
+                            <i class="fas fa-code fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <p class="heading">API Server</p>
+                            <p class="title is-6 has-text-info" id="api-status">Loading...</p>
                         </div>
                     </div>
-                    <div class="level-right">
-                        <div class="level-item">
-                            <span class="tag is-light has-text-black" id="api-pid">PID: ...</span>
-                        </div>
+                    <div>
+                        <span class="tag is-light has-text-black" id="api-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small" id="api-buttons">
+                <div class="buttons are-small mt-4" id="api-buttons">
                     <button type="button" class="button is-success" onclick="controlService('fastapi.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
@@ -619,29 +607,23 @@ ob_start();
             </div>
         </div>
         <!-- WebSocket Server Service -->
-        <div class="column is-one-quarter">
+        <div class="column is-full-mobile is-one-quarter-tablet">
             <div class="box">
-                <div class="level">
-                    <div class="level-left">
-                        <div class="level-item">
-                            <span class="icon has-text-success">
-                                <i class="fas fa-plug fa-lg"></i>
-                            </span>
-                        </div>
-                        <div class="level-item">
-                            <div>
-                                <p class="heading">WebSocket Server</p>
-                                <p class="title is-6 has-text-info" id="websocket-status">Loading...</p>
-                            </div>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon has-text-success">
+                            <i class="fas fa-plug fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <p class="heading">WebSocket Server</p>
+                            <p class="title is-6 has-text-info" id="websocket-status">Loading...</p>
                         </div>
                     </div>
-                    <div class="level-right">
-                        <div class="level-item">
-                            <span class="tag is-light has-text-black" id="websocket-pid">PID: ...</span>
-                        </div>
+                    <div>
+                        <span class="tag is-light has-text-black" id="websocket-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small" id="websocket-buttons">
+                <div class="buttons are-small mt-4" id="websocket-buttons">
                     <button type="button" class="button is-success" onclick="controlService('websocket.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
@@ -655,29 +637,23 @@ ob_start();
             </div>
         </div>
         <!-- MySQL Server Service -->
-        <div class="column is-one-quarter">
+        <div class="column is-full-mobile is-one-quarter-tablet">
             <div class="box">
-                <div class="level">
-                    <div class="level-left">
-                        <div class="level-item">
-                            <span class="icon has-text-warning">
-                                <i class="fas fa-database fa-lg"></i>
-                            </span>
-                        </div>
-                        <div class="level-item">
-                            <div>
-                                <p class="heading">MySQL Server</p>
-                                <p class="title is-6 has-text-info" id="mysql-status">Loading...</p>
-                            </div>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon has-text-warning">
+                            <i class="fas fa-database fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <p class="heading">MySQL Server</p>
+                            <p class="title is-6 has-text-info" id="mysql-status">Loading...</p>
                         </div>
                     </div>
-                    <div class="level-right">
-                        <div class="level-item">
-                            <span class="tag is-light has-text-black" id="mysql-pid">PID: ...</span>
-                        </div>
+                    <div>
+                        <span class="tag is-light has-text-black" id="mysql-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small" id="mysql-buttons">
+                <div class="buttons are-small mt-4" id="mysql-buttons">
                     <button type="button" class="button is-success" onclick="controlService('mysql.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
