@@ -16,8 +16,22 @@ DB_PASS = os.getenv('SQL_PASSWORD')
 DB_NAME = "website"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 
+async def get_username(pool, user_id):
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+                result = await cur.fetchone()
+                return result[0] if result else None
+    except Exception as e:
+        print(f"⚠️  Failed to fetch username for user_id: {user_id} - {str(e)}")
+        return None
+
 async def refresh_spotify_token(session, pool, user_id, refresh_token, own_client, client_id, client_secret):
     try:
+        # Fetch username for display
+        username = await get_username(pool, user_id)
+        username_display = f"{username}" if username else ""
         data = {"grant_type": "refresh_token","refresh_token": refresh_token,}
         # Use user's own credentials if enabled, otherwise global
         if own_client == 1 and client_id and client_secret:
@@ -37,16 +51,16 @@ async def refresh_spotify_token(session, pool, user_id, refresh_token, own_clien
                             (new_access_token, new_refresh_token, user_id)
                         )
                         await conn.commit()
-                print(f"✅ Successfully refreshed Spotify token for user_id: {user_id}")
+                print(f"✅ Successfully refreshed Spotify token for user: {username_display}")
                 return True
             else:
                 error_msg = result.get('error', 'Unknown error')
                 error_desc = result.get('error_description', '')
-                print(f"❌ Failed to refresh Spotify token for user_id: {user_id}")
+                print(f"❌ Failed to refresh Spotify token for user: {username_display}")
                 print(f"   Error: {error_msg} - {error_desc}")
                 return False
     except Exception as e:
-        print(f"🔥 Exception refreshing Spotify token for user_id: {user_id} - {str(e)}")
+        print(f"🔥 Exception refreshing Spotify token for user: {user_id} - {str(e)}")
         return False
 
 async def main():
