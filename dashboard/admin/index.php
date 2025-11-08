@@ -1206,8 +1206,8 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '</span>';
         }
         html += '</div>';
-        html += '<div class="level-item">';
-        html += '<p class="heading bot-channel">' + bot.channel + '</p>';
+        html += '<div class="level-item" style="min-width: 0;">';
+        html += '<p class="heading bot-channel" style="word-break: break-word; overflow-wrap: break-word;">' + bot.channel + '</p>';
         html += '</div>';
         html += '</div>';
         html += '</div>';
