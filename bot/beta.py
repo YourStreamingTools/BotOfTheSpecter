@@ -1270,23 +1270,25 @@ async def SYSTEM_UPDATE(data):
 @specterSocket.event
 async def OBS_EVENT_RECEIVED(data):
     websocket_logger.info(f"OBS event received: {data}")
-    # Handle the response from OBS
-    status = data.get('status')
-    action = data.get('action', {})
-    if status == 'success':
-        subcommand = action.get('subcommand')
-        if subcommand == 'scene':
-            scene_name = action.get('scene_name')
-            await send_chat_message(f"OBS scene changed to {scene_name}!")
+    try:
+        # Extract action and scene information from the data
+        action = data.get('action')
+        scene = data.get('scene')
+        # Handle set_current_program_scene action
+        if action == 'set_current_program_scene':
+            if scene:
+                websocket_logger.info(f"OBS scene successfully changed to: {scene}")
+                await send_chat_message(f"OBS scene changed to {scene}!")
+            else:
+                websocket_logger.warning("Scene change action received but no scene name provided")
+        # Handle other OBS actions as needed
+        elif action:
+            websocket_logger.info(f"OBS action executed: {action}")
+            await send_chat_message(f"OBS action executed: {action}")
         else:
-            await send_chat_message("OBS event sent!")
-        websocket_logger.info("OBS event completed successfully")
-    elif status == 'error':
-        error_message = data.get('message', 'Unknown error occurred with OBS event')
-        await send_chat_message(f"OBS reported something wrong, please check your logs.")
-        websocket_logger.error(f"OBS event error: {error_message}")
-    else:
-        websocket_logger.warning(f"Unknown OBS event status: {status}")
+            websocket_logger.warning(f"OBS event received but no action specified: {data}")
+    except Exception as e:
+        websocket_logger.error(f"Error processing OBS event: {e}", exc_info=True)
 
 # Helper function for manual websocket reconnection (can be called from commands)
 async def force_websocket_reconnect():
