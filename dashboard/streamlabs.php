@@ -203,6 +203,26 @@ if ($isLinked && isset($access_token) && !empty($access_token)) {
         $socket_token_data = json_decode($socket_token_response, true);
         if (isset($socket_token_data['socket_token'])) {
             $socketToken = $socket_token_data['socket_token'];
+            // Persist socket token to database for use by the bot
+            if (!empty($socketToken) && isset($twitchUserId)) {
+                // Attempt to detect if the socket_token column exists
+                $colCheckSql = "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'streamlabs_tokens' AND COLUMN_NAME = 'socket_token'";
+                if ($colRes = $conn->query($colCheckSql)) {
+                    $colRow = $colRes->fetch_assoc();
+                    $colExists = (isset($colRow['cnt']) && (int)$colRow['cnt'] > 0);
+                    $colRes->free();
+                } else {
+                    $colExists = false;
+                }
+                // If column exists, update the row for this twitch user
+                if ($colExists) {
+                    if ($stmt = $conn->prepare("UPDATE streamlabs_tokens SET socket_token = ? WHERE twitch_user_id = ?")) {
+                        $stmt->bind_param("ss", $socketToken, $twitchUserId);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
+            }
         }
     }
 }
