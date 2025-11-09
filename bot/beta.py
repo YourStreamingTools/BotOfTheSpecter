@@ -10161,6 +10161,26 @@ async def get_ad_settings():
                 ad_settings_cache['ad_snoozed_message'] = "Ads have been snoozed."
             ad_settings_cache_time = current_time
             return ad_settings_cache
+    except Exception as e:
+        # Log full exception and fall back to defaults so ad-notice paths can continue
+        try:
+            api_logger.error(f"Error fetching ad settings from DB: {e}")
+        except Exception:
+            # If api_logger is not available for some reason, fallback to bot_logger
+            try:
+                bot_logger.error(f"Error fetching ad settings from DB: {e}")
+            except Exception:
+                pass
+        # Ensure we still return reasonable defaults so ad notifications continue
+        ad_settings_cache = {
+            'ad_start_message': "Ads are running for (duration). We'll be right back after these ads.",
+            'ad_end_message': "Thanks for sticking with us through the ads! Welcome back, everyone!",
+            'ad_upcoming_message': "Heads up! An ad break is coming up in (minutes) minutes and will last (duration).",
+            'ad_snoozed_message': "Ads have been snoozed.",
+            'enable_ad_notice': True
+        }
+        ad_settings_cache_time = current_time
+        return ad_settings_cache
     finally:
         await connection.ensure_closed()
 
@@ -10171,16 +10191,34 @@ async def handle_ad_break_start(duration_seconds):
         return
     formatted_duration = format_duration(duration_seconds)
     ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
-    await send_chat_message(ad_start_message)
+    try:
+        # Try to send the start message and log if it fails
+        sent_ok = await send_chat_message(ad_start_message)
+        if not sent_ok:
+            api_logger.warning(f"Ad start message failed to send: {ad_start_message}")
+    except Exception as e:
+        api_logger.error(f"Exception while sending ad start message: {e}")
+
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
     async def handle_ad_break_end():
-        await send_chat_message(settings['ad_end_message'])
+        try:
+            sent_ok = await send_chat_message(settings['ad_end_message'])
+            if not sent_ok:
+                api_logger.warning(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+        except Exception as e:
+            api_logger.error(f"Exception while sending ad end message: {e}")
         # Check for the next ad after this one completes
-        global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-        ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
-        headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
-        create_task(check_next_ad_after_completion(ads_api_url, headers))
-    handle_ad_break_end.start()
+        try:
+            global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+            ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+            headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
+            create_task(check_next_ad_after_completion(ads_api_url, headers))
+        except Exception as e:
+            api_logger.error(f"Exception scheduling next-ad check after ad end: {e}")
+    try:
+        handle_ad_break_end.start()
+    except Exception as e:
+        api_logger.error(f"Failed to start ad-end routine: {e}")
 
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
@@ -10210,7 +10248,12 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
         async with httpClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
                 if response.status != 200:
-                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}")
+                    # Capture body for debugging
+                    try:
+                        body = await response.text()
+                    except Exception:
+                        body = '<could not read response body>'
+                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}, body: {body}")
                     return last_notification_time, last_ad_time, last_snooze_count
                 data = await response.json()
                 ads_data = data.get("data", [])
@@ -10228,8 +10271,14 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                 if last_snooze_count is not None and snooze_count < last_snooze_count:
                     settings = await get_ad_settings()
                     snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
-                    await send_chat_message(snooze_message)
-                    api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
+                    try:
+                        sent_ok = await send_chat_message(snooze_message)
+                        if not sent_ok:
+                            api_logger.warning(f"Failed to send snooze message: {snooze_message}")
+                        else:
+                            api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
+                    except Exception as e:
+                        api_logger.error(f"Exception sending snooze message: {e}")
                     last_snooze_count = snooze_count
                     skip_upcoming_check = True
                     return last_notification_time, last_ad_time, last_snooze_count
@@ -10255,8 +10304,14 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                                     message = message.replace("(duration)", duration_text)
                                 else:
                                     message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
-                                await send_chat_message(message)
-                                api_logger.info(f"Sent 5-minute ad notification: {message}")
+                                try:
+                                    sent_ok = await send_chat_message(message)
+                                    if not sent_ok:
+                                        api_logger.warning(f"Failed to send 5-minute ad notification: {message}")
+                                    else:
+                                        api_logger.info(f"Sent 5-minute ad notification: {message}")
+                                except Exception as e:
+                                    api_logger.error(f"Exception while sending 5-minute ad notification: {e}")
                                 last_notification_time = next_ad_at
                                 ad_upcoming_notified = True
                     except Exception as e:
@@ -10284,9 +10339,18 @@ async def check_next_ad_after_completion(ads_api_url, headers):
         async with httpClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
                 if response.status != 200:
-                    api_logger.warning(f"Failed to fetch next ad data after completion. Status: {response.status}")
+                    try:
+                        body = await response.text()
+                    except Exception:
+                        body = '<could not read response body>'
+                    api_logger.warning(f"Failed to fetch next ad data after completion. Status: {response.status}, body: {body}")
                     return
-                data = await response.json()
+                try:
+                    data = await response.json()
+                except Exception as e:
+                    # Log and bail out if the JSON cannot be parsed
+                    api_logger.error(f"Failed to parse JSON from next-ad response: {e}")
+                    return
                 ads_data = data.get("data", [])
                 if not ads_data:
                     api_logger.debug("No next ad data available after completion")
@@ -10313,8 +10377,14 @@ async def check_next_ad_after_completion(ads_api_url, headers):
                                     message = message.replace("(duration)", duration_text)
                                 else:
                                     message = f"Heads up! Another ad break is coming up in {minutes_until} minute{'s' if minutes_until != 1 else ''} and will last {duration_text}."
-                                await send_chat_message(message)
-                                api_logger.info(f"Sent immediate next-ad notification: {message}")
+                                try:
+                                    sent_ok = await send_chat_message(message)
+                                    if not sent_ok:
+                                        api_logger.warning(f"Failed to send immediate next-ad notification: {message}")
+                                    else:
+                                        api_logger.info(f"Sent immediate next-ad notification: {message}")
+                                except Exception as e:
+                                    api_logger.error(f"Exception while sending immediate next-ad notification: {e}")
                                 ad_upcoming_notified = True
                     except Exception as e:
                         api_logger.error(f"Error parsing next ad time after completion: {e}")
