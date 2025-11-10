@@ -278,10 +278,6 @@ if ($current_file == 'index.php') {
                 <span class="sidebar-user-text"><?php echo t('navbar_mod_for'); ?></span>
             </a>
             <?php endif; ?>
-            <a href="../profile.php" class="sidebar-user-item">
-                <span class="sidebar-user-icon"><i class="fas fa-user"></i></span>
-                <span class="sidebar-user-text"><?php echo t('navbar_profile'); ?></span>
-            </a>
             <a href="mod_return_home.php" class="sidebar-user-item">
                 <span class="sidebar-user-icon"><i class="fas fa-home"></i></span>
                 <span class="sidebar-user-text"><?php echo t('navbar_return_home'); ?></span>
