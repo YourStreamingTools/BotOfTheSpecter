@@ -221,9 +221,9 @@ if ($current_file == 'index.php') {
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_commands'); ?></div>
                 <ul class="sidebar-submenu">
-                    <li><a href="commands.php"><?php echo t('navbar_view_custom_commands'); ?></a></li>
-                    <li><a href="builtin.php"><?php echo t('navbar_view_builtin_commands'); ?></a></li>
-                    <li><a href="manage_custom_commands.php"><?php echo t('navbar_edit_custom_commands'); ?></a></li>
+                    <li><a href="commands.php" class="sidebar-submenu-link"><?php echo t('navbar_view_custom_commands'); ?></a></li>
+                    <li><a href="builtin.php" class="sidebar-submenu-link"><?php echo t('navbar_view_builtin_commands'); ?></a></li>
+                    <li><a href="manage_custom_commands.php" class="sidebar-submenu-link"><?php echo t('navbar_edit_custom_commands'); ?></a></li>
                 </ul>
             </li>
             <li class="sidebar-menu-item">
@@ -247,8 +247,8 @@ if ($current_file == 'index.php') {
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_counters'); ?></div>
                 <ul class="sidebar-submenu">
-                    <li><a href="counters.php"><?php echo t('navbar_counters'); ?></a></li>
-                    <li><a href="edit_counters.php"><?php echo t('navbar_edit_counters'); ?></a></li>
+                    <li><a href="counters.php" class="sidebar-submenu-link"><?php echo t('navbar_counters'); ?></a></li>
+                    <li><a href="edit_counters.php" class="sidebar-submenu-link"><?php echo t('navbar_edit_counters'); ?></a></li>
                 </ul>
             </li>
             <li class="sidebar-menu-item">
@@ -265,9 +265,9 @@ if ($current_file == 'index.php') {
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_alerts'); ?></div>
                 <ul class="sidebar-submenu">
-                    <li><a href="sound-alerts.php"><?php echo t('navbar_sound_alerts'); ?></a></li>
-                    <li><a href="video-alerts.php"><?php echo t('navbar_video_alerts'); ?></a></li>
-                    <li><a href="walkons.php"><?php echo t('navbar_walkon_alerts'); ?></a></li>
+                    <li><a href="sound-alerts.php" class="sidebar-submenu-link"><?php echo t('navbar_sound_alerts'); ?></a></li>
+                    <li><a href="video-alerts.php" class="sidebar-submenu-link"><?php echo t('navbar_video_alerts'); ?></a></li>
+                    <li><a href="walkons.php" class="sidebar-submenu-link"><?php echo t('navbar_walkon_alerts'); ?></a></li>
                 </ul>
             </li>
         </ul>
@@ -348,7 +348,6 @@ if ($current_file == 'index.php') {
             This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
             All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are used for identification purposes only.
         </div>
-        </div>
     </footer>
     <!-- JavaScript dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
@@ -400,8 +399,9 @@ if ($current_file == 'index.php') {
             if (getCookie('maintenance_notice')) {
                 document.cookie = 'maintenance_notice=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
             }
-            if (getCookie('maintenance_acknowledged')) {
-                document.cookie = 'maintenance_acknowledged=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            // remove the modal acknowledgement cookie (name used elsewhere in this file)
+            if (getCookie('maintenance_modal_acknowledged')) {
+                document.cookie = 'maintenance_modal_acknowledged=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
             }
         <?php endif; ?>
     });
