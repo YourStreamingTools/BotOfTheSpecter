@@ -31,21 +31,6 @@ date_default_timezone_set($timezone);
 
 // Fetch all timed messages for the forms
 $timedMessagesData = [];
-$stmt = $db->prepare("SELECT id, interval_count, message, status, chat_line_trigger FROM timed_messages");
-if ($stmt) {
-    $stmt->execute();
-    $stmt->bind_result($id, $interval_count, $message, $status, $chat_line_trigger);
-    while ($stmt->fetch()) {
-        $timedMessagesData[] = [
-            'id' => $id,
-            'interval_count' => $interval_count,
-            'message' => $message,
-            'status' => $status,
-            'chat_line_trigger' => $chat_line_trigger
-        ];
-    }
-    $stmt->close();
-}
 
 // Initialize variables for messages or errors
 $successMessage = "";
@@ -58,17 +43,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $message = $_POST['message'];
         $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
         $chat_line_trigger = filter_input(INPUT_POST, 'chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
+        if ($chat_line_trigger === null || $chat_line_trigger === false) {
+            $chat_line_trigger = 5;
+        }
         // Validate input data
         if ($interval === false) {
             $errorMessage = "Interval must be a valid integer between 5 and 60.";
-        } elseif ($chat_line_trigger !== null && $chat_line_trigger === false) {
+        } elseif ($chat_line_trigger < 5) {
             $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
         } else {
             // Use MySQLi for insert
             $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`, `chat_line_trigger`) VALUES (?, ?, ?, ?)');
             if ($stmt) {
-                $status = 'True';
-                $stmt->bind_param('issi', $interval, $message, $status, $chat_line_trigger);
+                $status = 1; // enabled
+                $stmt->bind_param('isii', $interval, $message, $status, $chat_line_trigger);
                 if ($stmt->execute()) {
                     $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] .
                         ($chat_line_trigger ? ' and chat line trigger: ' . $chat_line_trigger : '') . ' has been successfully added to the database.';
@@ -106,6 +94,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $edit_message_content = $_POST['edit_message_content'];
         $edit_status = $_POST['edit_status'];
         $edit_chat_line_trigger = filter_input(INPUT_POST, 'edit_chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
+        if ($edit_chat_line_trigger === null || $edit_chat_line_trigger === false) {
+            $edit_chat_line_trigger = 5;
+        }
         // Check if the edit_message_id exists in the timed_messages table
         $stmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE id = ?");
         if ($stmt) {
@@ -117,7 +108,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($message_exists && $edit_interval !== false) {
                 $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ?, `status` = ?, `chat_line_trigger` = ? WHERE id = ?');
                 if ($stmt) {
-                    $stmt->bind_param('issii', $edit_interval, $edit_message_content, $edit_status, $edit_chat_line_trigger, $edit_message_id);
+                    // Convert status (string) to integer 1/0
+                    $status_int = ($edit_status === 'True' || $edit_status === '1' || $edit_status == 1) ? 1 : 0;
+                    $stmt->bind_param('isiii', $edit_interval, $edit_message_content, $status_int, $edit_chat_line_trigger, $edit_message_id);
                     $stmt->execute();
                     $updated = $stmt->affected_rows > 0;
                     if ($updated) {
@@ -145,6 +138,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 }
+
 $displayMessageData = !empty($_GET['successMessage']) || !empty($_GET['errorMessage']);
 if ($displayMessageData) {
     if (!empty($_GET['successMessage'])) {
@@ -155,6 +149,15 @@ if ($displayMessageData) {
         $displayMessages = "<p class='has-text-danger'>". htmlspecialchars($errorMessage) . "</p>";
     }
 }
+
+// Fetch all timed messages for dropdowns, JS and table rendering
+$stmt = $db->prepare("SELECT * FROM timed_messages");
+if ($stmt) {
+    $stmt->execute();
+    $timedMessagesData = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+}
+
 ob_start();
 ?>
 <div class="section p-0">
@@ -169,6 +172,21 @@ ob_start();
                         </span>
                     </header>
                     <div class="card-content">
+                        <!-- Variables Information Card -->
+                        <div class="columns is-desktop is-multiline is-centered mb-5">
+                            <div class="column is-fullwidth" style="max-width: 1200px;">
+                                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                                    <div class="card-content">
+                                        <h5 class="title is-6 mb-2"><span class="icon"><i class="fas fa-info-circle"></i></span> <?php echo t('timed_messages_variables_title') ?: 'Available Variables'; ?></h5>
+                                        <ul class="mb-0" style="list-style: disc inside;">
+                                            <li><code>(game)</code> – <?php echo t('timed_messages_var_game') ?: 'Displays the current game being played (NEW).'; ?></li>
+                                            <!-- Add more variables here as needed -->
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- End Variables Information Card -->
                         <div class="notification is-info mb-5">
                             <span class="icon"><i class="fas fa-info-circle"></i></span>
                             <?php echo t('timed_messages_info'); ?>
@@ -319,11 +337,51 @@ ob_start();
                 </div>
             </div>
         </div>
+        <!-- Current Timed Messages Table -->
+        <div class="columns is-centered mt-5">
+            <div class="column is-fullwidth">
+                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                    <header class="card-header">
+                        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                            <span class="icon mr-2"><i class="fas fa-list"></i></span>
+                            Current Timed Messages
+                        </span>
+                    </header>
+                    <div class="card-content">
+                        <table class="table is-fullwidth has-background-dark has-text-white">
+                            <thead>
+                                <tr>
+                                    <th><?php echo t('timed_messages_message_id') ?: 'ID'; ?></th>
+                                    <th><?php echo t('timed_messages_interval_label'); ?></th>
+                                    <th><?php echo t('timed_messages_chat_line_trigger_label'); ?></th>
+                                    <th><?php echo t('timed_messages_status_label'); ?></th>
+                                    <th><?php echo t('timed_messages_message_label'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($timedMessagesData)): ?>
+                                    <?php foreach ($timedMessagesData as $m): ?>
+                                        <tr>
+                                            <td><?php echo $m['id']; ?></td>
+                                            <td><?php echo $m['interval_count']; ?></td>
+                                            <td><?php echo $m['chat_line_trigger'] ?? 5; ?></td>
+                                            <td><?php echo (isset($m['status']) && $m['status'] == 1) ? t('timed_messages_status_enabled') : t('timed_messages_status_disabled'); ?></td>
+                                            <td><?php echo htmlspecialchars($m['message']); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="5" class="has-text-grey-light"><?php echo t('timed_messages_no_messages') ?: 'No timed messages configured.'; ?></td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 <?php
 $content = ob_get_clean();
-
 // Scripts section
 ob_start();
 ?>
@@ -341,7 +399,8 @@ function showResponse() {
         editMessageContent.value = messageData.message;
         editIntervalInput.value = messageData.interval_count;
         editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
-        if (editStatus) editStatus.value = messageData.status;
+        // Convert integer status (1/0) to dropdown string value
+    if (editStatus) editStatus.value = (messageData.status == 1 || messageData.status === 'True') ? 'True' : 'False';
         updateCharCount('edit_message_content', 'editCharCount');
     } else {
         editMessageContent.value = '';
