@@ -340,7 +340,7 @@ function uuidv4() {
                     <li>
                         <a href="counters.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-calculator"></i></span>
-                            <span class="sidebar-menu-text">><?php echo t('navbar_counter_stats'); ?></span>
+                            <span class="sidebar-menu-text"><?php echo t('navbar_counter_stats'); ?></span>
                         </a>
                     </li>
                     <li><hr class="navbar-divider" style="margin: 0.5rem 0; background-color: #333;"></li>
