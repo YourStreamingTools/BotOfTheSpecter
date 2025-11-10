@@ -141,7 +141,7 @@ function uuidv4() {
                     </a>
                     <ul class="sidebar-submenu">
                         <li><a href="logs.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-clipboard-list"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_bot_logs'); ?></span></a></li>
-                        <li><a href="counters.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-calculator"></i></span><span class="sidebar-menu-text">Counter Stats</span></a></li>
+                        <li><a href="counters.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-calculator"></i></span><span class="sidebar-menu-text">><?php echo t('navbar_counter_stats'); ?></span></a></li>
                         <li><a href="followers.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-user-plus"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_followers'); ?></span></a></li>
                         <li><a href="subscribers.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-star"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_subscribers'); ?></span></a></li>
                         <li><a href="mods.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-user-shield"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_moderators'); ?></span></a></li>
@@ -151,15 +151,15 @@ function uuidv4() {
                 <li class="sidebar-menu-item has-submenu">
                     <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
                         <span class="sidebar-menu-icon"><i class="fas fa-video"></i></span>
-                        <span class="sidebar-menu-text">Stream Tools</span>
+                        <span class="sidebar-menu-text"><?php echo t('navbar_stream_tools'); ?></span>
                         <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
                     </a>
                     <ul class="sidebar-submenu">
-                        <li><a href="streaming.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-video"></i></span><span class="sidebar-menu-text">Recording</span></a></li>
-                        <li><a href="overlays.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-layer-group"></i></span><span class="sidebar-menu-text">Overlays</span></a></li>
+                        <li><a href="streaming.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-video"></i></span><span class="sidebar-menu-text">><?php echo t('navbar_recording'); ?></span></a></li>
+                        <li><a href="overlays.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-layer-group"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_overlays'); ?></span></a></li>
                         <li><a href="sound-alerts.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-volume-up"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_sound_alerts'); ?></span></a></li>
                         <li><a href="video-alerts.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-film"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_video_alerts'); ?></span></a></li>
-                        <li><a href="walkons.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-door-open"></i></span><span class="sidebar-menu-text">Walk-on Alerts</span></a></li>
+                        <li><a href="walkons.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-door-open"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_walkon_alerts'); ?></span></a></li>
                     </ul>
                 </li>
                 <li class="sidebar-menu-item has-submenu">
@@ -173,9 +173,9 @@ function uuidv4() {
                         <li><a href="discordbot.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fab fa-discord"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_discord_bot'); ?></span></a></li>
                         <li><a href="spotifylink.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fab fa-spotify"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_spotify'); ?></span></a></li>
                         <li><a href="streamelements.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_streamelements'); ?></span></a></li>
-                        <li><a href="obsconnector.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-plug"></i></span><span class="sidebar-menu-text">OBSConnector</span></a></li>
-                        <li><a href="bingo.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-trophy"></i></span><span class="sidebar-menu-text">Stream Bingo</span></a></li>
-                        <li><a href="streamlabs.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-gift"></i></span><span class="sidebar-menu-text">StreamLabs</span></a></li>
+                        <li><a href="obsconnector.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-plug"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_obsconnector'); ?></span></a></li>
+                        <li><a href="bingo.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-trophy"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_stream_bingo'); ?></span></a></li>
+                        <li><a href="streamlabs.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-gift"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_streamlabs'); ?></span></a></li>
                         <li><a href="integrations.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_platform_integrations'); ?></span></a></li>
                     </ul>
                 </li>
@@ -340,7 +340,7 @@ function uuidv4() {
                     <li>
                         <a href="counters.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-calculator"></i></span>
-                            <span class="sidebar-menu-text">Counter Stats</span>
+                            <span class="sidebar-menu-text">><?php echo t('navbar_counter_stats'); ?></span>
                         </a>
                     </li>
                     <li><hr class="navbar-divider" style="margin: 0.5rem 0; background-color: #333;"></li>
@@ -373,21 +373,21 @@ function uuidv4() {
             <li class="sidebar-menu-item has-submenu">
                 <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
                     <span class="sidebar-menu-icon"><i class="fas fa-video"></i></span>
-                    <span class="sidebar-menu-text">Stream Tools</span>
+                    <span class="sidebar-menu-text"><?php echo t('navbar_stream_tools'); ?></span>
                     <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
                 </a>
-                <div class="sidebar-tooltip">Stream Tools</div>
+                <div class="sidebar-tooltip"><?php echo t('navbar_stream_tools'); ?></div>
                 <ul class="sidebar-submenu">
                     <li>
                         <a href="streaming.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-video"></i></span>
-                            <span class="sidebar-menu-text">Recording</span>
+                            <span class="sidebar-menu-text">><?php echo t('navbar_recording'); ?></span>
                         </a>
                     </li>
                     <li>
                         <a href="overlays.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-layer-group"></i></span>
-                            <span class="sidebar-menu-text">Overlays</span>
+                            <span class="sidebar-menu-text"><?php echo t('navbar_overlays'); ?></span>
                         </a>
                     </li>
                     <li><hr class="navbar-divider" style="margin: 0.5rem 0; background-color: #333;"></li>
@@ -406,7 +406,7 @@ function uuidv4() {
                     <li>
                         <a href="walkons.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-door-open"></i></span>
-                            <span class="sidebar-menu-text">Walk-on Alerts</span>
+                            <span class="sidebar-menu-text"><?php echo t('navbar_walkon_alerts'); ?></span>
                         </a>
                     </li>
                 </ul>
@@ -446,19 +446,19 @@ function uuidv4() {
                     <li>
                         <a href="obsconnector.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-plug"></i></span>
-                            <span class="sidebar-menu-text">OBSConnector</span>
+                            <span class="sidebar-menu-text"><?php echo t('navbar_obsconnector'); ?></span>
                         </a>
                     </li>
                     <li>
                         <a href="bingo.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-trophy"></i></span>
-                            <span class="sidebar-menu-text">Stream Bingo</span>
+                            <span class="sidebar-menu-text"><?php echo t('navbar_stream_bingo'); ?></span>
                         </a>
                     </li>
                     <li>
                         <a href="streamlabs.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-gift"></i></span>
-                            <span class="sidebar-menu-text">StreamLabs</span>
+                            <span class="sidebar-menu-text"><?php echo t('navbar_streamlabs'); ?></span>
                         </a>
                     </li>
                     <li><hr class="navbar-divider" style="margin: 0.5rem 0; background-color: #333;"></li>
@@ -524,9 +524,7 @@ function uuidv4() {
     <!-- Maintenance Notice Banner -->
     <div style="background:rgb(255, 165, 0); color: #222; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
         <span style="color:rgb(0, 0, 0);">
-            We are currently experiencing an outage with an external provider that our website relies on.<br>
-            Some functions and services may not be working as expected. 
-            We are actively working with the provider to restore full service as soon as possible.
+            <!-- ANY MAINTENANCE MESSAGE HERE -->
         </span>
     </div>
     <?php if (!$modalAcknowledged): ?>
