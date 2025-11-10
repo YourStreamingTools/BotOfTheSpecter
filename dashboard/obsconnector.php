@@ -21,7 +21,7 @@ $stmt->close();
 date_default_timezone_set($timezone);
 
 // OBSConnector version and download information
-$obsconnectorVersion = "1.0";
+$obsconnectorVersion = "1.1";
 $githubReleasesUrl = "https://github.com/YourStreamingTools/BotOfTheSpecter-OBS-Connector/releases";
 $downloadUrl = "https://cdn.botofthespecter.com/app-builds/OBSConnector/BotOfTheSpecter-OBS-Connector-v$obsconnectorVersion.exe";
 
