@@ -42,7 +42,7 @@ class YourLinksShortener {
         if (!this.detectedUrl) return;
         Swal.fire({
             title: 'URL Detected',
-            html: `We detected a URL in your message: <br><code style="word-break: break-all; font-size: 12px;">${this.detectedUrl}</code><br><br>Would you like to create a short link using <strong>YourLinks.click</strong>?`,
+            html: `We detected a URL in your message: <br><code style="word-break: break-all; font-size: 12px;">${this.detectedUrl}</code><br><br>Would you like to create a short link using YourLinks.click?`,
             icon: 'info',
             showCancelButton: true,
             confirmButtonColor: '#3085d6',
