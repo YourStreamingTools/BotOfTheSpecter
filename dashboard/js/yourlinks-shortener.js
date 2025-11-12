@@ -131,16 +131,22 @@ class YourLinksShortener {
             submitBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Creating...</span>';
         }
         try {
-            // Build API request
-            const params = new URLSearchParams({
+            // Build request to our backend API endpoint
+            const requestData = {
                 api: this.getApiKey(),
                 link_name: linkName,
                 destination: destination
-            });
+            };
             if (title) {
-                params.append('title', title);
+                requestData.title = title;
             }
-            const response = await fetch('https://yourlinks.click/services/api.php?' + params.toString());
+            const response = await fetch('/api/yourlinks_create.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
             const data = await response.json();
             if (data.success) {
                 this.showStatus(`Link created successfully!`, 'success', statusDiv);
