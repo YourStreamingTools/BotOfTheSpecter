@@ -149,7 +149,9 @@ $stmt = $db->prepare("SELECT * FROM timed_messages");
 $stmt->execute();
 $timedMessagesData = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
-
+// Get user's Twitch username & API key from session/database
+$twitchUsername = isset($user['twitch_username']) ? $user['twitch_username'] : 'user';
+$userApiKey = isset($_SESSION['api_key']) ? $_SESSION['api_key'] : '';
 // Start output buffering for layout template
 ob_start();
 ?>
@@ -374,12 +376,67 @@ ob_start();
                     </div>
                 </div>
             </div>
+<!-- Hidden fields for YourLinks API -->
+<input type="hidden" id="yourlinks_api_key" value="<?php echo htmlspecialchars($userApiKey); ?>">
+<input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
+<!-- YourLinks URL Shortener Modal -->
+<div id="yourlinksModal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head has-background-primary">
+            <p class="modal-card-title has-text-white">
+                <span class="icon"><i class="fas fa-link"></i></span>
+                <span>Create Short Link with YourLinks.click</span>
+            </p>
+            <button id="yourlinks_close_btn" class="delete" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body has-background-light">
+            <div id="yourlinks_status" class="mb-4"></div>
+            
+            <div class="field">
+                <label class="label">Destination URL</label>
+                <div class="control has-icons-left">
+                    <input class="input" type="url" id="yourlinks_destination" placeholder="https://example.com" readonly>
+                    <span class="icon is-small is-left"><i class="fas fa-globe"></i></span>
+                </div>
+                <p class="help">The URL you entered in the message</p>
+            </div>
+            <div class="field">
+                <label class="label">Link Name <span style="color: #f14668;">*</span></label>
+                <div class="control has-icons-left">
+                    <input class="input" type="text" id="yourlinks_link_name" placeholder="e.g., discord, youtube, twitch" maxlength="50">
+                    <span class="icon is-small is-left"><i class="fas fa-link"></i></span>
+                </div>
+                <p class="help">Alphanumeric characters, hyphens, and underscores only. Will be: <code>username.yourlinks.click/<strong>linkname</strong></code></p>
+            </div>
+            <div class="field">
+                <label class="label">Title (Optional)</label>
+                <div class="control has-icons-left">
+                    <input class="input" type="text" id="yourlinks_title" placeholder="e.g., Join My Discord Server" maxlength="100">
+                    <span class="icon is-small is-left"><i class="fas fa-heading"></i></span>
+                </div>
+                <p class="help">Display name for the link (for your reference)</p>
+            </div>
+        </section>
+        <footer class="modal-card-foot" style="justify-content: flex-end; gap: 10px;">
+            <button id="yourlinks_cancel_btn" class="button is-light">
+                <span class="icon"><i class="fas fa-times"></i></span>
+                <span>Cancel</span>
+            </button>
+            <button id="yourlinks_submit_btn" class="button is-primary">
+                <span class="icon"><i class="fas fa-link"></i></span>
+                <span>Create Link</span>
+            </button>
+        </footer>
+    </div>
+</div>
 <?php
 $content = ob_get_clean();
 
 // Scripts section
 ob_start();
 ?>
+<script src="js/yourlinks-shortener.js"></script>
 <script>
 // Function to show response for editing
 function showResponse() {
@@ -552,6 +609,9 @@ window.onload = function() {
     toggleEditButton();
     toggleRemoveButton();
     toggleAddButton();
+    // Initialize URL shortener for input fields
+    yourLinksShortener.initializeField('message');
+    yourLinksShortener.initializeField('edit_message_content');
 }
 
 // In case user types or changes values, keep button states updated
