@@ -436,7 +436,7 @@ $content = ob_get_clean();
 // Scripts section
 ob_start();
 ?>
-<script src="js/yourlinks-shortener.js"></script>
+<script src="js/yourlinks-shortener.js?v=<?php echo time(); ?>"></script>
 <script>
 // Function to show response for editing
 function showResponse() {

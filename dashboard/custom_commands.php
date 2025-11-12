@@ -500,7 +500,7 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="js/yourlinks-shortener.js"></script>
+<script src="js/yourlinks-shortener.js?v=<?php echo time(); ?>"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     var searchInput = document.getElementById("searchInput");
