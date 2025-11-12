@@ -21,6 +21,10 @@ class YourLinksShortener {
         const yourLinksPattern = /https?:\/\/([\w-]+\.)?yourlinks\.click/i;
         return yourLinksPattern.test(url);
     }
+    isCustomVariable(url) {
+        // Check if URL starts with (customapi. - these are custom variables, not actual URLs
+        return /^\(customapi\./i.test(url);
+    }
     checkForUrl(fieldId) {
         const field = document.getElementById(fieldId);
         if (!field) return;
@@ -31,6 +35,11 @@ class YourLinksShortener {
             this.sourceFieldId = fieldId;
             // Check if it's already a YourLinks.click URL
             if (this.isYourLinksUrl(this.detectedUrl)) {
+                // Skip silently - don't show any message
+                return;
+            }
+            // Check if it's a custom variable like (customapi.*)
+            if (this.isCustomVariable(this.detectedUrl)) {
                 // Skip silently - don't show any message
                 return;
             }
