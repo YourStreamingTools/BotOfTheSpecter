@@ -144,12 +144,12 @@ class YourLinksShortener {
             const data = await response.json();
             if (data.success) {
                 this.showStatus(`Link created successfully!`, 'success', statusDiv);
-                // Replace URL in source field
+                // Replace URL in source field immediately
                 this.replaceUrlInField(data.data.link_name);
-                // Close modal after 2 seconds
+                // Close modal after 1.5 seconds to let user see the success message
                 setTimeout(() => {
                     this.closeModal();
-                }, 2000);
+                }, 1500);
             } else {
                 this.showStatus(`Error: ${data.message}`, 'danger', statusDiv);
             }
@@ -182,7 +182,20 @@ class YourLinksShortener {
         // Get username from the API key or data attribute
         const username = this.getUsername();
         const shortUrl = `https://${username}.yourlinks.click/${linkName}`;
-        field.value = field.value.replace(this.detectedUrl, shortUrl);
+        // Use regex to replace all occurrences of the detected URL
+        // Escape special regex characters in the URL
+        const escapedUrl = this.detectedUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedUrl, 'gi');
+        const newValue = field.value.replace(regex, shortUrl);
+        // Only update if something actually changed
+        if (newValue !== field.value) {
+            field.value = newValue;
+            // Trigger input and change events to notify any listeners
+            const inputEvent = new Event('input', { bubbles: true });
+            const changeEvent = new Event('change', { bubbles: true });
+            field.dispatchEvent(inputEvent);
+            field.dispatchEvent(changeEvent);
+        }
     }
     getUsername() {
         const usernameElement = document.getElementById('yourlinks_username');
