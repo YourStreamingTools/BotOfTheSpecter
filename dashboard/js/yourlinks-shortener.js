@@ -31,8 +31,7 @@ class YourLinksShortener {
             this.sourceFieldId = fieldId;
             // Check if it's already a YourLinks.click URL
             if (this.isYourLinksUrl(this.detectedUrl)) {
-                // Skip confirmation and show info that it's already shortened
-                this.showAlreadyShortenedMessage();
+                // Skip silently - don't show any message
                 return;
             }
             this.showUrlDetectionConfirm();
