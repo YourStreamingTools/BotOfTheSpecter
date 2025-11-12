@@ -186,7 +186,7 @@ class YourLinksShortener {
     }
     getUsername() {
         const usernameElement = document.getElementById('yourlinks_username');
-        if (usernameElement) {
+        if (usernameElement && usernameElement.value) {
             return usernameElement.value;
         }
         // Fallback: check if it's in a data attribute
@@ -264,7 +264,20 @@ class YourLinksShortener {
             } else {
                 linkNameInput.classList.remove('is-danger');
             }
+            // Update the preview of the final URL in real time
+            this.updateLinkPreview();
         });
+    }
+    
+    updateLinkPreview() {
+        const linkNameInput = document.getElementById('yourlinks_link_name');
+        const helpText = document.querySelector('#yourlinks_link_name').parentElement.nextElementSibling;
+        if (!linkNameInput || !helpText) return;
+        
+        const username = this.getUsername();
+        const linkName = linkNameInput.value || 'linkname';
+        
+        helpText.innerHTML = `Alphanumeric characters, hyphens, and underscores only. Will be: <code>${username}.yourlinks.click/<strong>${linkName}</strong></code>`;
     }
     initialize() {
         this.setupModalHandling();

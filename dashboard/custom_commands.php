@@ -183,7 +183,7 @@ if (!isset($commands)) {
 }
 
 // Get user's Twitch username & API key from session/database
-$twitchUsername = isset($user['twitch_username']) ? $user['twitch_username'] : 'user';
+$twitchUsername = $username;
 $userApiKey = isset($_SESSION['api_key']) ? $_SESSION['api_key'] : '';
 
 // Start output buffering for layout
@@ -447,39 +447,39 @@ ob_start();
 <div id="yourlinksModal" class="modal">
     <div class="modal-background"></div>
     <div class="modal-card">
-        <header class="modal-card-head has-background-primary">
+        <header class="modal-card-head" style="background-color: #2c3e50; border-bottom: 3px solid #3498db;">
             <p class="modal-card-title has-text-white">
                 <span class="icon"><i class="fas fa-link"></i></span>
                 <span>Create Short Link with YourLinks.click</span>
             </p>
             <button id="yourlinks_close_btn" class="delete" aria-label="close"></button>
         </header>
-        <section class="modal-card-body has-background-light">
+        <section class="modal-card-body" style="background-color: #1e2936;">
             <div id="yourlinks_status" class="mb-4"></div>
             
             <div class="field">
-                <label class="label">Destination URL</label>
+                <label class="label has-text-white">Destination URL</label>
                 <div class="control has-icons-left">
                     <input class="input" type="url" id="yourlinks_destination" placeholder="https://example.com" readonly>
                     <span class="icon is-small is-left"><i class="fas fa-globe"></i></span>
                 </div>
-                <p class="help">The URL you entered in the message</p>
+                <p class="help has-text-grey-light">The URL you entered in the message</p>
             </div>
             <div class="field">
-                <label class="label">Link Name <span style="color: #f14668;">*</span></label>
+                <label class="label has-text-white">Link Name <span style="color: #f14668;">*</span></label>
                 <div class="control has-icons-left">
                     <input class="input" type="text" id="yourlinks_link_name" placeholder="e.g., discord, youtube, twitch" maxlength="50">
                     <span class="icon is-small is-left"><i class="fas fa-link"></i></span>
                 </div>
-                <p class="help">Alphanumeric characters, hyphens, and underscores only. Will be: <code>username.yourlinks.click/<strong>linkname</strong></code></p>
+                <p class="help has-text-grey-light">Alphanumeric characters, hyphens, and underscores only. Will be: <code><?php echo htmlspecialchars($twitchUsername); ?>.yourlinks.click/<strong>linkname</strong></code></p>
             </div>
             <div class="field">
-                <label class="label">Title (Optional)</label>
+                <label class="label has-text-white">Title (Optional)</label>
                 <div class="control has-icons-left">
                     <input class="input" type="text" id="yourlinks_title" placeholder="e.g., Join My Discord Server" maxlength="100">
                     <span class="icon is-small is-left"><i class="fas fa-heading"></i></span>
                 </div>
-                <p class="help">Display name for the link (for your reference)</p>
+                <p class="help has-text-grey-light">Display name for the link (for your reference)</p>
             </div>
         </section>
         <footer class="modal-card-foot" style="justify-content: flex-end; gap: 10px;">
