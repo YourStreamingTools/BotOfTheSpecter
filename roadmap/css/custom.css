@@ -777,10 +777,22 @@ body > main {
     flex-direction: column;
 }
 
-.modal-card-body #commentsContainer .title {
-    color: #e0e0e0;
+.modal-card-body #commentsContainer > div:first-child {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 1rem;
     flex-shrink: 0;
+}
+
+.modal-card-body #commentsContainer .title {
+    color: #e0e0e0;
+    margin: 0;
+}
+
+.modal-card-body #commentsContainer .button {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.75rem;
 }
 
 .modal-card-body #commentsSection {
@@ -801,18 +813,24 @@ body > main {
 #commentsSection {
     display: flex !important;
     flex-direction: column !important;
-    gap: 0 !important;
+    gap: 0.5rem !important;
 }
 
 #commentsSection .box.comment-box {
-    background-color: rgba(0, 0, 0, 0.2) !important;
-    border: none !important;
-    padding: 0.15rem 0.25rem !important;
-    margin: 0.05rem 0 !important;
+    background-color: rgba(102, 126, 234, 0.08) !important;
+    border: 1px solid rgba(102, 126, 234, 0.2) !important;
+    padding: 0.75rem !important;
+    margin: 0 !important;
     border-radius: 6px !important;
     box-shadow: none !important;
     min-height: auto !important;
-    line-height: 1 !important;
+    line-height: 1.4 !important;
+    transition: all 0.2s ease !important;
+}
+
+#commentsSection .box.comment-box:hover {
+    background-color: rgba(102, 126, 234, 0.12) !important;
+    border-color: rgba(102, 126, 234, 0.3) !important;
 }
 
 /* Comment Header: User info and timestamp */
@@ -820,21 +838,23 @@ body > main {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
-    margin-bottom: 0.08rem !important;
-    gap: 0.2rem !important;
+    margin-bottom: 0.5rem !important;
+    gap: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    border-bottom: 1px solid rgba(102, 126, 234, 0.15) !important;
 }
 
 .comment-user-info {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.5rem;
     flex: 1;
     min-width: 0;
 }
 
 .comment-avatar {
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
@@ -844,27 +864,27 @@ body > main {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     background: hsl(var(--avatar-hue), 70%, 50%);
     color: white;
     font-weight: bold;
-    font-size: 0.6rem;
+    font-size: 0.75rem;
     flex-shrink: 0;
 }
 
 .comment-username {
     color: #667eea;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     white-space: nowrap;
     line-height: 1 !important;
 }
 
 .comment-time {
-    color: #555;
-    font-size: 0.7rem;
+    color: #888;
+    font-size: 0.75rem;
     white-space: nowrap;
     flex-shrink: 0;
     line-height: 1 !important;
@@ -872,10 +892,11 @@ body > main {
 
 /* Comment text */
 .comment-text {
-    color: #b0b0b0;
-    line-height: 1 !important;
-    font-size: 0.85rem;
+    color: #c0c0c0;
+    line-height: 1.5 !important;
+    font-size: 0.9rem;
     word-wrap: break-word;
     white-space: pre-wrap;
     margin: 0 !important;
 }
+

@@ -109,10 +109,17 @@ function uuidv4() {
                     <h4 class="title is-6" style="margin-bottom: 1rem;">Description</h4>
                     <div id="detailsContent" style="line-height: 1.6; color: #b0b0b0;"></div>
                 </div>
-                
                 <!-- Right Column: Activity/Comments Feed -->
                 <div id="commentsContainer" style="flex: 1; border-left: 1px solid rgba(255, 255, 255, 0.1); padding-left: 1.5rem; display: flex; flex-direction: column;">
-                    <h4 class="title is-6" style="margin-bottom: 1rem;">Activity</h4>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 class="title is-6" style="margin: 0;">Activity</h4>
+                        <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
+                            <button class="button is-small is-primary" id="addCommentTrigger">
+                                <span class="icon is-small"><i class="fas fa-comment"></i></span>
+                                <span>Comment</span>
+                            </button>
+                        <?php endif; ?>
+                    </div>
                     <div id="commentsSection" style="flex: 1; overflow-y: auto;">
                         <!-- Comments will be loaded here -->
                     </div>
@@ -268,6 +275,15 @@ function uuidv4() {
                 detailsModal.classList.add('is-active');
             });
         });
+        // Add comment trigger button (for admins)
+        const addCommentTrigger = document.getElementById('addCommentTrigger');
+        if (addCommentTrigger) {
+            addCommentTrigger.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('commentItemId').value = currentItemId;
+                addCommentModal.classList.add('is-active');
+            });
+        }
         // Add comment form submission
         if (addCommentForm) {
             addCommentForm.addEventListener('submit', function(e) {
