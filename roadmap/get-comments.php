@@ -3,10 +3,12 @@
 require_once "/var/www/config/database.php";
 require_once "/var/www/roadmap/admin/database.php";
 
+session_start();
+
 $item_id = $_GET['item_id'] ?? 0;
 
 if ($item_id <= 0) {
-    echo '<p class="has-text-grey">No comments yet</p>';
+    echo '<p class="has-text-grey" style="text-align: center; padding: 1rem;">No comments yet</p>';
     exit;
 }
 
@@ -31,7 +33,7 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows === 0) {
-    echo '<p class="has-text-grey">No comments yet</p>';
+    echo '<p class="has-text-grey" style="text-align: center; padding: 1rem;">No comments yet</p>';
     $stmt->close();
     $conn->close();
     exit;
@@ -86,7 +88,7 @@ while ($row = $result->fetch_assoc()) {
                 <?php if ($profileImage): ?>
                     <img src="<?php echo htmlspecialchars($profileImage); ?>" alt="<?php echo htmlspecialchars($row['username']); ?>" class="comment-avatar">
                 <?php else: ?>
-                    <div class="comment-avatar-fallback">
+                    <div class="comment-avatar-fallback" style="--avatar-hue: <?php echo $avatarHue; ?>;">
                         <?php echo $userInitials; ?>
                     </div>
                 <?php endif; ?>
