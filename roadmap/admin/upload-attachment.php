@@ -42,43 +42,35 @@ $maxFileSize = 10 * 1024 * 1024;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
     $itemId = $_POST['item_id'] ?? 0;
     $file = $_FILES['file'];
-    
     // Validate item ID
     if (!is_numeric($itemId) || $itemId <= 0) {
         http_response_code(400);
         die(json_encode(['success' => false, 'message' => 'Invalid item ID']));
     }
-    
     // Validate file
     if ($file['error'] !== UPLOAD_ERR_OK) {
         http_response_code(400);
         die(json_encode(['success' => false, 'message' => 'File upload error: ' . $file['error']]));
     }
-    
     // Check file size
     if ($file['size'] > $maxFileSize) {
         http_response_code(413);
         die(json_encode(['success' => false, 'message' => 'File size exceeds 10MB limit']));
     }
-    
     // Check file type
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mimeType = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
-    
     if (!in_array($mimeType, $allowedFileTypes)) {
         http_response_code(400);
         die(json_encode(['success' => false, 'message' => 'File type not allowed. Allowed types: Images (JPG, PNG, GIF, WebP, SVG) and Documents (PDF, Word, Excel, TXT)']));
     }
-    
     // Determine if it's an image
     $isImage = in_array($mimeType, $allowedImageTypes) ? 1 : 0;
-    
     // Generate unique filename
     $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
     $uniqueName = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $file['name']);
     $filePath = $uploadDir . $uniqueName;
-    
     // Move uploaded file
     if (!move_uploaded_file($file['tmp_name'], $filePath)) {
         $error = 'Failed to save file to: ' . $filePath;
@@ -91,15 +83,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
         http_response_code(500);
         die(json_encode(['success' => false, 'message' => $error]));
     }
-    
     // Store in database
     $conn = getRoadmapConnection();
     $stmt = $conn->prepare("INSERT INTO roadmap_attachments (item_id, file_name, file_path, file_type, file_size, is_image, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    
     if ($stmt) {
         $relativeFilePath = str_replace('\\', '/', $filePath);
-        $stmt->bind_param("isssiii", $itemId, $file['name'], $relativeFilePath, $mimeType, $file['size'], $isImage, $_SESSION['username']);
-        
+        $stmt->bind_param("isssiis", $itemId, $file['name'], $relativeFilePath, $mimeType, $file['size'], $isImage, $_SESSION['username']);
         if ($stmt->execute()) {
             $attachmentId = $conn->insert_id;
             http_response_code(200);
