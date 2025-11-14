@@ -2863,7 +2863,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        await send_chat_message("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
+                        await send_chat_message("BotOfTheSpecter Roadmap can be found here: https://roadmap.botofthespecter.com/")
                         # Record usage
                         add_usage('roadmap', bucket_key, cooldown_bucket)
                     else:
