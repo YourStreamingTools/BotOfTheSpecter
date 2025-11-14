@@ -132,9 +132,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $categories = array('REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED');
 $subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
 
+// Get search and filter parameters
+$searchQuery = $_GET['search'] ?? '';
+$selectedCategory = $_GET['category'] ?? '';
+
 // Get all items
 $allItems = [];
-$query = "SELECT * FROM roadmap_items ORDER BY priority DESC, created_at DESC";
+$query = "SELECT * FROM roadmap_items WHERE 1=1";
+
+// Add search filter
+if (!empty($searchQuery)) {
+    $query .= " AND title LIKE '%" . $conn->real_escape_string($searchQuery) . "%'";
+}
+
+// Add category filter
+if (!empty($selectedCategory) && in_array($selectedCategory, $categories)) {
+    $query .= " AND category = '" . $conn->real_escape_string($selectedCategory) . "'";
+}
+
+$query .= " ORDER BY priority DESC, created_at DESC";
+
 if ($result = $conn->query($query)) {
     while ($row = $result->fetch_assoc()) {
         $allItems[] = $row;
@@ -142,7 +159,7 @@ if ($result = $conn->query($query)) {
     $result->free();
 }
 
-// Group items by category
+// Group items by category (only if no category filter is applied)
 $itemsByCategory = [];
 foreach ($categories as $cat) {
     $itemsByCategory[$cat] = [];
@@ -164,6 +181,56 @@ ob_start();
         <strong><?php echo ucfirst($message_type); ?>:</strong> <?php echo htmlspecialchars($message); ?>
     </div>
 <?php endif; ?>
+<!-- Search and Filter Section -->
+<div class="box mb-6">
+    <h2 class="title is-5 mb-4">
+        <span class="icon-text">
+            <span class="icon"><i class="fas fa-search"></i></span>
+            <span>Search & Filter</span>
+        </span>
+    </h2>
+    <form method="GET" action="">
+        <div class="columns">
+            <div class="column is-two-thirds">
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <input class="input" type="text" name="search" placeholder="Search roadmap items by title..." value="<?php echo htmlspecialchars($searchQuery); ?>">
+                    </div>
+                    <div class="control">
+                        <button type="submit" class="button is-info">
+                            <span class="icon"><i class="fas fa-search"></i></span>
+                            <span>Search</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select name="category" onchange="this.form.submit()">
+                                <option value="">All Categories</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?php echo htmlspecialchars($cat); ?>" <?php echo $selectedCategory === $cat ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($cat); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php if (!empty($searchQuery) || !empty($selectedCategory)): ?>
+            <div class="field">
+                <a href="index.php" class="button is-light is-small">
+                    <span class="icon"><i class="fas fa-times"></i></span>
+                    <span>Clear Filters</span>
+                </a>
+            </div>
+        <?php endif; ?>
+    </form>
+</div>
 <!-- Add New Item Form -->
 <div class="box mb-6">
     <h2 class="title is-4 mb-5">
@@ -258,7 +325,111 @@ ob_start();
         </div>
     </form>
 </div>
-<!-- Category Columns -->
+<?php if (!empty($searchQuery) || !empty($selectedCategory)): ?>
+    <!-- Filtered Results -->
+    <div class="mb-6">
+        <div class="box">
+            <h2 class="title is-5 mb-4">
+                <span class="icon-text">
+                    <span class="icon"><i class="fas fa-filter"></i></span>
+                    <span>
+                        Search Results 
+                        <?php if (!empty($searchQuery)): ?>
+                            for "<?php echo htmlspecialchars($searchQuery); ?>"
+                        <?php endif; ?>
+                        <?php if (!empty($selectedCategory)): ?>
+                            in <?php echo htmlspecialchars($selectedCategory); ?>
+                        <?php endif; ?>
+                    </span>
+                </span>
+            </h2>
+            <div class="mb-3">
+                <strong><?php echo count($allItems); ?></strong> result<?php echo count($allItems) !== 1 ? 's' : ''; ?> found
+            </div>
+            <?php if (empty($allItems)): ?>
+                <div class="notification is-warning">
+                    <p>No roadmap items found matching your search criteria.</p>
+                </div>
+            <?php else: ?>
+                <div class="columns is-multiline">
+                    <?php foreach ($allItems as $item): ?>
+                        <div class="column is-one-third">
+                            <div class="roadmap-card is-<?php echo strtolower($item['priority']); ?>">
+                                <div class="roadmap-card-title">
+                                    <?php echo htmlspecialchars($item['title']); ?>
+                                </div>
+                                <div class="mb-2">
+                                    <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
+                                        <?php echo htmlspecialchars($item['subcategory']); ?>
+                                    </span>
+                                    <?php if (!empty($item['website_type'])): ?>
+                                        <span class="tag is-small is-info">
+                                            <?php echo htmlspecialchars($item['website_type']); ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="mb-3">
+                                    <span class="tag is-small is-<?php echo getCategoryColor($item['category']); ?>">
+                                        <?php echo htmlspecialchars($item['category']); ?>
+                                    </span>
+                                    <span class="tag is-small is-<?php echo getPriorityColor($item['priority']); ?>">
+                                        <?php echo htmlspecialchars($item['priority']); ?>
+                                    </span>
+                                </div>
+                                <?php if ($item['description']): ?>
+                                    <div class="mb-3">
+                                        <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
+                                            <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
+                                            <span>Details</span>
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="mb-3">
+                                    <button type="button" class="button is-small is-primary is-fullwidth add-comment-btn" data-item-id="<?php echo $item['id']; ?>">
+                                        <span class="icon is-small"><i class="fas fa-comment"></i></span>
+                                        <span>Add Comment</span>
+                                    </button>
+                                </div>
+                                <div class="mb-3">
+                                    <button type="button" class="button is-small is-warning is-fullwidth edit-item-btn" data-item-id="<?php echo $item['id']; ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-subcategory="<?php echo htmlspecialchars($item['subcategory']); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-website-type="<?php echo htmlspecialchars($item['website_type'] ?? ''); ?>">
+                                        <span class="icon is-small"><i class="fas fa-edit"></i></span>
+                                        <span>Edit</span>
+                                    </button>
+                                </div>
+                                <div class="buttons are-small" style="gap: 0.25rem;">
+                                    <form method="POST" action="" style="display:inline;">
+                                        <input type="hidden" name="action" value="update">
+                                        <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
+                                        <input type="hidden" name="category" value="IN PROGRESS">
+                                        <button type="submit" class="button is-info is-small is-fullwidth" title="Move to In Progress">
+                                            <span class="icon is-small"><i class="fas fa-play"></i></span>
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="" style="display:inline;">
+                                        <input type="hidden" name="action" value="update">
+                                        <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
+                                        <input type="hidden" name="status" value="completed">
+                                        <button type="submit" class="button is-success is-small is-fullwidth" title="Mark as Completed">
+                                            <span class="icon is-small"><i class="fas fa-check"></i></span>
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="" style="display:inline;">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
+                                        <button type="submit" class="button is-danger is-small is-fullwidth" onclick="return confirm('Are you sure?')" title="Delete">
+                                            <span class="icon is-small"><i class="fas fa-trash"></i></span>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+<?php else: ?>
+<!-- Category Columns (Default View) -->
 <div class="columns is-multiline">
     <?php foreach ($categories as $category): ?>
         <div class="column is-one-fifth">
@@ -352,7 +523,7 @@ ob_start();
         </div>
     <?php endforeach; ?>
 </div>
-
+<?php endif; ?>
 <?php
 function getCategoryIcon($category) {
     $icons = [
