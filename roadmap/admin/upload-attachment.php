@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
     $stmt = $conn->prepare("INSERT INTO roadmap_attachments (item_id, file_name, file_path, file_type, file_size, is_image, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
     if ($stmt) {
         $relativeFilePath = str_replace('\\', '/', $filePath);
-        $stmt->bind_param("isssiis", $itemId, $file['name'], $relativeFilePath, $mimeType, $file['size'], $isImage, $_SESSION['username']);
+        $stmt->bind_param("isssiss", $itemId, $file['name'], $relativeFilePath, $mimeType, $file['size'], $isImage, $_SESSION['username']);
         if ($stmt->execute()) {
             $attachmentId = $conn->insert_id;
             http_response_code(200);
