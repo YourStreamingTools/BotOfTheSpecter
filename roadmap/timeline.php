@@ -119,104 +119,164 @@ ob_start();
             <span>Back to Roadmap</span>
         </a>
     </div>
-
-    <!-- Timeline -->
-    <div style="position: relative; padding: 2rem 0;">
-        <?php foreach ($groupedEvents as $yearMonth => $monthData): ?>
-            <div style="margin-bottom: 3rem;">
-                <h2 class="title is-4" style="color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 0.5rem; margin-bottom: 1.5rem;">
+    <!-- Timeline with alternating columns -->
+    <div class="timeline-container">
+        <?php 
+        $eventIndex = 0;
+        foreach ($groupedEvents as $yearMonth => $monthData): 
+        ?>
+            <div class="timeline-section">
+                <h2 class="title is-4 timeline-month-header">
                     <?php echo htmlspecialchars($monthData['month']); ?>
                 </h2>
-                
-                <div style="position: relative; padding-left: 2rem;">
-                    <!-- Vertical line -->
-                    <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #667eea, transparent);"></div>
-                    
-                    <?php foreach ($monthData['events'] as $event): ?>
-                        <div style="margin-bottom: 2rem; position: relative;">
-                            <!-- Timeline dot -->
-                            <div style="position: absolute; left: -2.5rem; top: 0; width: 12px; height: 12px; background-color: #667eea; border-radius: 50%; border: 3px solid #1a1a2e;"></div>
-                            
-                            <!-- Event card -->
-                            <div style="background: rgba(102, 126, 234, 0.1); border: 1px solid rgba(102, 126, 234, 0.3); border-radius: 8px; padding: 1.5rem;">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                    <div>
-                                        <h3 class="title is-5" style="margin-bottom: 0.5rem;">
-                                            <?php echo htmlspecialchars($event['title']); ?>
-                                        </h3>
-                                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
-                                            <?php echo getCategoryBadge($event['category']); ?>
-                                            <?php if ($event['priority'] > 0): ?>
-                                                <span class="tag is-warning">Priority <?php echo htmlspecialchars($event['priority']); ?></span>
+                <!-- Two-column layout for events -->
+                <div class="timeline-grid">
+                    <?php 
+                    $leftEvents = [];
+                    $rightEvents = [];
+                    // Split events into left and right columns
+                    foreach ($monthData['events'] as $idx => $event) {
+                        if ($idx % 2 === 0) {
+                            $leftEvents[] = $event;
+                        } else {
+                            $rightEvents[] = $event;
+                        }
+                    }
+                    $maxCount = max(count($leftEvents), count($rightEvents));
+                    for ($i = 0; $i < $maxCount; $i++):
+                    ?>
+                        <!-- Left column -->
+                        <div>
+                            <?php if (isset($leftEvents[$i])): 
+                                $event = $leftEvents[$i];
+                            ?>
+                                <div class="timeline-card">
+                                    <!-- Timeline indicator -->
+                                    <div class="timeline-indicator">
+                                        <div class="timeline-dot"></div>
+                                        <small class="timeline-date">
+                                            <?php 
+                                            $now = new DateTime();
+                                            $interval = $now->diff($event['date']);
+                                            if ($interval->days > 0) {
+                                                echo $event['date']->format('M d, Y');
+                                            } elseif ($interval->h > 0) {
+                                                echo $interval->h . ' hour' . ($interval->h > 1 ? 's' : '') . ' ago';
+                                            } elseif ($interval->i > 0) {
+                                                echo $interval->i . ' minute' . ($interval->i > 1 ? 's' : '') . ' ago';
+                                            } else {
+                                                echo 'Just now';
+                                            }
+                                            ?>
+                                        </small>
+                                    </div>
+                                    <h3 class="title is-5 timeline-title">
+                                        <?php echo htmlspecialchars($event['title']); ?>
+                                    </h3>
+                                    <div class="timeline-tags">
+                                        <?php echo getCategoryBadge($event['category']); ?>
+                                        <?php if ($event['priority'] > 0): ?>
+                                            <span class="tag is-warning">Priority <?php echo htmlspecialchars($event['priority']); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php if ($event['type'] === 'created'): ?>
+                                        <div class="timeline-event-box timeline-event-created">
+                                            <p class="timeline-event-text"><strong>Event:</strong> Item Created</p>
+                                            <?php if (!empty($event['created_by'])): ?>
+                                                <p class="timeline-event-meta"><strong>By:</strong> <?php echo htmlspecialchars($event['created_by']); ?></p>
+                                            <?php endif; ?>
+                                            <?php if (!empty($event['description'])): ?>
+                                                <p class="timeline-event-description">
+                                                    <?php 
+                                                    $desc = htmlspecialchars($event['description']);
+                                                    echo strlen($desc) > 150 ? substr($desc, 0, 150) . '...' : $desc;
+                                                    ?>
+                                                </p>
                                             <?php endif; ?>
                                         </div>
-                                    </div>
-                                    <small style="color: #888; white-space: nowrap;">
-                                        <?php 
-                                        $now = new DateTime();
-                                        $interval = $now->diff($event['date']);
-                                        if ($interval->days > 0) {
-                                            echo $event['date']->format('M d, Y \a\t g:i A');
-                                        } elseif ($interval->h > 0) {
-                                            echo $interval->h . ' hour' . ($interval->h > 1 ? 's' : '') . ' ago';
-                                        } elseif ($interval->i > 0) {
-                                            echo $interval->i . ' minute' . ($interval->i > 1 ? 's' : '') . ' ago';
-                                        } else {
-                                            echo 'Just now';
-                                        }
-                                        ?>
-                                    </small>
-                                </div>
-                                
-                                <?php if ($event['type'] === 'created'): ?>
-                                    <div style="background: rgba(102, 126, 234, 0.2); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
-                                        <p style="color: #b0b0b0; margin-bottom: 0.5rem;"><strong>Event:</strong> Item Created</p>
-                                        <?php if (!empty($event['created_by'])): ?>
-                                            <p style="color: #b0b0b0;"><strong>By:</strong> <?php echo htmlspecialchars($event['created_by']); ?></p>
-                                        <?php endif; ?>
-                                        <?php if (!empty($event['description'])): ?>
-                                            <p style="color: #888; margin-top: 0.5rem; font-size: 0.9rem;">
-                                                <?php 
-                                                $desc = htmlspecialchars($event['description']);
-                                                echo strlen($desc) > 200 ? substr($desc, 0, 200) . '...' : $desc;
-                                                ?>
-                                            </p>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php elseif ($event['type'] === 'updated'): ?>
-                                    <div style="background: rgba(255, 217, 61, 0.15); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
-                                        <p style="color: #FFD93D;"><strong>Event:</strong> Item Updated</p>
-                                    </div>
-                                <?php endif; ?>
-                                
-                                <div style="display: flex; gap: 1rem;">
+                                    <?php elseif ($event['type'] === 'updated'): ?>
+                                        <div class="timeline-event-box timeline-event-updated">
+                                            <p class="timeline-event-updated-text"><strong>Event:</strong> Item Updated</p>
+                                        </div>
+                                    <?php endif; ?>
                                     <a href="index.php?search=<?php echo urlencode($event['title']); ?>" class="button is-small is-info is-light">
-                                        <span class="icon is-small"><i class="fas fa-search"></i></span>
-                                        <span>View Item</span>
+                                        <span class="icon is-small"><i class="fas fa-external-link-alt"></i></span>
+                                        <span>View Details</span>
                                     </a>
                                 </div>
-                            </div>
+                            <?php endif; ?>
                         </div>
-                    <?php endforeach; ?>
+                        <!-- Right column -->
+                        <div>
+                            <?php if (isset($rightEvents[$i])): 
+                                $event = $rightEvents[$i];
+                            ?>
+                                <div class="timeline-card">
+                                    <!-- Timeline indicator -->
+                                    <div class="timeline-indicator">
+                                        <div class="timeline-dot"></div>
+                                        <small class="timeline-date">
+                                            <?php 
+                                            $now = new DateTime();
+                                            $interval = $now->diff($event['date']);
+                                            if ($interval->days > 0) {
+                                                echo $event['date']->format('M d, Y');
+                                            } elseif ($interval->h > 0) {
+                                                echo $interval->h . ' hour' . ($interval->h > 1 ? 's' : '') . ' ago';
+                                            } elseif ($interval->i > 0) {
+                                                echo $interval->i . ' minute' . ($interval->i > 1 ? 's' : '') . ' ago';
+                                            } else {
+                                                echo 'Just now';
+                                            }
+                                            ?>
+                                        </small>
+                                    </div>
+                                    <h3 class="title is-5 timeline-title">
+                                        <?php echo htmlspecialchars($event['title']); ?>
+                                    </h3>
+                                    <div class="timeline-tags">
+                                        <?php echo getCategoryBadge($event['category']); ?>
+                                        <?php if ($event['priority'] > 0): ?>
+                                            <span class="tag is-warning">Priority <?php echo htmlspecialchars($event['priority']); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php if ($event['type'] === 'created'): ?>
+                                        <div class="timeline-event-box timeline-event-created">
+                                            <p class="timeline-event-text"><strong>Event:</strong> Item Created</p>
+                                            <?php if (!empty($event['created_by'])): ?>
+                                                <p class="timeline-event-meta"><strong>By:</strong> <?php echo htmlspecialchars($event['created_by']); ?></p>
+                                            <?php endif; ?>
+                                            <?php if (!empty($event['description'])): ?>
+                                                <p class="timeline-event-description">
+                                                    <?php 
+                                                    $desc = htmlspecialchars($event['description']);
+                                                    echo strlen($desc) > 150 ? substr($desc, 0, 150) . '...' : $desc;
+                                                    ?>
+                                                </p>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php elseif ($event['type'] === 'updated'): ?>
+                                        <div class="timeline-event-box timeline-event-updated">
+                                            <p class="timeline-event-updated-text"><strong>Event:</strong> Item Updated</p>
+                                        </div>
+                                    <?php endif; ?>
+                                    <a href="index.php?search=<?php echo urlencode($event['title']); ?>" class="button is-small is-info is-light">
+                                        <span class="icon is-small"><i class="fas fa-external-link-alt"></i></span>
+                                        <span>View Details</span>
+                                    </a>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endfor; ?>
                 </div>
             </div>
         <?php endforeach; ?>
-
         <?php if (empty($groupedEvents)): ?>
-            <div style="text-align: center; padding: 3rem;">
-                <p class="has-text-grey-light"><i class="fas fa-calendar-times" style="font-size: 2rem; margin-bottom: 1rem; display: block;"></i>No timeline events yet</p>
+            <div class="timeline-no-events">
+                <p class="has-text-grey-light"><i class="fas fa-calendar-times timeline-no-events-icon"></i>No timeline events yet</p>
             </div>
         <?php endif; ?>
     </div>
-</div>
-
-<style>
-    @media (max-width: 768px) {
-        .timeline-event {
-            padding-left: 1rem;
-        }
-    }
-</style>
 
 <?php
 $pageContent = ob_get_clean();
