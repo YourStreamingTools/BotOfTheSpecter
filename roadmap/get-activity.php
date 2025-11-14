@@ -36,7 +36,8 @@ if ($item_stmt) {
         $now = new DateTime();
         $interval = $now->diff($createdAt);
         if ($interval->days > 0) {
-            $formattedDate = $createdAt->format('M d \a\t h:i A');
+            $tz_abbr = $createdAt->format('T'); // T gives timezone abbreviation (AEST/AEDT)
+            $formattedDate = $createdAt->format('M d \a\t h:i A') . ' ' . $tz_abbr;
         } elseif ($interval->h > 0) {
             $formattedDate = $interval->h . ' hour' . ($interval->h > 1 ? 's' : '') . ' ago';
         } elseif ($interval->i > 0) {
