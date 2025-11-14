@@ -26,7 +26,7 @@ function initializeRoadmapDatabase() {
         title VARCHAR(255) NOT NULL,
         description LONGTEXT,
         category ENUM('REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED') NOT NULL DEFAULT 'REQUESTS',
-        subcategory ENUM('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE') NOT NULL,
+        subcategory ENUM('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER') NOT NULL,
         priority ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NOT NULL DEFAULT 'MEDIUM',
         website_type ENUM('DASHBOARD', 'OVERLAYS') DEFAULT NULL,
         completed_date DATE,
