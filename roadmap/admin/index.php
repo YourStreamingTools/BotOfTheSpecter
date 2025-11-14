@@ -39,51 +39,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $newItemId = $conn->insert_id;
                 $message = 'Roadmap item added successfully!';
                 $message_type = 'success';
-                
                 // Handle file uploads if any
                 if (isset($_FILES['initial_attachments']) && !empty($_FILES['initial_attachments']['name'][0])) {
-                    $uploadDir = './uploads/attachments/';
+                    $uploadDir = '../uploads/attachments/';
                     if (!is_dir($uploadDir)) {
                         mkdir($uploadDir, 0755, true);
                     }
-                    
                     $allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
                     $allowedDocTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
                     $allowedFileTypes = array_merge($allowedImageTypes, $allowedDocTypes);
                     $maxFileSize = 10 * 1024 * 1024;
-                    
                     $uploadedCount = 0;
                     $uploadErrors = [];
-                    
                     for ($i = 0; $i < count($_FILES['initial_attachments']['name']); $i++) {
                         if ($_FILES['initial_attachments']['error'][$i] === UPLOAD_ERR_OK) {
                             $fileName = $_FILES['initial_attachments']['name'][$i];
                             $fileTmp = $_FILES['initial_attachments']['tmp_name'][$i];
                             $fileSize = $_FILES['initial_attachments']['size'][$i];
-                            
                             // Validate file size
                             if ($fileSize > $maxFileSize) {
                                 $uploadErrors[] = "$fileName exceeds 10MB limit";
                                 continue;
                             }
-                            
                             // Validate file type
                             $finfo = finfo_open(FILEINFO_MIME_TYPE);
                             $mimeType = finfo_file($finfo, $fileTmp);
                             finfo_close($finfo);
-                            
                             if (!in_array($mimeType, $allowedFileTypes)) {
                                 $uploadErrors[] = "$fileName has unsupported file type";
                                 continue;
                             }
-                            
                             // Determine if it's an image
                             $isImage = in_array($mimeType, $allowedImageTypes) ? 1 : 0;
-                            
                             // Generate unique filename
                             $uniqueName = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $fileName);
                             $filePath = $uploadDir . $uniqueName;
-                            
                             // Move uploaded file
                             if (move_uploaded_file($fileTmp, $filePath)) {
                                 // Store in database
@@ -105,7 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             }
                         }
                     }
-                    
                     if ($uploadedCount > 0) {
                         $message .= " ($uploadedCount file(s) uploaded)";
                     }
@@ -470,14 +459,12 @@ ob_start();
                                         <?php echo htmlspecialchars($item['priority']); ?>
                                     </span>
                                 </div>
-                                <?php if ($item['description']): ?>
-                                    <div class="mb-3">
-                                        <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
-                                            <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
-                                            <span>Details</span>
-                                        </button>
-                                    </div>
-                                <?php endif; ?>
+                                <div class="mb-3">
+                                    <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
+                                        <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
+                                        <span>Details</span>
+                                    </button>
+                                </div>
                                 <div class="mb-3">
                                     <button type="button" class="button is-small is-primary is-fullwidth add-comment-btn" data-item-id="<?php echo $item['id']; ?>">
                                         <span class="icon is-small"><i class="fas fa-comment"></i></span>
@@ -564,14 +551,12 @@ ob_start();
                                         <?php echo htmlspecialchars($item['priority']); ?>
                                     </span>
                                 </div>
-                                <?php if ($item['description']): ?>
-                                    <div class="mb-3">
-                                        <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
-                                            <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
-                                            <span>Details</span>
-                                        </button>
-                                    </div>
-                                <?php endif; ?>
+                                <div class="mb-3">
+                                    <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars($item['description']); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
+                                        <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
+                                        <span>Details</span>
+                                    </button>
+                                </div>
                                 <div class="mb-3">
                                     <button type="button" class="button is-small is-primary is-fullwidth add-comment-btn" data-item-id="<?php echo $item['id']; ?>">
                                         <span class="icon is-small"><i class="fas fa-comment"></i></span>
@@ -675,7 +660,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const initialAttachments = document.getElementById('initialAttachments');
     const initialAttachmentFileName = document.getElementById('initialAttachmentFileName');
     const dragDropZone = document.getElementById('dragDropZone');
-    
     // Handle drag and drop
     if (dragDropZone && initialAttachments) {
         dragDropZone.addEventListener('dragover', (e) => {
@@ -685,7 +669,6 @@ document.addEventListener('DOMContentLoaded', function() {
             dragDropZone.style.borderColor = '#667eea';
             dragDropZone.style.borderWidth = '2px';
         });
-        
         dragDropZone.addEventListener('dragleave', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -693,7 +676,6 @@ document.addEventListener('DOMContentLoaded', function() {
             dragDropZone.style.borderColor = 'rgba(102, 126, 234, 0.3)';
             dragDropZone.style.borderWidth = '2px';
         });
-        
         dragDropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -708,7 +690,6 @@ document.addEventListener('DOMContentLoaded', function() {
             initialAttachments.dispatchEvent(event);
         });
     }
-    
     // Handle initial attachments file input
     if (initialAttachments) {
         initialAttachments.addEventListener('change', function() {
