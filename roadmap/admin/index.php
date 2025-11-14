@@ -130,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Get all categories and items
 $categories = array('REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED');
-$subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE');
+$subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
 
 // Get all items
 $allItems = [];
@@ -214,6 +214,7 @@ ob_start();
                                 <option value="WEBSOCKET SERVER">WebSocket Server</option>
                                 <option value="API SERVER">API Server</option>
                                 <option value="WEBSITE">Website</option>
+                                <option value="OTHER">Other</option>
                             </select>
                         </div>
                     </div>
@@ -391,7 +392,8 @@ function getSubcategoryColor($subcategory) {
         'DISCORD BOT' => 'info',
         'WEBSOCKET SERVER' => 'success',
         'API SERVER' => 'warning',
-        'WEBSITE' => 'danger'
+        'WEBSITE' => 'danger',
+        'OTHER' => 'light'
     ];
     return $colors[$subcategory] ?? 'light';
 }

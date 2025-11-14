@@ -16,7 +16,7 @@ $conn = getRoadmapConnection();
 
 // Get all categories and items
 $categories = array('REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED');
-$subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE');
+$subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
 
 // Get all items
 $allItems = [];
@@ -152,7 +152,8 @@ function getSubcategoryColor($subcategory) {
         'DISCORD BOT' => 'info',
         'WEBSOCKET SERVER' => 'success',
         'API SERVER' => 'warning',
-        'WEBSITE' => 'danger'
+        'WEBSITE' => 'danger',
+        'OTHER' => 'light'
     ];
     return $colors[$subcategory] ?? 'light';
 }

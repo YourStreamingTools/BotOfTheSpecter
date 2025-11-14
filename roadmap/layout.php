@@ -205,6 +205,7 @@ function uuidv4() {
                             <select name="subcategory" id="editItemSubcategory" style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
                                 <option value="TWITCH BOT">TWITCH BOT</option>
                                 <option value="WEBSITE">WEBSITE</option>
+                                <option value="OTHER">OTHER</option>
                             </select>
                         </div>
                         <div style="flex: 1;">
@@ -253,6 +254,7 @@ function uuidv4() {
                             <span class="tag is-small is-success">WebSocket Server</span>
                             <span class="tag is-small is-warning">API Server</span>
                             <span class="tag is-small is-danger">Website</span>
+                            <span class="tag is-small is-light">Other</span>
                         </div>
                     </div>
                 </div>
