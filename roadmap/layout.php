@@ -226,6 +226,42 @@ function uuidv4() {
     </div>
     <?php endif; ?>
     <?php endif; ?>
+    <!-- Legend Modal -->
+    <div class="modal" id="legendModal">
+        <div class="modal-background"></div>
+        <div class="modal-card" style="width: 90%; max-width: 500px;">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Legend</p>
+                <button class="delete" id="closeLegendModal"></button>
+            </header>
+            <section class="modal-card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                    <div>
+                        <strong style="font-size: 0.875rem; display: block; margin-bottom: 0.75rem;">Priority Levels:</strong>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <span class="tag is-small is-success">Low</span>
+                            <span class="tag is-small is-info">Medium</span>
+                            <span class="tag is-small is-warning">High</span>
+                            <span class="tag is-small is-danger">Critical</span>
+                        </div>
+                    </div>
+                    <div>
+                        <strong style="font-size: 0.875rem; display: block; margin-bottom: 0.75rem;">Subcategories:</strong>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <span class="tag is-small is-primary">Twitch Bot</span>
+                            <span class="tag is-small is-info">Discord Bot</span>
+                            <span class="tag is-small is-success">WebSocket Server</span>
+                            <span class="tag is-small is-warning">API Server</span>
+                            <span class="tag is-small is-danger">Website</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <footer class="modal-card-foot" style="justify-content: flex-end;">
+                <button type="button" class="button is-light" id="closeLegendBtn">Close</button>
+            </footer>
+        </div>
+    </div>
     <?php if (isset($extraJS)): ?>
         <?php foreach ($extraJS as $js): ?>
             <script src="<?php echo htmlspecialchars($js); ?>"></script>
@@ -246,7 +282,35 @@ function uuidv4() {
         const addCommentModal = document.getElementById('addCommentModal');
         const cancelCommentBtn = document.getElementById('cancelCommentBtn');
         const addCommentForm = document.getElementById('addCommentForm');
+        const legendBtn = document.getElementById('legendBtn');
+        const legendModal = document.getElementById('legendModal');
+        const closeLegendModal = document.getElementById('closeLegendModal');
+        const closeLegendBtn = document.getElementById('closeLegendBtn');
         let currentItemId = null;
+        // Legend button handler
+        if (legendBtn) {
+            legendBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (legendModal) {
+                    legendModal.classList.add('is-active');
+                }
+            });
+        }
+        // Close legend modal handlers
+        if (closeLegendModal) {
+            closeLegendModal.addEventListener('click', function() {
+                if (legendModal) {
+                    legendModal.classList.remove('is-active');
+                }
+            });
+        }
+        if (closeLegendBtn) {
+            closeLegendBtn.addEventListener('click', function() {
+                if (legendModal) {
+                    legendModal.classList.remove('is-active');
+                }
+            });
+        }
         // Details button handler
         detailsBtns.forEach(btn => {
             btn.addEventListener('click', function(e) {
