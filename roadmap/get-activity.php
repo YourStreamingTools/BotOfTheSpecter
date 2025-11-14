@@ -1,5 +1,7 @@
 <?php
-// Get comments for a roadmap item
+// Get activity for a roadmap item
+date_default_timezone_set('Australia/Sydney');
+
 require_once "/var/www/config/database.php";
 require_once "/var/www/roadmap/admin/database.php";
 

@@ -1,4 +1,6 @@
 <?php
+date_default_timezone_set('Australia/Sydney');
+
 function uuidv4() { 
     return bin2hex(random_bytes(2)); 
 } 
@@ -367,6 +369,17 @@ function uuidv4() {
             return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline; cursor: pointer;">' + url + '</a>';
         });
     }
+    // Format date in Australia/Sydney timezone
+    function formatDateSydney(dateString) {
+        const date = new Date(dateString);
+        const options = {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            timeZone: 'Australia/Sydney'
+        };
+        return date.toLocaleDateString('en-AU', options);
+    }
     // Helper function to get file icon based on type
     function getFileIcon(mimeType) {
         if (mimeType.startsWith('image/')) return 'fa-image';
@@ -399,7 +412,7 @@ function uuidv4() {
                                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
                                         <div style="flex: 1; min-width: 0;">
                                             <small style="color: #888; display: block; margin-bottom: 0.5rem;">
-                                                ${att.file_name} • ${att.file_size_formatted} • ${att.uploaded_by} • ${new Date(att.created_at).toLocaleDateString()}
+                                                ${att.file_name} • ${att.file_size_formatted} • ${att.uploaded_by} • ${formatDateSydney(att.created_at)}
                                             </small>
                                             <div style="text-align: center; cursor: pointer;">
                                                 <img src="${att.file_path}" alt="${att.file_name}" style="max-width: 100%; max-height: 400px; border-radius: 4px; transition: opacity 0.2s; opacity: 1;" class="zoom-image" data-filename="${att.file_name}">
@@ -430,7 +443,7 @@ function uuidv4() {
                                                 </a>
                                             </div>
                                             <small style="color: #888;">
-                                                ${att.file_size_formatted} • ${att.uploaded_by} • ${new Date(att.created_at).toLocaleDateString()}
+                                                ${att.file_size_formatted} • ${att.uploaded_by} • ${formatDateSydney(att.created_at)}
                                             </small>
                                         </div>
         `;
