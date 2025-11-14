@@ -351,7 +351,6 @@ function uuidv4() {
             return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline; cursor: pointer;">' + url + '</a>';
         });
     }
-    
     // Helper function to get file icon based on type
     function getFileIcon(mimeType) {
         if (mimeType.startsWith('image/')) return 'fa-image';
@@ -361,12 +360,10 @@ function uuidv4() {
         if (mimeType === 'text/plain') return 'fa-file-alt';
         return 'fa-file';
     }
-    
     // Load attachments for an item
     function loadAttachments(itemId) {
         const attachmentsSection = document.getElementById('attachmentsSection');
         if (!attachmentsSection) return;
-        
         fetch('../admin/get-attachments.php?item_id=' + encodeURIComponent(itemId))
             .then(response => response.json())
             .then(data => {
@@ -402,7 +399,6 @@ function uuidv4() {
                         `;
                     });
                     attachmentsSection.innerHTML = html;
-                    
                     // Add delete event listeners
                     document.querySelectorAll('.delete-attachment-btn').forEach(btn => {
                         btn.addEventListener('click', function() {
@@ -441,7 +437,6 @@ function uuidv4() {
                 attachmentsSection.innerHTML = '<p class="has-text-danger">Error loading attachments</p>';
             });
     }
-    
     document.addEventListener('DOMContentLoaded', function() {
         const detailsBtns = document.querySelectorAll('.details-btn');
         const detailsModal = document.getElementById('detailsModal');
@@ -460,7 +455,6 @@ function uuidv4() {
         const closeLegendModal = document.getElementById('closeLegendModal');
         const closeLegendBtn = document.getElementById('closeLegendBtn');
         let currentItemId = null;
-        
         // File input change handler
         if (attachmentFileInput) {
             attachmentFileInput.addEventListener('change', function() {
@@ -469,7 +463,6 @@ function uuidv4() {
                 }
             });
         }
-        
         // Add attachment trigger button (for admins)
         if (addAttachmentTrigger) {
             addAttachmentTrigger.addEventListener('click', function(e) {
@@ -486,17 +479,11 @@ function uuidv4() {
                 }
             });
         }
-        
         // Upload attachment form submission
         if (uploadAttachmentForm) {
             uploadAttachmentForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                console.log('Upload form submitted');
-                
                 const fileInput = document.getElementById('attachmentFileInput');
-                console.log('File input:', fileInput);
-                console.log('Files:', fileInput ? fileInput.files : 'no input');
-                
                 if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
                     const uploadError = document.getElementById('uploadError');
                     if (uploadError) {
@@ -506,11 +493,7 @@ function uuidv4() {
                     }
                     return;
                 }
-                
                 const itemIdInput = document.getElementById('uploadItemId');
-                console.log('Item ID input:', itemIdInput);
-                console.log('Item ID value:', itemIdInput ? itemIdInput.value : 'no input');
-                
                 if (!itemIdInput || !itemIdInput.value) {
                     const uploadError = document.getElementById('uploadError');
                     if (uploadError) {
@@ -520,22 +503,16 @@ function uuidv4() {
                     }
                     return;
                 }
-                
                 const formData = new FormData(uploadAttachmentForm);
-                console.log('FormData created, sending to server');
-                
                 const uploadProgress = document.getElementById('uploadProgress');
                 const uploadProgressBar = document.getElementById('uploadProgressBar');
                 const uploadStatusText = document.getElementById('uploadStatusText');
                 const uploadError = document.getElementById('uploadError');
                 const uploadErrorMessage = document.getElementById('uploadErrorMessage');
                 const uploadAttachmentBtn = document.getElementById('uploadAttachmentBtn');
-                
                 if (uploadProgress) uploadProgress.style.display = 'block';
                 if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = true;
-                
                 const xhr = new XMLHttpRequest();
-                
                 xhr.upload.addEventListener('progress', function(e) {
                     if (e.lengthComputable) {
                         const percentComplete = (e.loaded / e.total) * 100;
@@ -543,18 +520,11 @@ function uuidv4() {
                         if (uploadStatusText) uploadStatusText.textContent = 'Uploading: ' + Math.round(percentComplete) + '%';
                     }
                 });
-                
                 xhr.addEventListener('load', function() {
-                    console.log('XHR load event, status:', xhr.status);
-                    console.log('Response text:', xhr.responseText);
-                    
                     if (uploadProgress) uploadProgress.style.display = 'none';
                     if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
-                    
                     try {
                         const response = JSON.parse(xhr.responseText);
-                        console.log('Parsed response:', response);
-                        
                         if (xhr.status === 200 && response.success) {
                             // Close modal
                             if (uploadAttachmentModal) uploadAttachmentModal.classList.remove('is-active');
@@ -569,40 +539,30 @@ function uuidv4() {
                             if (uploadErrorMessage) uploadErrorMessage.textContent = response.message || 'Upload failed';
                         }
                     } catch (e) {
-                        console.error('Parse error:', e);
                         if (uploadError) uploadError.style.display = 'block';
                         if (uploadErrorMessage) uploadErrorMessage.textContent = 'Error uploading file: ' + e.message;
                     }
                 });
-                
                 xhr.addEventListener('error', function() {
-                    console.error('XHR error');
                     if (uploadProgress) uploadProgress.style.display = 'none';
                     if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
                     if (uploadError) uploadError.style.display = 'block';
                     if (uploadErrorMessage) uploadErrorMessage.textContent = 'Network error: ' + xhr.statusText;
                 });
-                
                 xhr.addEventListener('abort', function() {
-                    console.error('XHR aborted');
                     if (uploadProgress) uploadProgress.style.display = 'none';
                     if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
                 });
-                
-                const uploadUrl = '../admin/upload-attachment.php';
-                console.log('Opening XHR to:', uploadUrl);
-                xhr.open('POST', uploadUrl, true);
+                xhr.open('POST', '../admin/upload-attachment.php', true);
                 xhr.send(formData);
             });
         }
-        
         // Cancel upload button
         if (cancelUploadBtn) {
             cancelUploadBtn.addEventListener('click', function() {
                 if (uploadAttachmentModal) uploadAttachmentModal.classList.remove('is-active');
             });
         }
-        
         // Legend button handler
         if (legendBtn) {
             legendBtn.addEventListener('click', function(e) {
