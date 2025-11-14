@@ -146,6 +146,19 @@ function uuidv4() {
             </footer>
         </div>
     </div>
+    <!-- Image Zoom Modal -->
+    <div class="modal" id="imageZoomModal">
+        <div class="modal-background"></div>
+        <div class="modal-card" style="width: 90%; max-width: 1200px; max-height: 90vh; display: flex; flex-direction: column; background-color: #0a0a0a;">
+            <header class="modal-card-head" style="background-color: #1a1a2e;">
+                <p class="modal-card-title" id="zoomImageName">Image</p>
+                <button class="delete"></button>
+            </header>
+            <section class="modal-card-body" style="flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; background-color: #0a0a0a; padding: 2rem;">
+                <img id="zoomImageContent" src="" alt="" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+            </section>
+        </div>
+    </div>
     <!-- Add Comment Modal (Admin Only) -->
     <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
     <div class="modal" id="addCommentModal">
@@ -385,8 +398,8 @@ function uuidv4() {
                                             <small style="color: #888; display: block; margin-bottom: 0.5rem;">
                                                 ${att.file_name} • ${att.file_size_formatted} • ${att.uploaded_by} • ${new Date(att.created_at).toLocaleDateString()}
                                             </small>
-                                            <div style="text-align: center;">
-                                                <img src="${att.file_path}" alt="${att.file_name}" style="max-width: 100%; max-height: 400px; border-radius: 4px;">
+                                            <div style="text-align: center; cursor: pointer;">
+                                                <img src="${att.file_path}" alt="${att.file_name}" style="max-width: 100%; max-height: 400px; border-radius: 4px; transition: opacity 0.2s; opacity: 1;" class="zoom-image" data-filename="${att.file_name}">
                                             </div>
                                         </div>
         `;
@@ -458,6 +471,19 @@ function uuidv4() {
                                     console.error('Error:', error);
                                     alert('Error deleting attachment');
                                 });
+                            }
+                        });
+                    });
+                    // Add zoom image event listeners
+                    const imageZoomModal = document.getElementById('imageZoomModal');
+                    const zoomImageContent = document.getElementById('zoomImageContent');
+                    const zoomImageName = document.getElementById('zoomImageName');
+                    document.querySelectorAll('.zoom-image').forEach(img => {
+                        img.addEventListener('click', function() {
+                            zoomImageContent.src = this.src;
+                            zoomImageName.textContent = this.getAttribute('data-filename');
+                            if (imageZoomModal) {
+                                imageZoomModal.classList.add('is-active');
                             }
                         });
                     });
