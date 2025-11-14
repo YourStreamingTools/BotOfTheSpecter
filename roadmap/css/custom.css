@@ -611,6 +611,7 @@ body > main {
 
 .roadmap-column {
     min-height: 600px;
+    max-height: 600px;
     display: flex;
     flex-direction: column;
     background-color: #242a40;
@@ -634,6 +635,28 @@ body > main {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    padding-right: 0.5rem;
+}
+
+/* Custom Scrollbar Styling */
+.roadmap-column-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.roadmap-column-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.roadmap-column-content::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+    transition: all 0.3s ease-in-out;
+}
+
+.roadmap-column-content::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #764ba2 0%, #667eea 100%);
+    box-shadow: 0 0 8px rgba(102, 126, 234, 0.5);
 }
 
 .roadmap-card {
