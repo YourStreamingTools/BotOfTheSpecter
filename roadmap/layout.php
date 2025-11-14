@@ -103,7 +103,7 @@ function uuidv4() {
     <!-- Details Modal (Public) -->
     <div class="modal" id="detailsModal">
         <div class="modal-background"></div>
-        <div class="modal-card" style="width: 90%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-card" style="width: 85vw; height: 88vh; max-width: 1400px; display: flex; flex-direction: column;">
             <header class="modal-card-head">
                 <p class="modal-card-title" id="detailsTitle">Item Details</p>
                 <button class="delete"></button>
