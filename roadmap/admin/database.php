@@ -55,6 +55,25 @@ function initializeRoadmapDatabase() {
     if (!$conn->query($sql)) {
         return array('success' => false, 'message' => 'Error creating roadmap_comments table: ' . $conn->error);
     }
+    // Create roadmap_attachments table
+    $sql = "CREATE TABLE IF NOT EXISTS roadmap_attachments (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        item_id INT NOT NULL,
+        file_name VARCHAR(255) NOT NULL,
+        file_path VARCHAR(255) NOT NULL,
+        file_type VARCHAR(100),
+        file_size INT,
+        is_image BOOLEAN DEFAULT FALSE,
+        uploaded_by VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES roadmap_items(id) ON DELETE CASCADE,
+        INDEX idx_item_id (item_id),
+        INDEX idx_is_image (is_image),
+        INDEX idx_created_at (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    if (!$conn->query($sql)) {
+        return array('success' => false, 'message' => 'Error creating roadmap_attachments table: ' . $conn->error);
+    }
     $conn->close();
     return array('success' => true, 'message' => 'Database initialized successfully');
 }

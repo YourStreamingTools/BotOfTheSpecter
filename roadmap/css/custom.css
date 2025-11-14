@@ -775,3 +775,134 @@ body > main {
     border-radius: 0 0 8px 8px;
 }
 
+/* ============================================
+   Attachments Styles
+   ============================================ */
+
+.attachment-item {
+    background-color: rgba(100, 126, 234, 0.1);
+    border-left: 3px solid #667eea;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    transition: var(--transition);
+}
+
+.attachment-item:hover {
+    background-color: rgba(100, 126, 234, 0.15);
+}
+
+.attachment-item a {
+    color: #667eea;
+    text-decoration: underline;
+    transition: color 0.2s ease;
+}
+
+.attachment-item a:hover {
+    color: #8b9ff0;
+}
+
+.attachment-item .file-icon {
+    color: #667eea;
+    margin-right: 0.5rem;
+}
+
+.attachment-item small {
+    color: #888;
+    display: block;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}
+
+.delete-attachment-btn {
+    flex-shrink: 0;
+    background-color: rgba(241, 70, 104, 0.1);
+    border: 1px solid rgba(241, 70, 104, 0.3);
+    color: #f14668;
+    transition: var(--transition);
+}
+
+.delete-attachment-btn:hover {
+    background-color: rgba(241, 70, 104, 0.2);
+    border-color: #f14668;
+}
+
+/* ============================================
+   File Upload Styles
+   ============================================ */
+
+.file.is-boxed {
+    background-color: #252540;
+    border: 2px dashed rgba(102, 126, 234, 0.3);
+    border-radius: 8px;
+    padding: 2rem;
+    transition: var(--transition);
+}
+
+.file.is-boxed:hover {
+    background-color: #2d2d48;
+    border-color: rgba(102, 126, 234, 0.6);
+}
+
+.file.is-boxed .file-cta {
+    background-color: transparent;
+    border: none;
+    color: #667eea;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0;
+}
+
+.file.is-boxed .file-icon {
+    color: #667eea;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.file.is-boxed .file-label {
+    color: #e0e0e0;
+    display: block;
+}
+
+.file.is-boxed .file-name {
+    bottom: auto;
+    left: auto;
+    top: auto;
+    right: auto;
+    background-color: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    margin-top: 1rem;
+    border-radius: 4px;
+}
+
+.file-input {
+    display: none;
+}
+
+#uploadProgress {
+    margin-top: 1rem;
+}
+
+#uploadProgress .progress {
+    background-color: rgba(102, 126, 234, 0.2);
+}
+
+#uploadProgress .progress::-webkit-progress-bar {
+    background-color: rgba(102, 126, 234, 0.2);
+}
+
+#uploadProgress .progress::-webkit-progress-value {
+    background-color: #667eea;
+}
+
+#uploadStatusText {
+    margin-top: 0.5rem;
+    color: #667eea;
+}
+
+

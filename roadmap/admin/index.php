@@ -36,8 +36,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($stmt) {
             $stmt->bind_param("sssssss", $title, $description, $category, $subcategory, $priority, $website_type, $_SESSION['username']);
             if ($stmt->execute()) {
+                $newItemId = $conn->insert_id;
                 $message = 'Roadmap item added successfully!';
                 $message_type = 'success';
+                
+                // Handle file uploads if any
+                if (isset($_FILES['initial_attachments']) && !empty($_FILES['initial_attachments']['name'][0])) {
+                    $uploadDir = './uploads/attachments/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    $allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+                    $allowedDocTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+                    $allowedFileTypes = array_merge($allowedImageTypes, $allowedDocTypes);
+                    $maxFileSize = 10 * 1024 * 1024;
+                    
+                    $uploadedCount = 0;
+                    $uploadErrors = [];
+                    
+                    for ($i = 0; $i < count($_FILES['initial_attachments']['name']); $i++) {
+                        if ($_FILES['initial_attachments']['error'][$i] === UPLOAD_ERR_OK) {
+                            $fileName = $_FILES['initial_attachments']['name'][$i];
+                            $fileTmp = $_FILES['initial_attachments']['tmp_name'][$i];
+                            $fileSize = $_FILES['initial_attachments']['size'][$i];
+                            
+                            // Validate file size
+                            if ($fileSize > $maxFileSize) {
+                                $uploadErrors[] = "$fileName exceeds 10MB limit";
+                                continue;
+                            }
+                            
+                            // Validate file type
+                            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                            $mimeType = finfo_file($finfo, $fileTmp);
+                            finfo_close($finfo);
+                            
+                            if (!in_array($mimeType, $allowedFileTypes)) {
+                                $uploadErrors[] = "$fileName has unsupported file type";
+                                continue;
+                            }
+                            
+                            // Determine if it's an image
+                            $isImage = in_array($mimeType, $allowedImageTypes) ? 1 : 0;
+                            
+                            // Generate unique filename
+                            $uniqueName = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $fileName);
+                            $filePath = $uploadDir . $uniqueName;
+                            
+                            // Move uploaded file
+                            if (move_uploaded_file($fileTmp, $filePath)) {
+                                // Store in database
+                                $stmt2 = $conn->prepare("INSERT INTO roadmap_attachments (item_id, file_name, file_path, file_type, file_size, is_image, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                                if ($stmt2) {
+                                    $relativeFilePath = str_replace('\\', '/', $filePath);
+                                    $stmt2->bind_param("isssii", $newItemId, $fileName, $relativeFilePath, $mimeType, $fileSize, $isImage, $_SESSION['username']);
+                                    if ($stmt2->execute()) {
+                                        $uploadedCount++;
+                                    } else {
+                                        $uploadErrors[] = "Database error for $fileName";
+                                    }
+                                    $stmt2->close();
+                                } else {
+                                    $uploadErrors[] = "Error saving $fileName to database";
+                                }
+                            } else {
+                                $uploadErrors[] = "Failed to save $fileName";
+                            }
+                        }
+                    }
+                    
+                    if ($uploadedCount > 0) {
+                        $message .= " ($uploadedCount file(s) uploaded)";
+                    }
+                    if (!empty($uploadErrors)) {
+                        $message .= " - Some files failed: " . implode(", ", $uploadErrors);
+                        $message_type = 'warning';
+                    }
+                }
             } else {
                 $message = 'Error adding item: ' . $stmt->error;
                 $message_type = 'danger';
@@ -239,7 +315,7 @@ ob_start();
             <span>Add New Roadmap Item</span>
         </span>
     </h2>
-    <form method="POST" action="">
+    <form method="POST" action="" id="addItemForm" enctype="multipart/form-data">
         <input type="hidden" name="action" value="add">
         <div class="columns">
             <div class="column is-two-thirds">
@@ -254,6 +330,26 @@ ob_start();
                     <div class="control">
                         <textarea class="textarea" name="description" placeholder="Item description (optional)" rows="3"></textarea>
                     </div>
+                </div>
+                <div class="field">
+                    <label class="label">Attachments (Optional)</label>
+                    <div class="file is-boxed" style="padding: 0.75rem; border: 2px dashed rgba(102, 126, 234, 0.3); text-align: center;" id="dragDropZone">
+                        <label class="file-label">
+                            <input class="file-input" type="file" name="initial_attachments[]" id="initialAttachments" multiple accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx">
+                            <span class="file-cta" style="flex-direction: column; gap: 0.25rem; padding: 0; justify-content: center; align-items: center;">
+                                <span class="file-icon" style="font-size: 1.25rem;">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                </span>
+                                <span class="file-label" style="font-size: 0.8rem;">
+                                    Choose files or drag here
+                                </span>
+                            </span>
+                            <span class="file-name" id="initialAttachmentFileName" style="font-size: 0.75rem; margin-top: 0.25rem; display: block;">
+                                No files selected
+                            </span>
+                        </label>
+                    </div>
+                    <p class="help" style="font-size: 0.7rem; margin-top: 0.25rem;">Images, PDF, Word, Excel, TXT (max 10MB each)</p>
                 </div>
             </div>
             <div class="column is-one-third">
@@ -311,17 +407,15 @@ ob_start();
                         </div>
                     </div>
                 </div>
-                <div class="field is-grouped">
-                    <div class="control">
-                        <button type="submit" class="button is-primary is-fullwidth">
-                            <span class="icon-text">
-                                <span class="icon"><i class="fas fa-save"></i></span>
-                                <span>Add Item</span>
-                            </span>
-                        </button>
-                    </div>
-                </div>
             </div>
+        </div>
+        <div class="is-flex is-justify-content-flex-end mt-3">
+            <button type="submit" class="button is-primary">
+                <span class="icon-text">
+                    <span class="icon"><i class="fas fa-save"></i></span>
+                    <span>ADD ITEM</span>
+                </span>
+            </button>
         </div>
     </form>
 </div>
@@ -578,6 +672,53 @@ document.addEventListener('DOMContentLoaded', function() {
     const prioritySelect = document.getElementById('priority-select');
     const subcategorySelect = document.querySelector('select[name="subcategory"]');
     const websiteTypeField = document.getElementById('website-type-field');
+    const initialAttachments = document.getElementById('initialAttachments');
+    const initialAttachmentFileName = document.getElementById('initialAttachmentFileName');
+    const dragDropZone = document.getElementById('dragDropZone');
+    
+    // Handle drag and drop
+    if (dragDropZone && initialAttachments) {
+        dragDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragDropZone.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
+            dragDropZone.style.borderColor = '#667eea';
+            dragDropZone.style.borderWidth = '2px';
+        });
+        
+        dragDropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragDropZone.style.backgroundColor = '';
+            dragDropZone.style.borderColor = 'rgba(102, 126, 234, 0.3)';
+            dragDropZone.style.borderWidth = '2px';
+        });
+        
+        dragDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragDropZone.style.backgroundColor = '';
+            dragDropZone.style.borderColor = 'rgba(102, 126, 234, 0.3)';
+            
+            const files = e.dataTransfer.files;
+            initialAttachments.files = files;
+            
+            // Trigger change event
+            const event = new Event('change', { bubbles: true });
+            initialAttachments.dispatchEvent(event);
+        });
+    }
+    
+    // Handle initial attachments file input
+    if (initialAttachments) {
+        initialAttachments.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                initialAttachmentFileName.textContent = `${this.files.length} file(s) selected`;
+            } else {
+                initialAttachmentFileName.textContent = 'No files selected';
+            }
+        });
+    }
     if (categorySelect && prioritySelect) {
         categorySelect.addEventListener('change', function() {
             if (this.value === 'REQUESTS') {

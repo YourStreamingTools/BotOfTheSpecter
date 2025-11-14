@@ -104,10 +104,26 @@ function uuidv4() {
                 <button class="delete"></button>
             </header>
             <section class="modal-card-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; flex: 1; overflow: hidden; padding: 1.5rem;">
-                <!-- Left Column: Description -->
-                <div style="overflow-y: auto; padding-right: 1rem;">
-                    <h4 class="title is-6">Description</h4>
-                    <div id="detailsContent" style="color: #b0b0b0; line-height: 1.6;"></div>
+                <!-- Left Column: Description and Attachments -->
+                <div style="overflow-y: auto; padding-right: 1rem; display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div>
+                        <h4 class="title is-6">Description</h4>
+                        <div id="detailsContent" style="color: #b0b0b0; line-height: 1.6;"></div>
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h4 class="title is-6" style="margin: 0;">Attachments</h4>
+                            <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
+                                <button class="button is-small is-success" id="addAttachmentTrigger" style="flex-shrink: 0;">
+                                    <span class="icon is-small"><i class="fas fa-plus"></i></span>
+                                    <span>Add</span>
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                        <div id="attachmentsSection" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <!-- Attachments will load here -->
+                        </div>
+                    </div>
                 </div>
                 <!-- Right Column: Comments -->
                 <div style="display: flex; flex-direction: column; border-left: 1px solid rgba(255, 255, 255, 0.1); padding-left: 1.5rem; overflow: hidden;">
@@ -226,6 +242,60 @@ function uuidv4() {
         </div>
     </div>
     <?php endif; ?>
+    <!-- Upload Attachment Modal (Admin Only) -->
+    <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
+    <div class="modal" id="uploadAttachmentModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Upload Attachment</p>
+                <button class="delete"></button>
+            </header>
+            <section class="modal-card-body">
+                <form id="uploadAttachmentForm" enctype="multipart/form-data">
+                    <input type="hidden" name="item_id" id="uploadItemId" value="">
+                    <div class="field">
+                        <label class="label">Select File</label>
+                        <div class="file is-boxed is-centered">
+                            <label class="file-label">
+                                <input class="file-input" type="file" name="file" id="attachmentFileInput" required accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx">
+                                <span class="file-cta">
+                                    <span class="file-icon">
+                                        <i class="fas fa-cloud-upload-alt"></i>
+                                    </span>
+                                    <span class="file-label">
+                                        Choose a file...
+                                    </span>
+                                </span>
+                                <span class="file-name" id="attachmentFileName">
+                                    No file selected
+                                </span>
+                            </label>
+                        </div>
+                        <p class="help">Allowed: Images (JPG, PNG, GIF, WebP, SVG), PDF, Word, Excel, TXT. Max 10MB</p>
+                    </div>
+                    <div id="uploadProgress" style="display: none;">
+                        <progress class="progress is-primary" value="0" max="100" id="uploadProgressBar"></progress>
+                        <p class="help has-text-centered" id="uploadStatusText">Uploading...</p>
+                    </div>
+                    <div id="uploadError" style="display: none;">
+                        <div class="notification is-danger" style="margin-bottom: 1rem;">
+                            <button class="delete"></button>
+                            <span id="uploadErrorMessage"></span>
+                        </div>
+                    </div>
+                </form>
+            </section>
+            <footer class="modal-card-foot">
+                <button type="submit" form="uploadAttachmentForm" class="button is-success" id="uploadAttachmentBtn">
+                    <span class="icon is-small"><i class="fas fa-upload"></i></span>
+                    <span>Upload</span>
+                </button>
+                <button type="button" class="button is-light" id="cancelUploadBtn">Cancel</button>
+            </footer>
+        </div>
+    </div>
+    <?php endif; ?>
     <?php endif; ?>
     <!-- Legend Modal -->
     <div class="modal" id="legendModal">
@@ -278,17 +348,212 @@ function uuidv4() {
             return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline; cursor: pointer;">' + url + '</a>';
         });
     }
+    
+    // Helper function to get file icon based on type
+    function getFileIcon(mimeType) {
+        if (mimeType.startsWith('image/')) return 'fa-image';
+        if (mimeType === 'application/pdf') return 'fa-file-pdf';
+        if (mimeType.includes('word') || mimeType.includes('document')) return 'fa-file-word';
+        if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'fa-file-excel';
+        if (mimeType === 'text/plain') return 'fa-file-alt';
+        return 'fa-file';
+    }
+    
+    // Load attachments for an item
+    function loadAttachments(itemId) {
+        const attachmentsSection = document.getElementById('attachmentsSection');
+        if (!attachmentsSection) return;
+        
+        fetch('../admin/get-attachments.php?item_id=' + encodeURIComponent(itemId))
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.attachments.length > 0) {
+                    let html = '';
+                    data.attachments.forEach(att => {
+                        const fileIcon = getFileIcon(att.file_type);
+                        html += `
+                            <div class="box p-3" style="background-color: rgba(100, 126, 234, 0.1); border-left: 3px solid #667eea; margin-bottom: 0.5rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                            <i class="fas ${fileIcon}" style="color: #667eea;"></i>
+                                            <a href="${att.file_path}" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline; word-break: break-word;" title="Download">
+                                                ${att.file_name}
+                                            </a>
+                                        </div>
+                                        <small style="color: #888;">
+                                            ${att.file_size_formatted} • ${att.uploaded_by} • ${new Date(att.created_at).toLocaleDateString()}
+                                        </small>
+                                    </div>
+        `;
+                        if (att.can_delete) {
+                            html += `
+                                    <button class="button is-small is-danger is-light delete-attachment-btn" data-attachment-id="${att.id}" data-item-id="${itemId}" style="flex-shrink: 0;">
+                                        <span class="icon is-small"><i class="fas fa-trash"></i></span>
+                                    </button>
+                            `;
+                        }
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                    attachmentsSection.innerHTML = html;
+                    
+                    // Add delete event listeners
+                    document.querySelectorAll('.delete-attachment-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            if (confirm('Delete this attachment?')) {
+                                const attachmentId = this.getAttribute('data-attachment-id');
+                                const itemId = this.getAttribute('data-item-id');
+                                
+                                const formData = new FormData();
+                                formData.append('attachment_id', attachmentId);
+                                
+                                fetch('../admin/delete-attachment.php', {
+                                    method: 'POST',
+                                    body: formData
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.success) {
+                                        loadAttachments(itemId);
+                                    } else {
+                                        alert('Error deleting attachment: ' + data.message);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error:', error);
+                                    alert('Error deleting attachment');
+                                });
+                            }
+                        });
+                    });
+                } else {
+                    attachmentsSection.innerHTML = '<p class="has-text-grey-light"><em>No attachments</em></p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading attachments:', error);
+                attachmentsSection.innerHTML = '<p class="has-text-danger">Error loading attachments</p>';
+            });
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
         const detailsBtns = document.querySelectorAll('.details-btn');
         const detailsModal = document.getElementById('detailsModal');
         const addCommentModal = document.getElementById('addCommentModal');
         const cancelCommentBtn = document.getElementById('cancelCommentBtn');
         const addCommentForm = document.getElementById('addCommentForm');
+        const uploadAttachmentModal = document.getElementById('uploadAttachmentModal');
+        const uploadAttachmentForm = document.getElementById('uploadAttachmentForm');
+        const uploadAttachmentBtn = document.getElementById('uploadAttachmentBtn');
+        const cancelUploadBtn = document.getElementById('cancelUploadBtn');
+        const addAttachmentTrigger = document.getElementById('addAttachmentTrigger');
+        const attachmentFileInput = document.getElementById('attachmentFileInput');
+        const attachmentFileName = document.getElementById('attachmentFileName');
         const legendBtn = document.getElementById('legendBtn');
         const legendModal = document.getElementById('legendModal');
         const closeLegendModal = document.getElementById('closeLegendModal');
         const closeLegendBtn = document.getElementById('closeLegendBtn');
         let currentItemId = null;
+        
+        // File input change handler
+        if (attachmentFileInput) {
+            attachmentFileInput.addEventListener('change', function() {
+                if (attachmentFileName) {
+                    attachmentFileName.textContent = this.files.length > 0 ? this.files[0].name : 'No file selected';
+                }
+            });
+        }
+        
+        // Add attachment trigger button (for admins)
+        if (addAttachmentTrigger) {
+            addAttachmentTrigger.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('uploadItemId').value = currentItemId;
+                if (uploadAttachmentForm) {
+                    uploadAttachmentForm.reset();
+                    if (attachmentFileName) attachmentFileName.textContent = 'No file selected';
+                    const uploadError = document.getElementById('uploadError');
+                    if (uploadError) uploadError.style.display = 'none';
+                }
+                if (uploadAttachmentModal) {
+                    uploadAttachmentModal.classList.add('is-active');
+                }
+            });
+        }
+        
+        // Upload attachment form submission
+        if (uploadAttachmentForm) {
+            uploadAttachmentForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(uploadAttachmentForm);
+                const uploadProgress = document.getElementById('uploadProgress');
+                const uploadProgressBar = document.getElementById('uploadProgressBar');
+                const uploadStatusText = document.getElementById('uploadStatusText');
+                const uploadError = document.getElementById('uploadError');
+                const uploadErrorMessage = document.getElementById('uploadErrorMessage');
+                const uploadAttachmentBtn = document.getElementById('uploadAttachmentBtn');
+                
+                if (uploadProgress) uploadProgress.style.display = 'block';
+                if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = true;
+                
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        if (uploadProgressBar) uploadProgressBar.value = percentComplete;
+                        if (uploadStatusText) uploadStatusText.textContent = 'Uploading: ' + Math.round(percentComplete) + '%';
+                    }
+                });
+                
+                xhr.addEventListener('load', function() {
+                    if (uploadProgress) uploadProgress.style.display = 'none';
+                    if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
+                    
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (xhr.status === 200 && response.success) {
+                            // Close modal
+                            if (uploadAttachmentModal) uploadAttachmentModal.classList.remove('is-active');
+                            if (uploadError) uploadError.style.display = 'none';
+                            // Reload attachments
+                            loadAttachments(currentItemId);
+                            // Reset form
+                            uploadAttachmentForm.reset();
+                            if (attachmentFileName) attachmentFileName.textContent = 'No file selected';
+                        } else {
+                            if (uploadError) uploadError.style.display = 'block';
+                            if (uploadErrorMessage) uploadErrorMessage.textContent = response.message || 'Upload failed';
+                        }
+                    } catch (e) {
+                        if (uploadError) uploadError.style.display = 'block';
+                        if (uploadErrorMessage) uploadErrorMessage.textContent = 'Error uploading file';
+                    }
+                });
+                
+                xhr.addEventListener('error', function() {
+                    if (uploadProgress) uploadProgress.style.display = 'none';
+                    if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
+                    if (uploadError) uploadError.style.display = 'block';
+                    if (uploadErrorMessage) uploadErrorMessage.textContent = 'Network error';
+                });
+                
+                xhr.open('POST', '../admin/upload-attachment.php', true);
+                xhr.send(formData);
+            });
+        }
+        
+        // Cancel upload button
+        if (cancelUploadBtn) {
+            cancelUploadBtn.addEventListener('click', function() {
+                if (uploadAttachmentModal) uploadAttachmentModal.classList.remove('is-active');
+            });
+        }
+        
         // Legend button handler
         if (legendBtn) {
             legendBtn.addEventListener('click', function(e) {
@@ -323,6 +588,8 @@ function uuidv4() {
                 document.getElementById('detailsTitle').textContent = title;
                 // Linkify the description
                 document.getElementById('detailsContent').innerHTML = linkifyText(description);
+                // Load attachments
+                loadAttachments(currentItemId);
                 // Load comments via AJAX
                 fetch('../get-comments.php?item_id=' + encodeURIComponent(currentItemId))
                     .then(response => response.text())
