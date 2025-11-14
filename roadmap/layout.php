@@ -91,37 +91,37 @@ function uuidv4() {
         <div class="content has-text-centered">
             <span class="has-text-weight-bold">BotOfTheSpecter Roadmap</span> - A comprehensive Twitch bot platform for streamers.
             <p style="margin-top: 1rem; font-size: 0.875rem;">
-                &copy; 2024 BotOfTheSpecter. All rights reserved.
+                &copy; <?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.
             </p>
         </div>
     </footer>
     <!-- Details Modal (Public) -->
     <div class="modal" id="detailsModal">
         <div class="modal-background"></div>
-        <div class="modal-card">
+        <div class="modal-card" style="width: 90%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column;">
             <header class="modal-card-head">
                 <p class="modal-card-title" id="detailsTitle">Item Details</p>
                 <button class="delete"></button>
             </header>
-            <section class="modal-card-body" style="display: flex; gap: 2rem; height: 600px;">
+            <section class="modal-card-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; flex: 1; overflow: hidden; padding: 1.5rem;">
                 <!-- Left Column: Description -->
-                <div id="descriptionSection" style="flex: 1; overflow-y: auto; padding-right: 1rem;">
-                    <h4 class="title is-6" style="margin-bottom: 1rem;">Description</h4>
-                    <div id="detailsContent" style="line-height: 1.6; color: #b0b0b0;"></div>
+                <div style="overflow-y: auto; padding-right: 1rem;">
+                    <h4 class="title is-6">Description</h4>
+                    <div id="detailsContent" style="color: #b0b0b0; line-height: 1.6;"></div>
                 </div>
-                <!-- Right Column: Activity/Comments Feed -->
-                <div id="commentsContainer" style="flex: 1; border-left: 1px solid rgba(255, 255, 255, 0.1); padding-left: 1.5rem; display: flex; flex-direction: column;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <!-- Right Column: Comments -->
+                <div style="display: flex; flex-direction: column; border-left: 1px solid rgba(255, 255, 255, 0.1); padding-left: 1.5rem; overflow: hidden;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0;">
                         <h4 class="title is-6" style="margin: 0;">Activity</h4>
                         <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
-                            <button class="button is-small is-primary" id="addCommentTrigger">
+                            <button class="button is-small is-primary" id="addCommentTrigger" style="flex-shrink: 0;">
                                 <span class="icon is-small"><i class="fas fa-comment"></i></span>
                                 <span>Comment</span>
                             </button>
                         <?php endif; ?>
                     </div>
-                    <div id="commentsSection" style="flex: 1; overflow-y: auto;">
-                        <!-- Comments will be loaded here -->
+                    <div id="commentsSection" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;">
+                        <!-- Comments will load here -->
                     </div>
                 </div>
             </section>
@@ -174,13 +174,10 @@ function uuidv4() {
                 <form id="editItemForm" method="POST" style="display: flex; flex-direction: column; gap: 0.125rem;">
                     <input type="hidden" name="action" value="edit_item">
                     <input type="hidden" name="id" id="editItemId" value="">
-                    
                     <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Title</label>
                     <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required style="padding: 0.25rem; font-size: 0.8rem; margin: 0;">
-                    
                     <label class="label" style="margin: 0.125rem 0 0.1rem 0; font-size: 0.8rem;">Description</label>
                     <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description..." style="height: 60px; padding: 0.25rem; font-size: 0.8rem; resize: none; margin: 0;"></textarea>
-                    
                     <div style="display: flex; gap: 0.25rem; margin-top: 0.125rem;">
                         <div style="flex: 1;">
                             <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Category</label>
@@ -202,7 +199,6 @@ function uuidv4() {
                             </select>
                         </div>
                     </div>
-                    
                     <div style="display: flex; gap: 0.25rem; margin-top: 0.125rem;">
                         <div style="flex: 1;">
                             <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Subcategory</label>

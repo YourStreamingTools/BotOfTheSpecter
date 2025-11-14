@@ -8,7 +8,7 @@ session_start();
 $item_id = $_GET['item_id'] ?? 0;
 
 if ($item_id <= 0) {
-    echo '<p class="has-text-grey" style="text-align: center; padding: 1rem;">No comments yet</p>';
+    echo '';
     exit;
 }
 
@@ -17,14 +17,14 @@ $conn = getRoadmapConnection();
 // Connect to website database to get profile images from users table
 $users_conn = new mysqli($db_servername, $db_username, $db_password, "website");
 if ($users_conn->connect_error) {
-    $users_conn = null; // Fall back to no profile images if connection fails
+    $users_conn = null;
 }
 
 // Get all comments for this item
 $query = "SELECT username, comment, created_at FROM roadmap_comments WHERE item_id = ? ORDER BY created_at ASC";
 $stmt = $conn->prepare($query);
 if (!$stmt) {
-    echo '<p class="has-text-danger">Error loading comments</p>';
+    echo '';
     exit;
 }
 
@@ -33,7 +33,7 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows === 0) {
-    echo '<p class="has-text-grey" style="text-align: center; padding: 1rem;">No comments yet</p>';
+    echo '<p style="text-align: center; color: #888; padding: 1rem;">No comments yet</p>';
     $stmt->close();
     $conn->close();
     exit;
@@ -41,7 +41,6 @@ if ($result->num_rows === 0) {
 
 while ($row = $result->fetch_assoc()) {
     $createdAt = new DateTime($row['created_at']);
-    // Format timestamp - show relative time (e.g., "2 hours ago")
     $now = new DateTime();
     $interval = $now->diff($createdAt);
     if ($interval->days > 0) {
@@ -77,26 +76,26 @@ while ($row = $result->fetch_assoc()) {
         $userInitials .= substr($nameParts[1], 0, 1);
     }
     $userInitials = strtoupper($userInitials);
-    // Get avatar color based on username hash (for fallback)
     $hash = crc32($row['username']) % 360;
     $avatarHue = $hash;
     ?>
-    <div class="box comment-box">
-        <!-- Header: Avatar + Username on left, Time on right -->
-        <div class="comment-header">
-            <div class="comment-user-info">
+    <div style="border: 1px solid rgba(102, 126, 234, 0.2); border-radius: 6px; padding: 0.75rem; background-color: rgba(102, 126, 234, 0.08);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; gap: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
                 <?php if ($profileImage): ?>
-                    <img src="<?php echo htmlspecialchars($profileImage); ?>" alt="<?php echo htmlspecialchars($row['username']); ?>" class="comment-avatar">
+                    <img src="<?php echo htmlspecialchars($profileImage); ?>" alt="<?php echo htmlspecialchars($row['username']); ?>" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
                 <?php else: ?>
-                    <div class="comment-avatar-fallback" style="--avatar-hue: <?php echo $avatarHue; ?>;">
+                    <div style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: hsl(<?php echo $avatarHue; ?>, 70%, 50%); color: white; font-weight: bold; font-size: 0.85rem; flex-shrink: 0;">
                         <?php echo $userInitials; ?>
                     </div>
                 <?php endif; ?>
-                <strong class="comment-username"><?php echo htmlspecialchars($row['username']); ?></strong>
+                <strong style="color: #667eea; font-size: 0.9rem; white-space: nowrap;"><?php echo htmlspecialchars($row['username']); ?></strong>
             </div>
-            <div class="comment-time"><?php echo htmlspecialchars($formattedDate); ?></div>
+            <small style="color: #888; white-space: nowrap; flex-shrink: 0;"><?php echo htmlspecialchars($formattedDate); ?></small>
         </div>
-        <div class="comment-text"><?php echo htmlspecialchars($row['comment']); ?></div>
+        <div style="color: #c0c0c0; line-height: 1.5; font-size: 0.9rem; word-wrap: break-word; white-space: pre-wrap; margin: 0;">
+            <?php echo htmlspecialchars($row['comment']); ?>
+        </div>
     </div>
     <?php
 }
