@@ -380,16 +380,27 @@ function uuidv4() {
                             // Display image inline
                             html += `
                                 <div class="box p-3" style="background-color: rgba(100, 126, 234, 0.1); border-left: 3px solid #667eea; margin-bottom: 0.5rem;">
-                                    <div style="margin-bottom: 0.5rem;">
-                                        <small style="color: #888;">
-                                            ${att.file_name} • ${att.file_size_formatted} • ${att.uploaded_by} • ${new Date(att.created_at).toLocaleDateString()}
-                                        </small>
-                                    </div>
-                                    <div style="text-align: center; margin-bottom: 0.5rem;">
-                                        <img src="${att.file_path}" alt="${att.file_name}" style="max-width: 100%; max-height: 400px; border-radius: 4px;">
-                                    </div>
-                                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                                        <div style="flex: 1; min-width: 0;">
+                                            <small style="color: #888; display: block; margin-bottom: 0.5rem;">
+                                                ${att.file_name} • ${att.file_size_formatted} • ${att.uploaded_by} • ${new Date(att.created_at).toLocaleDateString()}
+                                            </small>
+                                            <div style="text-align: center;">
+                                                <img src="${att.file_path}" alt="${att.file_name}" style="max-width: 100%; max-height: 400px; border-radius: 4px;">
+                                            </div>
+                                        </div>
         `;
+                            if (att.can_delete) {
+                                html += `
+                                        <button class="button is-small is-danger is-light delete-attachment-btn" data-attachment-id="${att.id}" data-item-id="${itemId}" style="flex-shrink: 0; align-self: flex-start;">
+                                            <span class="icon is-small"><i class="fas fa-trash" style="color: white;"></i></span>
+                                        </button>
+                `;
+                            }
+                            html += `
+                                    </div>
+                                </div>
+                            `;
                         } else {
                             // Display document with download link
                             html += `
@@ -407,19 +418,18 @@ function uuidv4() {
                                             </small>
                                         </div>
         `;
-                        }
-                        
-                        if (att.can_delete) {
+                            if (att.can_delete) {
+                                html += `
+                                        <button class="button is-small is-danger is-light delete-attachment-btn" data-attachment-id="${att.id}" data-item-id="${itemId}" style="flex-shrink: 0;">
+                                            <span class="icon is-small"><i class="fas fa-trash" style="color: white;"></i></span>
+                                        </button>
+                `;
+                            }
                             html += `
-                                    <button class="button is-small is-danger is-light delete-attachment-btn" data-attachment-id="${att.id}" data-item-id="${itemId}" style="flex-shrink: 0;">
-                                        <span class="icon is-small"><i class="fas fa-trash"></i></span>
-                                    </button>
-                            `;
-                        }
-                        html += `
                                     </div>
                                 </div>
                             `;
+                        }
                     });
                     attachmentsSection.innerHTML = html;
                     // Add delete event listeners
