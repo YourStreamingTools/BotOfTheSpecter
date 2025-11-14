@@ -360,6 +360,9 @@ function uuidv4() {
         if (mimeType === 'text/plain') return 'fa-file-alt';
         return 'fa-file';
     }
+    function isImage(mimeType) {
+        return mimeType.startsWith('image/');
+    }
     // Load attachments for an item
     function loadAttachments(itemId) {
         const attachmentsSection = document.getElementById('attachmentsSection');
@@ -371,21 +374,41 @@ function uuidv4() {
                     let html = '';
                     data.attachments.forEach(att => {
                         const fileIcon = getFileIcon(att.file_type);
-                        html += `
-                            <div class="box p-3" style="background-color: rgba(100, 126, 234, 0.1); border-left: 3px solid #667eea; margin-bottom: 0.5rem;">
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
-                                    <div style="flex: 1; min-width: 0;">
-                                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                                            <i class="fas ${fileIcon}" style="color: #667eea;"></i>
-                                            <a href="${att.file_path}" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline; word-break: break-word;" title="Download">
-                                                ${att.file_name}
-                                            </a>
-                                        </div>
+                        const isImageFile = isImage(att.file_type);
+                        
+                        if (isImageFile) {
+                            // Display image inline
+                            html += `
+                                <div class="box p-3" style="background-color: rgba(100, 126, 234, 0.1); border-left: 3px solid #667eea; margin-bottom: 0.5rem;">
+                                    <div style="margin-bottom: 0.5rem;">
                                         <small style="color: #888;">
-                                            ${att.file_size_formatted} • ${att.uploaded_by} • ${new Date(att.created_at).toLocaleDateString()}
+                                            ${att.file_name} • ${att.file_size_formatted} • ${att.uploaded_by} • ${new Date(att.created_at).toLocaleDateString()}
                                         </small>
                                     </div>
+                                    <div style="text-align: center; margin-bottom: 0.5rem;">
+                                        <img src="${att.file_path}" alt="${att.file_name}" style="max-width: 100%; max-height: 400px; border-radius: 4px;">
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
         `;
+                        } else {
+                            // Display document with download link
+                            html += `
+                                <div class="box p-3" style="background-color: rgba(100, 126, 234, 0.1); border-left: 3px solid #667eea; margin-bottom: 0.5rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                                        <div style="flex: 1; min-width: 0;">
+                                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                                <i class="fas ${fileIcon}" style="color: #667eea;"></i>
+                                                <a href="${att.file_path}" download style="color: #667eea; text-decoration: underline; word-break: break-word;">
+                                                    ${att.file_name}
+                                                </a>
+                                            </div>
+                                            <small style="color: #888;">
+                                                ${att.file_size_formatted} • ${att.uploaded_by} • ${new Date(att.created_at).toLocaleDateString()}
+                                            </small>
+                                        </div>
+        `;
+                        }
+                        
                         if (att.can_delete) {
                             html += `
                                     <button class="button is-small is-danger is-light delete-attachment-btn" data-attachment-id="${att.id}" data-item-id="${itemId}" style="flex-shrink: 0;">
@@ -394,9 +417,9 @@ function uuidv4() {
                             `;
                         }
                         html += `
+                                    </div>
                                 </div>
-                            </div>
-                        `;
+                            `;
                     });
                     attachmentsSection.innerHTML = html;
                     // Add delete event listeners

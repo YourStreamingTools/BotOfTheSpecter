@@ -477,27 +477,27 @@ ob_start();
                                         <span>Edit</span>
                                     </button>
                                 </div>
-                                <div class="buttons are-small" style="gap: 0.25rem;">
-                                    <form method="POST" action="" style="display:inline;">
+                                <div class="buttons are-small" style="display: flex; gap: 0.25rem; flex-wrap: nowrap;">
+                                    <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
                                         <input type="hidden" name="action" value="update">
                                         <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
                                         <input type="hidden" name="category" value="IN PROGRESS">
-                                        <button type="submit" class="button is-info is-small is-fullwidth" title="Move to In Progress">
+                                        <button type="submit" class="button is-info is-small" style="flex: 1;" title="Move to In Progress">
                                             <span class="icon is-small"><i class="fas fa-play"></i></span>
                                         </button>
                                     </form>
-                                    <form method="POST" action="" style="display:inline;">
+                                    <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
                                         <input type="hidden" name="action" value="update">
                                         <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
                                         <input type="hidden" name="status" value="completed">
-                                        <button type="submit" class="button is-success is-small is-fullwidth" title="Mark as Completed">
+                                        <button type="submit" class="button is-success is-small" style="flex: 1;" title="Mark as Completed">
                                             <span class="icon is-small"><i class="fas fa-check"></i></span>
                                         </button>
                                     </form>
-                                    <form method="POST" action="" style="display:inline;">
+                                    <form method="POST" action="" style="display: flex; flex: 0 0 auto;">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                        <button type="submit" class="button is-danger is-small is-fullwidth" onclick="return confirm('Are you sure?')" title="Delete">
+                                        <button type="submit" class="button is-danger is-small" onclick="return confirm('Are you sure?')" title="Delete">
                                             <span class="icon is-small"><i class="fas fa-trash"></i></span>
                                         </button>
                                     </form>
@@ -569,27 +569,27 @@ ob_start();
                                         <span>Edit</span>
                                     </button>
                                 </div>
-                                <div class="buttons are-small" style="gap: 0.25rem;">
-                                    <form method="POST" action="" style="display:inline;">
+                                <div class="buttons are-small" style="display: flex; gap: 0.25rem; flex-wrap: nowrap;">
+                                    <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
                                         <input type="hidden" name="action" value="update">
                                         <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
                                         <input type="hidden" name="category" value="IN PROGRESS">
-                                        <button type="submit" class="button is-info is-small is-fullwidth" title="Move to In Progress">
+                                        <button type="submit" class="button is-info is-small" style="flex: 1;" title="Move to In Progress">
                                             <span class="icon is-small"><i class="fas fa-play"></i></span>
                                         </button>
                                     </form>
-                                    <form method="POST" action="" style="display:inline;">
+                                    <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
                                         <input type="hidden" name="action" value="update">
                                         <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
                                         <input type="hidden" name="status" value="completed">
-                                        <button type="submit" class="button is-success is-small is-fullwidth" title="Mark as Completed">
+                                        <button type="submit" class="button is-success is-small" style="flex: 1;" title="Mark as Completed">
                                             <span class="icon is-small"><i class="fas fa-check"></i></span>
                                         </button>
                                     </form>
-                                    <form method="POST" action="" style="display:inline;">
+                                    <form method="POST" action="" style="display: flex; flex: 0 0 auto;">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                        <button type="submit" class="button is-danger is-small is-fullwidth" onclick="return confirm('Are you sure?')" title="Delete">
+                                        <button type="submit" class="button is-danger is-small" onclick="return confirm('Are you sure?')" title="Delete">
                                             <span class="icon is-small"><i class="fas fa-trash"></i></span>
                                         </button>
                                     </form>
