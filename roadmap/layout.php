@@ -667,8 +667,8 @@ function uuidv4() {
                 });
                 // Load attachments
                 loadAttachments(currentItemId);
-                // Load comments via AJAX
-                fetch('../get-comments.php?item_id=' + encodeURIComponent(currentItemId))
+                // Load activity via AJAX
+                fetch('../get-activity.php?item_id=' + encodeURIComponent(currentItemId))
                     .then(response => response.text())
                     .then(html => {
                         const commentsSection = document.getElementById('commentsSection');
@@ -706,8 +706,8 @@ function uuidv4() {
                     }
                     // Clear form
                     addCommentForm.reset();
-                    // Reload comments in details modal
-                    fetch('../get-comments.php?item_id=' + encodeURIComponent(currentItemId))
+                    // Reload activity in details modal
+                    fetch('../get-activity.php?item_id=' + encodeURIComponent(currentItemId))
                         .then(response => response.text())
                         .then(html => {
                             const commentsSection = document.getElementById('commentsSection');
