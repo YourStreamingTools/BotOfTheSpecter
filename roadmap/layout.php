@@ -13,7 +13,10 @@ function uuidv4() {
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <link rel="stylesheet" href="../css/custom.css?v=<?php echo uuidv4(); ?>">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <!-- Navigation -->
@@ -206,7 +209,7 @@ function uuidv4() {
                     <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Title</label>
                     <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required style="padding: 0.25rem; font-size: 0.8rem; margin: 0;">
                     <label class="label" style="margin: 0.125rem 0 0.1rem 0; font-size: 0.8rem;">Description</label>
-                    <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description..." style="height: 60px; padding: 0.25rem; font-size: 0.8rem; resize: none; margin: 0;"></textarea>
+                    <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description (supports markdown)..." style="height: 150px; padding: 0.5rem; font-size: 0.9rem; resize: vertical; margin: 0; font-family: 'Courier New', monospace;"></textarea>
                     <div style="display: flex; gap: 0.25rem; margin-top: 0.125rem;">
                         <div style="flex: 1;">
                             <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Category</label>
@@ -654,8 +657,14 @@ function uuidv4() {
                 const description = this.dataset.description;
                 currentItemId = this.getAttribute('data-item-id');
                 document.getElementById('detailsTitle').textContent = title;
-                // Linkify the description
-                document.getElementById('detailsContent').innerHTML = linkifyText(description);
+                // Parse markdown and linkify the description
+                const markdownHtml = marked.parse(description || '');
+                const detailsContent = document.getElementById('detailsContent');
+                detailsContent.innerHTML = markdownHtml;
+                // Highlight code blocks
+                detailsContent.querySelectorAll('pre code').forEach(block => {
+                    hljs.highlightElement(block);
+                });
                 // Load attachments
                 loadAttachments(currentItemId);
                 // Load comments via AJAX
