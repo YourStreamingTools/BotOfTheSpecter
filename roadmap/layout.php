@@ -35,8 +35,14 @@ function uuidv4() {
             <div class="navbar-start">
                 <a class="navbar-item" href="../index.php">
                     <span class="icon-text">
-                        <span class="icon"><i class="fas fa-home"></i></span>
-                        <span>Home</span>
+                        <span class="icon"><i class="fas fa-th"></i></span>
+                        <span>Roadmap</span>
+                    </span>
+                </a>
+                <a class="navbar-item" href="timeline.php">
+                    <span class="icon-text">
+                        <span class="icon"><i class="fas fa-timeline"></i></span>
+                        <span>Timeline</span>
                     </span>
                 </a>
                 <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
