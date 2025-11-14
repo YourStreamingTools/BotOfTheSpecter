@@ -491,8 +491,39 @@ function uuidv4() {
         if (uploadAttachmentForm) {
             uploadAttachmentForm.addEventListener('submit', function(e) {
                 e.preventDefault();
+                console.log('Upload form submitted');
+                
+                const fileInput = document.getElementById('attachmentFileInput');
+                console.log('File input:', fileInput);
+                console.log('Files:', fileInput ? fileInput.files : 'no input');
+                
+                if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                    const uploadError = document.getElementById('uploadError');
+                    if (uploadError) {
+                        uploadError.style.display = 'block';
+                        const uploadErrorMessage = document.getElementById('uploadErrorMessage');
+                        if (uploadErrorMessage) uploadErrorMessage.textContent = 'Please select a file';
+                    }
+                    return;
+                }
+                
+                const itemIdInput = document.getElementById('uploadItemId');
+                console.log('Item ID input:', itemIdInput);
+                console.log('Item ID value:', itemIdInput ? itemIdInput.value : 'no input');
+                
+                if (!itemIdInput || !itemIdInput.value) {
+                    const uploadError = document.getElementById('uploadError');
+                    if (uploadError) {
+                        uploadError.style.display = 'block';
+                        const uploadErrorMessage = document.getElementById('uploadErrorMessage');
+                        if (uploadErrorMessage) uploadErrorMessage.textContent = 'No item selected';
+                    }
+                    return;
+                }
                 
                 const formData = new FormData(uploadAttachmentForm);
+                console.log('FormData created, sending to server');
+                
                 const uploadProgress = document.getElementById('uploadProgress');
                 const uploadProgressBar = document.getElementById('uploadProgressBar');
                 const uploadStatusText = document.getElementById('uploadStatusText');
@@ -514,11 +545,16 @@ function uuidv4() {
                 });
                 
                 xhr.addEventListener('load', function() {
+                    console.log('XHR load event, status:', xhr.status);
+                    console.log('Response text:', xhr.responseText);
+                    
                     if (uploadProgress) uploadProgress.style.display = 'none';
                     if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
                     
                     try {
                         const response = JSON.parse(xhr.responseText);
+                        console.log('Parsed response:', response);
+                        
                         if (xhr.status === 200 && response.success) {
                             // Close modal
                             if (uploadAttachmentModal) uploadAttachmentModal.classList.remove('is-active');
@@ -533,19 +569,29 @@ function uuidv4() {
                             if (uploadErrorMessage) uploadErrorMessage.textContent = response.message || 'Upload failed';
                         }
                     } catch (e) {
+                        console.error('Parse error:', e);
                         if (uploadError) uploadError.style.display = 'block';
-                        if (uploadErrorMessage) uploadErrorMessage.textContent = 'Error uploading file';
+                        if (uploadErrorMessage) uploadErrorMessage.textContent = 'Error uploading file: ' + e.message;
                     }
                 });
                 
                 xhr.addEventListener('error', function() {
+                    console.error('XHR error');
                     if (uploadProgress) uploadProgress.style.display = 'none';
                     if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
                     if (uploadError) uploadError.style.display = 'block';
-                    if (uploadErrorMessage) uploadErrorMessage.textContent = 'Network error';
+                    if (uploadErrorMessage) uploadErrorMessage.textContent = 'Network error: ' + xhr.statusText;
                 });
                 
-                xhr.open('POST', '../admin/upload-attachment.php', true);
+                xhr.addEventListener('abort', function() {
+                    console.error('XHR aborted');
+                    if (uploadProgress) uploadProgress.style.display = 'none';
+                    if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
+                });
+                
+                const uploadUrl = '../admin/upload-attachment.php';
+                console.log('Opening XHR to:', uploadUrl);
+                xhr.open('POST', uploadUrl, true);
                 xhr.send(formData);
             });
         }

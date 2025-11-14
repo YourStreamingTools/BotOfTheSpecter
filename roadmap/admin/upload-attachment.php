@@ -16,8 +16,19 @@ require_once 'database.php';
 
 // Define upload directory
 $uploadDir = '../uploads/attachments/';
+
+// Ensure directory exists with proper permissions
 if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0755, true);
+    if (!mkdir($uploadDir, 0755, true)) {
+        http_response_code(500);
+        die(json_encode(['success' => false, 'message' => 'Failed to create upload directory']));
+    }
+}
+
+// Check if directory is writable
+if (!is_writable($uploadDir)) {
+    http_response_code(500);
+    die(json_encode(['success' => false, 'message' => 'Upload directory is not writable. Path: ' . realpath($uploadDir)]));
 }
 
 // Allowed file types
@@ -70,8 +81,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
     
     // Move uploaded file
     if (!move_uploaded_file($file['tmp_name'], $filePath)) {
+        $error = 'Failed to save file to: ' . $filePath;
+        if (is_file($filePath)) {
+            $error .= ' (file already exists)';
+        }
+        if (!is_writable(dirname($filePath))) {
+            $error .= ' (directory not writable)';
+        }
         http_response_code(500);
-        die(json_encode(['success' => false, 'message' => 'Failed to save file']));
+        die(json_encode(['success' => false, 'message' => $error]));
     }
     
     // Store in database
