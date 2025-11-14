@@ -51,56 +51,17 @@ ob_start();
             </div>
         </div>
         <div class="level-right">
-            <div class="level-item">
+            <div class="level-item" style="display: flex; gap: 0.5rem;">
+                <button type="button" class="button is-info" id="legendBtn">
+                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                    <span>Legend</span>
+                </button>
                 <?php if (($_SESSION['admin'] ?? false)): ?>
                     <a href="admin/index.php" class="button is-primary">
                         <span class="icon"><i class="fas fa-cog"></i></span>
                         <span>Admin Panel</span>
                     </a>
                 <?php endif; ?>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- Legend -->
-<div class="box mb-6">
-    <h3 class="title is-5 mb-4">Legend</h3>
-    <div class="columns is-multiline is-gapless">
-        <div class="column is-one-quarter">
-            <div>
-                <strong>Priority Levels:</strong>
-                <div class="mt-2">
-                    <span class="tag is-small is-success">Low</span>
-                </div>
-                <div class="mt-2">
-                    <span class="tag is-small is-info">Medium</span>
-                </div>
-                <div class="mt-2">
-                    <span class="tag is-small is-warning">High</span>
-                </div>
-                <div class="mt-2">
-                    <span class="tag is-small is-danger">Critical</span>
-                </div>
-            </div>
-        </div>
-        <div class="column is-one-quarter">
-            <div>
-                <strong>Subcategories:</strong>
-                <div class="mt-2">
-                    <span class="tag is-small is-primary">Twitch Bot</span>
-                </div>
-                <div class="mt-2">
-                    <span class="tag is-small is-info">Discord Bot</span>
-                </div>
-                <div class="mt-2">
-                    <span class="tag is-small is-success">WebSocket Server</span>
-                </div>
-                <div class="mt-2">
-                    <span class="tag is-small is-warning">API Server</span>
-                </div>
-                <div class="mt-2">
-                    <span class="tag is-small is-danger">Website</span>
-                </div>
             </div>
         </div>
     </div>
