@@ -905,4 +905,166 @@ body > main {
     color: #667eea;
 }
 
+/* ============================================
+   Markdown Styles
+   ============================================ */
 
+#detailsContent,
+#detailsContent * {
+    color: #e0e0e0;
+    line-height: 1.6;
+}
+
+#detailsContent h1,
+#detailsContent h2,
+#detailsContent h3,
+#detailsContent h4,
+#detailsContent h5,
+#detailsContent h6 {
+    color: #667eea;
+    font-weight: 700;
+    margin-top: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+#detailsContent h1 {
+    font-size: 1.75rem;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.4);
+}
+
+#detailsContent h2 {
+    font-size: 1.5rem;
+}
+
+#detailsContent h3 {
+    font-size: 1.25rem;
+}
+
+#detailsContent h4 {
+    font-size: 1.1rem;
+}
+
+#detailsContent p {
+    margin-bottom: 1rem;
+    text-align: justify;
+}
+
+#detailsContent a {
+    color: #667eea;
+    text-decoration: underline;
+    transition: color 0.2s ease;
+}
+
+#detailsContent a:hover {
+    color: #8b9ff0;
+}
+
+#detailsContent strong,
+#detailsContent b {
+    color: #8b9ff0;
+    font-weight: 700;
+}
+
+#detailsContent em,
+#detailsContent i {
+    color: #b0b0b0;
+    font-style: italic;
+}
+
+#detailsContent code {
+    background-color: rgba(0, 0, 0, 0.3);
+    color: #66d9ef;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+#detailsContent pre {
+    background-color: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    line-height: 1.4;
+}
+
+#detailsContent pre code {
+    background-color: transparent;
+    color: #e0e0e0;
+    padding: 0;
+    font-size: 0.85em;
+}
+
+#detailsContent blockquote {
+    border-left: 4px solid #667eea;
+    padding-left: 1rem;
+    margin-left: 0;
+    margin-bottom: 1rem;
+    color: #b0b0b0;
+    font-style: italic;
+}
+
+#detailsContent ul,
+#detailsContent ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+#detailsContent li {
+    margin-bottom: 0.5rem;
+}
+
+#detailsContent li > p {
+    margin-bottom: 0.25rem;
+}
+
+#detailsContent ul li::marker {
+    color: #667eea;
+}
+
+#detailsContent ol li::marker {
+    color: #667eea;
+    font-weight: 700;
+}
+
+#detailsContent hr {
+    border: none;
+    border-top: 2px solid rgba(102, 126, 234, 0.2);
+    margin: 1.5rem 0;
+}
+
+#detailsContent table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    border: 1px solid #333;
+}
+
+#detailsContent th,
+#detailsContent td {
+    border: 1px solid #333;
+    padding: 0.75rem;
+    text-align: left;
+}
+
+#detailsContent th {
+    background-color: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    font-weight: 700;
+}
+
+#detailsContent tr:nth-child(even) {
+    background-color: rgba(102, 126, 234, 0.05);
+}
+
+#detailsContent img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 1rem 0;
+    display: block;
+}

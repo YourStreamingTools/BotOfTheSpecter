@@ -317,7 +317,7 @@ ob_start();
                 <div class="field">
                     <label class="label">Description</label>
                     <div class="control">
-                        <textarea class="textarea" name="description" placeholder="Item description (optional)" rows="3"></textarea>
+                        <textarea class="textarea" name="description" placeholder="Item description (optional, supports markdown)" rows="8" style="font-family: 'Courier New', monospace; font-size: 0.9rem;"></textarea>
                     </div>
                 </div>
                 <div class="field">
