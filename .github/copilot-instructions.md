@@ -89,8 +89,9 @@ Data flows from Twitch events → bot processing → API storage → dashboard/a
 
 ## AI Assistant Guidelines
 
-- Never make notes outside of the code base
-- Never make MD note files unless asked to
+- **ABSOLUTELY NO** markdown or text files for notes/documentation outside of explicit user request
+- **DO NOT** create `.md`, `.txt`, or any documentation files for tracking work, progress, or summaries unless the user explicitly asks
+- Do not create notes about changes, todos, or implementation details in the workspace
 - Always think before answering
 - Always read the file before making any helpful changes
 - Be aware of any imports for Python files before adding imports, ensure that we don't already have it covered
