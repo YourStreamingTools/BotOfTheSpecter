@@ -65,6 +65,7 @@ api/version_control.txt
 tts/*.mp3
 walkons/*
 soundalerts/*/*
+roadmap/uploads/*
 
 # Miscellaneous files
 *Thumbs.db
