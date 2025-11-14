@@ -499,7 +499,6 @@ $content = ob_get_clean();
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const unlinkHeaderBtn = document.getElementById('unlinkHeaderBtn');
-    
     if (unlinkHeaderBtn) {
         unlinkHeaderBtn.addEventListener('click', function() {
             Swal.fire({
@@ -537,13 +536,11 @@ let socketTokenVisible = false;
 <?php endif; ?>
 
 document.addEventListener('DOMContentLoaded', function() {
-
     const accessBtn = document.getElementById('showAccessTokenBtn');
     const accessEye = document.getElementById('accessTokenEye');
     const accessDisplay = document.getElementById('accessTokenDisplay');
     const copyAccessBtn = document.getElementById('copyAccessTokenBtn');
     const copyAccessIcon = document.getElementById('copyAccessTokenIcon');
-    
     if (copyAccessBtn) {
         copyAccessBtn.addEventListener('click', function() {
             navigator.clipboard.writeText(accessToken).then(() => {
@@ -566,7 +563,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
     if (accessBtn && accessEye && accessDisplay) {
         accessBtn.addEventListener('click', function() {
             if (!accessTokenVisible) {
@@ -601,14 +597,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-
     <?php if ($socketToken): ?>
     const socketBtn = document.getElementById('showSocketTokenBtn');
     const socketEye = document.getElementById('socketTokenEye');
     const socketDisplay = document.getElementById('socketTokenDisplay');
     const copySocketBtn = document.getElementById('copySocketTokenBtn');
     const copySocketIcon = document.getElementById('copySocketTokenIcon');
-    
     if (copySocketBtn) {
         copySocketBtn.addEventListener('click', function() {
             navigator.clipboard.writeText(socketToken).then(() => {
@@ -629,9 +623,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     text: 'Could not copy token to clipboard'
                 });
             });
-        }
+        });
     }
-    
     if (socketBtn && socketEye && socketDisplay) {
         socketBtn.addEventListener('click', function() {
             if (!socketTokenVisible) {
