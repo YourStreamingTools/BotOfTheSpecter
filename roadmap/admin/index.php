@@ -215,7 +215,7 @@ if (!empty($selectedCategory) && in_array($selectedCategory, $categories)) {
     $query .= " AND category = '" . $conn->real_escape_string($selectedCategory) . "'";
 }
 
-$query .= " ORDER BY priority DESC, created_at DESC";
+$query .= " ORDER BY created_at DESC, priority DESC";
 
 if ($result = $conn->query($query)) {
     while ($row = $result->fetch_assoc()) {
