@@ -1,5 +1,6 @@
 <?php
 session_start();
+date_default_timezone_set('Australia/Sydney');
 
 // Require admin authentication
 if (!isset($_SESSION['username']) || !($_SESSION['admin'] ?? false)) {
