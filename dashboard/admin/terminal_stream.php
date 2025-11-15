@@ -4,6 +4,53 @@ require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 include '../userdata.php';
 
+@set_time_limit(0);
+ignore_user_abort(true);
+
+$streamTerminated = false;
+
+function sse_send($data, $event = 'message') {
+    if ($data === null) {
+        return;
+    }
+    if (is_array($data) || is_object($data)) {
+        $data = json_encode($data);
+    }
+    $data = str_replace("\r", '', trim($data, "\r\n"));
+    $lines = $data === '' ? [''] : explode("\n", $data);
+    echo "event: $event\n";
+    foreach ($lines as $line) {
+        if ($line === '') continue;
+        echo "data: $line\n";
+    }
+    echo "\n";
+    ob_flush();
+    flush();
+}
+
+function sendDoneEvent(array $payload = []) {
+    global $streamTerminated;
+    if ($streamTerminated) {
+        return;
+    }
+    $streamTerminated = true;
+    sse_send($payload, 'done');
+}
+
+register_shutdown_function(function() {
+    global $streamTerminated;
+    if ($streamTerminated) {
+        return;
+    }
+    $error = error_get_last();
+    if ($error) {
+        sse_send('Unhandled error: ' . $error['message'], 'error');
+        sendDoneEvent(['error' => $error['message']]);
+    } else {
+        sendDoneEvent([]);
+    }
+});
+
 // Database query to check if user is admin
 function isAdmin() {
     global $conn;
@@ -32,21 +79,13 @@ header('Cache-Control: no-cache');
 header('Connection: keep-alive');
 header('Access-Control-Allow-Origin: *');
 
-// Helper function to send SSE data
-function sse_send($data, $event = 'message') {
-    echo "event: $event\n";
-    echo "data: $data\n\n";
-    ob_flush();
-    flush();
-}
-
 // Get parameters
 $server = $_GET['server'] ?? '';
 $command = $_GET['command'] ?? '';
 
 if (empty($server) || empty($command)) {
     sse_send('Error: Missing server or command parameter', 'error');
-    sse_send(json_encode(['error' => 'Missing parameters']), 'done');
+    sendDoneEvent(['error' => 'Missing parameters']);
     exit;
 }
 
@@ -86,7 +125,7 @@ $ssh_configs = [
 
 if (!isset($ssh_configs[$server])) {
     sse_send('Error: Invalid server specified', 'error');
-    sse_send(json_encode(['error' => 'Invalid server']), 'done');
+    sendDoneEvent(['error' => 'Invalid server']);
     exit;
 }
 
@@ -97,7 +136,7 @@ try {
     $connection = SSHConnectionManager::getConnection($config['host'], $config['username'], $config['password']);
     if (!$connection) {
         sse_send("Error: Could not connect to {$config['name']}", 'error');
-        sse_send(json_encode(['error' => 'SSH connection failed']), 'done');
+        sendDoneEvent(['error' => 'SSH connection failed']);
         exit;
     }
     sse_send("Executing on {$config['name']}: {$command}");
@@ -105,7 +144,7 @@ try {
     $stream = SSHConnectionManager::executeCommandStream($connection, $command);
     if (!$stream) {
         sse_send('Error: Could not execute command', 'error');
-        sse_send(json_encode(['error' => 'Command execution failed']), 'done');
+        sendDoneEvent(['error' => 'Command execution failed']);
         exit;
     }
     if (is_array($stream)) {
@@ -115,57 +154,31 @@ try {
         $stdout = $stream;
         $stderr = null;
     }
-    $buffers = ['out' => '', 'err' => ''];
-    // Read until both streams reach EOF
     while (($stdout && !feof($stdout)) || ($stderr && !feof($stderr))) {
         $dataRead = false;
         if ($stdout && !feof($stdout)) {
             $data = @fread($stdout, 1024);
             if ($data !== false && $data !== '') {
-                $buffers['out'] .= $data;
+                sse_send($data);
                 $dataRead = true;
             }
         }
         if ($stderr && !feof($stderr)) {
             $edata = @fread($stderr, 1024);
             if ($edata !== false && $edata !== '') {
-                $buffers['err'] .= $edata;
+                sse_send('[stderr] ' . $edata);
                 $dataRead = true;
             }
         }
-        // Process complete lines from stdout buffer
-        while (($pos = strpos($buffers['out'], "\n")) !== false) {
-            $line = substr($buffers['out'], 0, $pos);
-            $buffers['out'] = substr($buffers['out'], $pos + 1);
-            if (!empty(trim($line))) {
-                sse_send($line);
-            }
-        }
-        // Process complete lines from stderr buffer (label as stderr)
-        while (($pos = strpos($buffers['err'], "\n")) !== false) {
-            $line = substr($buffers['err'], 0, $pos);
-            $buffers['err'] = substr($buffers['err'], $pos + 1);
-            if (!empty(trim($line))) {
-                sse_send('[stderr] ' . $line);
-            }
-        }
         if (!$dataRead) {
-            // No data this loop - small sleep to avoid busy-wait
-            usleep(10000); // 10ms
+            usleep(10000);
         }
-    }
-    // Flush any remaining content
-    if (!empty(trim($buffers['out']))) {
-        sse_send($buffers['out']);
-    }
-    if (!empty(trim($buffers['err']))) {
-        sse_send('[stderr] ' . $buffers['err']);
     }
     if ($stdout && is_resource($stdout)) { fclose($stdout); }
     if ($stderr && is_resource($stderr)) { fclose($stderr); }
-    sse_send(json_encode(['success' => true, 'exit_code' => 0]), 'done');
+    sendDoneEvent(['success' => true, 'exit_code' => 0]);
 } catch (Exception $e) {
     sse_send("Error: " . $e->getMessage(), 'error');
-    sse_send(json_encode(['error' => $e->getMessage()]), 'done');
+    sendDoneEvent(['error' => $e->getMessage()]);
 }
 ?>
