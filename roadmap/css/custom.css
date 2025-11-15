@@ -458,6 +458,7 @@ body > main {
 
 .timeline-container {
     padding: 2rem 0;
+    position: relative;
 }
 
 .timeline-section {
@@ -479,6 +480,56 @@ body > main {
     align-items: start;
 }
 
+.timeline-center-line {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(to bottom, #667eea, transparent);
+    opacity: 0.3;
+    top: 0;
+}
+
+.timeline-item {
+    display: flex;
+    margin-bottom: 2rem;
+    position: relative;
+    width: 100%;
+}
+
+.timeline-item-left {
+    flex-direction: row;
+    justify-content: flex-end;
+    padding-right: calc(50% + 12px);
+    padding-left: 2rem;
+}
+
+.timeline-item-left .timeline-indicator {
+    position: absolute;
+    right: calc(50% - 8px);
+    top: 1.5rem;
+    transform: translateX(50%);
+}
+
+.timeline-item-right {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding-left: calc(50% + 12px);
+    padding-right: 2rem;
+}
+
+.timeline-item-right .timeline-indicator {
+    position: absolute;
+    left: calc(50% - 8px);
+    top: 1.5rem;
+    transform: translateX(-50%);
+}
+
+.timeline-content {
+    width: 100%;
+}
+
 .timeline-card {
     background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(102, 126, 234, 0.05) 100%);
     border: 1px solid rgba(102, 126, 234, 0.3);
@@ -497,16 +548,19 @@ body > main {
 .timeline-indicator {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.75rem;
     margin-bottom: 1rem;
 }
 
 .timeline-dot {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
     background-color: #667eea;
     border-radius: 50%;
     flex-shrink: 0;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+    display: none;
 }
 
 .timeline-date {
@@ -578,6 +632,29 @@ body > main {
     display: block;
 }
 
+.timeline-changelog-highlights {
+    background: rgba(102, 126, 234, 0.08);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.timeline-changelog-section {
+    margin-bottom: 0.75rem;
+}
+
+.timeline-changelog-section:last-child {
+    margin-bottom: 0;
+}
+
+.timeline-changelog-section ul {
+    list-style: none;
+}
+
+.timeline-changelog-section li {
+    word-break: break-word;
+}
+
 /* ============================================
    Responsive Adjustments
    ============================================ */
@@ -613,6 +690,23 @@ body > main {
 
     .timeline-grid {
         grid-template-columns: 1fr;
+    }
+
+    .timeline-item-left,
+    .timeline-item-right {
+        flex-direction: column;
+        padding: 2rem 0 !important;
+    }
+
+    .timeline-item-left .timeline-indicator,
+    .timeline-item-right .timeline-indicator {
+        position: static;
+        margin-bottom: 1rem;
+    }
+
+    .timeline-center-line {
+        left: 0;
+        width: 1px;
     }
 }
 
