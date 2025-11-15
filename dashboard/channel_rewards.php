@@ -97,9 +97,9 @@ ob_start();
                 </span>
             </header>
             <div class="card-content">
-                <div class="notification is-success mb-4" id="sync-result" style="display: none;">
+                <div class="notification is-info mb-4" id="sync-result" style="display: none;">
                     <strong>Sync Result:</strong><br>
-                    <span id="sync-output"></span>
+                    <pre id="sync-output" class="mb-0" style="white-space: pre-wrap; max-height: 220px; overflow:auto; font-family: monospace;"></pre>
                 </div>
                 <div class="notification is-info mb-4">
                     <form method="POST" id="sync-form" style="display: flex; align-items: flex-start; justify-content: space-between;">
@@ -290,43 +290,97 @@ document.getElementById('sync-form').addEventListener('submit', function(e) {
     e.preventDefault();
 });
 
+const syncResultContainer = document.getElementById('sync-result');
+const syncOutputElement = document.getElementById('sync-output');
+let syncEventSource = null;
+let syncResultHideTimer = null;
+
+function appendSyncOutputLine(message) {
+    if (!syncOutputElement) return;
+    syncOutputElement.textContent += message + '\n';
+    syncOutputElement.scrollTop = syncOutputElement.scrollHeight;
+}
+
+function setSyncResultVariant(variant) {
+    if (!syncResultContainer) return;
+    syncResultContainer.classList.remove('is-info', 'is-success', 'is-danger');
+    syncResultContainer.classList.add('is-' + variant);
+}
+
+function showSyncResult() {
+    if (!syncResultContainer) return;
+    syncResultContainer.style.display = 'block';
+    setSyncResultVariant('info');
+}
+
+function scheduleSyncResultHide() {
+    if (!syncResultContainer) return;
+    if (syncResultHideTimer) {
+        clearTimeout(syncResultHideTimer);
+    }
+    syncResultHideTimer = setTimeout(function() {
+        syncResultContainer.style.display = 'none';
+    }, 60000);
+}
+
+function finalizeSync(success, button, spinner, text) {
+    if (spinner) {
+        spinner.style.display = 'none';
+    }
+    if (button) {
+        button.disabled = false;
+    }
+    if (text && button && button.dataset.syncOriginalHtml) {
+        text.innerHTML = button.dataset.syncOriginalHtml;
+    }
+    setSyncResultVariant(success ? 'success' : 'danger');
+    scheduleSyncResultHide();
+    if (syncEventSource) {
+        syncEventSource.close();
+        syncEventSource = null;
+    }
+}
+
 function syncRewards() {
     var btn = document.getElementById('sync-btn');
     var spinner = document.getElementById('sync-btn-spinner');
     var text = document.getElementById('sync-btn-text');
+    if (!btn || !spinner || !text || !syncOutputElement) {
+        return;
+    }
+
+    if (!btn.dataset.syncOriginalHtml) {
+        btn.dataset.syncOriginalHtml = text.innerHTML;
+    }
     btn.disabled = true;
     spinner.style.display = '';
     text.textContent = <?php echo json_encode(t('channel_rewards_syncing')); ?>;
-    var formData = new FormData();
-    formData.append('syncRewards', '1');
-    fetch('', {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('sync-output').innerHTML = data.output;
-        document.getElementById('sync-result').style.display = 'block';
-        btn.disabled = false;
-        spinner.style.display = 'none';
-        text.innerHTML = '<i class="fas fa-sync-alt"></i> ' + <?php echo json_encode(t('channel_rewards_sync_btn')); ?>;
-        setTimeout(() => {
-            document.getElementById('sync-result').style.display = 'none';
-        }, 60000);
-    })
-    .catch(error => {
-        document.getElementById('sync-output').innerHTML = 'Error: ' + error.message;
-        document.getElementById('sync-result').style.display = 'block';
-        btn.disabled = false;
-        spinner.style.display = 'none';
-        text.innerHTML = '<i class="fas fa-sync-alt"></i> ' + <?php echo json_encode(t('channel_rewards_sync_btn')); ?>;
-        setTimeout(() => {
-            document.getElementById('sync-result').style.display = 'none';
-        }, 60000);
-    });;
+
+    if (syncEventSource) {
+        syncEventSource.close();
+    }
+    syncOutputElement.textContent = '';
+    showSyncResult();
+    appendSyncOutputLine('Connecting to the sync service...');
+
+    syncEventSource = new EventSource('channel_rewards_stream.php');
+    syncEventSource.onmessage = function(e) {
+        appendSyncOutputLine(e.data || '');
+    };
+    syncEventSource.addEventListener('done', function(e) {
+        let info = {};
+        try {
+            info = JSON.parse(e.data || '{}');
+        } catch (err) {
+            appendSyncOutputLine('[ERROR] Unable to read completion details.');
+        }
+        appendSyncOutputLine('');
+        appendSyncOutputLine('[PROCESS DONE] ' + (info.success ? 'Success' : 'Failed') + ' (exit code: ' + (typeof info.exit_code !== 'undefined' ? info.exit_code : 'unknown') + ')');
+        finalizeSync(Boolean(info.success), btn, spinner, text);
+    });
+    syncEventSource.onerror = function() {
+        appendSyncOutputLine('[ERROR] Connection interrupted; waiting for the script to finish.');
+    };
 }
 
 document.querySelectorAll('.cancel-btn').forEach(btn => {
