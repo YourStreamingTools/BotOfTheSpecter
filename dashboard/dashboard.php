@@ -589,11 +589,11 @@ if ($isLoggedIn) {
             <?php echo $content; ?>
         </div>
         <!-- Footer -->
-        <footer class="footer is-dark has-text-white" style="width:100%; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
+        <footer class="footer is-dark has-text-white" style="width:100%; max-width:none; margin-left:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
             <div style="position: absolute; bottom: 12px; left: 12px;" class="is-hidden-mobile">
                 <span class="tag is-info is-light">Dashboard Version: <?php echo $dashboardVersion; ?></span>
             </div>
-            <div style="max-width: 1500px; padding-left: 140px;" class="is-hidden-mobile">
+            <div style="width: 100%; max-width: none; padding: 0 1.5rem;" class="is-hidden-mobile">
                 &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
                 <?php include '/var/www/config/project-time.php'; ?>
                 BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
