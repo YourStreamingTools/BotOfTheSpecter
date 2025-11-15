@@ -1,5 +1,5 @@
 <?php
-// Timeline view for roadmap progression
+// Timeline view using changelog versions
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -8,100 +8,143 @@ date_default_timezone_set('Australia/Sydney');
 
 session_start();
 
-require_once "admin/database.php";
-
 // Set page metadata
 $pageTitle = 'Timeline';
 
-// Get database connection
-$conn = getRoadmapConnection();
-
-// Get all items with their activity
-$query = "SELECT * FROM roadmap_items ORDER BY created_at ASC";
-$result = $conn->query($query);
-$allItems = [];
-
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $allItems[] = $row;
+// Helper function to extract date from version file
+function extractVersionDate($filePath) {
+    $content = file_get_contents($filePath);
+    // Try to extract date from common patterns
+    if (preg_match('/\((\d{4}-\d{2}-\d{2})\)/', $content, $matches)) {
+        return new DateTime($matches[1]);
     }
-    $result->free();
+    // Fallback to file modification time
+    $mtime = filemtime($filePath);
+    return new DateTime('@' . $mtime);
 }
 
-// Build timeline data
-$timelineEvents = [];
-
-foreach ($allItems as $item) {
-    $createdAt = new DateTime($item['created_at']);
-    
-    // Add creation event
-    $timelineEvents[] = [
-        'date' => $createdAt,
-        'type' => 'created',
-        'item_id' => $item['id'],
-        'title' => $item['title'],
-        'description' => $item['description'],
-        'category' => $item['category'],
-        'created_by' => $item['created_by'],
-        'priority' => $item['priority']
+// Helper function to extract version number and summary from markdown
+function parseVersionFile($filePath) {
+    $content = file_get_contents($filePath);
+    // Extract version number
+    $versionNumber = '';
+    if (preg_match('/Version\s+([\d.]+)/', $content, $matches)) {
+        $versionNumber = $matches[1];
+    }
+    // Extract date
+    $date = '';
+    if (preg_match('/\((\d{4}-\d{2}-\d{2})\)/', $content, $matches)) {
+        $date = $matches[1];
+    }
+    // Extract introduction/summary (first meaningful paragraph or line)
+    $summary = '';
+    $lines = explode("\n", $content);
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        // Skip headers, empty lines, code blocks, and list items
+        if (!empty($trimmed) && strpos($trimmed, '#') !== 0 && strpos($trimmed, '```') !== 0 && strpos($trimmed, '-') !== 0 && strpos($trimmed, '*') !== 0) {
+            // Clean up markdown bold/italic/links
+            $summary = preg_replace('/\*\*(.*?)\*\*/', '$1', $trimmed);
+            $summary = preg_replace('/\*(.*?)\*/', '$1', $summary);
+            $summary = preg_replace('/\[([^\]]+)\]\([^\)]+\)/', '$1', $summary);
+            break;
+        }
+    }
+    // Extract all sections including nested subsections
+    $sections = [];
+    $currentSection = '';
+    $currentSubsection = '';
+    $sectionItems = [];
+    foreach ($lines as $line) {
+        // Match level 2 headers (##)
+        if (preg_match('/^##\s+(.+)$/', $line, $matches)) {
+            if ($currentSection && !empty($sectionItems)) {
+                if ($currentSubsection) {
+                    $sections[$currentSection][$currentSubsection] = $sectionItems;
+                } else {
+                    $sections[$currentSection] = $sectionItems;
+                }
+            }
+            $currentSection = trim($matches[1]);
+            $currentSubsection = '';
+            $sectionItems = [];
+        }
+        // Match level 3 headers (###) as subsections
+        elseif (preg_match('/^###\s+(.+)$/', $line, $matches)) {
+            if ($currentSubsection && !empty($sectionItems)) {
+                $sections[$currentSection][$currentSubsection] = $sectionItems;
+                $sectionItems = [];
+            }
+            $currentSubsection = trim($matches[1]);
+        }
+        // Match bullet points (with * or -)
+        elseif ($currentSection && preg_match('/^\s*[\*\-]\s+(.+)$/', $line, $matches)) {
+            $item = trim($matches[1]);
+            // Remove markdown links but keep text
+            $item = preg_replace('/\[([^\]]+)\]\([^\)]+\)/', '$1', $item);
+            $sectionItems[] = $item;
+        }
+    }
+    // Don't forget the last section
+    if ($currentSection && !empty($sectionItems)) {
+        if ($currentSubsection) {
+            $sections[$currentSection][$currentSubsection] = $sectionItems;
+        } else {
+            $sections[$currentSection] = $sectionItems;
+        }
+    }
+    return [
+        'version' => $versionNumber,
+        'date' => $date,
+        'summary' => $summary,
+        'sections' => $sections
     ];
-    
-    // Get last status change (use updated_at if available)
-    if (!empty($item['updated_at'])) {
-        $updatedAt = new DateTime($item['updated_at']);
-        if ($updatedAt > $createdAt) {
-            $timelineEvents[] = [
-                'date' => $updatedAt,
-                'type' => 'updated',
-                'item_id' => $item['id'],
-                'title' => $item['title'],
-                'category' => $item['category'],
-                'priority' => $item['priority']
+}
+
+// Load all version files from docs folder
+$docsPath = dirname(__FILE__) . '/../docs';
+$versionFiles = [];
+
+if (is_dir($docsPath)) {
+    $files = scandir($docsPath, SCANDIR_SORT_DESCENDING);
+    foreach ($files as $file) {
+        if (preg_match('/^(\d+\.\d+)\.md$/', $file, $matches)) {
+            $filePath = $docsPath . '/' . $file;
+            $versionNum = $matches[1];
+            $date = extractVersionDate($filePath);
+            $versionFiles[] = [
+                'file' => $file,
+                'path' => $filePath,
+                'version' => $versionNum,
+                'date' => $date,
+                'timestamp' => $date->getTimestamp()
             ];
         }
     }
 }
 
-// Sort timeline by date (newest first)
-usort($timelineEvents, function($a, $b) {
-    return $b['date']->getTimestamp() - $a['date']->getTimestamp();
+// Sort by date (newest first)
+usort($versionFiles, function($a, $b) {
+    return $b['timestamp'] - $a['timestamp'];
 });
 
-// Group events by month/year
-$groupedEvents = [];
-foreach ($timelineEvents as $event) {
-    $yearMonth = $event['date']->format('Y-m');
-    $monthName = $event['date']->format('F Y');
-    
-    if (!isset($groupedEvents[$yearMonth])) {
-        $groupedEvents[$yearMonth] = [
+// Group by month/year
+$groupedVersions = [];
+foreach ($versionFiles as $versionFile) {
+    $yearMonth = $versionFile['date']->format('Y-m');
+    $monthName = $versionFile['date']->format('F Y');
+    if (!isset($groupedVersions[$yearMonth])) {
+        $groupedVersions[$yearMonth] = [
             'month' => $monthName,
-            'events' => []
+            'versions' => []
         ];
     }
-    
-    $groupedEvents[$yearMonth]['events'][] = $event;
+    $parsed = parseVersionFile($versionFile['path']);
+    $groupedVersions[$yearMonth]['versions'][] = array_merge($versionFile, $parsed);
 }
 
-// Sort grouped events by month (newest first for chronological timeline)
-krsort($groupedEvents);
-
-// Helper function to get category color
-function getCategoryColor($category) {
-    $colors = [
-        'REQUESTS' => '#FF6B6B',
-        'IN PROGRESS' => '#FFD93D',
-        'BETA TESTING' => '#6BCB77',
-        'COMPLETED' => '#4D96FF',
-        'REJECTED' => '#808080'
-    ];
-    return $colors[$category] ?? '#667eea';
-}
-
-// Helper function to get category badge
-function getCategoryBadge($category) {
-    return '<span class="tag" style="background-color: ' . getCategoryColor($category) . '; color: white; margin-right: 0.5rem;">' . htmlspecialchars($category) . '</span>';
-}
+// Sort grouped versions by month (newest first)
+krsort($groupedVersions);
 
 // Set page content
 $pageContent = '';
@@ -109,175 +152,61 @@ $pageContent = '';
 ob_start();
 ?>
 <div class="content">
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem;">
-        <div>
-            <h1 class="title">Development Timeline</h1>
-            <p class="subtitle">Track the progress and evolution of BotOfTheSpecter features</p>
-        </div>
-        <a href="index.php" class="button is-light">
-            <span class="icon"><i class="fas fa-th"></i></span>
-            <span>Back to Roadmap</span>
-        </a>
+    <div style="margin-bottom: 2rem;">
+        <h1 class="title">Development Timeline</h1>
+        <p class="subtitle">Track the evolution of BotOfTheSpecter through version releases</p>
     </div>
-    <!-- Timeline with alternating columns -->
+    <!-- Timeline with alternating left/right items -->
     <div class="timeline-container">
+        <div class="timeline-center-line"></div>
         <?php 
-        $eventIndex = 0;
-        foreach ($groupedEvents as $yearMonth => $monthData): 
+        foreach ($groupedVersions as $yearMonth => $monthData): 
         ?>
             <div class="timeline-section">
                 <h2 class="title is-4 timeline-month-header">
                     <?php echo htmlspecialchars($monthData['month']); ?>
                 </h2>
-                <!-- Two-column layout for events -->
-                <div class="timeline-grid">
-                    <?php 
-                    $leftEvents = [];
-                    $rightEvents = [];
-                    // Split events into left and right columns
-                    foreach ($monthData['events'] as $idx => $event) {
-                        if ($idx % 2 === 0) {
-                            $leftEvents[] = $event;
-                        } else {
-                            $rightEvents[] = $event;
-                        }
-                    }
-                    $maxCount = max(count($leftEvents), count($rightEvents));
-                    for ($i = 0; $i < $maxCount; $i++):
-                    ?>
-                        <!-- Left column -->
-                        <div>
-                            <?php if (isset($leftEvents[$i])): 
-                                $event = $leftEvents[$i];
-                            ?>
-                                <div class="timeline-card">
-                                    <!-- Timeline indicator -->
-                                    <div class="timeline-indicator">
-                                        <div class="timeline-dot"></div>
-                                        <small class="timeline-date">
-                                            <?php 
-                                            $now = new DateTime();
-                                            $interval = $now->diff($event['date']);
-                                            if ($interval->days > 0) {
-                                                echo $event['date']->format('M d, Y');
-                                            } elseif ($interval->h > 0) {
-                                                echo $interval->h . ' hour' . ($interval->h > 1 ? 's' : '') . ' ago';
-                                            } elseif ($interval->i > 0) {
-                                                echo $interval->i . ' minute' . ($interval->i > 1 ? 's' : '') . ' ago';
-                                            } else {
-                                                echo 'Just now';
-                                            }
-                                            ?>
-                                        </small>
-                                    </div>
+                <!-- Timeline items -->
+                <?php 
+                foreach ($monthData['versions'] as $idx => $version): 
+                    $isLeft = $idx % 2 === 0;
+                    $alignment = $isLeft ? 'left' : 'right';
+                ?>
+                    <div class="timeline-item timeline-item-<?php echo $alignment; ?>">
+                        <div class="timeline-card">
+                            <!-- Timeline indicator -->
+                            <div class="timeline-indicator">
+                                <div class="timeline-dot"></div>
+                            </div>
+                            <div class="timeline-content">
+                                    <small class="timeline-date">
+                                        <?php echo htmlspecialchars($version['date']); ?>
+                                    </small>
                                     <h3 class="title is-5 timeline-title">
-                                        <?php echo htmlspecialchars($event['title']); ?>
+                                        Version <?php echo htmlspecialchars($version['version']); ?>
                                     </h3>
-                                    <div class="timeline-tags">
-                                        <?php echo getCategoryBadge($event['category']); ?>
-                                        <?php if ($event['priority'] > 0): ?>
-                                            <span class="tag is-warning">Priority <?php echo htmlspecialchars($event['priority']); ?></span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <?php if ($event['type'] === 'created'): ?>
-                                        <div class="timeline-event-box timeline-event-created">
-                                            <p class="timeline-event-text"><strong>Event:</strong> Item Created</p>
-                                            <?php if (!empty($event['created_by'])): ?>
-                                                <p class="timeline-event-meta"><strong>By:</strong> <?php echo htmlspecialchars($event['created_by']); ?></p>
-                                            <?php endif; ?>
-                                            <?php if (!empty($event['description'])): ?>
-                                                <p class="timeline-event-description">
-                                                    <?php 
-                                                    $desc = htmlspecialchars($event['description']);
-                                                    echo strlen($desc) > 150 ? substr($desc, 0, 150) . '...' : $desc;
-                                                    ?>
-                                                </p>
-                                            <?php endif; ?>
-                                        </div>
-                                    <?php elseif ($event['type'] === 'updated'): ?>
-                                        <div class="timeline-event-box timeline-event-updated">
-                                            <p class="timeline-event-updated-text"><strong>Event:</strong> Item Updated</p>
-                                        </div>
+                                    <?php if (!empty($version['summary'])): ?>
+                                        <p class="timeline-event-description" style="margin-bottom: 1rem; font-size: 0.9rem;">
+                                            <?php echo htmlspecialchars(substr($version['summary'], 0, 150)); ?>
+                                        </p>
                                     <?php endif; ?>
-                                    <a href="index.php?search=<?php echo urlencode($event['title']); ?>" class="button is-small is-info is-light">
-                                        <span class="icon is-small"><i class="fas fa-external-link-alt"></i></span>
-                                        <span>View Details</span>
-                                    </a>
+                                    <button class="button is-small is-info is-light" onclick="openVersionModal('<?php echo htmlspecialchars($version['version']); ?>', '<?php echo htmlspecialchars(str_replace("'", "\\'", $version['summary'])); ?>', this)" style="margin-top: 1rem;">
+                                        <span class="icon is-small"><i class="fas fa-file-alt"></i></span>
+                                        <span>View Notes</span>
+                                    </button>
                                 </div>
-                            <?php endif; ?>
+                            </div>
                         </div>
-                        <!-- Right column -->
-                        <div>
-                            <?php if (isset($rightEvents[$i])): 
-                                $event = $rightEvents[$i];
-                            ?>
-                                <div class="timeline-card">
-                                    <!-- Timeline indicator -->
-                                    <div class="timeline-indicator">
-                                        <div class="timeline-dot"></div>
-                                        <small class="timeline-date">
-                                            <?php 
-                                            $now = new DateTime();
-                                            $interval = $now->diff($event['date']);
-                                            if ($interval->days > 0) {
-                                                echo $event['date']->format('M d, Y');
-                                            } elseif ($interval->h > 0) {
-                                                echo $interval->h . ' hour' . ($interval->h > 1 ? 's' : '') . ' ago';
-                                            } elseif ($interval->i > 0) {
-                                                echo $interval->i . ' minute' . ($interval->i > 1 ? 's' : '') . ' ago';
-                                            } else {
-                                                echo 'Just now';
-                                            }
-                                            ?>
-                                        </small>
-                                    </div>
-                                    <h3 class="title is-5 timeline-title">
-                                        <?php echo htmlspecialchars($event['title']); ?>
-                                    </h3>
-                                    <div class="timeline-tags">
-                                        <?php echo getCategoryBadge($event['category']); ?>
-                                        <?php if ($event['priority'] > 0): ?>
-                                            <span class="tag is-warning">Priority <?php echo htmlspecialchars($event['priority']); ?></span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <?php if ($event['type'] === 'created'): ?>
-                                        <div class="timeline-event-box timeline-event-created">
-                                            <p class="timeline-event-text"><strong>Event:</strong> Item Created</p>
-                                            <?php if (!empty($event['created_by'])): ?>
-                                                <p class="timeline-event-meta"><strong>By:</strong> <?php echo htmlspecialchars($event['created_by']); ?></p>
-                                            <?php endif; ?>
-                                            <?php if (!empty($event['description'])): ?>
-                                                <p class="timeline-event-description">
-                                                    <?php 
-                                                    $desc = htmlspecialchars($event['description']);
-                                                    echo strlen($desc) > 150 ? substr($desc, 0, 150) . '...' : $desc;
-                                                    ?>
-                                                </p>
-                                            <?php endif; ?>
-                                        </div>
-                                    <?php elseif ($event['type'] === 'updated'): ?>
-                                        <div class="timeline-event-box timeline-event-updated">
-                                            <p class="timeline-event-updated-text"><strong>Event:</strong> Item Updated</p>
-                                        </div>
-                                    <?php endif; ?>
-                                    <a href="index.php?search=<?php echo urlencode($event['title']); ?>" class="button is-small is-info is-light">
-                                        <span class="icon is-small"><i class="fas fa-external-link-alt"></i></span>
-                                        <span>View Details</span>
-                                    </a>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    <?php endfor; ?>
-                </div>
+                    <?php endforeach; ?>
             </div>
         <?php endforeach; ?>
-        <?php if (empty($groupedEvents)): ?>
+        <?php if (empty($groupedVersions)): ?>
             <div class="timeline-no-events">
-                <p class="has-text-grey-light"><i class="fas fa-calendar-times timeline-no-events-icon"></i>No timeline events yet</p>
+                <p class="has-text-grey-light"><i class="fas fa-calendar-times timeline-no-events-icon"></i>No version releases found</p>
             </div>
         <?php endif; ?>
     </div>
-
+</div>
 <?php
 $pageContent = ob_get_clean();
 

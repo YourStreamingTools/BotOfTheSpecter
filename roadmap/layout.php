@@ -170,6 +170,22 @@ function uuidv4() {
             </section>
         </div>
     </div>
+    <!-- Version Notes Modal -->
+    <div id="versionModal" class="modal">
+        <div class="modal-background" onclick="closeVersionModal()"></div>
+        <div class="modal-card" style="width: 90%; max-width: 1000px; max-height: 85vh; display: flex; flex-direction: column;">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Version <span id="modalVersionNumber"></span> - Complete Changelog</p>
+                <button class="delete" onclick="closeVersionModal()"></button>
+            </header>
+            <section class="modal-card-body" style="flex: 1; overflow-y: auto; padding: 1.5rem;">
+                <div id="modalContent"></div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button" onclick="closeVersionModal()">Close</button>
+            </footer>
+        </div>
+    </div>
     <!-- Add Comment Modal (Admin Only) -->
     <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
     <div class="modal" id="addCommentModal">
@@ -809,6 +825,66 @@ function uuidv4() {
                 }
             });
         });
+    });
+    // Version Modal Functions
+    function openVersionModal(version, filePath) {
+        const versionNum = version;
+        const changelogUrl = 'https://changelog.botofthespecter.com/' + versionNum + '.md';
+        // Fetch the markdown file
+        fetch(changelogUrl)
+            .then(response => response.text())
+            .then(markdown => {
+                // Better markdown to HTML conversion
+                let html = markdown;
+                // Headers (must be done in order from largest to smallest)
+                html = html.replace(/^### (.*?)$/gm, '<h3 style="color: #667eea; margin-top: 1rem; margin-bottom: 0.5rem; font-weight: 600; font-size: 1.1rem;">$1</h3>');
+                html = html.replace(/^## (.*?)$/gm, '<h2 style="color: #667eea; margin-top: 1.5rem; margin-bottom: 1rem; font-weight: 700; font-size: 1.3rem; border-bottom: 1px solid #333; padding-bottom: 0.5rem;">$1</h2>');
+                html = html.replace(/^# (.*?)$/gm, '<h1 style="color: #667eea; margin-bottom: 1.5rem; font-weight: 700; font-size: 1.5rem;">$1</h1>');
+                // Inline formatting (bold before italic)
+                html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #8b9ff0; font-weight: 600;">$1</strong>');
+                html = html.replace(/__(.*?)__/g, '<strong style="color: #8b9ff0; font-weight: 600;">$1</strong>');
+                html = html.replace(/\*(.*?)\*/g, '<em style="color: #b0b0b0;">$1</em>');
+                html = html.replace(/_(.*?)_/g, '<em style="color: #b0b0b0;">$1</em>');
+                // Links
+                html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" style="color: #667eea; text-decoration: underline;">$1</a>');
+                // Code blocks (backtick wrapped)
+                html = html.replace(/`(.*?)`/g, '<code style="background-color: rgba(0, 0, 0, 0.3); color: #66d9ef; padding: 0.2rem 0.4rem; border-radius: 3px; font-family: monospace;">$1</code>');
+                // Lists - convert to proper HTML list items
+                html = html.replace(/^\* (.*?)$/gm, '<li style="margin-left: 1.5rem; margin-bottom: 0.25rem; color: #b0b0b0;">$1</li>');
+                html = html.replace(/^- (.*?)$/gm, '<li style="margin-left: 1.5rem; margin-bottom: 0.25rem; color: #b0b0b0;">$1</li>');
+                // Wrap consecutive list items in <ul>
+                html = html.replace(/(<li.*?<\/li>)+/g, function(match) {
+                    return '<ul style="list-style: none; margin-bottom: 0.75rem;">' + match + '</ul>';
+                });
+                // Paragraph breaks
+                html = html.split('\n\n').map(para => {
+                    para = para.trim();
+                    // Don't wrap if it's already a tag
+                    if (para.match(/^</) || para.length === 0) {
+                        return para;
+                    }
+                    return '<p style="margin-bottom: 1rem; color: #b0b0b0; line-height: 1.6;">' + para + '</p>';
+                }).join('');
+                // Remove extra empty paragraphs
+                html = html.replace(/<p[^>]*>\s*<\/p>/g, '');
+                document.getElementById('modalVersionNumber').textContent = version;
+                document.getElementById('modalContent').innerHTML = html;
+                document.getElementById('versionModal').classList.add('is-active');
+            })
+            .catch(error => {
+                console.error('Error loading changelog:', error);
+                document.getElementById('modalContent').innerHTML = '<p style="color: #f14668;">Error loading changelog file</p>';
+                document.getElementById('versionModal').classList.add('is-active');
+            });
+    }
+    function closeVersionModal() {
+        document.getElementById('versionModal').classList.remove('is-active');
+    }
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            closeVersionModal();
+        }
     });
     </script>
 </body>
