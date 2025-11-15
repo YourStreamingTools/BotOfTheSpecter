@@ -999,6 +999,37 @@ input[type="range"].modern-volume::-ms-tooltip {
     text-align: right;
 }
 
+/* Channel rewards sync banner */
+#sync-result {
+    border-radius: 18px;
+    background: linear-gradient(135deg, #0b2b1f, #113d2a, #1b6b3d);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.35);
+    padding: 1.25rem;
+    color: #f0fff6;
+}
+
+#sync-result strong {
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+    color: #ecffed;
+}
+
+#sync-output {
+    background: #0b0f11;
+    color: #f5fff7;
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    margin-top: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    max-height: 220px;
+    overflow: auto;
+}
+
 /* Sidebar Navigation Styles */
 :root {
     --sidebar-width: 250px;
