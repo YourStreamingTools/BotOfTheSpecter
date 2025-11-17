@@ -79,16 +79,7 @@ $databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF', '
 $botServerPingStatus = pingServer('bots.botofthespecter.com', 22);
 $botServerStatus = ['status' => $botServerPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $botServerPingStatus];
 
-$streamUsEast1PingStatus = pingServer('us-east-1.botofthespecter.video', 1935);
-$streamUsEast1Status = ['status' => $streamUsEast1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $streamUsEast1PingStatus];
-$streamUsEast1Status['status'] = 'DISABLED'; // Temporarily disabled
 
-$streamUsWest1PingStatus = pingServer('us-west-1.botofthespecter.video', 1935);
-$streamUsWest1Status = ['status' => $streamUsWest1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $streamUsWest1PingStatus];
-$streamUsWest1Status['status'] = 'DISABLED'; // Temporarily disabled
-
-$streamAuEast1PingStatus = pingServer('au-east-1.botofthespecter.video', 1935);
-$streamAuEast1Status = ['status' => $streamAuEast1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $streamAuEast1PingStatus];
 
 $web1PingStatus = pingServer('web1.botofthespecter.com', 443);
 $web1Status = ['status' => $web1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $web1PingStatus];
@@ -124,10 +115,7 @@ $serverDisplayNames = [
     'bots' => 'Bot Server',
     'sql' => 'Database Service',
     'api' => 'API Service',
-    'websocket' => 'WebSocket Service',
-    'stream-au-east-1' => 'Stream AU-East-1',
-    'stream-us-west-1' => 'Stream US-West-1',
-    'stream-us-east-1' => 'Stream US-East-1'
+    'websocket' => 'WebSocket Service'
 ];
 $result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
 while ($row = $result->fetch_assoc()) {
@@ -157,9 +145,6 @@ if (isset($_GET['ajax'])) {
         'databaseServiceStatus' => $databaseServiceStatus,
         'notificationServiceStatus' => $notificationServiceStatus,
         'botServerStatus' => $botServerStatus,
-        'streamUsEast1Status' => $streamUsEast1Status,
-        'streamUsWest1Status' => $streamUsWest1Status,
-        'streamAuEast1Status' => $streamAuEast1Status,
         'web1Status' => $web1Status,
         'betaVersion' => $betaVersion,
         'stableVersion' => $stableVersion,
@@ -248,13 +233,10 @@ function checkServiceStatus($serviceName, $serviceData) {
     <div class="section">
         <div class="status-grid" id="service-status">
             <?= checkServiceStatus('Web Server 1', $web1Status); ?>
-            <?= checkServiceStatus('Bot Server', $botServerStatus); ?>
             <?= checkServiceStatus('Database Service', $databaseServiceStatus); ?>
             <?= checkServiceStatus('API Service', $apiServiceStatus); ?>
             <?= checkServiceStatus('WebSocket Service', $notificationServiceStatus); ?>
-            <?= checkServiceStatus('Stream AU-East-1', $streamAuEast1Status); ?>
-            <?= checkServiceStatus('Stream US-West-1', $streamUsWest1Status); ?>
-            <?= checkServiceStatus('Stream US-East-1', $streamUsEast1Status); ?>
+            <?= checkServiceStatus('Bot Server', $botServerStatus); ?>
         </div>
     </div>
     <div class="columns">
@@ -386,10 +368,7 @@ const serverDisplayNames = {
     'bots': 'Bot Server',
     'sql': 'Database Service',
     'api': 'API Service',
-    'websocket': 'WebSocket Service',
-    'stream-au-east-1': 'Stream AU-East-1',
-    'stream-us-west-1': 'Stream US-West-1',
-    'stream-us-east-1': 'Stream US-East-1'
+    'websocket': 'WebSocket Service'
 };
 function renderServiceStatus(name, statusData) {
     if (statusData.status === 'OK') {
@@ -412,13 +391,10 @@ function fetchAndUpdateStatus() {
             // Update service statuses
             document.getElementById('service-status').innerHTML =
                 renderServiceStatus('Web Server 1', data.web1Status) +
-                renderServiceStatus('Bot Server', data.botServerStatus) +
                 renderServiceStatus('Database Service', data.databaseServiceStatus) +
                 renderServiceStatus('API Service', data.apiServiceStatus) +
                 renderServiceStatus('WebSocket Service', data.notificationServiceStatus) +
-                renderServiceStatus('Stream AU-East-1', data.streamAuEast1Status) +
-                renderServiceStatus('Stream US-West-1', data.streamUsWest1Status) +
-                renderServiceStatus('Stream US-East-1', data.streamUsEast1Status);
+                renderServiceStatus('Bot Server', data.botServerStatus);
             // Update versions
             document.getElementById('stable-version').textContent = data.stableVersion ?? 'N/A';
             document.getElementById('beta-version').textContent = data.betaVersion ?? 'N/A';
