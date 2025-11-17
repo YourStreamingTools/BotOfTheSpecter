@@ -8,7 +8,7 @@ import signal
 import tempfile
 import random
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import subprocess
 
 # Third-party libraries
@@ -4531,14 +4531,12 @@ class MusicPlayer:
         
         # Create fallback text
         fallback_text = f"🎵 **Music Queue**\n\n{desc}"
-        
         success = await self.bot._send_message_with_fallback(
             channel=ctx.channel,
             embed=embed,
             fallback_text=fallback_text,
             logger_context="music queue"
         )
-        
         if success:
             try:
                 await ctx.message.delete()
@@ -4568,25 +4566,22 @@ class MusicPlayer:
         embed.add_field(name="Requested by", value=requested_by, inline=True)
         if duration and start:
             elapsed = int(time.time() - start)
-            elapsed_str = str(datetime.timedelta(seconds=elapsed))
-            duration_str = str(datetime.timedelta(seconds=int(duration)))
+            elapsed_str = str(timedelta(seconds=elapsed))
+            duration_str = str(timedelta(seconds=int(duration)))
             embed.add_field(name="Progress", value=f"{elapsed_str} / {duration_str}", inline=True)
-        
         # Create fallback text
         fallback_text = f"🎵 **Currently Playing:** {title}\n**Source:** {source_label}\n**Requested by:** {requested_by}"
         if duration and start:
             elapsed = int(time.time() - start)
-            elapsed_str = str(datetime.timedelta(seconds=elapsed))
-            duration_str = str(datetime.timedelta(seconds=int(duration)))
+            elapsed_str = str(timedelta(seconds=elapsed))
+            duration_str = str(timedelta(seconds=int(duration)))
             fallback_text += f"\n**Progress:** {elapsed_str} / {duration_str}"
-        
         success = await self.bot._send_message_with_fallback(
             channel=ctx.channel,
             embed=embed,
             fallback_text=fallback_text,
             logger_context="now playing"
         )
-        
         if success:
             try:
                 await ctx.message.delete()
@@ -4680,6 +4675,8 @@ class VoiceCog(commands.Cog, name='Voice'):
         self.bot = bot
         self.logger = logger
         self.voice_clients = {}  # Guild ID -> VoiceClient mapping
+        self._connect_locks = {}
+        self._connect_attempts = {}
         self.music_player = MusicPlayer(bot, logger)
         self.logger.info("VoiceCog initialized successfully")
 
@@ -4767,7 +4764,90 @@ class VoiceCog(commands.Cog, name='Voice'):
                     self.logger.info(f"Moved voice connection from {current_channel.name} to {channel.name} in {ctx.guild.name}")
                     return
             # Connect to the voice channel
-            voice_client = await channel.connect()
+            # Prevent concurrent connect attempts per guild using a per-guild lock
+            guild_id = ctx.guild.id
+            now = time.time()
+            attempt_info = self._connect_attempts.get(guild_id)
+            # Reset attempt_info if it's old (older than 1 minute)
+            if attempt_info and now - attempt_info.get('first_attempt', now) > 60:
+                attempt_info = {'count': 0, 'first_attempt': now}
+                self._connect_attempts[guild_id] = attempt_info
+            if attempt_info and attempt_info.get('count', 0) >= 3 and now - attempt_info.get('first_attempt', now) <= 60:
+                # Too many connect attempts in a short time - inform user and skip
+                embed = discord.Embed(
+                    title="⚠️ Voice Connection Blocked",
+                    description="Too many recent attempts to connect to voice; please try again later.",
+                    color=discord.Color.orange()
+                )
+                msg = await ctx.send(embed=embed)
+                try:
+                    await msg.delete(delay=5)
+                    await ctx.message.delete(delay=5)
+                except Exception:
+                    pass
+                self.logger.warning(f"Blocked repeated connect attempts to voice in guild {guild_id}")
+                return
+            lock = self._connect_locks.get(ctx.guild.id)
+            if not lock:
+                lock = asyncio.Lock()
+                self._connect_locks[ctx.guild.id] = lock
+            async with lock:
+                # Double-check if the bot is already connected after acquiring the lock
+                existing_vc = self.voice_clients.get(ctx.guild.id)
+                if existing_vc and existing_vc.is_connected():
+                    current_channel = existing_vc.channel
+                    embed = discord.Embed(
+                        title="ℹ️ Already Connected",
+                        description=f"I'm already connected to {current_channel.mention}.",
+                        color=discord.Color.blue()
+                    )
+                    msg = await ctx.send(embed=embed)
+                    try:
+                        await msg.delete(delay=5)
+                        await ctx.message.delete(delay=5)
+                    except Exception:
+                        pass
+                    return
+                # If we have a stale VoiceClient object (not connected), try to clean it up first
+                if existing_vc and not existing_vc.is_connected():
+                    try:
+                        await existing_vc.disconnect()
+                    except Exception:
+                        pass
+                    try:
+                        del self.voice_clients[ctx.guild.id]
+                    except KeyError:
+                        pass
+                try:
+                    voice_client = await channel.connect()
+                except discord.errors.ConnectionClosed as e:
+                    # update attempts info on failure
+                    attempt_info = self._connect_attempts.get(guild_id, {'count': 0, 'first_attempt': now})
+                    attempt_info['count'] = attempt_info.get('count', 0) + 1
+                    attempt_info['first_attempt'] = attempt_info.get('first_attempt', now)
+                    self._connect_attempts[guild_id] = attempt_info
+                    # Log additional diagnostics for connection failures
+                    try:
+                        self.logger.error(f"Voice ConnectionClosed for guild {ctx.guild.id} - code={e.code}, reason={e}")
+                    except Exception:
+                        self.logger.error(f"Voice ConnectionClosed for guild {ctx.guild.id}: {e}")
+                    raise
+                except Exception as e:
+                    # update attempts info on failure
+                    attempt_info = self._connect_attempts.get(guild_id, {'count': 0, 'first_attempt': now})
+                    attempt_info['count'] = attempt_info.get('count', 0) + 1
+                    attempt_info['first_attempt'] = attempt_info.get('first_attempt', now)
+                    self._connect_attempts[guild_id] = attempt_info
+                    # Log additional diagnostics for connection failures
+                    self.logger.error(f"Error during channel.connect() for guild {ctx.guild.id} - {type(e).__name__}: {e}")
+                    raise
+                else:
+                    # On success: reset attempts
+                    if guild_id in self._connect_attempts:
+                        try:
+                            del self._connect_attempts[guild_id]
+                        except KeyError:
+                            pass
             self.voice_clients[ctx.guild.id] = voice_client
             embed = discord.Embed(
                 title="✅ Connected to Voice Channel",
@@ -4785,7 +4865,15 @@ class VoiceCog(commands.Cog, name='Voice'):
             queue_empty = not self.music_player.queues.get(guild_id)
             is_playing = self.music_player.is_playing.get(guild_id, False)
             if queue_empty and not is_playing:
-                await self.music_player.play_random_cdn_mp3(ctx)
+                # Only start playback if the voice_client is connected
+                vc = self.voice_clients.get(guild_id)
+                if vc and vc.is_connected():
+                    try:
+                        await self.music_player.play_random_cdn_mp3(ctx)
+                    except Exception as e:
+                        self.logger.error(f"Failed to start CDN playback after connect for guild {guild_id}: {e}")
+                else:
+                    self.logger.warning(f"Skipping automatic CDN playback; voice client not connected for guild {guild_id}")
         except discord.ClientException as e:
             embed = discord.Embed(
                 title="❌ Connection Error",
@@ -4823,7 +4911,7 @@ class VoiceCog(commands.Cog, name='Voice'):
                 except Exception:
                     pass
                 return
-            voice_client = self.voice_clients[ctx.guild.id]
+            voice_client = self.voice_clients.get(ctx.guild.id)
             if not voice_client.is_connected():
                 embed = discord.Embed(
                     title="ℹ️ Not Connected",
@@ -4836,11 +4924,24 @@ class VoiceCog(commands.Cog, name='Voice'):
                     await ctx.message.delete(delay=5)
                 except Exception:
                     pass
-                del self.voice_clients[ctx.guild.id]
+                # cleanup stale voice_client mapping if present
+                try:
+                    if ctx.guild.id in self.voice_clients:
+                        try:
+                            await voice_client.disconnect()
+                        except Exception:
+                            pass
+                        del self.voice_clients[ctx.guild.id]
+                except Exception:
+                    pass
                 return
             channel_name = voice_client.channel.name
             await voice_client.disconnect()
-            del self.voice_clients[ctx.guild.id]
+            try:
+                if ctx.guild.id in self.voice_clients:
+                    del self.voice_clients[ctx.guild.id]
+            except Exception:
+                pass
             embed = discord.Embed(
                 title="✅ Disconnected",
                 description=f"Successfully disconnected from {channel_name}.",
@@ -4929,6 +5030,22 @@ class VoiceCog(commands.Cog, name='Voice'):
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         if member == self.bot.user:
+            # If the bot itself was disconnected from voice (e.g., due to server/handshake close), cleanup mapping
+            try:
+                # before and after may be None or missing attributes
+                before_channel = getattr(before, 'channel', None)
+                after_channel = getattr(after, 'channel', None)
+                if before_channel and not after_channel:
+                    guild_id = before_channel.guild.id
+                    # Remove mapping so future connections attempt cleanly
+                    if guild_id in self.voice_clients:
+                        try:
+                            del self.voice_clients[guild_id]
+                        except Exception:
+                            pass
+                        self.logger.info(f"Voice client mapping for guild {guild_id} removed due to bot being disconnected from voice")
+            except Exception:
+                pass
             return
         # Check if the bot should auto-disconnect when alone
         for guild_id, voice_client in list(self.voice_clients.items()):
@@ -5065,7 +5182,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             return
         await self.music_player.get_queue(ctx)
 
-    @commands.command(name="song")
+    @commands.command(name="song", aliases=["np", "nowplaying", "now-playing", "now_playing"]) 
     async def current_song(self, ctx):
         guild_id = ctx.guild.id
         current = self.music_player.current_track.get(guild_id)
@@ -5089,8 +5206,8 @@ class VoiceCog(commands.Cog, name='Voice'):
         embed.add_field(name="Requested by", value=requested_by, inline=True)
         if duration and start:
             elapsed = int(time.time() - start)
-            elapsed_str = str(datetime.timedelta(seconds=elapsed))
-            duration_str = str(datetime.timedelta(seconds=int(duration)))
+            elapsed_str = str(timedelta(seconds=elapsed))
+            duration_str = str(timedelta(seconds=int(duration)))
             embed.add_field(name="Progress", value=f"{elapsed_str} / {duration_str}", inline=True)
         msg = await ctx.send(embed=embed)
         try:
