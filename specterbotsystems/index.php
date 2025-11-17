@@ -231,13 +231,20 @@ function checkServiceStatus($serviceName, $serviceData) {
     </div>
     <!-- Service Statuses -->
     <div class="section">
-        <div class="status-grid" id="service-status">
-            <?= checkServiceStatus('Web Server 1', $web1Status); ?>
-            <?= checkServiceStatus('Database Service', $databaseServiceStatus); ?>
-            <?= checkServiceStatus('API Service', $apiServiceStatus); ?>
-            <?= checkServiceStatus('WebSocket Service', $notificationServiceStatus); ?>
-            <?= checkServiceStatus('Bot Server', $botServerStatus); ?>
-        </div>
+            <div class="status-grid" id="service-status">
+                <?php
+                $serviceOrder = [
+                    ['name' => 'Web Server 1', 'status' => $web1Status],
+                    ['name' => 'Database Service', 'status' => $databaseServiceStatus],
+                    ['name' => 'API Service', 'status' => $apiServiceStatus],
+                    ['name' => 'WebSocket Service', 'status' => $notificationServiceStatus],
+                    ['name' => 'Bot Server', 'status' => $botServerStatus]
+                ];
+                foreach ($serviceOrder as $s) {
+                    echo checkServiceStatus($s['name'], $s['status']);
+                }
+                ?>
+            </div>
     </div>
     <div class="columns">
         <div class="column is-one-quarter">
@@ -389,12 +396,23 @@ function fetchAndUpdateStatus() {
         .then(res => res.json())
         .then(data => {
             // Update service statuses
-            document.getElementById('service-status').innerHTML =
-                renderServiceStatus('Web Server 1', data.web1Status) +
-                renderServiceStatus('Database Service', data.databaseServiceStatus) +
-                renderServiceStatus('API Service', data.apiServiceStatus) +
-                renderServiceStatus('WebSocket Service', data.notificationServiceStatus) +
-                renderServiceStatus('Bot Server', data.botServerStatus);
+            // Use an explicit array to control the order of displayed services
+            const serviceOrder = [
+                { key: 'web1Status', label: 'Web Server 1' },
+                { key: 'databaseServiceStatus', label: 'Database Service' },
+                { key: 'apiServiceStatus', label: 'API Service' },
+                { key: 'notificationServiceStatus', label: 'WebSocket Service' },
+                { key: 'botServerStatus', label: 'Bot Server' }
+            ];
+            // Build HTML in the requested order
+            let statusHtml = '';
+            serviceOrder.forEach(svc => {
+                const statusData = data[svc.key];
+                if (statusData) {
+                    statusHtml += renderServiceStatus(svc.label, statusData);
+                }
+            });
+            document.getElementById('service-status').innerHTML = statusHtml;
             // Update versions
             document.getElementById('stable-version').textContent = data.stableVersion ?? 'N/A';
             document.getElementById('beta-version').textContent = data.betaVersion ?? 'N/A';
