@@ -2244,16 +2244,23 @@ class BotOfTheSpecter(commands.Bot):
                 command_text = message.content[1:].strip().lower()
                 command_name = command_text.split()[0] if command_text else ""
                 self.logger.info(f"Received command: '{command_name}' from user {message.author} in guild {message.guild.name}")
+                # Prioritize internal/built-in commands before consulting custom commands
                 if command_name in self.internal_commands:
                     self.logger.info(f"Processing internal command: {command_name}")
                     await self.process_commands(message)
                     return
-                else:
-                    self.logger.info(f"Checking if '{command_name}' is a custom command")
-                    custom_command_executed = await self.handle_custom_command(message)
-                    if not custom_command_executed:
-                        self.logger.info(f"No custom command found for '{command_name}', processing as built-in command")
-                        await self.process_commands(message)
+                # If a built-in command is registered with this bot, process it directly.
+                cmd_obj = self.get_command(command_name)
+                if cmd_obj:
+                    self.logger.info(f"Detected built-in command: {command_name}, processing built-in command")
+                    await self.process_commands(message)
+                    return
+                # Not an internal/built-in command, check if it's a custom command for this guild
+                self.logger.info(f"Checking if '{command_name}' is a custom command")
+                custom_command_executed = await self.handle_custom_command(message)
+                if not custom_command_executed:
+                    self.logger.info(f"No custom command found for '{command_name}', processing as built-in command")
+                    await self.process_commands(message)
             else:
                 # Not a command with "!" prefix, process as normal
                 await self.process_commands(message)
