@@ -6668,36 +6668,63 @@ class AdminCog(commands.Cog, name='Admin'):
             except Exception:
                 pass
             return await ctx.send("Sorry, you can't run the command.")
-        # Fetch all online streams
+        # Fetch all online streams and render as embed(s)
         try:
             live_rows = []
             if hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
                 live_rows = await self.bot.live_channel_manager.get_all_online_streams()
             if not live_rows:
                 return await ctx.send("No live channels are currently being tracked.")
-            # Format the list into lines and chunk for Discord's 2000 char limit
-            lines = []
-            for r in live_rows:
-                username = r.get('username') or ''
-                twitch_user_id = r.get('twitch_user_id') or ''
-                stream_id = r.get('stream_id') or ''
-                started_at = str(r.get('started_at')) if r.get('started_at') else ''
-                last_checked = str(r.get('last_checked')) if r.get('last_checked') else ''
-                lines.append(f"{username} | twitch_user_id={twitch_user_id} | stream_id={stream_id} | started_at={started_at} | last_checked={last_checked}")
-            message_chunks = []
-            current = "```\n"  # code block wrapper
-            for line in lines:
-                if len(current) + len(line) + 6 > 1990:
-                    current += "\n```"
-                    message_chunks.append(current)
-                    current = "```\n" + line + "\n"
-                else:
-                    current += line + "\n"
-            if current.strip():
-                current += "\n```"
-                message_chunks.append(current)
-            for ch in message_chunks:
-                await ctx.send(ch)
+            # Helper: safely parse details JSON when present
+            def _parse_details(details_raw):
+                if not details_raw:
+                    return {}
+                if isinstance(details_raw, dict):
+                    return details_raw
+                try:
+                    return json.loads(details_raw)
+                except Exception:
+                    # Keep minimal fallback: attempt to parse via simple replacement
+                    try:
+                        return json.loads(str(details_raw))
+                    except Exception:
+                        return {}
+            # Build embed fields per live row. Limit fields per embed to 20 for safety.
+            fields_per_embed = 20
+            chunks = [live_rows[i:i + fields_per_embed] for i in range(0, len(live_rows), fields_per_embed)]
+            total = len(live_rows)
+            for chunk_idx, chunk in enumerate(chunks, start=1):
+                embed = discord.Embed(
+                    title=f"Live Channels ({total})",
+                    description=f"Page {chunk_idx} of {len(chunks)}",
+                    color=config.bot_color
+                )
+                # Summarize the chunk as fields where the field name is the username
+                for r in chunk:
+                    username = r.get('username') or 'Unknown'
+                    twitch_user_id = r.get('twitch_user_id') or ''
+                    stream_id = r.get('stream_id') or ''
+                    started_at = str(r.get('started_at')) if r.get('started_at') else ''
+                    last_checked = str(r.get('last_checked')) if r.get('last_checked') else ''
+                    details_obj = _parse_details(r.get('details'))
+                    title = details_obj.get('title') or details_obj.get('stream_title') or ''
+                    game_name = details_obj.get('game_name') or details_obj.get('game') or ''
+                    short_title = (title[:250] + '...') if len(title) > 250 else title
+                    stream_url = f"https://twitch.tv/{username}"
+                    value_lines = [f"Twitch ID: {twitch_user_id}", f"Stream ID: {stream_id}", f"Started At: {started_at}", f"Last Checked: {last_checked}", f"URL: {stream_url}"]
+                    if game_name:
+                        value_lines.insert(0, f"Game: {game_name}")
+                    if short_title:
+                        value_lines.insert(0, f"Title: {short_title}")
+                    value = "\n".join([vl for vl in value_lines if vl]) or "—"
+                    # Add each user as a separate field; ensure we don't exceed the field character limits
+                    try:
+                        embed.add_field(name=str(username), value=value, inline=False)
+                    except Exception:
+                        # If something goes wrong, fallback to a minimal field
+                        embed.add_field(name=str(username), value=f"Twitch ID: {twitch_user_id} | Stream ID: {stream_id}", inline=False)
+                embed.set_footer(text=f"BotOfTheSpecter — {total} total live channels")
+                await ctx.send(embed=embed)
         except Exception as e:
             self.logger.error(f"Error in online_streams command: {e}")
             await ctx.send("Failed to fetch online streams. Check logs for details.")
@@ -6720,14 +6747,51 @@ class AdminCog(commands.Cog, name='Admin'):
                 row = await self.bot.live_channel_manager.get_online_stream_by_username(username)
             if not row:
                 return await ctx.send(f"User `{username}` is not currently marked as live or not tracked.")
-            # Format details to user-friendly message
+            # Parse details safely
+            details_raw = row.get('details') or ''
+            details_obj = {}
+            if isinstance(details_raw, dict):
+                details_obj = details_raw
+            elif isinstance(details_raw, str) and details_raw:
+                try:
+                    details_obj = json.loads(details_raw)
+                except Exception:
+                    details_obj = {}
             twitch_user_id = row.get('twitch_user_id') or ''
             stream_id = row.get('stream_id') or ''
             started_at = str(row.get('started_at')) if row.get('started_at') else ''
             last_checked = str(row.get('last_checked')) if row.get('last_checked') else ''
-            details = row.get('details') or ''
-            rel = f"**{username}**\nTwitch ID: {twitch_user_id}\nStream ID: {stream_id}\nStarted At: {started_at}\nLast Checked: {last_checked}\nDetails: {details}"
-            await ctx.send(rel)
+            title = details_obj.get('title') or details_obj.get('stream_title') or ''
+            game_name = details_obj.get('game_name') or details_obj.get('game') or ''
+            thumbnail = details_obj.get('thumbnail_url') or details_obj.get('thumbnail') or None
+            stream_url = f"https://twitch.tv/{username}"
+            embed = discord.Embed(
+                title=f"{username} — Live Status",
+                description=(title if title else f"{username} is live on Twitch") + f"\n[Watch on Twitch]({stream_url})",
+                color=config.bot_color
+            )
+            # Key fields
+            embed.add_field(name="Twitch ID", value=str(twitch_user_id) or "—", inline=True)
+            embed.add_field(name="Stream ID", value=str(stream_id) or "—", inline=True)
+            embed.add_field(name="Started At", value=started_at or "—", inline=False)
+            embed.add_field(name="Last Checked", value=last_checked or "—", inline=False)
+            if game_name:
+                embed.add_field(name="Game", value=game_name, inline=False)
+            # Add a small details summary if there's extra info (viewer count, tags, etc.)
+            extra_lines = []
+            if 'viewer_count' in details_obj:
+                extra_lines.append(f"Viewers: {details_obj.get('viewer_count')}")
+            if 'is_mature' in details_obj:
+                extra_lines.append(f"Mature: {details_obj.get('is_mature')}")
+            if extra_lines:
+                embed.add_field(name='Extra', value=' | '.join(extra_lines), inline=False)
+            if thumbnail:
+                try:
+                    embed.set_thumbnail(url=thumbnail)
+                except Exception:
+                    pass
+            embed.set_footer(text=f"BotOfTheSpecter — live status for {username}")
+            await ctx.send(embed=embed)
         except Exception as e:
             self.logger.error(f"Error in live_status command for {username}: {e}")
             await ctx.send("Failed to fetch live status. Check logs for details.")
