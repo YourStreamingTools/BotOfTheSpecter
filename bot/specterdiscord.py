@@ -917,8 +917,7 @@ class LiveChannelManager:
             await self.mysql.execute(
                 """
                 CREATE TABLE IF NOT EXISTS online_streams (
-                    channel_code VARCHAR(255) PRIMARY KEY,
-                    username VARCHAR(255) DEFAULT NULL,
+                    username VARCHAR(255) NOT NULL PRIMARY KEY,
                     twitch_user_id VARCHAR(255) DEFAULT NULL,
                     stream_id VARCHAR(255) DEFAULT NULL,
                     started_at DATETIME DEFAULT NULL,
@@ -934,8 +933,7 @@ class LiveChannelManager:
             # Ensure missing columns / indexes are added in case of older schema
             # Define required columns with expected definitions
             required_columns = {
-                'channel_code': 'VARCHAR(255) NOT NULL PRIMARY KEY',
-                'username': 'VARCHAR(255) DEFAULT NULL',
+                'username': 'VARCHAR(255) NOT NULL PRIMARY KEY',
                 'twitch_user_id': 'VARCHAR(255) DEFAULT NULL',
                 'stream_id': 'VARCHAR(255) DEFAULT NULL',
                 'started_at': 'DATETIME DEFAULT NULL',
@@ -972,7 +970,14 @@ class LiveChannelManager:
 
     async def mark_online(self, channel_code, username=None, twitch_user_id=None, stream_id=None, started_at=None, details=None):
         try:
-            details_json = json.dumps(details) if details is not None else None
+            # Avoid persisting sensitive values such as channel_code/code inside the details
+            if isinstance(details, dict):
+                details_copy = dict(details)
+                details_copy.pop('channel_code', None)
+                details_copy.pop('code', None)
+                details_json = json.dumps(details_copy)
+            else:
+                details_json = json.dumps(details) if details is not None else None
             # Normalize started_at ISO strings like '2025-11-17T05:56:01Z' into MySQL DATETIME format 'YYYY-MM-DD HH:MM:SS'
             if isinstance(started_at, str) and 'T' in started_at:
                 try:
@@ -981,27 +986,53 @@ class LiveChannelManager:
                     started_at = sa
                 except Exception:
                     pass
+            # Persist by username only (never persist channel_code). Username must be provided.
+            if not username:
+                self.logger.warning(f"mark_online called without username for channel_code {channel_code}; skipping persist")
+                return
             await self.mysql.execute(
                 """
                 REPLACE INTO online_streams
-                (channel_code, username, twitch_user_id, stream_id, started_at, last_checked, details)
-                VALUES (%s, %s, %s, %s, %s, NOW(), %s)
+                (username, twitch_user_id, stream_id, started_at, last_checked, details)
+                VALUES (%s, %s, %s, %s, NOW(), %s)
                 """,
-                (channel_code, str(username).lower() if username else None, twitch_user_id, stream_id, started_at, details_json),
+                (str(username).lower(), twitch_user_id, stream_id, started_at, details_json),
                 database_name='specterdiscordbot'
             )
-            self.logger.info(f"Marked online: {channel_code} ({username}) stream_id={stream_id}")
+            self.logger.info(f"Marked online: {username} stream_id={stream_id}")
         except Exception as e:
             self.logger.error(f"Error marking online for {channel_code}: {e}")
 
     async def mark_offline(self, channel_code):
         try:
-            await self.mysql.execute(
-                "DELETE FROM online_streams WHERE channel_code = %s",
-                (channel_code,),
-                database_name='specterdiscordbot'
-            )
-            self.logger.info(f"Marked offline: {channel_code}")
+            # Resolve the username for the channel_code and delete by username only
+            uname = None
+            try:
+                row = await self.mysql.fetchone("SELECT username FROM channel_mappings WHERE channel_code = %s", (channel_code,), database_name='specterdiscordbot', dict_cursor=True)
+                if row and row.get('username'):
+                    uname = row.get('username')
+            except Exception:
+                pass
+            if not uname:
+                # Fall back to website users table
+                try:
+                    user_row = await self.mysql.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
+                    if user_row and user_row.get('username'):
+                        uname = user_row.get('username')
+                except Exception:
+                    pass
+            if uname:
+                await self.mysql.execute(
+                    "DELETE FROM online_streams WHERE LOWER(username) = %s",
+                    (str(uname).lower(),),
+                    database_name='specterdiscordbot'
+                )
+            else:
+                # As a last resort, no username resolved; avoid deleting by channel_code to maintain privacy
+                self.logger.debug(f"Could not resolve username for channel_code {channel_code} when marking offline; skipping DB delete to avoid storing channel_code")
+            # Log by username if available to avoid persisting or exposing channel_code
+            uname_log = uname if uname else f"channel_code not resolved"
+            self.logger.info(f"Marked offline: {uname_log}")
             # Also attempt to remove any live_notifications entries tied to this channel_code
             try:
                 # Resolve guild id and username via channel_mappings
@@ -1018,9 +1049,26 @@ class LiveChannelManager:
 
     async def get_online_stream(self, channel_code):
         try:
+            # Resolve username from channel_code (without storing channel_code in DB)
+            uname = None
+            try:
+                res = await self.mysql.fetchone("SELECT username FROM channel_mappings WHERE channel_code = %s", (channel_code,), database_name='specterdiscordbot', dict_cursor=True)
+                if res and res.get('username'):
+                    uname = res.get('username')
+            except Exception:
+                pass
+            if not uname:
+                try:
+                    user_row = await self.mysql.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
+                    if user_row and user_row.get('username'):
+                        uname = user_row.get('username')
+                except Exception:
+                    pass
+            if not uname:
+                return None
             row = await self.mysql.fetchone(
-                "SELECT * FROM online_streams WHERE channel_code = %s",
-                (channel_code,),
+                "SELECT * FROM online_streams WHERE LOWER(username) = %s",
+                (str(uname).lower(),),
                 database_name='specterdiscordbot',
                 dict_cursor=True
             )
@@ -1041,6 +1089,62 @@ class LiveChannelManager:
         except Exception as e:
             self.logger.error(f"Error fetching all online streams: {e}")
             return []
+
+    async def get_online_stream_by_username(self, username):
+        try:
+            if not username:
+                return None
+            row = await self.mysql.fetchone(
+                "SELECT * FROM online_streams WHERE LOWER(username) = %s",
+                (str(username).lower(),),
+                database_name='specterdiscordbot',
+                dict_cursor=True
+            )
+            return row
+        except Exception as e:
+            self.logger.error(f"Error fetching online stream by username {username}: {e}")
+            return None
+
+    async def mark_offline_by_username(self, username):
+        try:
+            if not username:
+                return
+            await self.mysql.execute(
+                "DELETE FROM online_streams WHERE LOWER(username) = %s",
+                (str(username).lower(),),
+                database_name='specterdiscordbot'
+            )
+            # Also attempt to remove any live_notifications entries tied to this username
+            try:
+                row = await self.mysql.fetchone("SELECT guild_id FROM channel_mappings WHERE LOWER(username) = %s", (str(username).lower(),), database_name='specterdiscordbot', dict_cursor=True)
+                if row and row.get('guild_id'):
+                    guild_id = row.get('guild_id')
+                    await self.mysql.execute("DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s", (guild_id, str(username).lower()), database_name='specterdiscordbot')
+            except Exception:
+                pass
+        except Exception as e:
+            self.logger.error(f"Error marking offline by username {username}: {e}")
+    async def _resolve_channel_code_for_username(self, username):
+        """Try to resolve channel_code for a given username using in-memory cache or database.
+        Returns channel_code or None."""
+        try:
+            if not username:
+                return None
+            uname = str(username).lower()
+            if self.bot and hasattr(self.bot, 'channel_mapping') and self.bot.channel_mapping:
+                mappings = self.bot.channel_mapping.mappings
+                for code, entry in mappings.items():
+                    entry_uname = entry.get('username')
+                    if entry_uname and str(entry_uname).strip().lower() == uname:
+                        return code
+            # Fallback to DB lookup
+            row = await self.mysql.fetchone("SELECT channel_code FROM channel_mappings WHERE LOWER(username) = %s", (uname,), database_name='specterdiscordbot', dict_cursor=True)
+            if row and row.get('channel_code'):
+                return row.get('channel_code')
+            return None
+        except Exception as e:
+            self.logger.debug(f"Error resolving channel_code for username {username}: {e}")
+            return None
 
     async def handle_stream_online(self, data):
         try:
@@ -1094,7 +1198,29 @@ class LiveChannelManager:
                 results = await self.twitch_get_streams_by_logins([str(username).lower()])
                 if results:
                     stream_info = results[0]
-                    # Save full info
+                    # If this channel isn't already marked online, post to the channel's announcement
+                    try:
+                        existing = await self.get_online_stream_by_username(username)
+                        if not existing:
+                            self.logger.info(f"Fallback detected live stream for {username} on channel_code {channel_code}. Triggering announcement flow.")
+                            # Build event data similar to the websocket STREAM_ONLINE payload
+                            event_data = {
+                                'channel_code': channel_code,
+                                'twitch-username': username,
+                                'twitch_user_id': stream_info.get('user_id'),
+                                'twitch-stream-id': stream_info.get('id'),
+                                'started_at': stream_info.get('started_at'),
+                                'details': stream_info
+                            }
+                            # Call the bot's stream event handler to perform the same announcement logic
+                            try:
+                                if self.bot:
+                                    await self.bot.handle_stream_event('ONLINE', event_data)
+                            except Exception as e:
+                                self.logger.debug(f"Error invoking bot.handle_stream_event for fallback announcement: {e}")
+                    except Exception as e:
+                        self.logger.debug(f"Error determining existing online_streams entry for username {username}: {e}")
+                    # Save full info now so we persist the online state
                     await self.mark_online(
                         channel_code,
                         username=username,
@@ -1143,6 +1269,7 @@ class LiveChannelManager:
     async def start_periodic_validation(self):
         if self._validate_task:
             return
+        self.logger.info(f"Starting LiveChannelManager periodic validation every {self.check_interval} seconds")
         async def _task():
             while True:
                 try:
@@ -1151,7 +1278,6 @@ class LiveChannelManager:
                     batch = []
                     record_map = {}
                     for r in records:
-                        code = r.get('channel_code')
                         uname = r.get('username')
                         if uname:
                             uname_key = str(uname).strip().lower()
@@ -1163,22 +1289,77 @@ class LiveChannelManager:
                     self.logger.debug(f"Validating {len(batch)} online stream(s) in batches of {chunk_size}")
                     for i in range(0, len(batch), chunk_size):
                         chunk = batch[i:i+chunk_size]
-                        try:
-                            head = await self.twitch_get_streams_by_logins(chunk)
-                            live_logins = {s['user_login'].lower(): s for s in head} if head else {}
-                            # Mark or unmark
-                            for uname in chunk:
-                                code = record_map.get(uname, {}).get('channel_code')
-                                if not code:
-                                    # No channel_code found in online_streams table for this username; skip
-                                    continue
-                                if uname in live_logins:
-                                    s = live_logins[uname.lower()]
-                                    await self.mark_online(code, username=s.get('user_login'), twitch_user_id=s.get('user_id'), stream_id=s.get('id'), started_at=s.get('started_at'), details=s)
-                                else:
-                                    await self.mark_offline(code)
-                        except Exception as e:
-                            self.logger.debug(f"Error during batch helix check: {e}")
+                        head = await self.twitch_get_streams_by_logins(chunk)
+                        live_logins = {s['user_login'].lower(): s for s in head} if head else {}
+                        # Mark or unmark
+                        for uname in chunk:
+                            # The record_map maps username -> online_stream row
+                            # We'll verify live presence and mark online/offline by username
+                            if uname in live_logins:
+                                s = live_logins[uname.lower()]
+                                # Persist online state by username only
+                                await self.mark_online(None, username=s.get('user_login'), twitch_user_id=s.get('user_id'), stream_id=s.get('id'), started_at=s.get('started_at'), details=s)
+                            else:
+                                # Mark offline by username (do not persist or use channel_code)
+                                await self.mark_offline_by_username(uname)
+                    # Now also check channel owners that are not currently in online_streams but may have gone live
+                    try:
+                        # Get all mappings from channel_mapping
+                        mappings = {}
+                        if hasattr(self.bot, 'channel_mapping') and self.bot.channel_mapping:
+                            # Ensure mapping cache is refreshed
+                            mappings = self.bot.channel_mapping.mappings.copy()
+                        check_candidates = []
+                        check_map = {}
+                        # Build a list of usernames for mappings not in current online_streams
+                        for code, m in mappings.items():
+                            uname = m.get('username')
+                            if not uname:
+                                continue
+                            uname_key = str(uname).strip().lower()
+                            if not uname_key:
+                                continue
+                            if uname_key not in record_map:
+                                check_candidates.append(uname_key)
+                                check_map[uname_key] = code
+                        # Now batch check those candidate usernames
+                        for j in range(0, len(check_candidates), chunk_size):
+                            chunk2 = check_candidates[j:j+chunk_size]
+                            try:
+                                head = await self.twitch_get_streams_by_logins(chunk2)
+                                if head:
+                                    live_logins2 = {s['user_login'].lower(): s for s in head}
+                                    for uname in chunk2:
+                                        if uname in live_logins2:
+                                            code = check_map.get(uname)
+                                            s = live_logins2[uname]
+                                            try:
+                                                existing = await self.get_online_stream_by_username(uname)
+                                                if not existing:
+                                                    # Build event data and trigger posting via bot
+                                                    event_data = {
+                                                        'channel_code': code,
+                                                        'twitch-username': s.get('user_login'),
+                                                        'twitch_user_id': s.get('user_id'),
+                                                        'twitch-stream-id': s.get('id'),
+                                                        'started_at': s.get('started_at'),
+                                                        'details': s
+                                                    }
+                                                    self.logger.info(f"Periodic fallback: detected live for mapping {code} ({uname}) — calling handle_stream_event")
+                                                    try:
+                                                        if self.bot:
+                                                            await self.bot.handle_stream_event('ONLINE', event_data)
+                                                    except Exception as inner_e:
+                                                        self.logger.debug(f"Error triggering periodic fallback announcement for {code}: {inner_e}")
+                                                    # Mark online (persist) after posting
+                                                    await self.mark_online(code, username=s.get('user_login'), twitch_user_id=s.get('user_id'), stream_id=s.get('id'), started_at=s.get('started_at'), details=s)
+                                            except Exception as inner_e:
+                                                self.logger.debug(f"Error checking existing online stream for periodic fallback {code}: {inner_e}")
+                            except Exception as e:
+                                self.logger.debug(f"Error during periodic helix check for new live channels: {e}")
+                            await asyncio.sleep(0.2)
+                    except Exception as e:
+                        self.logger.debug(f"Unexpected error in periodic fallback checks: {e}")
                 except Exception as e:
                     self.logger.error(f"LiveChannelManager validation loop error: {e}")
                 await asyncio.sleep(self.check_interval)
@@ -2668,7 +2849,7 @@ class BotOfTheSpecter(commands.Bot):
                         if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
                             existing = await self.live_channel_manager.get_online_stream(code)
                             if existing:
-                                self.logger.info(f"Skipping live notification for {account_username}; online_streams shows channel_code {code} already online")
+                                self.logger.info(f"Skipping live notification for {account_username}; online_streams shows username {existing.get('username')} already online")
                                 skip_post = True
                     except Exception as e:
                         self.logger.debug(f"Error checking live_channel_manager for {code}: {e}")
