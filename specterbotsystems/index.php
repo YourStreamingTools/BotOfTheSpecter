@@ -112,10 +112,10 @@ if ($weatherData) {
 $metrics = [];
 $serverDisplayNames = [
     'web1' => 'Web Server 1',
-    'bots' => 'Bot Server',
     'sql' => 'Database Service',
     'api' => 'API Service',
-    'websocket' => 'WebSocket Service'
+    'websocket' => 'WebSocket Service',
+    'bots' => 'Bot Server'
 ];
 $result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
 while ($row = $result->fetch_assoc()) {
@@ -365,10 +365,10 @@ function formatSpeed(mbPerSec) {
 // Helper to update service status HTML
 const serverDisplayNames = {
     'web1': 'Web Server 1',
-    'bots': 'Bot Server',
     'sql': 'Database Service',
     'api': 'API Service',
-    'websocket': 'WebSocket Service'
+    'websocket': 'WebSocket Service',
+    'bots': 'Bot Server'
 };
 function renderServiceStatus(name, statusData) {
     if (statusData.status === 'OK') {
