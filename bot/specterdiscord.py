@@ -990,16 +990,43 @@ class LiveChannelManager:
             if not username:
                 self.logger.warning(f"mark_online called without username for channel_code {channel_code}; skipping persist")
                 return
-            await self.mysql.execute(
-                """
-                REPLACE INTO online_streams
-                (username, twitch_user_id, stream_id, started_at, last_checked, details)
-                VALUES (%s, %s, %s, %s, NOW(), %s)
-                """,
-                (str(username).lower(), twitch_user_id, stream_id, started_at, details_json),
-                database_name='specterdiscordbot'
-            )
-            self.logger.info(f"Marked online: {username} stream_id={stream_id}")
+            # Check existing online state to avoid noisy logs when the stream is still the same
+            existing = await self.get_online_stream_by_username(username)
+            existing_stream_id = existing.get('stream_id') if existing else None
+            existing_stream_id_str = str(existing_stream_id) if existing_stream_id is not None else None
+            stream_id_str = str(stream_id) if stream_id is not None else None
+            # If this is a new online record (was offline) or stream_id changed, persist and log
+            if not existing or existing_stream_id_str != stream_id_str:
+                await self.mysql.execute(
+                    """
+                    REPLACE INTO online_streams
+                    (username, twitch_user_id, stream_id, started_at, last_checked, details)
+                    VALUES (%s, %s, %s, %s, NOW(), %s)
+                    """,
+                    (str(username).lower(), twitch_user_id, stream_id, started_at, details_json),
+                    database_name='specterdiscordbot'
+                )
+                if not existing:
+                    self.logger.info(f"Marked online: {username} stream_id={stream_id}")
+            else:
+                # Existing row with same stream_id — update last_checked and details silently at DEBUG
+                try:
+                    await self.mysql.execute(
+                        "UPDATE online_streams SET last_checked = NOW(), details = %s WHERE LOWER(username) = %s",
+                        (details_json, str(username).lower()),
+                        database_name='specterdiscordbot'
+                    )
+                except Exception as e:
+                    # If update fails, fallback to replace to ensure state is present
+                    await self.mysql.execute(
+                        """
+                        REPLACE INTO online_streams
+                        (username, twitch_user_id, stream_id, started_at, last_checked, details)
+                        VALUES (%s, %s, %s, %s, NOW(), %s)
+                        """,
+                        (str(username).lower(), twitch_user_id, stream_id, started_at, details_json),
+                        database_name='specterdiscordbot'
+                    )
         except Exception as e:
             self.logger.error(f"Error marking online for {channel_code}: {e}")
 
@@ -1022,17 +1049,27 @@ class LiveChannelManager:
                 except Exception:
                     pass
             if uname:
-                await self.mysql.execute(
-                    "DELETE FROM online_streams WHERE LOWER(username) = %s",
-                    (str(uname).lower(),),
-                    database_name='specterdiscordbot'
-                )
+                # Only delete if it currently exists to avoid noisy logs
+                existing = await self.get_online_stream_by_username(uname)
+                if existing:
+                    await self.mysql.execute(
+                        "DELETE FROM online_streams WHERE LOWER(username) = %s",
+                        (str(uname).lower(),),
+                        database_name='specterdiscordbot'
+                    )
+                else:
+                    self.logger.debug(f"mark_offline called but no online_streams entry found for username {uname}; skipping DB delete")
             else:
                 # As a last resort, no username resolved; avoid deleting by channel_code to maintain privacy
                 self.logger.debug(f"Could not resolve username for channel_code {channel_code} when marking offline; skipping DB delete to avoid storing channel_code")
             # Log by username if available to avoid persisting or exposing channel_code
             uname_log = uname if uname else f"channel_code not resolved"
-            self.logger.info(f"Marked offline: {uname_log}")
+            # Only log offline if we actually removed something
+            if uname and existing:
+                self.logger.info(f"Marked offline: {uname_log}")
+            else:
+                # Keep this quiet unless debugging is enabled
+                self.logger.debug(f"No online state to mark offline for {uname_log}")
             # Also attempt to remove any live_notifications entries tied to this channel_code
             try:
                 # Resolve guild id and username via channel_mappings
