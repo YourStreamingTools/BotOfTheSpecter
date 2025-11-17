@@ -6659,6 +6659,79 @@ class AdminCog(commands.Cog, name='Admin'):
             self.logger.error(f"Error in checklinked command: {error}")
             await ctx.send("❌ An error occurred while processing the command.")
 
+    @commands.command(name="online_streams")
+    async def online_streams(self, ctx):
+        ADMIN_CHANNEL_ID = 1103695077928345683
+        if ctx.channel.id != ADMIN_CHANNEL_ID:
+            try:
+                await ctx.message.add_reaction("❌")
+            except Exception:
+                pass
+            return await ctx.send("Sorry, you can't run the command.")
+        # Fetch all online streams
+        try:
+            live_rows = []
+            if hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                live_rows = await self.bot.live_channel_manager.get_all_online_streams()
+            if not live_rows:
+                return await ctx.send("No live channels are currently being tracked.")
+            # Format the list into lines and chunk for Discord's 2000 char limit
+            lines = []
+            for r in live_rows:
+                username = r.get('username') or ''
+                twitch_user_id = r.get('twitch_user_id') or ''
+                stream_id = r.get('stream_id') or ''
+                started_at = str(r.get('started_at')) if r.get('started_at') else ''
+                last_checked = str(r.get('last_checked')) if r.get('last_checked') else ''
+                lines.append(f"{username} | twitch_user_id={twitch_user_id} | stream_id={stream_id} | started_at={started_at} | last_checked={last_checked}")
+            message_chunks = []
+            current = "```\n"  # code block wrapper
+            for line in lines:
+                if len(current) + len(line) + 6 > 1990:
+                    current += "\n```"
+                    message_chunks.append(current)
+                    current = "```\n" + line + "\n"
+                else:
+                    current += line + "\n"
+            if current.strip():
+                current += "\n```"
+                message_chunks.append(current)
+            for ch in message_chunks:
+                await ctx.send(ch)
+        except Exception as e:
+            self.logger.error(f"Error in online_streams command: {e}")
+            await ctx.send("Failed to fetch online streams. Check logs for details.")
+
+    @commands.command(name="live_status")
+    async def live_status(self, ctx, username: str = None):
+        ADMIN_CHANNEL_ID = 1103695077928345683
+        if ctx.channel.id != ADMIN_CHANNEL_ID:
+            try:
+                await ctx.message.add_reaction("❌")
+            except Exception:
+                pass
+            return await ctx.send("Sorry, you can't run the command.")
+        if not username:
+            return await ctx.send("Please provide a username, e.g. `!live_status someuser`.")
+        username = str(username).lower()
+        try:
+            row = None
+            if hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                row = await self.bot.live_channel_manager.get_online_stream_by_username(username)
+            if not row:
+                return await ctx.send(f"User `{username}` is not currently marked as live or not tracked.")
+            # Format details to user-friendly message
+            twitch_user_id = row.get('twitch_user_id') or ''
+            stream_id = row.get('stream_id') or ''
+            started_at = str(row.get('started_at')) if row.get('started_at') else ''
+            last_checked = str(row.get('last_checked')) if row.get('last_checked') else ''
+            details = row.get('details') or ''
+            rel = f"**{username}**\nTwitch ID: {twitch_user_id}\nStream ID: {stream_id}\nStarted At: {started_at}\nLast Checked: {last_checked}\nDetails: {details}"
+            await ctx.send(rel)
+        except Exception as e:
+            self.logger.error(f"Error in live_status command for {username}: {e}")
+            await ctx.send("Failed to fetch live status. Check logs for details.")
+
 # ChannelManagementCog class
 class DiscordChannelResolver:
     def __init__(self, logger=None, mysql_helper=None):
