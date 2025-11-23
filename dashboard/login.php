@@ -14,7 +14,7 @@ session_start();
 
 // If the user is already logged in, redirect them to the dashboard page
 if (isset($_SESSION['access_token'])) {
-    header('Location: bot.php');
+    header('Location: dashboard.php');
     exit;
 }
 
@@ -150,7 +150,7 @@ if (isset($_GET['code'])) {
             $last_login = date('Y-m-d H:i:s');
             mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUsername, $twitchDisplayName, $last_login, $email, $twitchUserId);
             if (mysqli_stmt_execute($stmt)) {
-                header('Location: bot.php');
+                header('Location: dashboard.php');
                 exit;
             } else {
                 echo 'Error updating user: ' . mysqli_stmt_error($stmt);
@@ -205,7 +205,7 @@ if (isset($_GET['code'])) {
                     mysqli_commit($conn);
                     // Set the session user id to the assigned id (don't rely on mysqli_insert_id when inserting explicit ids)
                     $_SESSION['user_id'] = $assignedId;
-                    header('Location: bot.php');
+                    header('Location: dashboard.php');
                     exit;
                 } catch (Exception $e) {
                     // Rollback if possible
