@@ -383,7 +383,11 @@ if (isset($username) && $username !== '') {
         if (!empty($statusMeta['tooltip'])) {
           $tooltipAttr = ' data-tooltip="' . htmlspecialchars($statusMeta['tooltip'], ENT_QUOTES) . '" data-tooltip-pos="top"';
         }
-        $debugInfo .= '<div class="column is-narrow has-tooltip-arrow"' . $tooltipAttr . '>';
+        $titleAttr = '';
+        if (!empty($statusMeta['tooltip'])) {
+          $titleAttr = ' title="' . htmlspecialchars($statusMeta['tooltip'], ENT_QUOTES) . '"';
+        }
+        $debugInfo .= '<div class="column is-narrow has-tooltip-arrow"' . $tooltipAttr . $titleAttr . '>';
         $debugInfo .= '<span class="has-text-weight-semibold">' . $statusMeta['label'] . ':</span> ' . $formatStatus($statusMeta['value']);
         $debugInfo .= '</div>';
       }
