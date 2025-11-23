@@ -157,6 +157,11 @@ return [
     // Bot Control Page
     'bot_management_title' => 'Bot-Verwaltung',
     'bot_channel_status' => 'Twitch-Status',
+    'bot_status_combined_note' => 'Dieser Status kombiniert Informationen von Twitch und Specter, um ONLINE oder OFFLINE anzuzeigen.',
+    'bot_db_explanation' => 'Die Datenbank gibt an, ob Sie gerade streamen (Offline = DB glaubt, dass Sie nicht streamen).',
+    'bot_ssh_explanation' => 'Der Bot-Prozess meldet, ob er einen aktiven Stream sieht (Offline = Bot meldet keinen Stream).',
+    'bot_twitch_explanation' => "Eine 'null'-Antwort von Twitch bedeutet, dass die Twitch-API keinen aktiven Stream meldet (null = offline).",
+    'bot_final_explanation' => 'Der finale Status ist unsere kombinierte Entscheidung, die den Benutzern angezeigt wird (z. B. STATUS: OFFLINE).',
     'bot_force_offline' => 'Offline erzwingen',
     'bot_force_online' => 'Online erzwingen',
     'bot_stable_version_info' => 'Stabile Versionsinfo',

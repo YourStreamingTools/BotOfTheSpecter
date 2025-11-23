@@ -371,8 +371,22 @@ if (isset($username) && $username !== '') {
       if ($status === 'False') return 'Offline';
       return $status ?? 'null';
     };
-    $debugInfo = '<div class="has-text-grey is-size-7 mt-1">';
-    $debugInfo .= 'DB: ' . $formatStatus($dbStatus) . ' | SSH: ' . $formatStatus($sshStatus) . ' | Twitch: ' . $formatStatus($twitchStatus) . ' | Final: ' . $formatStatus($finalStatus);
+    $debugStatuses = [
+      ['label' => 'DB','value' => $dbStatus,'tooltip' => t('bot_db_explanation'),],
+      ['label' => 'SSH','value' => $sshStatus,'tooltip' => t('bot_ssh_explanation'),],
+      ['label' => 'Twitch','value' => $twitchStatus,'tooltip' => t('bot_twitch_explanation'),],
+      ['label' => 'Final','value' => $finalStatus,'tooltip' => t('bot_final_explanation'),],
+    ];
+    $debugInfo = '<div class="columns is-mobile is-multiline has-text-grey is-size-7">';
+      foreach ($debugStatuses as $statusMeta) {
+        $tooltipAttr = '';
+        if (!empty($statusMeta['tooltip'])) {
+          $tooltipAttr = ' data-tooltip="' . htmlspecialchars($statusMeta['tooltip'], ENT_QUOTES) . '" data-tooltip-pos="top"';
+        }
+        $debugInfo .= '<div class="column is-narrow has-tooltip-arrow"' . $tooltipAttr . '>';
+        $debugInfo .= '<span class="has-text-weight-semibold">' . $statusMeta['label'] . ':</span> ' . $formatStatus($statusMeta['value']);
+        $debugInfo .= '</div>';
+      }
     $debugInfo .= '</div>';
     $userOnlineStatus .= $debugInfo;
   }
@@ -461,6 +475,7 @@ ob_start();
       </div>
       <div class="card-content">
         <div class="content has-text-centered">
+          <p class="is-size-7 has-text-grey"><?php echo t('bot_status_combined_note'); ?></p>
           <?php echo $userOnlineStatus; ?>
           <div class="mt-3">
             <?php
@@ -2136,8 +2151,6 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(r => r.json())
       .then(data => {
         if (data.error) {
-          // Fallback to simulated data if real metrics not available
-          updateSimulatedServerMetrics();
           return;
         }
         const cpuElem = document.getElementById('server-cpu-load');
@@ -2164,32 +2177,8 @@ document.addEventListener('DOMContentLoaded', function() {
       })
       .catch(error => {
         console.error('Error fetching server metrics:', error);
-        // Fallback to simulated data
-        updateSimulatedServerMetrics();
-      });
-  }
-  // Fallback function for simulated server metrics
-  function updateSimulatedServerMetrics() {
-    if (!isTechnical) return;
-    // Simulate some realistic server metrics
-    const cpuLoad = Math.floor(Math.random() * 30) + 15; // 15-45%
-    const memoryUsage = Math.floor(Math.random() * 40) + 35; // 35-75%
-    const diskUsage = Math.floor(Math.random() * 20) + 25; // 25-45%
-    const cpuElem = document.getElementById('server-cpu-load');
-    if (cpuElem) {
-      const cpuColor = cpuLoad < 60 ? 'has-text-success' : cpuLoad < 80 ? 'has-text-warning' : 'has-text-danger';
-      cpuElem.innerHTML = `<span class="${cpuColor}">${cpuLoad}%</span>`;
-    }
-    const memoryElem = document.getElementById('server-memory-usage');
-    if (memoryElem) {
-      const memoryColor = memoryUsage < 70 ? 'has-text-success' : memoryUsage < 85 ? 'has-text-warning' : 'has-text-danger';
-      memoryElem.innerHTML = `<span class="${memoryColor}">${memoryUsage}%</span>`;
-    }
-    const diskElem = document.getElementById('server-disk-usage');
-    if (diskElem) {
-      const diskColor = diskUsage < 70 ? 'has-text-success' : diskUsage < 85 ? 'has-text-warning' : 'has-text-danger';
-      diskElem.innerHTML = `<span class="${diskColor}">${diskUsage}%</span>`;
-    }
+      }
+    );
   }
   // Set up polling for status updates - REDUCED FREQUENCY TO PREVENT OVERLOAD
   setInterval(updateServiceStatus, 30000); // Increased from 10s to 30s
