@@ -29,20 +29,35 @@ date_default_timezone_set($timezone);
 
 // Fetch all channels the user can moderate for (moderator_access: moderator_id, broadcaster_id)
 $modChannels = [];
-$modSTMT = $conn->prepare("
+if ($username === 'botofthespecter') {
+    // Global bot user should see every channel
+    $allChannelsSTMT = $conn->prepare("
+    SELECT id, twitch_user_id, twitch_display_name, profile_image, username
+    FROM users
+    ORDER BY id ASC
+");
+    $allChannelsSTMT->execute();
+    $allResult = $allChannelsSTMT->get_result();
+    while ($row = $allResult->fetch_assoc()) {
+        $modChannels[] = $row;
+    }
+    $allChannelsSTMT->close();
+} else {
+    $modSTMT = $conn->prepare("
     SELECT u.id, u.twitch_user_id, u.twitch_display_name, u.profile_image, u.username
     FROM users u
     INNER JOIN moderator_access ma ON u.twitch_user_id = ma.broadcaster_id
     WHERE ma.moderator_id = ?
     ORDER BY u.id ASC
 ");
-$modSTMT->bind_param("s", $twitchUserId);
-$modSTMT->execute();
-$modResult = $modSTMT->get_result();
-while ($row = $modResult->fetch_assoc()) {
-    $modChannels[] = $row;
+    $modSTMT->bind_param("s", $twitchUserId);
+    $modSTMT->execute();
+    $modResult = $modSTMT->get_result();
+    while ($row = $modResult->fetch_assoc()) {
+        $modChannels[] = $row;
+    }
+    $modSTMT->close();
 }
-$modSTMT->close();
 
 // Start building the HTML content
 ob_start();
