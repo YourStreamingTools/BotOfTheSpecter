@@ -159,6 +159,11 @@ return [
     // Bot Control Page
     'bot_management_title' => 'Gestion du Bot',
     'bot_channel_status' => 'Statut Twitch',
+    'bot_status_combined_note' => 'Ce statut combine les informations de Twitch et de Specter pour déterminer si l\'on affiche EN LIGNE ou HORS LIGNE.',
+    'bot_db_explanation' => 'La base de données indique si vous êtes actuellement en streaming (Hors ligne = la DB pense que vous ne streamez pas).',
+    'bot_ssh_explanation' => 'Le processus du bot indique s\'il voit un stream actif (Hors ligne = le bot ne détecte pas de stream).',
+    'bot_twitch_explanation' => "Une réponse 'null' de Twitch signifie que l\'API Twitch n\'a pas trouvé de stream actif (null = hors ligne).",
+    'bot_final_explanation' => 'Le statut final est notre décision combinée affichée aux utilisateurs (par ex. STATUT : HORS LIGNE).',
     'bot_force_offline' => 'Forcer hors ligne',
     'bot_force_online' => 'Forcer en ligne',
     'bot_stable_version_info' => 'Infos version stable',
