@@ -50,13 +50,13 @@ ob_start();
 <div class="container">
     <h1 class="title is-2">Mod Channels</h1>
     <p class="subtitle">Channels you can moderate for</p>
-
     <?php if (empty($modChannels)): ?>
         <div class="notification is-info">
             <p><i class="fas fa-info-circle"></i> You are not currently a moderator for any channels.</p>
         </div>
     <?php else: ?>
-        <div class="columns is-multiline">
+        <div class="mod-channels-grid">
+            <div class="columns is-multiline">
             <?php foreach ($modChannels as $channel): ?>
                 <div class="column is-one-third-desktop is-half-tablet is-full-mobile">
                     <div class="card">
@@ -64,9 +64,7 @@ ob_start();
                             <div class="media">
                                 <div class="media-left">
                                     <figure class="image is-64x64">
-                                        <img src="<?php echo htmlspecialchars($channel['profile_image']); ?>" 
-                                             alt="<?php echo htmlspecialchars($channel['twitch_display_name']); ?>"
-                                             style="border-radius: 50%;">
+                                        <img src="<?php echo htmlspecialchars($channel['profile_image']); ?>" alt="<?php echo htmlspecialchars($channel['twitch_display_name']); ?>" style="border-radius: 50%;">
                                     </figure>
                                 </div>
                                 <div class="media-content">
@@ -75,8 +73,7 @@ ob_start();
                                 </div>
                             </div>
                             <div class="content">
-                                <a href="switch_channel.php?user_id=<?php echo urlencode($channel['twitch_user_id']); ?>" 
-                                   class="button is-primary is-fullwidth">
+                                <a href="switch_channel.php?user_id=<?php echo urlencode($channel['twitch_user_id']); ?>" class="button is-primary is-fullwidth">
                                     <span class="icon">
                                         <i class="fas fa-exchange-alt"></i>
                                     </span>
@@ -87,6 +84,7 @@ ob_start();
                     </div>
                 </div>
             <?php endforeach; ?>
+            </div>
         </div>
     <?php endif; ?>
 </div>

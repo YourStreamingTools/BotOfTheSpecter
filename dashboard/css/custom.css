@@ -55,6 +55,22 @@ html, body {
     overflow-y: auto;
 }
 
+/* Mod Channels grid keeps the card list constrained with scrolling. */
+.mod-channels-grid {
+    max-height: 75vh;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+    min-height: 0;
+}
+
+.mod-channels-grid .columns {
+    margin-bottom: 0;
+}
+
+.mod-channels-grid .card {
+    height: 100%;
+}
+
 .status-indicator,
 #botStatus {
     background-color: #45443c;
