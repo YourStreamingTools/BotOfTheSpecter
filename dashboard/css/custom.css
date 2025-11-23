@@ -55,12 +55,10 @@ html, body {
     overflow-y: auto;
 }
 
-/* Mod Channels grid keeps the card list constrained with scrolling. */
+/* Mod Channels grid should expand to show full list. */
 .mod-channels-grid {
-    max-height: 75vh;
-    overflow-y: auto;
     padding-right: 0.5rem;
-    min-height: 0;
+    overflow: visible;
 }
 
 .mod-channels-grid .columns {
