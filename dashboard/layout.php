@@ -10,6 +10,8 @@ if (!isset($scripts)) $scripts = "";
 // Add language support for layout
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
+$profileUsername = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8') : (isset($user['username']) ? htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') : '');
+$profileNavLabel = t('navbar_profile') . ' | ' . $profileUsername;
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
@@ -213,7 +215,7 @@ function uuidv4() {
                 <?php endif; ?>
                 <a href="profile.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-id-card"></i></span>
-                    <span class="sidebar-user-text"><?php echo isset($_SESSION['username']) ? $_SESSION['username'] : 'User'; ?></span>
+                    <span class="sidebar-user-text"><?php echo $profileNavLabel; ?></span>
                 </a>
                 <a href="logout.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
@@ -507,7 +509,7 @@ function uuidv4() {
             <?php endif; ?>
             <a href="profile.php" class="sidebar-user-item">
                 <span class="sidebar-user-icon"><i class="fas fa-id-card"></i></span>
-                <span class="sidebar-user-text"><?php echo isset($_SESSION['username']) ? $_SESSION['username'] : 'User'; ?></span>
+                <span class="sidebar-user-text"><?php echo $profileNavLabel; ?></span>
             </a>
             <a href="logout.php" class="sidebar-user-item">
                 <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
