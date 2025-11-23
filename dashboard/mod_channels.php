@@ -50,14 +50,15 @@ if ($username === 'botofthespecter') {
     WHERE ma.moderator_id = ?
     ORDER BY u.id ASC
 ");
-    $modSTMT->bind_param("s", $twitchUserId);
-    $modSTMT->execute();
-    $modResult = $modSTMT->get_result();
-    while ($row = $modResult->fetch_assoc()) {
-        $modChannels[] = $row;
-    }
+$modSTMT->bind_param("s", $twitchUserId);
+$modSTMT->execute();
+$modResult = $modSTMT->get_result();
+while ($row = $modResult->fetch_assoc()) {
+    $modChannels[] = $row;
+}
     $modSTMT->close();
 }
+$showSearch = count($modChannels) > 9;
 
 // Start building the HTML content
 ob_start();
@@ -65,6 +66,14 @@ ob_start();
 <div class="container">
     <h1 class="title is-2">Mod Channels</h1>
     <p class="subtitle">Channels you can moderate for</p>
+    <?php if ($showSearch): ?>
+        <div class="field">
+            <label class="label">Search channels</label>
+            <div class="control">
+                <input id="mod-channel-search" class="input" type="text" placeholder="Type streamer name or username" autocomplete="off">
+            </div>
+        </div>
+    <?php endif; ?>
     <?php if (empty($modChannels)): ?>
         <div class="notification is-info">
             <p><i class="fas fa-info-circle"></i> You are not currently a moderator for any channels.</p>
@@ -73,7 +82,7 @@ ob_start();
         <div class="mod-channels-grid">
             <div class="columns is-multiline">
             <?php foreach ($modChannels as $channel): ?>
-                <div class="column is-one-third-desktop is-half-tablet is-full-mobile">
+                <div class="column is-one-third-desktop is-half-tablet is-full-mobile mod-channel-card" data-search="<?php echo htmlspecialchars(strtolower($channel['twitch_display_name'] . ' ' . $channel['username']), ENT_QUOTES); ?>">
                     <div class="card">
                         <div class="card-content">
                             <div class="media">
@@ -105,6 +114,28 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
+
+if ($showSearch): ?>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('mod-channel-search');
+        if (!searchInput) {
+            return;
+        }
+        const cards = Array.from(document.querySelectorAll('.mod-channel-card'));
+        searchInput.addEventListener('input', function () {
+            const term = searchInput.value.trim().toLowerCase();
+            cards.forEach(card => {
+                const matches = !term || (card.dataset.search && card.dataset.search.includes(term));
+                card.style.display = matches ? '' : 'none';
+            });
+        });
+    });
+</script>
+<?php
+endif;
+
+$scripts = ob_get_clean();
 
 // Include the layout template
 include 'layout.php';
