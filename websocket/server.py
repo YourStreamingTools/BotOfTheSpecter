@@ -125,6 +125,8 @@ class BotOfTheSpecter_WebsocketServer:
         self.registered_clients = {}
         # Global listeners that receive events from all channels
         self.global_listeners = []
+        # Track explicitly registered event names so wildcard handling doesn't duplicate
+        self.explicit_event_handlers = set()
         # Load admin code from environment variable
         self.admin_code = os.getenv("ADMIN_KEY")
         if not self.admin_code:
@@ -229,7 +231,10 @@ class BotOfTheSpecter_WebsocketServer:
             ("*", self.event)
         ]
         for event, handler in event_handlers:
+            self.explicit_event_handlers.add(event)
             self.sio.on(event, handler)
+        # Treat key wildcard-managed events as already handled
+        self.explicit_event_handlers.update({"NOW_PLAYING", "MUSIC_SETTINGS"})
 
     async def ip_restriction_middleware(self, app, handler):
         async def middleware_handler(request):
@@ -265,6 +270,9 @@ class BotOfTheSpecter_WebsocketServer:
             if event == "MUSIC_SETTINGS" and code:
                 self.save_music_settings(code, data)
                 self.logger.info(f"Saved MUSIC_SETTINGS from event for code {code}")
+        elif event and event not in self.explicit_event_handlers:
+            broadcast_code = self.get_code_by_sid(sid)
+            await self.broadcast_event_with_globals(event, data or {}, broadcast_code)
 
     async def connect(self, sid, environ, auth):
         # Handle the connect event for SocketIO.
