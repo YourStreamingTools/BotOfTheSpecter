@@ -14,15 +14,20 @@
         * {
             box-sizing: border-box;
         }
+        html,
         body {
             margin: 0;
             min-height: 100vh;
-            background: transparent;
+            background-color: transparent;
+            background-image: none;
             font-family: "Inter", "Segoe UI", system-ui, sans-serif;
             color: #f8fbff;
+        }
+        body {
             display: flex;
             justify-content: center;
             align-items: center;
+            width: 100%;
         }
         .placeholder {
             display: none;
@@ -36,10 +41,10 @@
         }
         .timer-wrapper {
             width: var(--timer-width);
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
         }
         .timer-card {
             width: calc(var(--timer-width) / var(--overlay-scale));
