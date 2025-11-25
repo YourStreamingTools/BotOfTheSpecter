@@ -205,6 +205,33 @@ button.is-link {
     color: #000;
 }
 
+.toast-area {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    pointer-events: none;
+    z-index: 50;
+}
+.working-study-toast {
+    background: rgba(5, 5, 10, 0.85);
+    color: #ffffff;
+    font-weight: 500;
+    padding: 0.65rem 1.1rem;
+    border-radius: 999px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 220ms ease, transform 220ms ease;
+}
+.working-study-toast.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
 .progress {
     height: 0.75rem;
     border-radius: 100px;
