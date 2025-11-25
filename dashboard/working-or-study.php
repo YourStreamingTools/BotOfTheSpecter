@@ -65,6 +65,7 @@ ob_start();
                 <div class="column is-half">
                     <h3 class="title is-6">Timer controls</h3>
                     <div class="buttons">
+                        <button type="button" class="button is-primary" data-specter-control="start">Start</button>
                         <button type="button" class="button is-info" data-specter-control="pause">Pause</button>
                         <button type="button" class="button is-success" data-specter-control="resume">Resume</button>
                         <button type="button" class="button is-danger" data-specter-control="reset">Reset</button>
