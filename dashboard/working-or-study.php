@@ -91,6 +91,7 @@ ob_start();
                         <button type="button" class="button is-info" data-specter-control="pause">Pause</button>
                         <button type="button" class="button is-success" data-specter-control="resume">Resume</button>
                         <button type="button" class="button is-danger" data-specter-control="reset">Reset</button>
+                        <button type="button" class="button is-dark" data-specter-control="stop">Stop</button>
                     </div>
                 </div>
             </div>
@@ -160,7 +161,8 @@ ob_start();
             start: 'Timer started',
             pause: 'Timer paused',
             resume: 'Timer resumed',
-            reset: 'Timer reset'
+            reset: 'Timer reset',
+            stop: 'Timer stopped'
         };
         const notifyServer = async (payload, toastMessage = '', toastType = 'success') => {
             const body = new URLSearchParams(payload);

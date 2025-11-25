@@ -214,11 +214,18 @@
                 statusChip.textContent = 'Ready for another round';
                 updateDisplay();
             };
+            const stopTimer = () => {
+                clearCountdown();
+                remainingSeconds = 0;
+                updateDisplay();
+                statusChip.textContent = 'Timer stopped';
+            };
             window.SpecterWorkingStudyTimer = {
                 startPhase: (phaseKey, options) => setPhase(phaseKey, options),
                 pause: pauseTimer,
                 resume: resumeTimer,
-                reset: resetTimer
+                reset: resetTimer,
+                stop: stopTimer
             };
             const timerWrapper = document.getElementById('timerWrapper');
             const timerPlaceholder = document.getElementById('timerPlaceholder');
@@ -282,6 +289,8 @@
                         window.SpecterWorkingStudyTimer.reset();
                     } else if (action === 'start') {
                         window.SpecterWorkingStudyTimer.resume();
+                    } else if (action === 'stop') {
+                        window.SpecterWorkingStudyTimer.stop();
                     }
                 });
                 socket.onAny((event, ...args) => {
