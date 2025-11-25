@@ -207,14 +207,14 @@ button.is-link {
 
 .toast-area {
     position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 1rem;
+    right: 1rem;
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
     pointer-events: none;
     z-index: 50;
+    align-items: flex-end;
 }
 .working-study-toast {
     background: rgba(5, 5, 10, 0.85);
@@ -230,6 +230,12 @@ button.is-link {
 .working-study-toast.visible {
     opacity: 1;
     transform: translateY(0);
+}
+.working-study-toast.success {
+    background: rgba(36, 199, 96, 0.85);
+}
+.working-study-toast.danger {
+    background: rgba(255, 78, 101, 0.95);
 }
 
 .progress {
