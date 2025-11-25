@@ -217,6 +217,8 @@
                         window.SpecterWorkingStudyTimer.resume();
                     } else if (action === 'reset') {
                         window.SpecterWorkingStudyTimer.reset();
+                    } else if (action === 'start') {
+                        window.SpecterWorkingStudyTimer.resume();
                     }
                 });
                 socket.onAny((event, ...args) => {
