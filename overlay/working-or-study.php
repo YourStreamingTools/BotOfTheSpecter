@@ -65,31 +65,6 @@
             gap: 6px;
             margin: 0 auto;
         }
-        .controls {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-        }
-        .controls button {
-            border: none;
-            padding: 10px 18px;
-            border-radius: 999px;
-            font-size: 0.9rem;
-            background: rgba(255, 255, 255, 0.09);
-            color: inherit;
-            cursor: pointer;
-            transition: transform 0.2s ease, background 0.2s ease;
-        }
-        .controls button.active {
-            background: var(--accent-color);
-            color: #05070a;
-            font-weight: 600;
-        }
-        .controls button:hover {
-            transform: translateY(-2px);
-            background: rgba(255, 255, 255, 0.15);
-        }
     </style>
 </head>
 <body>
@@ -98,15 +73,6 @@
         <div class="timer-status" id="phaseLabel">Focus sprint</div>
         <div class="status-chip" id="statusChip">Ready to focus</div>
         <div class="timer-display" id="timerDisplay">00:00</div>
-        <div class="controls">
-            <button data-phase="focus" class="active">Focus sprint</button>
-            <button data-phase="micro">Micro break</button>
-            <button data-phase="recharge">Recharge stretch</button>
-        </div>
-        <div class="controls">
-            <button id="pauseToggle">Pause</button>
-            <button id="resetTimer">Reset</button>
-        </div>
     </div>
     <script>
         (() => {
@@ -121,9 +87,6 @@
             const phaseLabel = document.getElementById('phaseLabel');
             const statusChip = document.getElementById('statusChip');
             const timerDisplay = document.getElementById('timerDisplay');
-            const buttons = document.querySelectorAll('[data-phase]');
-            const pauseToggle = document.getElementById('pauseToggle');
-            const resetButton = document.getElementById('resetTimer');
             const formatTime = seconds => {
                 const mins = Math.floor(seconds / 60);
                 const secs = seconds % 60;
@@ -134,10 +97,6 @@
                 statusChip.textContent = phases[currentPhase].status;
                 timerDisplay.textContent = formatTime(remainingSeconds);
                 document.documentElement.style.setProperty('--accent-color', phases[currentPhase].accent);
-                buttons.forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.phase === currentPhase);
-                });
-                pauseToggle.textContent = countdownId ? 'Pause' : 'Resume';
             };
             const clearCountdown = () => {
                 if (countdownId) {
@@ -187,13 +146,6 @@
                 resume: resumeTimer,
                 reset: resetTimer
             };
-            buttons.forEach(btn => {
-                btn.addEventListener('click', () => setPhase(btn.dataset.phase));
-            });
-            pauseToggle.addEventListener('click', () => {
-                countdownId ? pauseTimer() : resumeTimer();
-            });
-            resetButton.addEventListener('click', resetTimer);
             const timerCard = document.getElementById('timerCard');
             const timerPlaceholder = document.getElementById('timerPlaceholder');
             const urlParams = new URLSearchParams(window.location.search);
