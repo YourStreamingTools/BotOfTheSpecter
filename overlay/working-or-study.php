@@ -101,6 +101,10 @@
                 return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
             };
             const minutesToSeconds = minutes => Math.max(1, Math.round(minutes * 60));
+            const parseMinutesValue = value => {
+                const numeric = Number(value);
+                return Number.isFinite(numeric) && numeric > 0 ? minutesToSeconds(numeric) : null;
+            };
             const focusSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('focus_minutes'), 60));
             const microSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('break_minutes'), 15));
             const rechargeSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('recharge_minutes'), 15));
@@ -150,6 +154,19 @@
                 }, 1000);
                 updateDisplay();
             };
+            const updateDefaultDurationsFromPayload = payload => {
+                if (!payload) return;
+                const focusOverride = parseMinutesValue(payload.focus_minutes);
+                const breakOverride = parseMinutesValue(payload.break_minutes);
+                if (focusOverride) {
+                    defaultDurations.focus = focusOverride;
+                }
+                if (breakOverride) {
+                    defaultDurations.micro = breakOverride;
+                    defaultDurations.recharge = breakOverride;
+                }
+            };
+
             const parseDurationOverride = payload => {
                 if (!payload) return null;
                 if (payload.duration_seconds !== undefined && payload.duration_seconds !== null) {
@@ -159,6 +176,12 @@
                 if (payload.duration_minutes !== undefined && payload.duration_minutes !== null) {
                     const numeric = Number(payload.duration_minutes);
                     return Number.isFinite(numeric) && numeric > 0 ? minutesToSeconds(numeric) : null;
+                }
+                if (payload.focus_minutes !== undefined && payload.focus_minutes !== null) {
+                    return parseMinutesValue(payload.focus_minutes);
+                }
+                if (payload.break_minutes !== undefined && payload.break_minutes !== null) {
+                    return parseMinutesValue(payload.break_minutes);
                 }
                 if (payload.duration !== undefined && payload.duration !== null) {
                     const numeric = Number(payload.duration);
@@ -245,10 +268,12 @@
                     if (!phaseKey || !phases[phaseKey]) return;
                     const autoStart = parseBool(payload.auto_start, true);
                     const overriddenDuration = parseDurationOverride(payload);
+                    updateDefaultDurationsFromPayload(payload);
                     window.SpecterWorkingStudyTimer.startPhase(phaseKey, { autoStart, duration: overriddenDuration });
                 });
                 socket.on('SPECTER_TIMER_CONTROL', payload => {
                     const action = (payload.action || payload.command || '').toLowerCase();
+                    updateDefaultDurationsFromPayload(payload);
                     if (action === 'pause') {
                         window.SpecterWorkingStudyTimer.pause();
                     } else if (action === 'resume') {

@@ -191,6 +191,11 @@ ob_start();
             const numeric = Number(input.value);
             return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
         };
+        const gatherDurations = () => ({
+            duration_minutes: safeNumberValue(focusLengthInput, 60),
+            focus_minutes: safeNumberValue(focusLengthInput, 60),
+            break_minutes: safeNumberValue(breakLengthInput, 15)
+        });
         buttonsPhase.forEach(button => {
             button.addEventListener('click', () => {
                 const phase = button.getAttribute('data-specter-phase');
@@ -201,14 +206,14 @@ ob_start();
                     payload.duration_minutes = safeNumberValue(breakLengthInput, 15);
                 }
                 const phaseName = phaseNames[phase] || phase;
-                notifyServer({ specter_event: 'SPECTER_PHASE', ...payload }, `Timer started ${phaseName}`);
+                notifyServer({ specter_event: 'SPECTER_PHASE', ...payload, ...gatherDurations() }, `Timer started ${phaseName}`);
             });
         });
         buttonsControl.forEach(button => {
             button.addEventListener('click', () => {
                 const action = button.getAttribute('data-specter-control');
                 const toastMessage = controlMessages[action] || `Timer ${action}`;
-                notifyServer({ specter_event: 'SPECTER_TIMER_CONTROL', action }, toastMessage);
+                notifyServer({ specter_event: 'SPECTER_TIMER_CONTROL', action, ...gatherDurations() }, toastMessage);
             });
         });
     })();
