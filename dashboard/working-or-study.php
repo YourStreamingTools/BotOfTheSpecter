@@ -30,6 +30,28 @@ $pageTitle = 'Working & Study Timer';
 $overlayLink = 'https://overlay.botofthespecter.com/working-or-study.php';
 $overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['specter_event'])) {
+    $event = $_POST['specter_event'];
+    $allowedFields = ['phase', 'auto_start', 'action', 'duration_minutes', 'duration_seconds'];
+    $params = ['code' => $api_key, 'event' => $event];
+    foreach ($allowedFields as $field) {
+        if (!empty($_POST[$field]) || $_POST[$field] === '0') {
+            $params[$field] = $_POST[$field];
+        }
+    }
+    $notifyUrl = 'https://websocket.botofthespecter.com/notify?' . http_build_query($params);
+    $context = stream_context_create(['http' => ['timeout' => 5]]);
+    $response = @file_get_contents($notifyUrl, false, $context);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'event' => $event,
+        'status' => $response === false ? 'error' : 'ok',
+        'response' => $response ?: null,
+        'params' => $params,
+    ]);
+    exit;
+}
+
 ob_start();
 ?>
 <section class="section">
@@ -105,18 +127,22 @@ ob_start();
         const buttonsControl = document.querySelectorAll('[data-specter-control]');
         const focusLengthInput = document.getElementById('focusLengthMinutes');
         const breakLengthInput = document.getElementById('breakLengthMinutes');
-        const notifyWebsocket = async (event, data = {}) => {
-            const params = new URLSearchParams({ code: apiKey, event });
-            Object.entries(data).forEach(([key, value]) => {
-                if (value !== undefined && value !== null) {
-                    params.append(key, value);
-                }
-            });
-            const url = `https://websocket.botofthespecter.com/notify?${params.toString()}`;
+        const notifyServer = async payload => {
+            const body = new URLSearchParams(payload);
             try {
-                const response = await fetch(url, { method: 'GET', cache: 'no-cache' });
-                const text = await response.text();
+                const response = await fetch(window.location.pathname, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body,
+                    cache: 'no-cache'
+                });
+                if (!response.ok) {
+                    console.warn('Dashboard notify request failed', response.status, response.statusText);
+                    return;
+                }
+                await response.json();
             } catch (error) {
+                console.warn('Dashboard notify request error', error);
             }
         };
         const safeNumberValue = (input, fallback) => {
@@ -133,13 +159,13 @@ ob_start();
                 } else if (phase === 'micro' || phase === 'recharge') {
                     payload.duration_minutes = safeNumberValue(breakLengthInput, 15);
                 }
-                notifyWebsocket('SPECTER_PHASE', payload);
+                notifyServer({ specter_event: 'SPECTER_PHASE', ...payload });
             });
         });
         buttonsControl.forEach(button => {
             button.addEventListener('click', () => {
                 const action = button.getAttribute('data-specter-control');
-                notifyWebsocket('SPECTER_TIMER_CONTROL', { action });
+                notifyServer({ specter_event: 'SPECTER_TIMER_CONTROL', action });
             });
         });
     })();
