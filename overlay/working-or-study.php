@@ -8,6 +8,8 @@
     <style>
         :root {
             --accent-color: #ff9161;
+            --overlay-scale: 0.5;
+            --timer-width: min(420px, 90vw);
         }
         * {
             box-sizing: border-box;
@@ -32,47 +34,58 @@
             text-align: center;
             width: min(420px, 90vw);
         }
+        .timer-wrapper {
+            width: var(--timer-width);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
         .timer-card {
-            width: min(420px, 90vw);
-            padding: 32px;
-            border-radius: 28px;
+            width: calc(var(--timer-width) / var(--overlay-scale));
+            padding: calc(32px / var(--overlay-scale));
+            border-radius: calc(28px / var(--overlay-scale));
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(4, 6, 11, 0.95));
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            box-shadow: 0 30px 65px rgba(0, 0, 0, 0.65);
+            border: calc(1px / var(--overlay-scale)) solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 calc(30px / var(--overlay-scale)) calc(65px / var(--overlay-scale)) rgba(0, 0, 0, 0.65);
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: calc(20px / var(--overlay-scale));
             text-align: center;
+            transform: scale(var(--overlay-scale));
+            transform-origin: center center;
         }
         .timer-status {
-            font-size: 0.95rem;
-            letter-spacing: 0.25em;
+            font-size: calc(0.95rem / var(--overlay-scale));
+            letter-spacing: calc(0.25em / var(--overlay-scale));
             text-transform: uppercase;
             color: var(--accent-color);
         }
         .timer-display {
-            font-size: clamp(48px, 8vw, 72px);
-            font-weight: 600;
-            letter-spacing: 4px;
+            font-size: clamp(calc(48px / var(--overlay-scale)), calc(8vw / var(--overlay-scale)), calc(72px / var(--overlay-scale)));
+            font-weight: calc(600 / var(--overlay-scale));
+            letter-spacing: calc(4px / var(--overlay-scale));
         }
         .status-chip {
-            font-size: 0.95rem;
-            padding: 6px 14px;
-            border-radius: 999px;
+            font-size: calc(0.95rem / var(--overlay-scale));
+            padding: calc(6px / var(--overlay-scale)) calc(14px / var(--overlay-scale));
+            border-radius: calc(999px / var(--overlay-scale));
             background: rgba(255, 255, 255, 0.08);
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: calc(6px / var(--overlay-scale));
             margin: 0 auto;
         }
     </style>
 </head>
 <body>
     <div class="placeholder" id="timerPlaceholder">Append <code>&timer</code> to the overlay URL to show the Specter timer.</div>
-    <div class="timer-card" id="timerCard">
+    <div class="timer-wrapper" id="timerWrapper">
+        <div class="timer-card" id="timerCard">
         <div class="timer-status" id="phaseLabel">Focus sprint</div>
         <div class="status-chip" id="statusChip">Ready to focus</div>
         <div class="timer-display" id="timerDisplay">00:00</div>
+        </div>
     </div>
     <script>
         (() => {
@@ -146,17 +159,18 @@
                 resume: resumeTimer,
                 reset: resetTimer
             };
-            const timerCard = document.getElementById('timerCard');
+            const timerWrapper = document.getElementById('timerWrapper');
             const timerPlaceholder = document.getElementById('timerPlaceholder');
             const urlParams = new URLSearchParams(window.location.search);
             const showTimer = urlParams.has('timer');
             if (!showTimer) {
-                timerCard.style.display = 'none';
+                timerWrapper.style.display = 'none';
                 timerPlaceholder.style.display = 'block';
                 return;
             }
             timerPlaceholder.style.display = 'none';
-            setPhase('focus', { autoStart: true });
+            timerWrapper.style.display = 'flex';
+            setPhase('focus', { autoStart: false });
             const apiCode = urlParams.get('code');
             if (!apiCode) {
                 console.warn('Overlay missing viewer API code; websocket control disabled.');
