@@ -15,12 +15,22 @@
         body {
             margin: 0;
             min-height: 100vh;
-            background: #030409;
+            background: transparent;
             font-family: "Inter", "Segoe UI", system-ui, sans-serif;
             color: #f8fbff;
             display: flex;
             justify-content: center;
             align-items: center;
+        }
+        .placeholder {
+            display: none;
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 20px;
+            padding: 16px 24px;
+            text-align: center;
+            width: min(420px, 90vw);
         }
         .timer-card {
             width: min(420px, 90vw);
@@ -83,7 +93,8 @@
     </style>
 </head>
 <body>
-    <div class="timer-card">
+    <div class="placeholder" id="timerPlaceholder">Append <code>&timer</code> to the overlay URL to show the Specter timer.</div>
+    <div class="timer-card" id="timerCard">
         <div class="timer-status" id="phaseLabel">Focus sprint</div>
         <div class="status-chip" id="statusChip">Ready to focus</div>
         <div class="timer-display" id="timerDisplay">00:00</div>
@@ -183,8 +194,17 @@
                 countdownId ? pauseTimer() : resumeTimer();
             });
             resetButton.addEventListener('click', resetTimer);
-            setPhase('focus', { autoStart: true });
+            const timerCard = document.getElementById('timerCard');
+            const timerPlaceholder = document.getElementById('timerPlaceholder');
             const urlParams = new URLSearchParams(window.location.search);
+            const showTimer = urlParams.has('timer');
+            if (!showTimer) {
+                timerCard.style.display = 'none';
+                timerPlaceholder.style.display = 'block';
+                return;
+            }
+            timerPlaceholder.style.display = 'none';
+            setPhase('focus', { autoStart: true });
             const apiCode = urlParams.get('code');
             if (!apiCode) {
                 console.warn('Overlay missing viewer API code; websocket control disabled.');
