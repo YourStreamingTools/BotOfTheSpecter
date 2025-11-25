@@ -89,10 +89,25 @@
     </div>
     <script>
         (() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const parseMinutesParam = (value, fallback) => {
+                if (value === undefined || value === null || value === '') return fallback;
+                const numeric = Number(value);
+                return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+            };
+            const minutesToSeconds = minutes => Math.max(1, Math.round(minutes * 60));
+            const focusSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('focus_minutes'), 60));
+            const microSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('break_minutes'), 15));
+            const rechargeSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('recharge_minutes'), 15));
             const phases = {
-                focus: { label: 'Focus sprint', duration: 25 * 60, status: 'Flow mode on', accent: '#ff9161' },
-                micro: { label: 'Micro break', duration: 5 * 60, status: 'Recharge quickly', accent: '#6be9ff' },
-                recharge: { label: 'Recharge stretch', duration: 15 * 60, status: 'Stretch & hydrate', accent: '#b483ff' }
+                focus: { label: 'Focus sprint', duration: focusSeconds, status: 'Flow mode on', accent: '#ff9161' },
+                micro: { label: 'Micro break', duration: microSeconds, status: 'Recharge quickly', accent: '#6be9ff' },
+                recharge: { label: 'Recharge stretch', duration: rechargeSeconds, status: 'Stretch & hydrate', accent: '#b483ff' }
+            };
+            const defaultDurations = {
+                focus: focusSeconds,
+                micro: microSeconds,
+                recharge: rechargeSeconds
             };
             let currentPhase = 'focus';
             let remainingSeconds = phases[currentPhase].duration;
@@ -130,10 +145,28 @@
                 }, 1000);
                 updateDisplay();
             };
-            const setPhase = (phase, { autoStart = true } = {}) => {
+            const parseDurationOverride = payload => {
+                if (!payload) return null;
+                if (payload.duration_seconds !== undefined && payload.duration_seconds !== null) {
+                    const numeric = Number(payload.duration_seconds);
+                    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+                }
+                if (payload.duration_minutes !== undefined && payload.duration_minutes !== null) {
+                    const numeric = Number(payload.duration_minutes);
+                    return Number.isFinite(numeric) && numeric > 0 ? minutesToSeconds(numeric) : null;
+                }
+                if (payload.duration !== undefined && payload.duration !== null) {
+                    const numeric = Number(payload.duration);
+                    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+                }
+                return null;
+            };
+            const setPhase = (phase, { autoStart = true, duration = null } = {}) => {
                 if (!phases[phase]) return;
                 currentPhase = phase;
-                remainingSeconds = phases[phase].duration;
+                const durationSeconds = typeof duration === 'number' && Number.isFinite(duration) && duration > 0 ? duration : defaultDurations[phase];
+                phases[phase] = { ...phases[phase], duration: durationSeconds };
+                remainingSeconds = durationSeconds;
                 updateDisplay();
                 if (autoStart) {
                     startCountdown();
@@ -161,7 +194,6 @@
             };
             const timerWrapper = document.getElementById('timerWrapper');
             const timerPlaceholder = document.getElementById('timerPlaceholder');
-            const urlParams = new URLSearchParams(window.location.search);
             const showTimer = urlParams.has('timer');
             if (!showTimer) {
                 timerWrapper.style.display = 'none';
@@ -207,7 +239,8 @@
                     const phaseKey = (payload.phase || payload.phase_key || '').toLowerCase();
                     if (!phaseKey || !phases[phaseKey]) return;
                     const autoStart = parseBool(payload.auto_start, true);
-                    window.SpecterWorkingStudyTimer.startPhase(phaseKey, { autoStart });
+                    const overriddenDuration = parseDurationOverride(payload);
+                    window.SpecterWorkingStudyTimer.startPhase(phaseKey, { autoStart, duration: overriddenDuration });
                 });
                 socket.on('SPECTER_TIMER_CONTROL', payload => {
                     const action = (payload.action || payload.command || '').toLowerCase();

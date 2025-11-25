@@ -72,6 +72,24 @@ ob_start();
                     </div>
                 </div>
             </div>
+            <div class="columns">
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label is-size-7">Focus length (minutes)</label>
+                        <div class="control">
+                            <input id="focusLengthMinutes" class="input" type="number" min="1" step="1" value="60" placeholder="Focus minutes">
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label is-size-7">Break length (minutes)</label>
+                        <div class="control">
+                            <input id="breakLengthMinutes" class="input" type="number" min="1" step="1" value="15" placeholder="Break minutes">
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </section>
@@ -85,6 +103,8 @@ ob_start();
         const apiKey = <?php echo json_encode($api_key); ?>;
         const buttonsPhase = document.querySelectorAll('[data-specter-phase]');
         const buttonsControl = document.querySelectorAll('[data-specter-control]');
+        const focusLengthInput = document.getElementById('focusLengthMinutes');
+        const breakLengthInput = document.getElementById('breakLengthMinutes');
         const notifyWebsocket = async (event, data = {}) => {
             const params = new URLSearchParams({ code: apiKey, event });
             Object.entries(data).forEach(([key, value]) => {
@@ -99,10 +119,21 @@ ob_start();
             } catch (error) {
             }
         };
+        const safeNumberValue = (input, fallback) => {
+            if (!input) return fallback;
+            const numeric = Number(input.value);
+            return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+        };
         buttonsPhase.forEach(button => {
             button.addEventListener('click', () => {
                 const phase = button.getAttribute('data-specter-phase');
-                notifyWebsocket('SPECTER_PHASE', { phase, auto_start: 1 });
+                const payload = { phase, auto_start: 1 };
+                if (phase === 'focus') {
+                    payload.duration_minutes = safeNumberValue(focusLengthInput, 60);
+                } else if (phase === 'micro' || phase === 'recharge') {
+                    payload.duration_minutes = safeNumberValue(breakLengthInput, 15);
+                }
+                notifyWebsocket('SPECTER_PHASE', payload);
             });
         });
         buttonsControl.forEach(button => {
