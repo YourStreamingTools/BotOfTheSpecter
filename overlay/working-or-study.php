@@ -281,6 +281,7 @@
                 socket.on('SPECTER_TIMER_CONTROL', payload => {
                     const action = (payload.action || payload.command || '').toLowerCase();
                     updateDefaultDurationsFromPayload(payload);
+                    const overriddenDuration = parseDurationOverride(payload);
                     if (action === 'pause') {
                         window.SpecterWorkingStudyTimer.pause();
                     } else if (action === 'resume') {
@@ -288,7 +289,11 @@
                     } else if (action === 'reset') {
                         window.SpecterWorkingStudyTimer.reset();
                     } else if (action === 'start') {
-                        window.SpecterWorkingStudyTimer.resume();
+                        if (typeof overriddenDuration === 'number') {
+                            window.SpecterWorkingStudyTimer.startPhase(currentPhase, { autoStart: true, duration: overriddenDuration });
+                        } else {
+                            window.SpecterWorkingStudyTimer.resume();
+                        }
                     } else if (action === 'stop') {
                         window.SpecterWorkingStudyTimer.stop();
                     }

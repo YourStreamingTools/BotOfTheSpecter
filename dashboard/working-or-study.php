@@ -32,7 +32,7 @@ $overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key) . '&time
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['specter_event'])) {
     $event = $_POST['specter_event'];
-    $allowedFields = ['phase', 'auto_start', 'action', 'duration_minutes', 'duration_seconds'];
+    $allowedFields = ['phase', 'auto_start', 'action', 'duration_minutes', 'duration_seconds', 'focus_minutes', 'break_minutes'];
     $params = ['code' => $api_key, 'event' => $event];
     foreach ($allowedFields as $field) {
         if (!empty($_POST[$field]) || $_POST[$field] === '0') {
