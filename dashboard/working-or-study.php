@@ -129,12 +129,22 @@ ob_start();
         const focusLengthInput = document.getElementById('focusLengthMinutes');
         const breakLengthInput = document.getElementById('breakLengthMinutes');
         const toastArea = document.getElementById('toastArea');
-        const showToast = message => {
-            if (!toastArea || !message) return;
+        const getToastArea = () => {
+            if (toastArea) return toastArea;
+            const fallback = document.querySelector('.toast-area');
+            if (fallback) return fallback;
+            const created = document.createElement('div');
+            created.className = 'toast-area';
+            document.body.appendChild(created);
+            return created;
+        };
+        const showToast = (message, type = 'success') => {
+            if (!message) return;
+            const area = getToastArea();
             const toast = document.createElement('div');
-            toast.className = 'working-study-toast';
+            toast.className = `working-study-toast ${type}`;
             toast.textContent = message;
-            toastArea.appendChild(toast);
+            area.appendChild(toast);
             requestAnimationFrame(() => toast.classList.add('visible'));
             setTimeout(() => {
                 toast.classList.remove('visible');
@@ -152,7 +162,7 @@ ob_start();
             resume: 'Timer resumed',
             reset: 'Timer reset'
         };
-        const notifyServer = async (payload, toastMessage = '') => {
+        const notifyServer = async (payload, toastMessage = '', toastType = 'success') => {
             const body = new URLSearchParams(payload);
             try {
                 const response = await fetch(window.location.pathname, {
@@ -163,17 +173,17 @@ ob_start();
                 });
                 if (!response.ok) {
                     console.warn('Dashboard notify request failed', response.status, response.statusText);
-                    showToast('Timer request failed');
+                    showToast('Timer request failed', 'danger');
                     return;
                 }
                 const json = await response.json();
                 if (toastMessage && json.status === 'ok') {
-                    showToast(toastMessage);
+                    showToast(toastMessage, toastType);
                 }
                 return json;
             } catch (error) {
                 console.warn('Dashboard notify request error', error);
-                showToast('Timer request failed');
+                showToast('Timer request failed', 'danger');
             }
         };
         const safeNumberValue = (input, fallback) => {
