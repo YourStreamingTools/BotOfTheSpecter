@@ -2893,7 +2893,6 @@ class BotOfTheSpecter(commands.Bot):
                         if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
                             existing = await self.live_channel_manager.get_online_stream(code)
                             if existing:
-                                self.logger.info(f"Skipping live notification for {account_username}; online_streams shows username {existing.get('username')} already online")
                                 skip_post = True
                     except Exception as e:
                         self.logger.debug(f"Error checking live_channel_manager for {code}: {e}")
@@ -5556,10 +5555,8 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         # Determine candidate stream ID
         stream_id = stream_data.get('id') or stream_data.get('stream_id')
         if ln_row and ln_row.get('stream_id') and stream_id and str(ln_row.get('stream_id')) == str(stream_id):
-            self.logger.info(f"Skipping live notification for {user_login}; live_notifications shows already posted stream_id={stream_id}")
             return False
         if online and online.get('stream_id') and stream_id and str(online.get('stream_id')) == str(stream_id):
-            self.logger.info(f"Skipping live notification for {user_login}; online_streams shows already posted stream_id={stream_id}")
             return False
         title = stream_data['title']
         game_name = stream_data['game_name']
