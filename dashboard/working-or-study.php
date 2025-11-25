@@ -1,0 +1,119 @@
+<?php
+session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
+ini_set('max_execution_time', 300);
+
+// Check if the user is logged in
+if (!isset($_SESSION['access_token'])) {
+    header('Location: login.php');
+    exit();
+}
+
+require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
+include 'userdata.php';
+include 'bot_control.php';
+include "mod_access.php";
+include 'user_db.php';
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
+date_default_timezone_set($timezone);
+
+$pageTitle = 'Working & Study Timer';
+
+$overlayLink = 'https://overlay.botofthespecter.com/working-or-study.php';
+$overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key);
+
+ob_start();
+?>
+<section class="section">
+    <div class="card">
+        <header class="card-header">
+            <p class="card-header-title">
+                Working / Study Overlay Control
+            </p>
+            <a class="card-header-icon" href="<?php echo htmlspecialchars($overlayLinkWithCode); ?>" target="_blank" rel="noreferrer">
+                <span class="icon">
+                    <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                </span>
+            </a>
+        </header>
+        <div class="card-content">
+            <div class="content">
+                <p>The Specter working/study overlay keeps a single timer synced with the familiar Specter cadence so your chat can follow along. Open the overlay in another tab or capture it in your stream layout, and it will respond to the same controls below.</p>
+                <ul>
+                    <li>Three ready-made phases: focus sprint, micro break, and recharge stretch.</li>
+                    <li>The timer card shows current status, accent color, and countdown without extra clutter.</li>
+                    <li>Use the phase buttons to jump between blocks, then pause or reset with the timer controls.</li>
+                </ul>
+            </div>
+            <div class="columns is-multiline">
+                <div class="column is-half">
+                    <h3 class="title is-6">Phase controls</h3>
+                    <div class="buttons is-flex-wrap-wrap">
+                        <button type="button" class="button is-primary" data-specter-phase="focus">Start focus sprint</button>
+                        <button type="button" class="button is-link" data-specter-phase="micro">Start micro break</button>
+                        <button type="button" class="button is-warning" data-specter-phase="recharge">Start recharge stretch</button>
+                    </div>
+                </div>
+                <div class="column is-half">
+                    <h3 class="title is-6">Timer controls</h3>
+                    <div class="buttons">
+                        <button type="button" class="button is-info" data-specter-control="pause">Pause</button>
+                        <button type="button" class="button is-success" data-specter-control="resume">Resume</button>
+                        <button type="button" class="button is-danger" data-specter-control="reset">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<?php
+$content = ob_get_clean();
+
+ob_start();
+?>
+<script>
+    (function () {
+        const apiKey = <?php echo json_encode($api_key); ?>;
+        const buttonsPhase = document.querySelectorAll('[data-specter-phase]');
+        const buttonsControl = document.querySelectorAll('[data-specter-control]');
+        const notifyWebsocket = async (event, data = {}) => {
+            const params = new URLSearchParams({ code: apiKey, event });
+            Object.entries(data).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                    params.append(key, value);
+                }
+            });
+            const url = `https://websocket.botofthespecter.com/notify?${params.toString()}`;
+            try {
+                const response = await fetch(url, { method: 'GET', cache: 'no-cache' });
+                const text = await response.text();
+            } catch (error) {
+            }
+        };
+        buttonsPhase.forEach(button => {
+            button.addEventListener('click', () => {
+                const phase = button.getAttribute('data-specter-phase');
+                notifyWebsocket('SPECTER_PHASE', { phase, auto_start: 1 });
+            });
+        });
+        buttonsControl.forEach(button => {
+            button.addEventListener('click', () => {
+                const action = button.getAttribute('data-specter-control');
+                notifyWebsocket('SPECTER_TIMER_CONTROL', { action });
+            });
+        });
+    })();
+</script>
+<?php
+$scripts = ob_get_clean();
+
+include 'layout.php';
+?>
