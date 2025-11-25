@@ -28,7 +28,7 @@ date_default_timezone_set($timezone);
 $pageTitle = 'Working & Study Timer';
 
 $overlayLink = 'https://overlay.botofthespecter.com/working-or-study.php';
-$overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key);
+$overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key) . '&timer';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['specter_event'])) {
     $event = $_POST['specter_event'];
@@ -114,6 +114,7 @@ ob_start();
             </div>
         </div>
     </div>
+    <div class="toast-area" id="toastArea" aria-live="polite" role="status"></div>
 </section>
 <?php
 $content = ob_get_clean();
@@ -127,7 +128,31 @@ ob_start();
         const buttonsControl = document.querySelectorAll('[data-specter-control]');
         const focusLengthInput = document.getElementById('focusLengthMinutes');
         const breakLengthInput = document.getElementById('breakLengthMinutes');
-        const notifyServer = async payload => {
+        const toastArea = document.getElementById('toastArea');
+        const showToast = message => {
+            if (!toastArea || !message) return;
+            const toast = document.createElement('div');
+            toast.className = 'working-study-toast';
+            toast.textContent = message;
+            toastArea.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.add('visible'));
+            setTimeout(() => {
+                toast.classList.remove('visible');
+                toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+            }, 3200);
+        };
+        const phaseNames = {
+            focus: 'Focus sprint',
+            micro: 'Micro break',
+            recharge: 'Recharge stretch'
+        };
+        const controlMessages = {
+            start: 'Timer started',
+            pause: 'Timer paused',
+            resume: 'Timer resumed',
+            reset: 'Timer reset'
+        };
+        const notifyServer = async (payload, toastMessage = '') => {
             const body = new URLSearchParams(payload);
             try {
                 const response = await fetch(window.location.pathname, {
@@ -138,11 +163,17 @@ ob_start();
                 });
                 if (!response.ok) {
                     console.warn('Dashboard notify request failed', response.status, response.statusText);
+                    showToast('Timer request failed');
                     return;
                 }
-                await response.json();
+                const json = await response.json();
+                if (toastMessage && json.status === 'ok') {
+                    showToast(toastMessage);
+                }
+                return json;
             } catch (error) {
                 console.warn('Dashboard notify request error', error);
+                showToast('Timer request failed');
             }
         };
         const safeNumberValue = (input, fallback) => {
@@ -159,13 +190,15 @@ ob_start();
                 } else if (phase === 'micro' || phase === 'recharge') {
                     payload.duration_minutes = safeNumberValue(breakLengthInput, 15);
                 }
-                notifyServer({ specter_event: 'SPECTER_PHASE', ...payload });
+                const phaseName = phaseNames[phase] || phase;
+                notifyServer({ specter_event: 'SPECTER_PHASE', ...payload }, `Timer started ${phaseName}`);
             });
         });
         buttonsControl.forEach(button => {
             button.addEventListener('click', () => {
                 const action = button.getAttribute('data-specter-control');
-                notifyServer({ specter_event: 'SPECTER_TIMER_CONTROL', action });
+                const toastMessage = controlMessages[action] || `Timer ${action}`;
+                notifyServer({ specter_event: 'SPECTER_TIMER_CONTROL', action }, toastMessage);
             });
         });
     })();
