@@ -8,6 +8,23 @@
     //    {"column": 72, "color": "#1eff00"}      // Code Comments Max Lines
     //]
 },
-"postman.settings.dotenv-detection-notification-visibility": false
+"postman.settings.dotenv-detection-notification-visibility": false,
+"sqltools.connections": [
+    {
+        "mysqlOptions": {
+            "authProtocol": "default",
+            "enableSsl": "Disabled"
+        },
+        "ssh": "Disabled",
+        "previewLimit": 50,
+        "server": "sql.botofthespecter.com",
+        "port": 3306,
+        "driver": "MySQL",
+        "name": "Website DB",
+        "database": "website",
+        "username": "lachlan",
+        "group": "BotOfTheSpecter"
+    }
+]
 
 }
