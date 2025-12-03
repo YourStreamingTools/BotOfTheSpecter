@@ -294,16 +294,19 @@ ob_start();
             setButtonsLoading(true);
             try {
                 if (!socket || !socket.connected) {
+                    console.error('[Timer Dashboard] Socket not connected');
                     showToast('⚠️ Not connected to timer server', 'danger');
                     setButtonsLoading(false);
                     return;
                 }
+                console.log('[Timer Dashboard] Sending command via WebSocket:', payload);
                 // Send via WebSocket instead of HTTP
                 socket.emit(payload.specter_event, {
                     code: apiKey,
                     ...payload
                 });
                 if (toastMessage) {
+                    console.log(`[Timer Dashboard] Command sent: ${toastMessage}`);
                     showToast(`✓ ${toastMessage}`, toastType);
                 }
             } catch (error) {
@@ -330,6 +333,7 @@ ob_start();
         const scheduleReconnect = () => {
             attempts += 1;
             const delay = Math.min(5000 * attempts, 30000);
+            console.log(`[Timer Dashboard] Reconnect scheduled in ${delay}ms (attempt ${attempts})`);
             if (socket) {
                 socket.removeAllListeners();
                 socket = null;
@@ -337,19 +341,33 @@ ob_start();
             setTimeout(connect, delay);
         };
         const connect = () => {
+            console.log(`[Timer Dashboard] Connecting to WebSocket: ${socketUrl}`);
             socket = io(socketUrl, { reconnection: false });
             socket.on('connect', () => {
                 attempts = 0;
+                console.log('[Timer Dashboard] ✓ Connected to WebSocket');
+                console.log('[Timer Dashboard] Registering as Dashboard');
                 socket.emit('REGISTER', { code: apiKey, channel: 'Dashboard', name: 'Working Study Timer Dashboard' });
             });
-            socket.on('disconnect', scheduleReconnect);
-            socket.on('connect_error', scheduleReconnect);
+            socket.on('disconnect', (reason) => {
+                console.warn(`[Timer Dashboard] ✗ Disconnected: ${reason}`);
+                scheduleReconnect();
+            });
+            socket.on('connect_error', (error) => {
+                console.error('[Timer Dashboard] Connection error:', error);
+                scheduleReconnect();
+            });
             socket.on('SPECTER_TIMER_STATE', payload => {
+                console.log('[Timer Dashboard] Received timer state update:', payload);
                 const newState = (payload.state || '').toLowerCase();
                 if (['stopped', 'running', 'paused'].includes(newState)) {
+                    console.log(`[Timer Dashboard] Timer state changed to: ${newState}`);
                     timerState = newState;
                     updateButtonStates();
                 }
+            });
+            socket.onAny((event, ...args) => {
+                console.debug(`[Timer Dashboard] WebSocket event: ${event}`, args);
             });
         };
         connect();
