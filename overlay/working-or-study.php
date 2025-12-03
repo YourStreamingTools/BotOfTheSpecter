@@ -88,12 +88,12 @@
             position: relative;
             width: 100%;
             height: 100%;
-            transform: rotate(-90deg);
         }
         .timer-ring svg {
             width: 100%;
             height: 100%;
             filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+            transform: rotate(-90deg);
         }
         .timer-ring-progress {
             stroke: var(--accent-color);
@@ -111,6 +111,8 @@
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
+            width: 100%;
+            z-index: 10;
         }
         .timer-display {
             font-size: clamp(48px, 8vw, 72px);
