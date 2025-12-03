@@ -30,28 +30,6 @@ $pageTitle = 'Working & Study Timer';
 $overlayLink = 'https://overlay.botofthespecter.com/working-or-study.php';
 $overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key) . '&timer';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['specter_event'])) {
-    $event = $_POST['specter_event'];
-    $allowedFields = ['phase', 'auto_start', 'action', 'duration_minutes', 'duration_seconds', 'focus_minutes', 'break_minutes'];
-    $params = ['code' => $api_key, 'event' => $event];
-    foreach ($allowedFields as $field) {
-        if (!empty($_POST[$field]) || $_POST[$field] === '0') {
-            $params[$field] = $_POST[$field];
-        }
-    }
-    $notifyUrl = 'https://websocket.botofthespecter.com/notify?' . http_build_query($params);
-    $context = stream_context_create(['http' => ['timeout' => 5]]);
-    $response = @file_get_contents($notifyUrl, false, $context);
-    header('Content-Type: application/json');
-    echo json_encode([
-        'event' => $event,
-        'status' => $response === false ? 'error' : 'ok',
-        'response' => $response ?: null,
-        'params' => $params,
-    ]);
-    exit;
-}
-
 ob_start();
 ?>
 <section class="section">
@@ -237,10 +215,8 @@ ob_start();
         const resumeBtn = document.querySelector('[data-specter-control="resume"]');
         const stopBtn = document.querySelector('[data-specter-control="stop"]');
         const resetBtn = document.querySelector('[data-specter-control="reset"]');
-        
         let isRequesting = false;
         let timerState = 'stopped'; // stopped, running, paused
-        
         const getToastArea = () => {
             if (toastArea) return toastArea;
             const fallback = document.querySelector('.toast-area');
@@ -250,7 +226,6 @@ ob_start();
             document.body.appendChild(created);
             return created;
         };
-        
         const showToast = (message, type = 'success') => {
             if (!message) return;
             const area = getToastArea();
@@ -267,7 +242,6 @@ ob_start();
                 toast.addEventListener('transitionend', () => toast.remove(), { once: true });
             }, 3500);
         };
-        
         const updateButtonStates = () => {
             if (timerState === 'stopped') {
                 startBtn.style.display = 'block';
@@ -292,13 +266,11 @@ ob_start();
                 stopBtn.disabled = false;
             }
         };
-        
         const phaseNames = {
             focus: 'Focus Sprint',
             micro: 'Micro Break',
             recharge: 'Recharge Stretch'
         };
-        
         const controlMessages = {
             start: 'Timer started',
             pause: 'Timer paused',
@@ -306,7 +278,6 @@ ob_start();
             reset: 'Timer reset',
             stop: 'Timer stopped'
         };
-        
         const setButtonsLoading = (loading) => {
             isRequesting = loading;
             const allButtons = document.querySelectorAll('[data-specter-phase], [data-specter-control]');
@@ -318,53 +289,72 @@ ob_start();
                 }
             });
         };
-        
         const notifyServer = async (payload, toastMessage = '', toastType = 'success') => {
             if (isRequesting) return;
             setButtonsLoading(true);
-            const body = new URLSearchParams(payload);
             try {
-                const response = await fetch(window.location.pathname, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body,
-                    cache: 'no-cache'
-                });
-                if (!response.ok) {
-                    console.warn('Dashboard notify request failed', response.status, response.statusText);
-                    showToast('⚠️ Timer request failed', 'danger');
+                if (!socket || !socket.connected) {
+                    showToast('⚠️ Not connected to timer server', 'danger');
                     setButtonsLoading(false);
                     return;
                 }
-                const json = await response.json();
-                if (json.status === 'ok') {
-                    if (toastMessage) {
-                        showToast(`✓ ${toastMessage}`, toastType);
-                    }
-                } else {
-                    showToast('⚠️ Failed to send timer command', 'danger');
+                // Send via WebSocket instead of HTTP
+                socket.emit(payload.specter_event, {
+                    code: apiKey,
+                    ...payload
+                });
+                if (toastMessage) {
+                    showToast(`✓ ${toastMessage}`, toastType);
                 }
-                return json;
             } catch (error) {
-                console.warn('Dashboard notify request error', error);
+                console.warn('Dashboard notify error', error);
                 showToast('⚠️ Error communicating with timer', 'danger');
             } finally {
                 setButtonsLoading(false);
             }
         };
-        
         const safeNumberValue = (input, fallback) => {
             if (!input) return fallback;
             const numeric = Number(input.value);
             return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
         };
-        
         const gatherDurations = () => ({
             duration_minutes: safeNumberValue(focusLengthInput, 60),
             focus_minutes: safeNumberValue(focusLengthInput, 60),
             break_minutes: safeNumberValue(breakLengthInput, 15)
         });
-        
+        // WebSocket connection for real-time sync
+        const socketUrl = 'wss://websocket.botofthespecter.com';
+        let socket;
+        let attempts = 0;
+        const scheduleReconnect = () => {
+            attempts += 1;
+            const delay = Math.min(5000 * attempts, 30000);
+            if (socket) {
+                socket.removeAllListeners();
+                socket = null;
+            }
+            setTimeout(connect, delay);
+        };
+        const connect = () => {
+            socket = io(socketUrl, { reconnection: false });
+            socket.on('connect', () => {
+                attempts = 0;
+                socket.emit('REGISTER', { code: apiKey, channel: 'Dashboard', name: 'Working Study Timer Dashboard' });
+            });
+            socket.on('disconnect', scheduleReconnect);
+            socket.on('connect_error', scheduleReconnect);
+            socket.on('SPECTER_TIMER_STATE', payload => {
+                const newState = (payload.state || '').toLowerCase();
+                if (['stopped', 'running', 'paused'].includes(newState)) {
+                    timerState = newState;
+                    updateButtonStates();
+                }
+            });
+        };
+        connect();
+        // Initialize button states
+        updateButtonStates();
         buttonsPhase.forEach(button => {
             button.addEventListener('click', async () => {
                 const phase = button.getAttribute('data-specter-phase');
@@ -382,7 +372,6 @@ ob_start();
                 );
             });
         });
-        
         buttonsControl.forEach(button => {
             button.addEventListener('click', async () => {
                 const action = button.getAttribute('data-specter-control');
@@ -393,7 +382,6 @@ ob_start();
                 );
             });
         });
-        
         // Input validation
         focusLengthInput.addEventListener('change', () => {
             const val = Number(focusLengthInput.value);
@@ -402,7 +390,6 @@ ob_start();
                 showToast('⚠️ Focus duration must be at least 1 minute', 'danger');
             }
         });
-        
         breakLengthInput.addEventListener('change', () => {
             const val = Number(breakLengthInput.value);
             if (!Number.isFinite(val) || val < 1) {
@@ -410,43 +397,6 @@ ob_start();
                 showToast('⚠️ Break duration must be at least 1 minute', 'danger');
             }
         });
-        
-        // Initialize button states
-        updateButtonStates();
-        
-        // WebSocket connection for real-time sync
-        const socketUrl = 'wss://websocket.botofthespecter.com';
-        let socket;
-        let attempts = 0;
-        
-        const scheduleReconnect = () => {
-            attempts += 1;
-            const delay = Math.min(5000 * attempts, 30000);
-            if (socket) {
-                socket.removeAllListeners();
-                socket = null;
-            }
-            setTimeout(connect, delay);
-        };
-        
-        const connect = () => {
-            socket = io(socketUrl, { reconnection: false });
-            socket.on('connect', () => {
-                attempts = 0;
-                socket.emit('REGISTER', { code: apiKey, channel: 'Dashboard', name: 'Working Study Timer Dashboard' });
-            });
-            socket.on('disconnect', scheduleReconnect);
-            socket.on('connect_error', scheduleReconnect);
-            socket.on('SPECTER_TIMER_STATE', payload => {
-                const newState = (payload.state || '').toLowerCase();
-                if (['stopped', 'running', 'paused'].includes(newState)) {
-                    timerState = newState;
-                    updateButtonStates();
-                }
-            });
-        };
-        
-        connect();
     })();
 </script>
 <?php
