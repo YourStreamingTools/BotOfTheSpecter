@@ -484,6 +484,7 @@ ob_start();
     (function () {
         const apiKey = <?php echo json_encode($api_key); ?>;
         const currentUsername = <?php echo json_encode($_SESSION['username']); ?>;
+        const dashboardDebug = false;
         const overlayLink = <?php echo json_encode($overlayLinkWithCode); ?>;
         const copyOverlayLinkBtn = document.getElementById('copyOverlayLinkBtn');
         const buttonsPhase = document.querySelectorAll('[data-specter-phase]');
@@ -859,6 +860,12 @@ ob_start();
             }
             setTimeout(connect, delay);
         };
+        if (typeof localStorage !== 'undefined') {
+            const storedDebug = localStorage.getItem('debug');
+            if (storedDebug && /socket\.io|engine\.io/.test(storedDebug)) {
+                localStorage.removeItem('debug');
+            }
+        }
         const connect = () => {
             console.log(`[Timer Dashboard] Connecting to WebSocket: ${socketUrl}`);
             socket = io(socketUrl, { reconnection: false });
@@ -915,9 +922,11 @@ ob_start();
                     console.log('[Timer Dashboard] Registration acknowledged by server');
                 }
             });
-            socket.onAny((event, ...args) => {
-                console.debug(`[Timer Dashboard] WebSocket event: ${event}`, args);
-            });
+            if (dashboardDebug) {
+                socket.onAny((event, ...args) => {
+                    console.debug(`[Timer Dashboard] WebSocket event: ${event}`, args);
+                });
+            }
         };
         connect();
         // Initialize button states
