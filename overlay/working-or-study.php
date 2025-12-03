@@ -1212,8 +1212,15 @@ ob_end_clean();
                         } else if (action === 'reset') {
                             window.SpecterWorkingStudyTimer.reset();
                         } else if (action === 'start') {
-                            if (typeof overriddenDuration === 'number') {
-                                window.SpecterWorkingStudyTimer.startPhase(currentPhase, { autoStart: true, duration: overriddenDuration });
+                            const needsRestart = overriddenDuration !== null || remainingSeconds <= 0;
+                            if (needsRestart) {
+                                const baseDuration = typeof overriddenDuration === 'number'
+                                    ? overriddenDuration
+                                    : defaultDurations[currentPhase];
+                                window.SpecterWorkingStudyTimer.startPhase(currentPhase, {
+                                    autoStart: true,
+                                    duration: baseDuration
+                                });
                             } else {
                                 window.SpecterWorkingStudyTimer.resume();
                             }
