@@ -1212,8 +1212,11 @@ ob_end_clean();
                         } else if (action === 'reset') {
                             window.SpecterWorkingStudyTimer.reset();
                         } else if (action === 'start') {
-                            const needsRestart = overriddenDuration !== null || remainingSeconds <= 0;
-                            if (needsRestart) {
+                            const shouldRestart = overriddenDuration !== null
+                                || remainingSeconds <= 0
+                                || !timerRunning
+                                || timerPaused;
+                            if (shouldRestart) {
                                 const baseDuration = typeof overriddenDuration === 'number'
                                     ? overriddenDuration
                                     : defaultDurations[currentPhase];
