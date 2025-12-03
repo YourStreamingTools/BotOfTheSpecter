@@ -810,7 +810,7 @@ ob_start();
             if (isRequesting) return;
             setButtonsLoading(true);
             try {
-                if (!socket || !socket.connected) {
+                if (!socket || !socket.connected || !socketReady) {
                     console.error('[Timer Dashboard] Socket not connected');
                     showToast('⚠️ Not connected to timer server', 'danger');
                     setButtonsLoading(false);
@@ -847,6 +847,7 @@ ob_start();
         // WebSocket connection for real-time sync
         const socketUrl = 'wss://websocket.botofthespecter.com';
         let socket;
+        let socketReady = false;
         let attempts = 0;
         const scheduleReconnect = () => {
             attempts += 1;
@@ -861,6 +862,7 @@ ob_start();
         const connect = () => {
             console.log(`[Timer Dashboard] Connecting to WebSocket: ${socketUrl}`);
             socket = io(socketUrl, { reconnection: false });
+            socketReady = false;
             socket.on('connect', () => {
                 attempts = 0;
                 console.log('[Timer Dashboard] ✓ Connected to WebSocket');
@@ -871,6 +873,7 @@ ob_start();
             });
             socket.on('disconnect', (reason) => {
                 console.warn(`[Timer Dashboard] ✗ Disconnected: ${reason}`);
+                socketReady = false;
                 scheduleReconnect();
             });
             socket.on('connect_error', (error) => {
@@ -904,6 +907,12 @@ ob_start();
                 if (payload.tasks) {
                     taskList = payload.tasks;
                     renderTaskList();
+                }
+            });
+            socket.on('SUCCESS', payload => {
+                if (payload && typeof payload.message === 'string' && payload.message.toLowerCase().includes('registration')) {
+                    socketReady = true;
+                    console.log('[Timer Dashboard] Registration acknowledged by server');
                 }
             });
             socket.onAny((event, ...args) => {
