@@ -453,7 +453,9 @@ class BotOfTheSpecter_WebsocketServer:
                 payload_repr = json.dumps(data, default=str)
             except Exception:
                 payload_repr = str(data)
-            self.logger.debug(f"Payload for {event_name}: {payload_repr}")
+            payload_snippet = payload_repr if len(payload_repr) <= 400 else f"{payload_repr[:400]}..."
+            source_info = f" source_sid={source_sid}" if source_sid else ""
+            self.logger.info(f"Payload for {event_name}:{source_info} {payload_snippet}")
         self.logger.info(f"Broadcasted {event_name} to {count} clients (code: {effective_code})")
         return count
 
