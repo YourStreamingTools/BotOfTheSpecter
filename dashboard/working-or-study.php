@@ -68,48 +68,149 @@ ob_start();
         </header>
         <div class="card-content">
             <div class="content">
-                <p>The Specter working/study overlay keeps a single timer synced with the familiar Specter cadence so your chat can follow along. Open the overlay in another tab or capture it in your stream layout, and it will respond to the same controls below.</p>
+                <p><strong>Specter Working/Study Timer Overlay</strong></p>
+                <p>Control a professional productivity timer overlay displayed on your stream. Track focus sessions, breaks, and recharge time with real-time visual feedback.</p>
                 <ul>
-                    <li>Three ready-made phases: focus sprint, micro break, and recharge stretch.</li>
-                    <li>The timer card shows current status, accent color, and countdown without extra clutter.</li>
-                    <li>Use the phase buttons to jump between blocks, then pause or reset with the timer controls.</li>
+                    <li>Visual progress ring that depletes with time</li>
+                    <li>Dynamic color coding for each phase: Orange (focus), Cyan (break), Purple (recharge)</li>
+                    <li>Session counter and total time logged statistics</li>
+                    <li>Sound notifications when phases complete</li>
+                    <li>Real-time synchronization via WebSocket</li>
+                    <li>Responsive design that scales for stream overlays</li>
                 </ul>
             </div>
-            <div class="columns is-multiline">
-                <div class="column is-half">
-                    <h3 class="title is-6">Phase controls</h3>
-                    <div class="buttons is-flex-wrap-wrap">
-                        <button type="button" class="button is-primary" data-specter-phase="focus">Start focus sprint</button>
-                        <button type="button" class="button is-link" data-specter-phase="micro">Start micro break</button>
-                        <button type="button" class="button is-warning" data-specter-phase="recharge">Start recharge stretch</button>
-                    </div>
-                </div>
-                <div class="column is-half">
-                    <h3 class="title is-6">Timer controls</h3>
-                    <div class="buttons">
-                        <button type="button" class="button is-primary" data-specter-control="start">Start</button>
-                        <button type="button" class="button is-info" data-specter-control="pause">Pause</button>
-                        <button type="button" class="button is-success" data-specter-control="resume">Resume</button>
-                        <button type="button" class="button is-danger" data-specter-control="reset">Reset</button>
-                        <button type="button" class="button is-dark" data-specter-control="stop">Stop</button>
-                    </div>
+            <div class="box">
+                <div class="buttons" style="margin-bottom: 1rem;">
+                    <a class="button is-primary is-loading-toggle" href="<?php echo htmlspecialchars($overlayLinkWithCode); ?>" target="_blank" rel="noreferrer">
+                        <span class="icon">
+                            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                        </span>
+                        <span>Open Overlay</span>
+                    </a>
                 </div>
             </div>
-            <div class="columns">
-                <div class="column is-half">
-                    <div class="field">
-                        <label class="label is-size-7">Focus length (minutes)</label>
-                        <div class="control">
-                            <input id="focusLengthMinutes" class="input" type="number" min="1" step="1" value="60" placeholder="Focus minutes">
+            <div class="columns is-multiline">
+                <div class="column is-full">
+                    <h3 class="title is-6">Duration Settings</h3>
+                    <div class="columns">
+                        <div class="column is-half">
+                            <div class="field">
+                                <label class="label">
+                                    <span class="icon-text">
+                                        <span class="icon">
+                                            <i class="fas fa-fire" aria-hidden="true"></i>
+                                        </span>
+                                        <span>Focus Sprint Duration</span>
+                                    </span>
+                                </label>
+                                <div class="control">
+                                    <div class="field has-addons">
+                                        <p class="control is-expanded">
+                                            <input id="focusLengthMinutes" class="input" type="number" min="1" step="1" value="60" placeholder="Focus minutes">
+                                        </p>
+                                        <p class="control">
+                                            <span class="button is-static">min</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <p class="help">How long to focus before a break</p>
+                            </div>
+                        </div>
+                        <div class="column is-half">
+                            <div class="field">
+                                <label class="label">
+                                    <span class="icon-text">
+                                        <span class="icon">
+                                            <i class="fas fa-leaf" aria-hidden="true"></i>
+                                        </span>
+                                        <span>Break Duration</span>
+                                    </span>
+                                </label>
+                                <div class="control">
+                                    <div class="field has-addons">
+                                        <p class="control is-expanded">
+                                            <input id="breakLengthMinutes" class="input" type="number" min="1" step="1" value="15" placeholder="Break minutes">
+                                        </p>
+                                        <p class="control">
+                                            <span class="button is-static">min</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <p class="help">Applies to both micro and recharge breaks</p>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="column is-half">
-                    <div class="field">
-                        <label class="label is-size-7">Break length (minutes)</label>
-                        <div class="control">
-                            <input id="breakLengthMinutes" class="input" type="number" min="1" step="1" value="15" placeholder="Break minutes">
-                        </div>
+                    <h3 class="title is-6">
+                        <span class="icon-text">
+                            <span class="icon">
+                                <i class="fas fa-bolt" aria-hidden="true"></i>
+                            </span>
+                            <span>Phase Controls</span>
+                        </span>
+                    </h3>
+                    <div class="buttons is-flex-wrap-wrap">
+                        <button type="button" class="button is-medium is-danger" data-specter-phase="focus" style="flex: 1; min-width: 100%; margin-bottom: 0.5rem;">
+                            <span class="icon">
+                                <i class="fas fa-hourglass-start" aria-hidden="true"></i>
+                            </span>
+                            <span>Start Focus Sprint</span>
+                        </button>
+                        <button type="button" class="button is-medium is-info" data-specter-phase="micro" style="flex: 1; min-width: 100%; margin-bottom: 0.5rem;">
+                            <span class="icon">
+                                <i class="fas fa-mug-hot" aria-hidden="true"></i>
+                            </span>
+                            <span>Start Micro Break</span>
+                        </button>
+                        <button type="button" class="button is-medium is-warning" data-specter-phase="recharge" style="flex: 1; min-width: 100%; margin-bottom: 0;">
+                            <span class="icon">
+                                <i class="fas fa-stretch" aria-hidden="true"></i>
+                            </span>
+                            <span>Start Recharge Stretch</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="column is-half">
+                    <h3 class="title is-6">
+                        <span class="icon-text">
+                            <span class="icon">
+                                <i class="fas fa-play" aria-hidden="true"></i>
+                            </span>
+                            <span>Timer Controls</span>
+                        </span>
+                    </h3>
+                    <div class="buttons is-flex-wrap-wrap">
+                        <button type="button" class="button is-medium is-primary" data-specter-control="start" style="flex: 1; min-width: calc(50% - 0.25rem); margin-right: 0.5rem; margin-bottom: 0.5rem;">
+                            <span class="icon">
+                                <i class="fas fa-play" aria-hidden="true"></i>
+                            </span>
+                            <span>Start</span>
+                        </button>
+                        <button type="button" class="button is-medium is-warning" data-specter-control="pause" style="flex: 1; min-width: calc(50% - 0.25rem); margin-bottom: 0.5rem;">
+                            <span class="icon">
+                                <i class="fas fa-pause" aria-hidden="true"></i>
+                            </span>
+                            <span>Pause</span>
+                        </button>
+                        <button type="button" class="button is-medium is-success" data-specter-control="resume" style="flex: 1; min-width: calc(50% - 0.25rem); margin-right: 0.5rem; margin-bottom: 0.5rem;">
+                            <span class="icon">
+                                <i class="fas fa-redo" aria-hidden="true"></i>
+                            </span>
+                            <span>Resume</span>
+                        </button>
+                        <button type="button" class="button is-medium is-info" data-specter-control="reset" style="flex: 1; min-width: calc(50% - 0.25rem); margin-bottom: 0.5rem;">
+                            <span class="icon">
+                                <i class="fas fa-sync" aria-hidden="true"></i>
+                            </span>
+                            <span>Reset</span>
+                        </button>
+                        <button type="button" class="button is-medium is-danger" data-specter-control="stop" style="flex: 1; min-width: 100%;">
+                            <span class="icon">
+                                <i class="fas fa-stop" aria-hidden="true"></i>
+                            </span>
+                            <span>Stop</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -130,6 +231,9 @@ ob_start();
         const focusLengthInput = document.getElementById('focusLengthMinutes');
         const breakLengthInput = document.getElementById('breakLengthMinutes');
         const toastArea = document.getElementById('toastArea');
+        
+        let isRequesting = false;
+        
         const getToastArea = () => {
             if (toastArea) return toastArea;
             const fallback = document.querySelector('.toast-area');
@@ -139,24 +243,30 @@ ob_start();
             document.body.appendChild(created);
             return created;
         };
+        
         const showToast = (message, type = 'success') => {
             if (!message) return;
             const area = getToastArea();
             const toast = document.createElement('div');
             toast.className = `working-study-toast ${type}`;
-            toast.textContent = message;
+            toast.innerHTML = `<div style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-${type === 'danger' ? 'exclamation-circle' : 'check-circle'}" style="font-size: 16px;"></i>
+                <span>${message}</span>
+            </div>`;
             area.appendChild(toast);
             requestAnimationFrame(() => toast.classList.add('visible'));
             setTimeout(() => {
                 toast.classList.remove('visible');
                 toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-            }, 3200);
+            }, 3500);
         };
+        
         const phaseNames = {
-            focus: 'Focus sprint',
-            micro: 'Micro break',
-            recharge: 'Recharge stretch'
+            focus: 'Focus Sprint',
+            micro: 'Micro Break',
+            recharge: 'Recharge Stretch'
         };
+        
         const controlMessages = {
             start: 'Timer started',
             pause: 'Timer paused',
@@ -164,7 +274,20 @@ ob_start();
             reset: 'Timer reset',
             stop: 'Timer stopped'
         };
+        
+        const setButtonsLoading = (loading) => {
+            isRequesting = loading;
+            const allButtons = document.querySelectorAll('[data-specter-phase], [data-specter-control]');
+            allButtons.forEach(btn => {
+                btn.disabled = loading;
+                btn.style.opacity = loading ? '0.6' : '1';
+                btn.style.cursor = loading ? 'not-allowed' : 'pointer';
+            });
+        };
+        
         const notifyServer = async (payload, toastMessage = '', toastType = 'success') => {
+            if (isRequesting) return;
+            setButtonsLoading(true);
             const body = new URLSearchParams(payload);
             try {
                 const response = await fetch(window.location.pathname, {
@@ -175,31 +298,41 @@ ob_start();
                 });
                 if (!response.ok) {
                     console.warn('Dashboard notify request failed', response.status, response.statusText);
-                    showToast('Timer request failed', 'danger');
+                    showToast('⚠️ Timer request failed', 'danger');
+                    setButtonsLoading(false);
                     return;
                 }
                 const json = await response.json();
-                if (toastMessage && json.status === 'ok') {
-                    showToast(toastMessage, toastType);
+                if (json.status === 'ok') {
+                    if (toastMessage) {
+                        showToast(`✓ ${toastMessage}`, toastType);
+                    }
+                } else {
+                    showToast('⚠️ Failed to send timer command', 'danger');
                 }
                 return json;
             } catch (error) {
                 console.warn('Dashboard notify request error', error);
-                showToast('Timer request failed', 'danger');
+                showToast('⚠️ Error communicating with timer', 'danger');
+            } finally {
+                setButtonsLoading(false);
             }
         };
+        
         const safeNumberValue = (input, fallback) => {
             if (!input) return fallback;
             const numeric = Number(input.value);
             return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
         };
+        
         const gatherDurations = () => ({
             duration_minutes: safeNumberValue(focusLengthInput, 60),
             focus_minutes: safeNumberValue(focusLengthInput, 60),
             break_minutes: safeNumberValue(breakLengthInput, 15)
         });
+        
         buttonsPhase.forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', async () => {
                 const phase = button.getAttribute('data-specter-phase');
                 const payload = { phase, auto_start: 1 };
                 if (phase === 'focus') {
@@ -208,15 +341,40 @@ ob_start();
                     payload.duration_minutes = safeNumberValue(breakLengthInput, 15);
                 }
                 const phaseName = phaseNames[phase] || phase;
-                notifyServer({ specter_event: 'SPECTER_PHASE', ...payload, ...gatherDurations() }, `Timer started ${phaseName}`);
+                await notifyServer(
+                    { specter_event: 'SPECTER_PHASE', ...payload, ...gatherDurations() }, 
+                    `Started ${phaseName}`, 
+                    'success'
+                );
             });
         });
+        
         buttonsControl.forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', async () => {
                 const action = button.getAttribute('data-specter-control');
                 const toastMessage = controlMessages[action] || `Timer ${action}`;
-                notifyServer({ specter_event: 'SPECTER_TIMER_CONTROL', action, ...gatherDurations() }, toastMessage);
+                await notifyServer(
+                    { specter_event: 'SPECTER_TIMER_CONTROL', action, ...gatherDurations() }, 
+                    toastMessage
+                );
             });
+        });
+        
+        // Input validation
+        focusLengthInput.addEventListener('change', () => {
+            const val = Number(focusLengthInput.value);
+            if (!Number.isFinite(val) || val < 1) {
+                focusLengthInput.value = 60;
+                showToast('⚠️ Focus duration must be at least 1 minute', 'danger');
+            }
+        });
+        
+        breakLengthInput.addEventListener('change', () => {
+            const val = Number(breakLengthInput.value);
+            if (!Number.isFinite(val) || val < 1) {
+                breakLengthInput.value = 15;
+                showToast('⚠️ Break duration must be at least 1 minute', 'danger');
+            }
         });
     })();
 </script>

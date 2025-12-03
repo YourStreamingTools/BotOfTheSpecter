@@ -217,26 +217,82 @@ button.is-link {
     align-items: flex-end;
 }
 .working-study-toast {
-    background: rgba(5, 5, 10, 0.85);
+    background: rgba(5, 5, 10, 0.95);
     color: #ffffff;
     font-weight: 500;
-    padding: 0.65rem 1.1rem;
+    padding: 0.75rem 1.25rem;
     border-radius: 999px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
     opacity: 0;
     transform: translateY(10px);
-    transition: opacity 220ms ease, transform 220ms ease;
+    transition: opacity 250ms ease, transform 250ms ease;
+    pointer-events: auto;
+    min-width: 250px;
+    max-width: 400px;
 }
 .working-study-toast.visible {
     opacity: 1;
     transform: translateY(0);
 }
 .working-study-toast.success {
-    background: rgba(36, 199, 96, 0.85);
+    background: linear-gradient(135deg, rgba(36, 199, 96, 0.9), rgba(36, 199, 96, 0.7));
+    border-color: rgba(36, 199, 96, 0.3);
 }
 .working-study-toast.danger {
-    background: rgba(255, 78, 101, 0.95);
+    background: linear-gradient(135deg, rgba(255, 78, 101, 0.95), rgba(255, 78, 101, 0.8));
+    border-color: rgba(255, 78, 101, 0.3);
 }
+
+/* Timer-specific button enhancements */
+[data-specter-phase],
+[data-specter-control] {
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+[data-specter-phase]:hover:not(:disabled),
+[data-specter-control]:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-specter-phase]:active:not(:disabled),
+[data-specter-control]:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+[data-specter-phase]:disabled,
+[data-specter-control]:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
+
+/* Timer input styling */
+#focusLengthMinutes,
+#breakLengthMinutes {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    transition: all 150ms ease;
+}
+
+#focusLengthMinutes:focus,
+#breakLengthMinutes:focus {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: #ff9161;
+    box-shadow: 0 0 12px rgba(255, 145, 97, 0.3);
+}
+
+#focusLengthMinutes::placeholder,
+#breakLengthMinutes::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
 
 .progress {
     height: 0.75rem;
