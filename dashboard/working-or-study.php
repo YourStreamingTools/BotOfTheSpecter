@@ -30,6 +30,117 @@ $pageTitle = 'Working & Study Timer';
 $overlayLink = 'https://overlay.botofthespecter.com/working-or-study.php';
 $overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key) . '&timer';
 
+// Handle API requests for working study settings and tasks
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    header('Content-Type: application/json');
+    $action = $_POST['action'];
+    
+    // Verify database connection exists
+    if (!isset($usrDBconn) || !$usrDBconn) {
+        echo json_encode(['success' => false, 'error' => 'Database connection not available']);
+        exit;
+    }
+    if ($action === 'get_settings') {
+        // Load timer settings from database
+        $stmt = $usrDBconn->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes FROM working_study_overlay_settings LIMIT 1");
+        if (!$stmt) {
+            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $usrDBconn->error]);
+            exit;
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $settings = $result->fetch_assoc();
+        if (!$settings) {
+            // Return defaults if no settings exist
+            $settings = [
+                'focus_minutes' => 60,
+                'micro_break_minutes' => 5,
+                'recharge_break_minutes' => 30
+            ];
+        }
+        echo json_encode(['success' => true, 'data' => $settings]);
+        $stmt->close();
+        exit;
+    }
+    if ($action === 'save_settings') {
+        // Save timer settings to database
+        $focus = intval($_POST['focus_minutes'] ?? 60);
+        $micro = intval($_POST['micro_break_minutes'] ?? 5);
+        $recharge = intval($_POST['recharge_break_minutes'] ?? 30);
+        $stmt = $usrDBconn->prepare("UPDATE working_study_overlay_settings SET focus_minutes = ?, micro_break_minutes = ?, recharge_break_minutes = ? WHERE id = 1");
+        if (!$stmt) {
+            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $usrDBconn->error]);
+            exit;
+        }
+        $stmt->bind_param("iii", $focus, $micro, $recharge);
+        $success = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => $success]);
+        exit;
+    }
+    if ($action === 'get_tasks') {
+        // Load all tasks for current user from database
+        $username = (string)$_SESSION['username'];
+        $stmt = $usrDBconn->prepare("SELECT task_id as id, title, priority, completed FROM working_study_overlay_tasks WHERE username = ? ORDER BY created_at DESC");
+        if (!$stmt) {
+            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $usrDBconn->error]);
+            exit;
+        }
+        $stmt->bind_param("s", $username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $tasks = [];
+        while ($row = $result->fetch_assoc()) {
+            $tasks[] = [
+                'id' => $row['id'],
+                'title' => $row['title'],
+                'priority' => $row['priority'],
+                'completed' => (bool)$row['completed']
+            ];
+        }
+        $stmt->close();
+        echo json_encode(['success' => true, 'data' => $tasks]);
+        exit;
+    }
+    if ($action === 'save_tasks') {
+        // Save all tasks for current user to database
+        $username = (string)$_SESSION['username'];
+        $tasks = json_decode($_POST['tasks'] ?? '[]', true);
+        if (!is_array($tasks)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid tasks format']);
+            exit;
+        }
+        // Clear existing tasks for this user only
+        $stmt = $usrDBconn->prepare("DELETE FROM working_study_overlay_tasks WHERE username = ?");
+        if ($stmt) {
+            $stmt->bind_param("s", $username);
+            $stmt->execute();
+            $stmt->close();
+        }
+        // Insert new tasks for this user
+        $stmt = $usrDBconn->prepare("INSERT INTO working_study_overlay_tasks (username, task_id, title, priority, completed) VALUES (?, ?, ?, ?, ?)");
+        if (!$stmt) {
+            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $usrDBconn->error]);
+            exit;
+        }
+        $success = true;
+        foreach ($tasks as $task) {
+            $task_id = (string)($task['id'] ?? '');
+            $title = (string)($task['title'] ?? '');
+            $priority = (string)($task['priority'] ?? 'medium');
+            $completed = $task['completed'] ? 1 : 0;
+            $stmt->bind_param("ssssi", $username, $task_id, $title, $priority, $completed);
+            if (!$stmt->execute()) {
+                $success = false;
+                break;
+            }
+        }
+        $stmt->close();
+        echo json_encode(['success' => $success]);
+        exit;
+    }
+}
+
 ob_start();
 ?>
 <section class="section">
@@ -257,6 +368,74 @@ ob_start();
             </div>
         </div>
     </div>
+    <div class="card">
+        <header class="card-header">
+            <p class="card-header-title">
+                Task List Management
+            </p>
+            <div class="buttons">
+                <button type="button" class="button is-info is-small" id="copyTasklistCombinedBtn">
+                    <span class="icon">
+                        <i class="fas fa-copy" aria-hidden="true"></i>
+                    </span>
+                    <span>Copy Link (Combined)</span>
+                </button>
+                <button type="button" class="button is-info is-small" id="copyTasklistLinkBtn">
+                    <span class="icon">
+                        <i class="fas fa-copy" aria-hidden="true"></i>
+                    </span>
+                    <span>Copy Link (Streamer)</span>
+                </button>
+                <button type="button" class="button is-info is-small" id="copyTasklistUserLinkBtn">
+                    <span class="icon">
+                        <i class="fas fa-copy" aria-hidden="true"></i>
+                    </span>
+                    <span>Copy Link (Users)</span>
+                </button>
+            </div>
+        </header>
+        <div class="card-content">
+            <div class="content">
+                <p><strong>Display a Task List on Your Stream</strong></p>
+                <p>Create and manage a beautiful task list overlay that shows your productivity goals to viewers. Tasks can be toggled as complete by users watching your stream.</p>
+            </div>
+            <div class="columns is-multiline">
+                <div class="column is-full">
+                    <h3 class="title is-6">Add New Task</h3>
+                    <div class="field is-grouped">
+                        <div class="control is-expanded">
+                            <input id="taskInputTitle" class="input" type="text" placeholder="Enter task title..." maxlength="100">
+                        </div>
+                        <div class="control">
+                            <div class="select">
+                                <select id="taskInputPriority">
+                                    <option value="low">Low</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="control">
+                            <button type="button" class="button is-primary" id="addTaskBtn">
+                                <span class="icon">
+                                    <i class="fas fa-plus" aria-hidden="true"></i>
+                                </span>
+                                <span>Add Task</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-full">
+                    <h3 class="title is-6">Current Tasks</h3>
+                    <div id="taskListDisplay" style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
+                        <div style="padding: 20px; text-align: center; color: rgba(255, 255, 255, 0.5);">
+                            <p>No tasks yet. Add one to get started!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="toast-area" id="toastArea" aria-live="polite" role="status"></div>
 </section>
 <?php
@@ -268,6 +447,7 @@ ob_start();
 <script>
     (function () {
         const apiKey = <?php echo json_encode($api_key); ?>;
+        const currentUsername = <?php echo json_encode($_SESSION['username']); ?>;
         const overlayLink = <?php echo json_encode($overlayLinkWithCode); ?>;
         const copyOverlayLinkBtn = document.getElementById('copyOverlayLinkBtn');
         const buttonsPhase = document.querySelectorAll('[data-specter-phase]');
@@ -291,6 +471,178 @@ ob_start();
         let timerState = 'stopped'; // stopped, running, paused
         let sessionsCompleted = 0;
         let totalTimeLogged = 0;
+        // Task List Management
+        const taskInputTitle = document.getElementById('taskInputTitle');
+        const taskInputPriority = document.getElementById('taskInputPriority');
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        const taskListDisplay = document.getElementById('taskListDisplay');
+        const copyTasklistLinkBtn = document.getElementById('copyTasklistLinkBtn');
+        const copyTasklistUserLinkBtn = document.getElementById('copyTasklistUserLinkBtn');
+        const copyTasklistCombinedBtn = document.getElementById('copyTasklistCombinedBtn');
+        let taskList = [];
+        const tasklistLinkStreamer = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=true`;
+        const tasklistLinkUsers = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=false`;
+        const tasklistLinkCombined = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist`;
+        // Load settings from database
+        const loadSettingsFromDatabase = async () => {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'get_settings');
+                const response = await fetch(window.location.href, { method: 'POST', body: formData });
+                const result = await response.json();
+                if (result.success && result.data) {
+                    focusLengthInput.value = result.data.focus_minutes;
+                    microBreakInput.value = result.data.micro_break_minutes;
+                    breakLengthInput.value = result.data.recharge_break_minutes;
+                    console.log('[Timer] Settings loaded from database:', result.data);
+                }
+            } catch (error) {
+                console.error('[Timer] Error loading settings:', error);
+            }
+        };
+        // Save settings to database
+        const saveSettingsToDatabase = async () => {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'save_settings');
+                formData.append('focus_minutes', focusLengthInput.value);
+                formData.append('micro_break_minutes', microBreakInput.value);
+                formData.append('recharge_break_minutes', breakLengthInput.value);
+                const response = await fetch(window.location.href, { method: 'POST', body: formData });
+                const result = await response.json();
+                if (result.success) {
+                    console.log('[Timer] Settings saved to database');
+                    showToast('✓ Timer settings saved', 'success');
+                }
+            } catch (error) {
+                console.error('[Timer] Error saving settings:', error);
+                showToast('⚠️ Error saving settings', 'danger');
+            }
+        };
+        // Load tasks from database
+        const loadTasksFromDatabase = async () => {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'get_tasks');
+                const response = await fetch(window.location.href, { method: 'POST', body: formData });
+                const result = await response.json();
+                if (result.success && result.data) {
+                    taskList = result.data;
+                    renderTaskList();
+                    console.log('[Tasks] Loaded from database:', taskList.length, 'tasks');
+                }
+            } catch (error) {
+                console.error('[Tasks] Error loading tasks:', error);
+            }
+        };
+        // Save tasks to database
+        const saveTasksToDatabase = async () => {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'save_tasks');
+                formData.append('tasks', JSON.stringify(taskList));
+                const response = await fetch(window.location.href, { method: 'POST', body: formData });
+                const result = await response.json();
+                if (result.success) {
+                    console.log('[Tasks] Saved to database');
+                }
+            } catch (error) {
+                console.error('[Tasks] Error saving tasks:', error);
+            }
+        };
+        const renderTaskList = () => {
+            if (!taskList || taskList.length === 0) {
+                taskListDisplay.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: rgba(255, 255, 255, 0.5);">
+                        <p>No tasks yet. Add one to get started!</p>
+                    </div>
+                `;
+                return;
+            }
+            taskListDisplay.innerHTML = taskList.map((task, index) => `
+                <div style="padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center; transition: background 0.2s ease;" class="task-dashboard-item">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div class="task-checkbox-custom ${task.completed ? 'checked' : ''}" data-task-index="${index}" style="flex-shrink: 0; width: 20px; height: 20px; min-width: 20px; border: 2px solid ${task.completed ? '#2ecc71' : 'rgba(255, 255, 255, 0.3)'}; border-radius: 4px; background: ${task.completed ? '#2ecc71' : 'transparent'}; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #ffffff; text-shadow: ${task.completed ? '0 1px 2px rgba(0, 0, 0, 0.3)' : 'none'};">${task.completed ? '✓' : ''}</div>
+                            <span style="color: #f8fbff; ${task.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHtml(task.title)}</span>
+                            <span style="padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: ${getPriorityColor(task.priority, true)}; color: ${getPriorityColor(task.priority)};">${task.priority}</span>
+                        </div>
+                    </div>
+                    <button type="button" class="button is-small is-danger is-light" data-task-index="${index}" style="margin-left: 8px;">
+                        <span class="icon is-small">
+                            <i class="fas fa-trash" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                </div>
+            `).join('');
+            // Add event listeners
+            taskListDisplay.querySelectorAll('.task-checkbox-custom').forEach(checkbox => {
+                checkbox.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.dataset.taskIndex);
+                    taskList[index].completed = !taskList[index].completed;
+                    renderTaskList();
+                    emitTaskListUpdate();
+                });
+                checkbox.addEventListener('mouseenter', (e) => {
+                    if (!taskList[parseInt(e.target.dataset.taskIndex)].completed) {
+                        e.target.style.borderColor = 'var(--accent-color)';
+                        e.target.style.background = 'rgba(255, 255, 255, 0.05)';
+                    }
+                });
+                checkbox.addEventListener('mouseleave', (e) => {
+                    if (!taskList[parseInt(e.target.dataset.taskIndex)].completed) {
+                        e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                        e.target.style.background = 'transparent';
+                    }
+                });
+            });
+            taskListDisplay.querySelectorAll('.button.is-danger').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.currentTarget.dataset.taskIndex);
+                    taskList.splice(index, 1);
+                    renderTaskList();
+                    emitTaskListUpdate();
+                });
+            });
+            // Add hover effect
+            taskListDisplay.querySelectorAll('.task-dashboard-item').forEach(item => {
+                item.addEventListener('mouseenter', () => {
+                    item.style.background = 'rgba(255, 255, 255, 0.04)';
+                });
+                item.addEventListener('mouseleave', () => {
+                    item.style.background = 'transparent';
+                });
+            });
+        };
+        const getPriorityColor = (priority, background = false) => {
+            const colors = {
+                high: { bg: 'rgba(255, 145, 97, 0.2)', text: '#ff9161' },
+                medium: { bg: 'rgba(107, 233, 255, 0.2)', text: '#6be9ff' },
+                low: { bg: 'rgba(180, 131, 255, 0.2)', text: '#b483ff' }
+            };
+            return (colors[priority.toLowerCase()] || colors.medium)[background ? 'bg' : 'text'];
+        };
+        const escapeHtml = (text) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        };
+        const emitTaskListUpdate = () => {
+            if (socket && socket.connected) {
+                console.log('[Dashboard] Emitting task list via WebSocket:', taskList.length, 'tasks');
+                socket.emit('SPECTER_TASKLIST', {
+                    code: apiKey,
+                    tasks: taskList,
+                    streamerView: false,
+                    timestamp: Date.now(),
+                    channel: 'Overlay'  // Ensure task list overlay receives this on Overlay channel
+                });
+            } else {
+                console.warn('[Dashboard] WebSocket not connected, cannot emit task list');
+            }
+            // Save to database
+            saveTasksToDatabase();
+        };
         const getToastArea = () => {
             if (toastArea) return toastArea;
             const fallback = document.querySelector('.toast-area');
@@ -499,6 +851,13 @@ ob_start();
                 console.log('[Timer Dashboard] Received timer update:', payload);
                 updateLiveTimer(payload);
             });
+            socket.on('SPECTER_TASKLIST_UPDATE', payload => {
+                console.log('[Timer Dashboard] Received task list update:', payload);
+                if (payload.tasks) {
+                    taskList = payload.tasks;
+                    renderTaskList();
+                }
+            });
             socket.onAny((event, ...args) => {
                 console.debug(`[Timer Dashboard] WebSocket event: ${event}`, args);
             });
@@ -522,6 +881,83 @@ ob_start();
                 showToast('⚠️ Failed to copy link to clipboard', 'danger');
             }
         });
+        // Task list copy buttons
+        copyTasklistLinkBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(tasklistLinkStreamer);
+                showToast('✓ Streamer task list link copied!', 'success');
+                const originalHTML = copyTasklistLinkBtn.innerHTML;
+                copyTasklistLinkBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>Copied!</span>';
+                setTimeout(() => {
+                    copyTasklistLinkBtn.innerHTML = originalHTML;
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                showToast('⚠️ Failed to copy link', 'danger');
+            }
+        });
+        copyTasklistUserLinkBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(tasklistLinkUsers);
+                showToast('✓ Users task list link copied!', 'success');
+                const originalHTML = copyTasklistUserLinkBtn.innerHTML;
+                copyTasklistUserLinkBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>Copied!</span>';
+                setTimeout(() => {
+                    copyTasklistUserLinkBtn.innerHTML = originalHTML;
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                showToast('⚠️ Failed to copy link', 'danger');
+            }
+        });
+        // Combined task list link (works for both streamer and users)
+        copyTasklistCombinedBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(tasklistLinkCombined);
+                showToast('✓ Combined task list link copied!', 'success');
+                const originalHTML = copyTasklistCombinedBtn.innerHTML;
+                copyTasklistCombinedBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>Copied!</span>';
+                setTimeout(() => {
+                    copyTasklistCombinedBtn.innerHTML = originalHTML;
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                showToast('⚠️ Failed to copy link', 'danger');
+            }
+        });
+        // Add task button
+        addTaskBtn.addEventListener('click', () => {
+            const title = taskInputTitle.value.trim();
+            const priority = taskInputPriority.value;
+            if (!title) {
+                showToast('⚠️ Please enter a task title', 'warning');
+                taskInputTitle.focus();
+                return;
+            }
+            taskList.push({
+                id: Date.now(),
+                title,
+                priority,
+                completed: false,
+                username: currentUsername,
+                createdAt: new Date().toISOString()
+            });
+            
+            taskInputTitle.value = '';
+            taskInputPriority.value = 'medium';
+            renderTaskList();
+            emitTaskListUpdate();
+            showToast(`✓ Task added: "${title}"`, 'success');
+        });
+        // Enter key to add task
+        taskInputTitle.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addTaskBtn.click();
+            }
+        });
+        // Initialize by loading from database
+        loadSettingsFromDatabase();
+        loadTasksFromDatabase();
         buttonsPhase.forEach(button => {
             button.addEventListener('click', async () => {
                 const phase = button.getAttribute('data-specter-phase');
@@ -557,6 +993,8 @@ ob_start();
             if (!Number.isFinite(val) || val < 1) {
                 focusLengthInput.value = 60;
                 showToast('⚠️ Focus duration must be at least 1 minute', 'danger');
+            } else {
+                saveSettingsToDatabase();
             }
         });
         microBreakInput.addEventListener('change', () => {
@@ -564,6 +1002,8 @@ ob_start();
             if (!Number.isFinite(val) || val < 1) {
                 microBreakInput.value = 5;
                 showToast('⚠️ Micro break duration must be at least 1 minute', 'danger');
+            } else {
+                saveSettingsToDatabase();
             }
         });
         breakLengthInput.addEventListener('change', () => {
@@ -571,6 +1011,8 @@ ob_start();
             if (!Number.isFinite(val) || val < 1) {
                 breakLengthInput.value = 30;
                 showToast('⚠️ Break duration must be at least 1 minute', 'danger');
+            } else {
+                saveSettingsToDatabase();
             }
         });
         // Request stats from overlay every 3 seconds to keep dashboard updated
