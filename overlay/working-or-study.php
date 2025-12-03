@@ -44,25 +44,24 @@
             width: min(420px, 90vw);
         }
         .timer-wrapper {
-            width: var(--timer-width);
+            width: 100%;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
         }
         .timer-card {
-            width: calc(var(--timer-width) / var(--overlay-scale));
-            padding: calc(40px / var(--overlay-scale));
-            border-radius: calc(32px / var(--overlay-scale));
+            width: var(--timer-width);
+            padding: 40px;
+            border-radius: 32px;
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(4, 6, 11, 0.98));
-            border: calc(2px / var(--overlay-scale)) solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 calc(50px / var(--overlay-scale)) calc(100px / var(--overlay-scale)) rgba(0, 0, 0, 0.75), 
-                        inset 0 calc(1px / var(--overlay-scale)) rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 50px 100px rgba(0, 0, 0, 0.75), 
+                        inset 0 1px rgba(255, 255, 255, 0.1);
             display: flex;
             flex-direction: column;
-            gap: calc(24px / var(--overlay-scale));
+            gap: 24px;
             text-align: center;
-            transform: scale(var(--overlay-scale));
-            transform-origin: center center;
             position: relative;
             overflow: hidden;
         }
@@ -72,14 +71,14 @@
             top: 0;
             left: 0;
             right: 0;
-            height: calc(4px / var(--overlay-scale));
+            height: 4px;
             background: linear-gradient(90deg, var(--accent-color), transparent);
             opacity: 0.6;
         }
         .timer-ring-container {
             position: relative;
-            width: calc(280px / var(--overlay-scale));
-            height: calc(280px / var(--overlay-scale));
+            width: 280px;
+            height: 280px;
             margin: 0 auto;
             display: flex;
             align-items: center;
@@ -94,13 +93,13 @@
         .timer-ring svg {
             width: 100%;
             height: 100%;
-            filter: drop-shadow(0 calc(4px / var(--overlay-scale)) calc(8px / var(--overlay-scale)) rgba(0, 0, 0, 0.3));
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
         }
         .timer-ring-progress {
             stroke: var(--accent-color);
             stroke-linecap: round;
             transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
-            filter: drop-shadow(0 calc(2px / var(--overlay-scale)) calc(4px / var(--overlay-scale)) rgba(255, 255, 255, 0.2));
+            filter: drop-shadow(0 2px 4px rgba(255, 255, 255, 0.2));
         }
         .timer-ring-background {
             stroke: rgba(255, 255, 255, 0.08);
@@ -114,11 +113,11 @@
             text-align: center;
         }
         .timer-display {
-            font-size: clamp(calc(48px / var(--overlay-scale)), calc(8vw / var(--overlay-scale)), calc(72px / var(--overlay-scale)));
+            font-size: clamp(48px, 8vw, 72px);
             font-weight: 700;
-            letter-spacing: calc(2px / var(--overlay-scale));
+            letter-spacing: 2px;
             font-variant-numeric: tabular-nums;
-            text-shadow: 0 calc(4px / var(--overlay-scale)) calc(12px / var(--overlay-scale)) rgba(0, 0, 0, 0.5);
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
         }
         .timer-milliseconds {
             font-size: calc(0.4em);
@@ -126,12 +125,12 @@
             margin-top: calc(-4px / var(--overlay-scale));
         }
         .timer-status {
-            font-size: calc(0.9rem / var(--overlay-scale));
-            letter-spacing: calc(0.3em / var(--overlay-scale));
+            font-size: 0.9rem;
+            letter-spacing: 0.3em;
             text-transform: uppercase;
             color: var(--accent-color);
             font-weight: 600;
-            text-shadow: 0 calc(2px / var(--overlay-scale)) calc(8px / var(--overlay-scale)) rgba(0, 0, 0, 0.3);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
             animation: phaseGlow 2s ease-in-out infinite;
         }
         @keyframes phaseGlow {
@@ -139,55 +138,55 @@
             50% { opacity: 0.7; }
         }
         .status-chip {
-            font-size: calc(0.85rem / var(--overlay-scale));
-            padding: calc(8px / var(--overlay-scale)) calc(16px / var(--overlay-scale));
-            border-radius: calc(999px / var(--overlay-scale));
+            font-size: 0.85rem;
+            padding: 8px 16px;
+            border-radius: 999px;
             background: rgba(255, 255, 255, 0.08);
-            border: calc(1px / var(--overlay-scale)) solid rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             display: inline-flex;
             align-items: center;
-            gap: calc(8px / var(--overlay-scale));
+            gap: 8px;
             margin: 0 auto;
-            backdrop-filter: blur(calc(10px / var(--overlay-scale)));
+            backdrop-filter: blur(10px);
             transition: all 0.3s ease;
         }
         .status-chip.active {
             background: rgba(255, 255, 255, 0.12);
             border-color: var(--accent-color);
-            box-shadow: 0 0 calc(16px / var(--overlay-scale)) rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 16px rgba(255, 255, 255, 0.15);
         }
         .status-indicator {
             display: inline-block;
-            width: calc(8px / var(--overlay-scale));
-            height: calc(8px / var(--overlay-scale));
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background: var(--accent-color);
             animation: pulse 2s ease-in-out infinite;
-            box-shadow: 0 0 calc(8px / var(--overlay-scale)) var(--accent-color);
+            box-shadow: 0 0 8px var(--accent-color);
         }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
         .session-stats {
-            font-size: calc(0.75rem / var(--overlay-scale));
+            font-size: 0.75rem;
             color: rgba(255, 255, 255, 0.6);
             display: flex;
             justify-content: space-around;
-            padding-top: calc(12px / var(--overlay-scale));
-            border-top: calc(1px / var(--overlay-scale)) solid rgba(255, 255, 255, 0.08);
-            gap: calc(8px / var(--overlay-scale));
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            gap: 8px;
         }
         .stat-item {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: calc(4px / var(--overlay-scale));
+            gap: 4px;
         }
         .stat-value {
             color: var(--accent-color);
             font-weight: 600;
-            font-size: calc(0.9rem / var(--overlay-scale));
+            font-size: 0.9rem;
         }
     </style>
 </head>
