@@ -13,6 +13,7 @@ if (!isset($_SESSION['access_token'])) {
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include 'userdata.php';
+include 'usr_database.php';
 include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';

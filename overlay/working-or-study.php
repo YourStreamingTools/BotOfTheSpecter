@@ -50,6 +50,40 @@ if (!$error_html) {
     $user_db = new mysqli($db_servername, $db_username, $db_password, $secondary_db_name);
     if ($user_db->connect_error) {
         $error_html = "Connection to user database failed: " . htmlspecialchars($user_db->connect_error);
+    } else {
+        // Ensure required tables exist in user database
+        $tables_to_create = [
+            'working_study_overlay_settings' => "
+                CREATE TABLE IF NOT EXISTS working_study_overlay_settings (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    focus_minutes INT DEFAULT 60,
+                    micro_break_minutes INT DEFAULT 5,
+                    recharge_break_minutes INT DEFAULT 30,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            'working_study_overlay_tasks' => "
+                CREATE TABLE IF NOT EXISTS working_study_overlay_tasks (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    username VARCHAR(255) NOT NULL,
+                    task_id VARCHAR(255) NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    priority VARCHAR(20) DEFAULT 'medium',
+                    completed TINYINT(1) DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE (username, task_id),
+                    INDEX idx_username (username)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        ];
+        
+        foreach ($tables_to_create as $table_name => $create_sql) {
+            $table_exists = $user_db->query("SHOW TABLES LIKE '$table_name'")->num_rows > 0;
+            if (!$table_exists) {
+                if (!$user_db->query($create_sql)) {
+                    error_log("Failed to create table $table_name: " . $user_db->error);
+                }
+            }
+        }
     }
 }
 
@@ -100,7 +134,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
             exit;
         }
         $stmt->bind_param("s", $username);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            echo json_encode(['success' => false, 'error' => 'Execute failed: ' . $stmt->error]);
+            exit;
+        }
         $result = $stmt->get_result();
         $tasks = [];
         while ($row = $result->fetch_assoc()) {
