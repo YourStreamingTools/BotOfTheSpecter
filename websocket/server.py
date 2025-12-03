@@ -271,10 +271,7 @@ class BotOfTheSpecter_WebsocketServer:
                 self.save_music_settings(code, data)
                 self.logger.info(f"Saved MUSIC_SETTINGS from event for code {code}")
         elif event and event not in self.explicit_event_handlers:
-            broadcast_code = self.get_code_by_sid(sid)
-            if not broadcast_code and data and isinstance(data, dict):
-                broadcast_code = data.get('code') or data.get('channel_code')
-            await self.broadcast_event_with_globals(event, data or {}, broadcast_code)
+            await self.broadcast_event_with_globals(event, data or {}, source_sid=sid)
 
     async def connect(self, sid, environ, auth):
         # Handle the connect event for SocketIO.
@@ -433,18 +430,25 @@ class BotOfTheSpecter_WebsocketServer:
         }
         await self.sio.emit("LIST_CLIENTS", output, to=sid)
 
-    async def broadcast_event_with_globals(self, event_name, data, code=None):
+    async def broadcast_event_with_globals(self, event_name, data, code=None, source_sid=None):
         count = 0
+        effective_code = code
+        if not effective_code:
+            if source_sid:
+                effective_code = self.get_code_by_sid(source_sid)
+            if not effective_code and data and isinstance(data, dict):
+                effective_code = data.get('code') or data.get('channel_code')
         # Broadcast to specific code clients if code is provided
-        if code and code in self.registered_clients:
-            for client in self.registered_clients[code]:
-                await self.sio.emit(event_name, {**data, "channel_code": code}, to=client['sid'])
+        if effective_code and effective_code in self.registered_clients:
+            for client in self.registered_clients[effective_code]:
+                await self.sio.emit(event_name, {**data, "channel_code": effective_code}, to=client['sid'])
                 count += 1
         # Broadcast to all global listeners
+        channel_code_for_globals = effective_code or "unknown"
         for listener in self.global_listeners:
-            await self.sio.emit(event_name, {**data, "channel_code": code or "unknown"}, to=listener['sid'])
+            await self.sio.emit(event_name, {**data, "channel_code": channel_code_for_globals}, to=listener['sid'])
             count += 1
-        self.logger.info(f"Broadcasted {event_name} to {count} clients (code: {code})")
+        self.logger.info(f"Broadcasted {event_name} to {count} clients (code: {effective_code})")
         return count
 
     def get_code_by_sid(self, sid):
