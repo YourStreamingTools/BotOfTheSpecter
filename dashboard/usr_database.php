@@ -496,6 +496,27 @@ try {
                 INDEX idx_game_id (game_id),
                 INDEX idx_rank (`rank`),
                 FOREIGN KEY (game_id) REFERENCES bingo_games(game_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'working_study_overlay_settings' => "
+            CREATE TABLE IF NOT EXISTS working_study_overlay_settings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                focus_minutes INT DEFAULT 60,
+                micro_break_minutes INT DEFAULT 5,
+                recharge_break_minutes INT DEFAULT 30,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'working_study_overlay_tasks' => "
+            CREATE TABLE IF NOT EXISTS working_study_overlay_tasks (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                username VARCHAR(255) NOT NULL,
+                task_id VARCHAR(255) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                priority VARCHAR(20) DEFAULT 'medium',
+                completed TINYINT(1) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE (username, task_id),
+                INDEX idx_username (username)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)
@@ -561,7 +582,9 @@ try {
         'member_streams' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'username' => "VARCHAR(255) NOT NULL",'stream_url' => "VARCHAR(255) NOT NULL"],
         'command_options' => ['command' => "TEXT",'options' => "JSON"],
         'bingo_games' => ['game_id' => "VARCHAR(255) PRIMARY KEY",'start_time' => "DATETIME DEFAULT CURRENT_TIMESTAMP",'end_time' => "DATETIME NULL",'events_count' => "INT DEFAULT 0",'is_sub_only' => "BOOLEAN DEFAULT FALSE",'random_call_only' => "BOOLEAN DEFAULT TRUE",'status' => "ENUM('active', 'completed') DEFAULT 'active'"],
-        'bingo_winners' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'game_id' => "VARCHAR(255) NOT NULL",'player_name' => "VARCHAR(255) NOT NULL",'player_id' => "VARCHAR(255) NOT NULL",'rank' => "INT NOT NULL",'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"]
+        'bingo_winners' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'game_id' => "VARCHAR(255) NOT NULL",'player_name' => "VARCHAR(255) NOT NULL",'player_id' => "VARCHAR(255) NOT NULL",'rank' => "INT NOT NULL",'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
+        'working_study_overlay_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'focus_minutes' => "INT DEFAULT 60",'micro_break_minutes' => "INT DEFAULT 5",'recharge_break_minutes' => "INT DEFAULT 30",'updated_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"],
+        'working_study_overlay_tasks' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT",'username' => "VARCHAR(255) NOT NULL",'task_id' => "VARCHAR(255) NOT NULL",'title' => "VARCHAR(255) NOT NULL",'priority' => "VARCHAR(20) DEFAULT 'medium'",'completed' => "TINYINT(1) DEFAULT 0",'created_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",'updated_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"]
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
@@ -672,6 +695,10 @@ try {
     }
     if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default ad_notice_settings options ensured.');
+    }
+    // Ensure default options for working_study_overlay_settings
+    if ($usrDBconn->query("INSERT INTO working_study_overlay_settings (focus_minutes, micro_break_minutes, recharge_break_minutes) SELECT 60, 5, 30 WHERE NOT EXISTS (SELECT 1 FROM working_study_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default working_study_overlay_settings options ensured.');
     }
     // Ensure default options for streamer_preferences exist
     if ($usrDBconn->query("INSERT INTO streamer_preferences (send_welcome_messages, default_welcome_message, new_default_welcome_message, default_vip_welcome_message, new_default_vip_welcome_message, default_mod_welcome_message, new_default_mod_welcome_message) 
