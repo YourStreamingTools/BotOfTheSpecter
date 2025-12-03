@@ -798,14 +798,6 @@ ob_start();
         };
         const setButtonsLoading = (loading) => {
             isRequesting = loading;
-            const allButtons = document.querySelectorAll('[data-specter-phase], [data-specter-control]');
-            allButtons.forEach(btn => {
-                if (btn.style.display !== 'none') {
-                    btn.disabled = loading;
-                    btn.style.opacity = loading ? '0.6' : btn.style.opacity;
-                    btn.style.cursor = loading ? 'not-allowed' : btn.style.cursor;
-                }
-            });
         };
         const notifyServer = async (payload, toastMessage = '', toastType = 'success') => {
             if (isRequesting) return;
