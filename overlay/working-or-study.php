@@ -1202,6 +1202,7 @@ ob_end_clean();
                         window.SpecterWorkingStudyTimer.startPhase(phaseKey, { autoStart, duration: overriddenDuration });
                     });
                     socket.on('SPECTER_TIMER_CONTROL', payload => {
+                        console.log('[Overlay] SPECTER_TIMER_CONTROL payload:', payload);
                         const action = (payload.action || payload.command || '').toLowerCase();
                         updateDefaultDurationsFromPayload(payload);
                         const overriddenDuration = parseDurationOverride(payload);
@@ -1212,21 +1213,13 @@ ob_end_clean();
                         } else if (action === 'reset') {
                             window.SpecterWorkingStudyTimer.reset();
                         } else if (action === 'start') {
-                            const shouldRestart = overriddenDuration !== null
-                                || remainingSeconds <= 0
-                                || !timerRunning
-                                || timerPaused;
-                            if (shouldRestart) {
-                                const baseDuration = typeof overriddenDuration === 'number'
-                                    ? overriddenDuration
-                                    : defaultDurations[currentPhase];
-                                window.SpecterWorkingStudyTimer.startPhase(currentPhase, {
-                                    autoStart: true,
-                                    duration: baseDuration
-                                });
-                            } else {
-                                window.SpecterWorkingStudyTimer.resume();
-                            }
+                            const baseDuration = typeof overriddenDuration === 'number'
+                                ? overriddenDuration
+                                : defaultDurations[currentPhase];
+                            window.SpecterWorkingStudyTimer.startPhase(currentPhase, {
+                                autoStart: true,
+                                duration: baseDuration
+                            });
                         } else if (action === 'stop') {
                             window.SpecterWorkingStudyTimer.stop();
                         }
@@ -1249,6 +1242,11 @@ ob_end_clean();
                         console.debug('[Overlay]', event, args);
                     });
                 }
+                socket.onAny((event, ...args) => {
+                    if (event === 'SPECTER_TIMER_CONTROL') {
+                        console.log('[Overlay] onAny captured control event', args);
+                    }
+                });
             };
             // Emit stats every 5 seconds to keep dashboard updated (timer mode only)
             if (showTimer) {
