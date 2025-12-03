@@ -1081,12 +1081,6 @@ ob_start();
                 saveSettingsToDatabase();
             }
         });
-        // Request stats from overlay every 3 seconds to keep dashboard updated
-        setInterval(() => {
-            if (socket && socket.connected) {
-                socket.emit('SPECTER_STATS_REQUEST', { code: apiKey });
-            }
-        }, 15000);
     })();
 </script>
 <?php
