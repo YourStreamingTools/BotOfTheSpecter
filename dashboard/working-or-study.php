@@ -223,6 +223,7 @@ $content = ob_get_clean();
 
 ob_start();
 ?>
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
     (function () {
         const apiKey = <?php echo json_encode($api_key); ?>;
@@ -231,8 +232,14 @@ ob_start();
         const focusLengthInput = document.getElementById('focusLengthMinutes');
         const breakLengthInput = document.getElementById('breakLengthMinutes');
         const toastArea = document.getElementById('toastArea');
+        const startBtn = document.querySelector('[data-specter-control="start"]');
+        const pauseBtn = document.querySelector('[data-specter-control="pause"]');
+        const resumeBtn = document.querySelector('[data-specter-control="resume"]');
+        const stopBtn = document.querySelector('[data-specter-control="stop"]');
+        const resetBtn = document.querySelector('[data-specter-control="reset"]');
         
         let isRequesting = false;
+        let timerState = 'stopped'; // stopped, running, paused
         
         const getToastArea = () => {
             if (toastArea) return toastArea;
@@ -261,6 +268,31 @@ ob_start();
             }, 3500);
         };
         
+        const updateButtonStates = () => {
+            if (timerState === 'stopped') {
+                startBtn.style.display = 'block';
+                pauseBtn.style.display = 'none';
+                resumeBtn.style.display = 'none';
+                stopBtn.style.opacity = '0.5';
+                stopBtn.style.cursor = 'not-allowed';
+                stopBtn.disabled = true;
+            } else if (timerState === 'running') {
+                startBtn.style.display = 'none';
+                pauseBtn.style.display = 'block';
+                resumeBtn.style.display = 'none';
+                stopBtn.style.opacity = '1';
+                stopBtn.style.cursor = 'pointer';
+                stopBtn.disabled = false;
+            } else if (timerState === 'paused') {
+                startBtn.style.display = 'none';
+                pauseBtn.style.display = 'none';
+                resumeBtn.style.display = 'block';
+                stopBtn.style.opacity = '1';
+                stopBtn.style.cursor = 'pointer';
+                stopBtn.disabled = false;
+            }
+        };
+        
         const phaseNames = {
             focus: 'Focus Sprint',
             micro: 'Micro Break',
@@ -279,9 +311,11 @@ ob_start();
             isRequesting = loading;
             const allButtons = document.querySelectorAll('[data-specter-phase], [data-specter-control]');
             allButtons.forEach(btn => {
-                btn.disabled = loading;
-                btn.style.opacity = loading ? '0.6' : '1';
-                btn.style.cursor = loading ? 'not-allowed' : 'pointer';
+                if (btn.style.display !== 'none') {
+                    btn.disabled = loading;
+                    btn.style.opacity = loading ? '0.6' : btn.style.opacity;
+                    btn.style.cursor = loading ? 'not-allowed' : btn.style.cursor;
+                }
             });
         };
         
@@ -376,6 +410,43 @@ ob_start();
                 showToast('⚠️ Break duration must be at least 1 minute', 'danger');
             }
         });
+        
+        // Initialize button states
+        updateButtonStates();
+        
+        // WebSocket connection for real-time sync
+        const socketUrl = 'wss://websocket.botofthespecter.com';
+        let socket;
+        let attempts = 0;
+        
+        const scheduleReconnect = () => {
+            attempts += 1;
+            const delay = Math.min(5000 * attempts, 30000);
+            if (socket) {
+                socket.removeAllListeners();
+                socket = null;
+            }
+            setTimeout(connect, delay);
+        };
+        
+        const connect = () => {
+            socket = io(socketUrl, { reconnection: false });
+            socket.on('connect', () => {
+                attempts = 0;
+                socket.emit('REGISTER', { code: apiKey, channel: 'Dashboard', name: 'Working Study Timer Dashboard' });
+            });
+            socket.on('disconnect', scheduleReconnect);
+            socket.on('connect_error', scheduleReconnect);
+            socket.on('SPECTER_TIMER_STATE', payload => {
+                const newState = (payload.state || '').toLowerCase();
+                if (['stopped', 'running', 'paused'].includes(newState)) {
+                    timerState = newState;
+                    updateButtonStates();
+                }
+            });
+        };
+        
+        connect();
     })();
 </script>
 <?php

@@ -20,7 +20,8 @@
         html,
         body {
             margin: 0;
-            min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
             background-color: transparent;
             background-image: none;
             font-family: "Inter", "Segoe UI", system-ui, sans-serif;
@@ -31,7 +32,7 @@
             justify-content: center;
             align-items: center;
             width: 100%;
-            padding: 20px;
+            padding: 0;
         }
         .placeholder {
             display: none;
@@ -45,7 +46,7 @@
         }
         .timer-wrapper {
             width: 100%;
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -256,6 +257,8 @@
             let countdownId = null;
             let sessionsCompleted = 0;
             let totalTimeLogged = 0;
+            let timerRunning = false;
+            let timerPaused = false;
             const phaseLabel = document.getElementById('phaseLabel');
             const statusChip = document.getElementById('statusChip');
             const statusText = document.getElementById('statusText');
@@ -264,6 +267,13 @@
             const sessionsCompletedEl = document.getElementById('sessionsCompleted');
             const totalTimeLoggedEl = document.getElementById('totalTimeLogged');
             const circumference = 2 * Math.PI * 130;
+            
+            const emitTimerState = (state) => {
+                if (socket && socket.connected) {
+                    socket.emit('SPECTER_TIMER_STATE', { state, code: apiCode });
+                }
+            };
+            
             const formatTime = seconds => {
                 const mins = Math.floor(seconds / 60);
                 const secs = seconds % 60;
@@ -316,7 +326,10 @@
             };
             const startCountdown = () => {
                 clearCountdown();
+                timerRunning = true;
+                timerPaused = false;
                 statusChip.classList.add('active');
+                emitTimerState('running');
                 countdownId = setInterval(() => {
                     if (remainingSeconds <= 0) {
                         clearCountdown();
@@ -326,6 +339,8 @@
                         sessionsCompleted += 1;
                         totalTimeLogged += totalDurationForPhase;
                         updateStats();
+                        timerRunning = false;
+                        emitTimerState('stopped');
                         return;
                     }
                     remainingSeconds -= 1;
@@ -335,29 +350,57 @@
             };
             const pauseTimer = () => {
                 clearCountdown();
+                timerRunning = false;
+                timerPaused = true;
                 statusChip.classList.remove('active');
                 statusText.textContent = 'Paused — resume when ready';
+                emitTimerState('paused');
                 updateDisplay();
             };
             const resumeTimer = () => {
                 if (remainingSeconds <= 0) return;
+                timerRunning = true;
+                timerPaused = false;
                 statusChip.classList.add('active');
-                startCountdown();
+                emitTimerState('running');
+                countdownId = setInterval(() => {
+                    if (remainingSeconds <= 0) {
+                        clearCountdown();
+                        statusChip.classList.remove('active');
+                        statusText.textContent = 'Session complete — choose next phase';
+                        playNotificationSound();
+                        sessionsCompleted += 1;
+                        totalTimeLogged += totalDurationForPhase;
+                        updateStats();
+                        timerRunning = false;
+                        emitTimerState('stopped');
+                        return;
+                    }
+                    remainingSeconds -= 1;
+                    updateDisplay();
+                }, 1000);
+                updateDisplay();
             };
             const resetTimer = () => {
                 clearCountdown();
+                timerRunning = false;
+                timerPaused = false;
                 statusChip.classList.remove('active');
                 remainingSeconds = defaultDurations[currentPhase];
                 totalDurationForPhase = defaultDurations[currentPhase];
                 statusText.textContent = 'Ready for another round';
+                emitTimerState('stopped');
                 updateDisplay();
             };
             const stopTimer = () => {
                 clearCountdown();
+                timerRunning = false;
+                timerPaused = false;
                 statusChip.classList.remove('active');
                 remainingSeconds = 0;
                 updateDisplay();
                 statusText.textContent = 'Timer stopped';
+                emitTimerState('stopped');
             };
             const updateDefaultDurationsFromPayload = payload => {
                 if (!payload) return;
@@ -404,9 +447,13 @@
                 phases[phase] = { ...phases[phase], duration: durationSeconds };
                 remainingSeconds = durationSeconds;
                 totalDurationForPhase = durationSeconds;
+                timerRunning = false;
+                timerPaused = false;
                 updateDisplay();
                 if (autoStart) {
                     startCountdown();
+                } else {
+                    emitTimerState('stopped');
                 }
             };
             window.SpecterWorkingStudyTimer = {
