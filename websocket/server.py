@@ -272,6 +272,8 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.info(f"Saved MUSIC_SETTINGS from event for code {code}")
         elif event and event not in self.explicit_event_handlers:
             broadcast_code = self.get_code_by_sid(sid)
+            if not broadcast_code and data and isinstance(data, dict):
+                broadcast_code = data.get('code') or data.get('channel_code')
             await self.broadcast_event_with_globals(event, data or {}, broadcast_code)
 
     async def connect(self, sid, environ, auth):
