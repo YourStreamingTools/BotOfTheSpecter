@@ -272,6 +272,7 @@ button.is-link {
 
 /* Timer input styling */
 #focusLengthMinutes,
+#microBreakMinutes,
 #breakLengthMinutes {
     background-color: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -282,6 +283,7 @@ button.is-link {
 }
 
 #focusLengthMinutes:focus,
+#microBreakMinutes:focus,
 #breakLengthMinutes:focus {
     background-color: rgba(255, 255, 255, 0.08);
     border-color: #ff9161;
@@ -289,6 +291,7 @@ button.is-link {
 }
 
 #focusLengthMinutes::placeholder,
+#microBreakMinutes::placeholder,
 #breakLengthMinutes::placeholder {
     color: rgba(255, 255, 255, 0.4);
 }

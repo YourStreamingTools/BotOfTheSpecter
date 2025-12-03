@@ -231,8 +231,8 @@
                 return Number.isFinite(numeric) && numeric > 0 ? minutesToSeconds(numeric) : null;
             };
             const focusSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('focus_minutes'), 60));
-            const microSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('break_minutes'), 15));
-            const rechargeSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('recharge_minutes'), 15));
+            const microSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('break_minutes'), 5));
+            const rechargeSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('recharge_minutes'), 30));
             const phases = {
                 focus: { label: 'Focus sprint', duration: focusSeconds, status: 'Flow mode on', accent: '#ff9161' },
                 micro: { label: 'Micro break', duration: microSeconds, status: 'Recharge quickly', accent: '#6be9ff' },
