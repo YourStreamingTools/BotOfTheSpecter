@@ -642,6 +642,10 @@ ob_end_clean();
                 micro: microSeconds,
                 recharge: rechargeSeconds
             };
+            let showTimer = false;
+            let showTasklist = false;
+            const TIMER_STATE_KEY = 'specterWorkingStudyTimerState';
+            const TIMER_STATE_TTL = 2 * 60 * 1000;
             let currentPhase = 'focus';
             let remainingSeconds = phases[currentPhase].duration;
             let totalDurationForPhase = phases[currentPhase].duration;
@@ -794,11 +798,12 @@ ob_end_clean();
             };
             const updateDisplay = () => {
                 phaseLabel.textContent = phases[currentPhase].label;
-                statusText.textContent = phases[currentPhase].status;
+                statusText.textContent = getStatusText();
                 timerDisplay.textContent = formatTime(remainingSeconds);
                 document.documentElement.style.setProperty('--accent-color', phases[currentPhase].accent);
                 timerRingProgress.style.stroke = phases[currentPhase].accent;
                 updateProgressRing();
+                persistTimerState();
             };
             const clearCountdown = () => {
                 if (countdownId) {
@@ -909,6 +914,82 @@ ob_end_clean();
                 emitTimerState('stopped');
                 emitTimerUpdate();
             };
+            function readTimerStateFromStorage() {
+                if (typeof localStorage === 'undefined') {
+                    return null;
+                }
+                try {
+                    const raw = localStorage.getItem(TIMER_STATE_KEY);
+                    return raw ? JSON.parse(raw) : null;
+                } catch (error) {
+                    console.debug('[Overlay] Unable to read stored timer state:', error);
+                    return null;
+                }
+            }
+            function persistTimerState() {
+                if (!showTimer || typeof localStorage === 'undefined') {
+                    return;
+                }
+                try {
+                    const state = {
+                        phase: currentPhase,
+                        remainingSeconds,
+                        totalDurationForPhase,
+                        timerRunning,
+                        timerPaused,
+                        sessionsCompleted,
+                        totalTimeLogged,
+                        lastUpdated: Date.now()
+                    };
+                    localStorage.setItem(TIMER_STATE_KEY, JSON.stringify(state));
+                } catch (error) {
+                    console.debug('[Overlay] Unable to persist timer state:', error);
+                }
+            }
+            function getStatusText() {
+                if (timerPaused) {
+                    return 'Paused — resume when ready';
+                }
+                if (!timerRunning && remainingSeconds <= 0) {
+                    return 'Timer stopped';
+                }
+                return phases[currentPhase].status;
+            }
+            function restoreTimerState() {
+                if (!showTimer || typeof localStorage === 'undefined') {
+                    return false;
+                }
+                const saved = readTimerStateFromStorage();
+                if (!saved || typeof saved !== 'object') {
+                    return false;
+                }
+                const lastUpdated = Number(saved.lastUpdated);
+                if (lastUpdated && Date.now() - lastUpdated > TIMER_STATE_TTL) {
+                    return false;
+                }
+                const storedPhase = saved.phase;
+                if (!storedPhase || !phases[storedPhase]) {
+                    return false;
+                }
+                const storedRemaining = Number(saved.remainingSeconds);
+                if (!Number.isFinite(storedRemaining)) {
+                    return false;
+                }
+                clearCountdown();
+                currentPhase = storedPhase;
+                totalDurationForPhase = defaultDurations[currentPhase];
+                remainingSeconds = Math.min(Math.max(0, storedRemaining), totalDurationForPhase);
+                timerPaused = Boolean(saved.timerPaused);
+                timerRunning = Boolean(saved.timerRunning) && remainingSeconds > 0;
+                sessionsCompleted = Number.isFinite(saved.sessionsCompleted) ? saved.sessionsCompleted : sessionsCompleted;
+                totalTimeLogged = Number.isFinite(saved.totalTimeLogged) ? saved.totalTimeLogged : totalTimeLogged;
+                updateDisplay();
+                updateStats();
+                if (timerRunning && !countdownId) {
+                    startCountdown();
+                }
+                return true;
+            }
             const updateDefaultDurationsFromPayload = payload => {
                 if (!payload) return;
                 const focusOverride = parseMinutesValue(payload.focus_minutes);
@@ -946,6 +1027,7 @@ ob_end_clean();
             const updateStats = () => {
                 sessionsCompletedLargeEl.textContent = sessionsCompleted;
                 totalTimeLoggedLargeEl.textContent = formatTotalTime(totalTimeLogged);
+                persistTimerState();
             };
             const setPhase = (phase, { autoStart = true, duration = null } = {}) => {
                 if (!phases[phase]) return;
@@ -980,8 +1062,8 @@ ob_end_clean();
             };
             const timerWrapper = document.getElementById('timerWrapper');
             const timerPlaceholder = document.getElementById('timerPlaceholder');
-            const showTimer = urlParams.has('timer');
-            const showTasklist = urlParams.has('tasklist');
+            showTimer = urlParams.has('timer');
+            showTasklist = urlParams.has('tasklist');
             // Handle overlay mode selection
             if (!showTimer && !showTasklist) {
                 timerWrapper.style.display = 'none';
@@ -1023,6 +1105,7 @@ ob_end_clean();
                 timerWrapper.style.display = 'flex';
                 setPhase('focus', { autoStart: false });
                 updateStats();
+                restoreTimerState();
             }
             // Determine connection name based on mode - format: "[Type]"
             const connectionName = showTasklist ? 'Working Study Task List' : 'Working Study Timer';
@@ -1055,6 +1138,7 @@ ob_end_clean();
                         phases.recharge.duration = defaultDurations.recharge;
                         console.log('[Overlay] Settings loaded from API:', result.data);
                         updateDisplay();
+                        restoreTimerState();
                     } else if (!result.success) {
                         console.error('[Overlay] Error loading settings:', result.error);
                     }
