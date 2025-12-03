@@ -611,6 +611,13 @@ ob_end_clean();
     </div>
     <script>
         (() => {
+            const overlayDebug = false;
+            if (typeof localStorage !== 'undefined') {
+                const storedDebug = localStorage.getItem('debug');
+                if (storedDebug && /socket\.io|engine\.io/.test(storedDebug)) {
+                    localStorage.removeItem('debug');
+                }
+            }
             const urlParams = new URLSearchParams(window.location.search);
             const parseMinutesParam = (value, fallback) => {
                 if (value === undefined || value === null || value === '') return fallback;
@@ -1143,9 +1150,11 @@ ob_end_clean();
                         loadTasksFromAPI();
                     });
                 }
-                socket.onAny((event, ...args) => {
-                    console.debug('[Overlay] WebSocket event:', event, args);
-                });
+                if (overlayDebug) {
+                    socket.onAny((event, ...args) => {
+                        console.debug('[Overlay]', event, args);
+                    });
+                }
             };
             // Emit stats every 5 seconds to keep dashboard updated (timer mode only)
             if (showTimer) {
