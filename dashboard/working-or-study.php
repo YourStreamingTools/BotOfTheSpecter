@@ -207,6 +207,53 @@ ob_start();
                         </button>
                     </div>
                 </div>
+                <div class="column is-full">
+                    <h3 class="title is-6">
+                        <span class="icon-text">
+                            <span class="icon">
+                                <i class="fas fa-hourglass" aria-hidden="true"></i>
+                            </span>
+                            <span>Live Timer</span>
+                        </span>
+                    </h3>
+                    <div class="box" style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); text-align: center;">
+                        <div style="margin-bottom: 12px;">
+                            <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
+                                <span id="livePhaseLabel">Focus Sprint</span> • <span id="livePhaseStatus">Waiting to start</span>
+                            </p>
+                        </div>
+                        <p id="liveTimerDisplay" style="font-size: 4rem; font-weight: 700; color: #ff9161; margin: 0; font-variant-numeric: tabular-nums; font-family: 'Monaco', 'Menlo', monospace;">00:00</p>
+                        <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); margin-top: 8px;">
+                            <span id="liveTimerState" style="color: rgba(255, 255, 255, 0.7);">Not Running</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="column is-full">
+                    <h3 class="title is-6">
+                        <span class="icon-text">
+                            <span class="icon">
+                                <i class="fas fa-chart-line" aria-hidden="true"></i>
+                            </span>
+                            <span>Live Session Stats</span>
+                        </span>
+                    </h3>
+                    <div class="box" style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center;">
+                            <div>
+                                <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
+                                    <i class="fas fa-hourglass-end" style="margin-right: 6px;"></i>Sessions Completed
+                                </p>
+                                <p id="overlaySessionsCount" style="font-size: 2.5rem; font-weight: 700; color: #ff9161; margin: 0;">0</p>
+                            </div>
+                            <div>
+                                <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
+                                    <i class="fas fa-clock" style="margin-right: 6px;"></i>Total Focus Time
+                                </p>
+                                <p id="overlayTotalTime" style="font-size: 2.5rem; font-weight: 700; color: #6be9ff; margin: 0;">0h 0m</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -232,6 +279,12 @@ ob_start();
         const resumeBtn = document.querySelector('[data-specter-control="resume"]');
         const stopBtn = document.querySelector('[data-specter-control="stop"]');
         const resetBtn = document.querySelector('[data-specter-control="reset"]');
+        const overlaySessionsCountEl = document.getElementById('overlaySessionsCount');
+        const overlayTotalTimeEl = document.getElementById('overlayTotalTime');
+        const liveTimerDisplay = document.getElementById('liveTimerDisplay');
+        const livePhaseLabel = document.getElementById('livePhaseLabel');
+        const livePhaseStatus = document.getElementById('livePhaseStatus');
+        const liveTimerState = document.getElementById('liveTimerState');
         let isRequesting = false;
         let timerState = 'stopped'; // stopped, running, paused
         let sessionsCompleted = 0;
@@ -293,6 +346,36 @@ ob_start();
                 return `${hours}h ${minutes}m`;
             }
             return `${minutes}m`;
+        };
+        
+        const formatTime = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        };
+        
+        const updateLiveTimer = (timerData) => {
+            if (!timerData) return;
+            liveTimerDisplay.textContent = formatTime(timerData.remainingSeconds || 0);
+            livePhaseLabel.textContent = timerData.phaseLabel || 'Unknown';
+            livePhaseStatus.textContent = timerData.phaseStatus || 'Waiting';
+            
+            // Update timer color based on phase
+            if (timerData.phaseColor) {
+                liveTimerDisplay.style.color = timerData.phaseColor;
+            }
+            
+            // Update timer state display
+            if (timerData.timerRunning) {
+                liveTimerState.textContent = 'Running';
+                liveTimerState.style.color = '#6be9ff';
+            } else if (timerData.timerPaused) {
+                liveTimerState.textContent = 'Paused';
+                liveTimerState.style.color = '#ff9161';
+            } else {
+                liveTimerState.textContent = 'Not Running';
+                liveTimerState.style.color = 'rgba(255, 255, 255, 0.7)';
+            }
         };
         
         const updateStatsDisplay = () => {
@@ -381,6 +464,8 @@ ob_start();
                 console.log('[Timer Dashboard] ✓ Connected to WebSocket');
                 console.log('[Timer Dashboard] Registering as Dashboard');
                 socket.emit('REGISTER', { code: apiKey, channel: 'Dashboard', name: 'Working Study Timer Dashboard' });
+                // Request stats from overlay on connect
+                socket.emit('SPECTER_STATS_REQUEST', { code: apiKey });
             });
             socket.on('disconnect', (reason) => {
                 console.warn(`[Timer Dashboard] ✗ Disconnected: ${reason}`);
@@ -404,6 +489,13 @@ ob_start();
                 sessionsCompleted = payload.sessionsCompleted || 0;
                 totalTimeLogged = payload.totalTimeLogged || 0;
                 updateStatsDisplay();
+                // Update the UI display elements
+                overlaySessionsCountEl.textContent = sessionsCompleted;
+                overlayTotalTimeEl.textContent = formatTotalTime(totalTimeLogged);
+            });
+            socket.on('SPECTER_TIMER_UPDATE', payload => {
+                console.log('[Timer Dashboard] Received timer update:', payload);
+                updateLiveTimer(payload);
             });
             socket.onAny((event, ...args) => {
                 console.debug(`[Timer Dashboard] WebSocket event: ${event}`, args);
@@ -463,6 +555,12 @@ ob_start();
                 showToast('⚠️ Break duration must be at least 1 minute', 'danger');
             }
         });
+        // Request stats from overlay every 3 seconds to keep dashboard updated
+        setInterval(() => {
+            if (socket && socket.connected) {
+                socket.emit('SPECTER_STATS_REQUEST', { code: apiKey });
+            }
+        }, 3000);
     })();
 </script>
 <?php

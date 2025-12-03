@@ -308,6 +308,22 @@
                 }
             };
             
+            const emitTimerUpdate = () => {
+                if (socket && socket.connected) {
+                    socket.emit('SPECTER_TIMER_UPDATE', {
+                        code: apiCode,
+                        phase: currentPhase,
+                        remainingSeconds,
+                        totalDurationForPhase,
+                        timerRunning,
+                        timerPaused,
+                        phaseLabel: phases[currentPhase].label,
+                        phaseStatus: phases[currentPhase].status,
+                        phaseColor: phases[currentPhase].accent
+                    });
+                }
+            };
+            
             const formatTime = seconds => {
                 const mins = Math.floor(seconds / 60);
                 const secs = seconds % 60;
@@ -380,6 +396,7 @@
                     }
                     remainingSeconds -= 1;
                     updateDisplay();
+                    emitTimerUpdate();
                 }, 1000);
                 updateDisplay();
             };
@@ -391,6 +408,7 @@
                 statusText.textContent = 'Paused — resume when ready';
                 emitTimerState('paused');
                 updateDisplay();
+                emitTimerUpdate();
             };
             const resumeTimer = () => {
                 if (remainingSeconds <= 0) return;
@@ -414,8 +432,10 @@
                     }
                     remainingSeconds -= 1;
                     updateDisplay();
+                    emitTimerUpdate();
                 }, 1000);
                 updateDisplay();
+                emitTimerUpdate();
             };
             const resetTimer = () => {
                 clearCountdown();
@@ -427,6 +447,7 @@
                 statusText.textContent = 'Ready for another round';
                 emitTimerState('stopped');
                 updateDisplay();
+                emitTimerUpdate();
             };
             const stopTimer = () => {
                 clearCountdown();
@@ -437,6 +458,7 @@
                 updateDisplay();
                 statusText.textContent = 'Timer stopped';
                 emitTimerState('stopped');
+                emitTimerUpdate();
             };
             const updateDefaultDurationsFromPayload = payload => {
                 if (!payload) return;
@@ -540,6 +562,8 @@
                 socket.on('connect', () => {
                     attempts = 0;
                     socket.emit('REGISTER', { code: apiCode, channel: 'Overlay', name: 'Working Study Timer' });
+                    // Emit stats immediately on connect
+                    emitSessionStats();
                 });
                 socket.on('disconnect', scheduleReconnect);
                 socket.on('connect_error', scheduleReconnect);
@@ -571,10 +595,20 @@
                         window.SpecterWorkingStudyTimer.stop();
                     }
                 });
+                socket.on('SPECTER_STATS_REQUEST', payload => {
+                    console.log('[Overlay] Dashboard requesting session stats');
+                    emitSessionStats();
+                });
                 socket.onAny((event, ...args) => {
                     console.debug('Overlay websocket event', event, args);
                 });
             };
+            // Emit stats every 5 seconds to keep dashboard updated
+            setInterval(() => {
+                if (socket && socket.connected) {
+                    emitSessionStats();
+                }
+            }, 5000);
             connect();
         })();
     </script>
