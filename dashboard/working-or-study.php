@@ -37,15 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     
     // Verify database connection exists
-    if (!isset($usrDBconn) || !$usrDBconn) {
+    if (!isset($db) || !$db) {
         echo json_encode(['success' => false, 'error' => 'Database connection not available']);
         exit;
     }
     if ($action === 'get_settings') {
         // Load timer settings from database
-        $stmt = $usrDBconn->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes FROM working_study_overlay_settings LIMIT 1");
+        $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes FROM working_study_overlay_settings LIMIT 1");
         if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $usrDBconn->error]);
+            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
             exit;
         }
         $stmt->execute();
@@ -68,9 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $focus = intval($_POST['focus_minutes'] ?? 60);
         $micro = intval($_POST['micro_break_minutes'] ?? 5);
         $recharge = intval($_POST['recharge_break_minutes'] ?? 30);
-        $stmt = $usrDBconn->prepare("UPDATE working_study_overlay_settings SET focus_minutes = ?, micro_break_minutes = ?, recharge_break_minutes = ? WHERE id = 1");
+        $stmt = $db->prepare("UPDATE working_study_overlay_settings SET focus_minutes = ?, micro_break_minutes = ?, recharge_break_minutes = ? WHERE id = 1");
         if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $usrDBconn->error]);
+            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
             exit;
         }
         $stmt->bind_param("iii", $focus, $micro, $recharge);
@@ -82,9 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($action === 'get_tasks') {
         // Load all tasks for current user from database
         $username = (string)$_SESSION['username'];
-        $stmt = $usrDBconn->prepare("SELECT task_id as id, title, priority, completed FROM working_study_overlay_tasks WHERE username = ? ORDER BY created_at DESC");
+        $stmt = $db->prepare("SELECT task_id as id, title, priority, completed FROM working_study_overlay_tasks WHERE username = ? ORDER BY created_at DESC");
         if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $usrDBconn->error]);
+            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
             exit;
         }
         $stmt->bind_param("s", $username);
@@ -112,16 +112,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit;
         }
         // Clear existing tasks for this user only
-        $stmt = $usrDBconn->prepare("DELETE FROM working_study_overlay_tasks WHERE username = ?");
+        $stmt = $db->prepare("DELETE FROM working_study_overlay_tasks WHERE username = ?");
         if ($stmt) {
             $stmt->bind_param("s", $username);
             $stmt->execute();
             $stmt->close();
         }
         // Insert new tasks for this user
-        $stmt = $usrDBconn->prepare("INSERT INTO working_study_overlay_tasks (username, task_id, title, priority, completed) VALUES (?, ?, ?, ?, ?)");
+        $stmt = $db->prepare("INSERT INTO working_study_overlay_tasks (username, task_id, title, priority, completed) VALUES (?, ?, ?, ?, ?)");
         if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $usrDBconn->error]);
+            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
             exit;
         }
         $success = true;
@@ -139,6 +139,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->close();
         echo json_encode(['success' => $success]);
         exit;
+    }
+}
+
+// Load initial settings for page initialization
+$initialSettings = ['focus_minutes' => 60, 'micro_break_minutes' => 5, 'recharge_break_minutes' => 30];
+if ($db) {
+    $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes FROM working_study_overlay_settings LIMIT 1");
+    if ($stmt) {
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($row = $result->fetch_assoc()) {
+            $initialSettings = $row;
+        }
+        $stmt->close();
+    }
+}
+
+// Load initial tasks for page initialization
+$initialTasks = [];
+if ($db && isset($_SESSION['username'])) {
+    $username = $_SESSION['username'];
+    $stmt = $db->prepare("SELECT task_id as id, title, priority, completed FROM working_study_overlay_tasks WHERE username = ? ORDER BY created_at DESC");
+    if ($stmt) {
+        $stmt->bind_param("s", $username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $initialTasks[] = [
+                'id' => $row['id'],
+                'title' => $row['title'],
+                'priority' => $row['priority'],
+                'completed' => (bool)$row['completed']
+            ];
+        }
+        $stmt->close();
     }
 }
 
@@ -484,68 +519,80 @@ ob_start();
         const tasklistLinkStreamer = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=true`;
         const tasklistLinkUsers = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=false`;
         const tasklistLinkCombined = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist`;
-        // Load settings from database
+        
+        // PHP-injected initial data
+        const initialSettings = <?php echo json_encode($initialSettings); ?>;
+        const initialTasks = <?php echo json_encode($initialTasks); ?>;
+        // Load settings from database (PHP-injected on page load)
         const loadSettingsFromDatabase = async () => {
             try {
-                const formData = new FormData();
-                formData.append('action', 'get_settings');
-                const response = await fetch(window.location.href, { method: 'POST', body: formData });
-                const result = await response.json();
-                if (result.success && result.data) {
-                    focusLengthInput.value = result.data.focus_minutes;
-                    microBreakInput.value = result.data.micro_break_minutes;
-                    breakLengthInput.value = result.data.recharge_break_minutes;
-                    console.log('[Timer] Settings loaded from database:', result.data);
+                if (initialSettings) {
+                    focusLengthInput.value = initialSettings.focus_minutes || 60;
+                    microBreakInput.value = initialSettings.micro_break_minutes || 5;
+                    breakLengthInput.value = initialSettings.recharge_break_minutes || 30;
+                    console.log('[Timer] Settings loaded from page initialization:', initialSettings);
                 }
             } catch (error) {
                 console.error('[Timer] Error loading settings:', error);
             }
         };
-        // Save settings to database
+        // Save settings to database via WebSocket (overlay will handle persistence)
         const saveSettingsToDatabase = async () => {
             try {
-                const formData = new FormData();
-                formData.append('action', 'save_settings');
-                formData.append('focus_minutes', focusLengthInput.value);
-                formData.append('micro_break_minutes', microBreakInput.value);
-                formData.append('recharge_break_minutes', breakLengthInput.value);
-                const response = await fetch(window.location.href, { method: 'POST', body: formData });
-                const result = await response.json();
-                if (result.success) {
-                    console.log('[Timer] Settings saved to database');
+                const focus = focusLengthInput.value;
+                const micro = microBreakInput.value;
+                const recharge = breakLengthInput.value;
+                if (socket && socket.connected) {
+                    socket.emit('SPECTER_SETTINGS_UPDATE', {
+                        code: apiKey,
+                        focus_minutes: parseInt(focus),
+                        micro_break_minutes: parseInt(micro),
+                        recharge_break_minutes: parseInt(recharge)
+                    });
+                    console.log('[Timer] Settings saved and sent to overlay');
                     showToast('✓ Timer settings saved', 'success');
+                } else {
+                    console.warn('[Timer] WebSocket not connected, settings not sent to overlay');
                 }
             } catch (error) {
                 console.error('[Timer] Error saving settings:', error);
                 showToast('⚠️ Error saving settings', 'danger');
             }
         };
-        // Load tasks from database
+        // Load tasks from database (PHP-injected on page load)
         const loadTasksFromDatabase = async () => {
             try {
-                const formData = new FormData();
-                formData.append('action', 'get_tasks');
-                const response = await fetch(window.location.href, { method: 'POST', body: formData });
-                const result = await response.json();
-                if (result.success && result.data) {
-                    taskList = result.data;
+                if (initialTasks && initialTasks.length > 0) {
+                    taskList = initialTasks;
                     renderTaskList();
-                    console.log('[Tasks] Loaded from database:', taskList.length, 'tasks');
+                    console.log('[Tasks] Loaded from page initialization:', taskList.length, 'tasks');
+                } else {
+                    console.log('[Tasks] No tasks loaded from page initialization');
                 }
             } catch (error) {
                 console.error('[Tasks] Error loading tasks:', error);
             }
         };
-        // Save tasks to database
+        // Save tasks to database via in-page operation + WebSocket sync
         const saveTasksToDatabase = async () => {
             try {
+                // Create a hidden form and submit to save tasks
                 const formData = new FormData();
                 formData.append('action', 'save_tasks');
                 formData.append('tasks', JSON.stringify(taskList));
-                const response = await fetch(window.location.href, { method: 'POST', body: formData });
+                
+                const response = await fetch(window.location.href, { 
+                    method: 'POST', 
+                    body: formData 
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const result = await response.json();
                 if (result.success) {
-                    console.log('[Tasks] Saved to database');
+                    console.log('[Tasks] Saved to dashboard database');
                 }
             } catch (error) {
                 console.error('[Tasks] Error saving tasks:', error);
