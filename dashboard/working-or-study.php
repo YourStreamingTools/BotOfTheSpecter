@@ -38,11 +38,14 @@ ob_start();
             <p class="card-header-title">
                 Working / Study Overlay Control
             </p>
-            <a class="card-header-icon" href="<?php echo htmlspecialchars($overlayLinkWithCode); ?>" target="_blank" rel="noreferrer">
-                <span class="icon">
-                    <i class="fas fa-external-link-alt" aria-hidden="true"></i>
-                </span>
-            </a>
+            <div class="buttons">
+                <a class="button is-primary is-loading-toggle" href="<?php echo htmlspecialchars($overlayLinkWithCode); ?>" target="_blank" rel="noreferrer">
+                    <span class="icon">
+                        <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                    </span>
+                    <span>Open Timer Overlay</span>
+                </a>
+            </div>
         </header>
         <div class="card-content">
             <div class="content">
@@ -57,21 +60,11 @@ ob_start();
                     <li>Responsive design that scales for stream overlays</li>
                 </ul>
             </div>
-            <div class="box">
-                <div class="buttons" style="margin-bottom: 1rem;">
-                    <a class="button is-primary is-loading-toggle" href="<?php echo htmlspecialchars($overlayLinkWithCode); ?>" target="_blank" rel="noreferrer">
-                        <span class="icon">
-                            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
-                        </span>
-                        <span>Open Overlay</span>
-                    </a>
-                </div>
-            </div>
             <div class="columns is-multiline">
                 <div class="column is-full">
                     <h3 class="title is-6">Duration Settings</h3>
                     <div class="columns">
-                        <div class="column is-half">
+                        <div class="column is-one-third">
                             <div class="field">
                                 <label class="label">
                                     <span class="icon-text">
@@ -94,27 +87,50 @@ ob_start();
                                 <p class="help">How long to focus before a break</p>
                             </div>
                         </div>
-                        <div class="column is-half">
+                        <div class="column is-one-third">
                             <div class="field">
                                 <label class="label">
                                     <span class="icon-text">
                                         <span class="icon">
-                                            <i class="fas fa-leaf" aria-hidden="true"></i>
+                                            <i class="fas fa-wind" aria-hidden="true"></i>
                                         </span>
-                                        <span>Break Duration</span>
+                                        <span>Micro Break Duration</span>
                                     </span>
                                 </label>
                                 <div class="control">
                                     <div class="field has-addons">
                                         <p class="control is-expanded">
-                                            <input id="breakLengthMinutes" class="input" type="number" min="1" step="1" value="15" placeholder="Break minutes">
+                                            <input id="microBreakMinutes" class="input" type="number" min="1" step="1" value="5" placeholder="Micro break minutes">
                                         </p>
                                         <p class="control">
                                             <span class="button is-static">min</span>
                                         </p>
                                     </div>
                                 </div>
-                                <p class="help">Applies to both micro and recharge breaks</p>
+                                <p class="help">Quick break duration</p>
+                            </div>
+                        </div>
+                        <div class="column is-one-third">
+                            <div class="field">
+                                <label class="label">
+                                    <span class="icon-text">
+                                        <span class="icon">
+                                            <i class="fas fa-leaf" aria-hidden="true"></i>
+                                        </span>
+                                        <span>Recharge Break Duration</span>
+                                    </span>
+                                </label>
+                                <div class="control">
+                                    <div class="field has-addons">
+                                        <p class="control is-expanded">
+                                            <input id="breakLengthMinutes" class="input" type="number" min="1" step="1" value="30" placeholder="Break minutes">
+                                        </p>
+                                        <p class="control">
+                                            <span class="button is-static">min</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <p class="help">Longer break for recharging</p>
                             </div>
                         </div>
                     </div>
@@ -208,6 +224,7 @@ ob_start();
         const buttonsPhase = document.querySelectorAll('[data-specter-phase]');
         const buttonsControl = document.querySelectorAll('[data-specter-control]');
         const focusLengthInput = document.getElementById('focusLengthMinutes');
+        const microBreakInput = document.getElementById('microBreakMinutes');
         const breakLengthInput = document.getElementById('breakLengthMinutes');
         const toastArea = document.getElementById('toastArea');
         const startBtn = document.querySelector('[data-specter-control="start"]');
@@ -339,7 +356,8 @@ ob_start();
         const gatherDurations = () => ({
             duration_minutes: safeNumberValue(focusLengthInput, 60),
             focus_minutes: safeNumberValue(focusLengthInput, 60),
-            break_minutes: safeNumberValue(breakLengthInput, 15)
+            micro_minutes: safeNumberValue(microBreakInput, 5),
+            break_minutes: safeNumberValue(breakLengthInput, 30)
         });
         // WebSocket connection for real-time sync
         const socketUrl = 'wss://websocket.botofthespecter.com';
@@ -400,8 +418,10 @@ ob_start();
                 const payload = { phase, auto_start: 1 };
                 if (phase === 'focus') {
                     payload.duration_minutes = safeNumberValue(focusLengthInput, 60);
-                } else if (phase === 'micro' || phase === 'recharge') {
-                    payload.duration_minutes = safeNumberValue(breakLengthInput, 15);
+                } else if (phase === 'micro') {
+                    payload.duration_minutes = safeNumberValue(microBreakInput, 5);
+                } else if (phase === 'recharge') {
+                    payload.duration_minutes = safeNumberValue(breakLengthInput, 30);
                 }
                 const phaseName = phaseNames[phase] || phase;
                 await notifyServer(
@@ -429,10 +449,17 @@ ob_start();
                 showToast('⚠️ Focus duration must be at least 1 minute', 'danger');
             }
         });
+        microBreakInput.addEventListener('change', () => {
+            const val = Number(microBreakInput.value);
+            if (!Number.isFinite(val) || val < 1) {
+                microBreakInput.value = 5;
+                showToast('⚠️ Micro break duration must be at least 1 minute', 'danger');
+            }
+        });
         breakLengthInput.addEventListener('change', () => {
             const val = Number(breakLengthInput.value);
             if (!Number.isFinite(val) || val < 1) {
-                breakLengthInput.value = 15;
+                breakLengthInput.value = 30;
                 showToast('⚠️ Break duration must be at least 1 minute', 'danger');
             }
         });
