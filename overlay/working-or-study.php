@@ -11,6 +11,18 @@ $user_id = null;
 $username = null;
 $conn = null;
 $user_db = null;
+$has_timer_query = array_key_exists('timer', $_GET);
+$has_tasklist_query = array_key_exists('tasklist', $_GET);
+$show_timer_panel = true;
+$show_tasklist_panel = true;
+$overlay_mode_class = '';
+if ($has_timer_query && !$has_tasklist_query) {
+    $show_tasklist_panel = false;
+    $overlay_mode_class = 'overlay--timer-only';
+} elseif ($has_tasklist_query && !$has_timer_query) {
+    $show_timer_panel = false;
+    $overlay_mode_class = 'overlay--tasks-only';
+}
 
 include '/var/www/config/database.php';
 
@@ -51,7 +63,6 @@ if (!$error_html) {
     if ($user_db->connect_error) {
         $error_html = "Connection to user database failed: " . htmlspecialchars($user_db->connect_error);
     } else {
-        // Ensure required tables exist in user database
         $tables_to_create = [
             'working_study_overlay_settings' => "
                 CREATE TABLE IF NOT EXISTS working_study_overlay_settings (
@@ -75,7 +86,6 @@ if (!$error_html) {
                     INDEX idx_username (username)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         ];
-        
         foreach ($tables_to_create as $table_name => $create_sql) {
             $table_exists = $user_db->query("SHOW TABLES LIKE '$table_name'")->num_rows > 0;
             if (!$table_exists) {
@@ -89,7 +99,6 @@ if (!$error_html) {
 
 // Handle API requests for getting tasks
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
-    // Clear any buffered output before sending JSON
     ob_end_clean();
     header('Content-Type: application/json');
     $action = $_GET['action'];
@@ -98,7 +107,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         exit;
     }
     if ($action === 'get_settings') {
-        // Load timer settings from database (global settings)
         $stmt = $user_db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes FROM working_study_overlay_settings LIMIT 1");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $user_db->error]);
@@ -127,7 +135,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         exit;
     }
     if ($action === 'get_tasks') {
-        // Load all tasks for current user from database
         $stmt = $user_db->prepare("SELECT task_id as id, title, priority, completed FROM working_study_overlay_tasks WHERE username = ? ORDER BY created_at DESC");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $user_db->error]);
@@ -166,618 +173,394 @@ ob_end_clean();
     <style>
         :root {
             --accent-color: #ff9161;
-            --overlay-scale: 0.5;
-            --timer-width: min(420px, 90vw);
             --focus-color: #ff9161;
-            --break-color: #6be9ff;
+            --micro-color: #6be9ff;
             --recharge-color: #b483ff;
+            --panel-bg: rgba(7, 7, 13, 0.9);
+            --panel-border: rgba(255, 255, 255, 0.12);
+            --text-muted: rgba(255, 255, 255, 0.6);
+            --shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
         }
         * {
             box-sizing: border-box;
         }
-        html,
         body {
             margin: 0;
-            height: 100vh;
-            overflow: hidden;
-            background-color: transparent;
-            background-image: none;
+            min-height: 100vh;
+            background: transparent;
             font-family: "Inter", "Segoe UI", system-ui, sans-serif;
             color: #f8fbff;
-        }
-        body {
             display: flex;
             justify-content: center;
             align-items: center;
-            width: 100%;
-            padding: 0;
         }
-        .has-text-white {
-            color: #f8fbff !important;
+        .overlay-root {
+            width: min(1080px, 95vw);
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 1.25fr 0.75fr;
+            gap: 24px;
         }
-        .placeholder {
-            display: none;
-            font-size: 1rem;
-            color: rgba(255, 255, 255, 0.8);
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 20px;
-            padding: 16px 24px;
-            text-align: center;
-            width: min(420px, 90vw);
+        .overlay-root.overlay--timer-only,
+        .overlay-root.overlay--tasks-only {
+            width: min(760px, 95vw);
+            grid-template-columns: 1fr;
         }
-        .timer-wrapper {
-            width: 100%;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        .timer-card,
+        .task-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 24px;
+            padding: 32px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
         }
         .timer-card {
-            width: var(--timer-width);
-            padding: 40px;
-            border-radius: 32px;
-            background: rgba(20, 20, 30, 0.95);
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
             display: flex;
             flex-direction: column;
             gap: 24px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-            backdrop-filter: blur(10px);
         }
-        .timer-card::before {
-            display: none;
-        }
-        .timer-ring-container {
-            position: relative;
-            width: 280px;
-            height: 280px;
-            margin: 0 auto;
+        .status-row {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+        .connection-status {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.75rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .connection-status .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            display: inline-block;
+        }
+        .connection-status[data-state="connected"] {
+            border-color: #32d486;
+            color: #32d486;
+        }
+        .connection-status[data-state="connecting"] {
+            color: #f6c451;
+        }
+        .connection-status[data-state="error"] {
+            color: #ff6555;
+        }
+        .overlay-label {
+            color: var(--text-muted);
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            font-size: 0.8rem;
         }
         .timer-ring {
             position: relative;
             width: 100%;
-            height: 100%;
+            max-width: 320px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
         }
         .timer-ring svg {
             width: 100%;
             height: 100%;
-            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
             transform: rotate(-90deg);
         }
-        .timer-ring-progress {
-            stroke: var(--accent-color);
-            stroke-linecap: round;
-            transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
-            filter: drop-shadow(0 2px 4px rgba(255, 255, 255, 0.2));
-        }
-        .timer-ring-background {
+        .ring-bg {
+            fill: none;
             stroke: rgba(255, 255, 255, 0.08);
-            stroke-linecap: round;
+            stroke-width: 12;
         }
-        .timer-display-inner {
+        .ring-progress {
+            fill: none;
+            stroke-width: 12;
+            stroke-linecap: round;
+            stroke: var(--accent-color);
+            transition: stroke-dashoffset 0.75s linear, stroke 0.3s ease;
+        }
+        .timer-inner {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            width: 100%;
-            z-index: 10;
+            width: 160px;
+        }
+        .phase-label {
+            font-size: 0.9rem;
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+            color: var(--text-muted);
         }
         .timer-display {
-            font-size: clamp(48px, 8vw, 72px);
-            font-weight: 700;
-            letter-spacing: 2px;
-            font-variant-numeric: tabular-nums;
-            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-        }
-        .timer-milliseconds {
-            font-size: calc(0.4em);
-            opacity: 0.7;
-            margin-top: calc(-4px / var(--overlay-scale));
+            font-size: 3.5rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            margin: 8px 0;
         }
         .timer-status {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             letter-spacing: 0.3em;
             text-transform: uppercase;
             color: var(--accent-color);
-            font-weight: 600;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            animation: phaseGlow 2s ease-in-out infinite;
         }
-        @keyframes phaseGlow {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        .status-chip {
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
             font-size: 0.85rem;
-            padding: 8px 16px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin: 0 auto;
-            backdrop-filter: blur(10px);
-            transition: all 0.3s ease;
-        }
-        .status-chip.active {
-            background: rgba(255, 255, 255, 0.12);
-            border-color: var(--accent-color);
-            box-shadow: 0 0 16px rgba(255, 255, 255, 0.15);
-        }
-        .status-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--accent-color);
-            animation: pulse 2s ease-in-out infinite;
-            box-shadow: 0 0 8px var(--accent-color);
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .session-stats {
-            font-size: 0.75rem;
-            color: #f8fbff;
-            display: flex;
-            justify-content: space-around;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            gap: 8px;
-        }
-        .stat-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
+            color: var(--text-muted);
         }
         .stat-value {
+            font-size: 1.2rem;
             color: var(--accent-color);
             font-weight: 600;
-            font-size: 0.9rem;
         }
-        .stats-large-display {
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            gap: 24px;
-            padding: 20px 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        .stat-large-item {
+        .task-card {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 8px;
+            gap: 18px;
         }
-        .stat-large-label {
-            font-size: 0.75rem;
+        .timer-card[data-visible="false"],
+        .task-card[data-visible="false"] {
+            display: none;
+        }
+        .task-card header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .task-title {
+            font-size: 1rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+        .task-card button {
+            padding: 6px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: transparent;
+            color: #ffffff;
+            text-transform: uppercase;
             letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.6);
-            font-weight: 500;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: background 0.2s ease, border 0.2s ease;
         }
-        .stat-large-value {
-            font-size: clamp(32px, 6vw, 48px);
-            font-weight: 700;
-            color: var(--accent-color);
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-            font-variant-numeric: tabular-nums;
+        .task-card button:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.4);
         }
-        /* Task List Overlay Styles */
-        .tasklist-wrapper {
-            width: 100%;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .tasklist-card {
-            width: min(500px, 90vw);
-            max-height: 90vh;
-            padding: 24px;
-            border-radius: 20px;
-            background: rgba(20, 20, 30, 0.95);
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            backdrop-filter: blur(10px);
-        }
-        .tasklist-header {
-            text-align: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 12px;
-        }
-        .tasklist-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #f8fbff;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            margin: 0;
-        }
-        .tasklist-subtitle {
-            font-size: 0.85rem;
-            color: rgba(255, 255, 255, 0.6);
-            margin-top: 4px;
-        }
-        .tasklist-container {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
+        .task-list {
             display: flex;
             flex-direction: column;
             gap: 12px;
-            padding-right: 8px;
+            max-height: 480px;
+            overflow-y: auto;
+            padding-right: 4px;
         }
-        .tasklist-container::-webkit-scrollbar {
+        .task-list::-webkit-scrollbar {
             width: 6px;
         }
-        .tasklist-container::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 3px;
-        }
-        .tasklist-container::-webkit-scrollbar-thumb {
+        .task-list::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.2);
             border-radius: 3px;
-            transition: background 0.3s ease;
-        }
-        .tasklist-container::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.3);
         }
         .task-item {
+            padding: 16px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.02);
             display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 12px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            animation: slideIn 0.3s ease-out;
-        }
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-        .task-item:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.15);
+            flex-direction: column;
+            gap: 6px;
         }
         .task-item.completed {
             opacity: 0.7;
         }
-        .task-item.completed .task-text {
-            text-decoration: line-through;
-            color: rgba(255, 255, 255, 0.6);
-        }
-        .task-checkbox {
-            flex-shrink: 0;
-            width: 20px;
-            height: 20px;
-            min-width: 20px;
-            margin-top: 2px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 4px;
-            background: transparent;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .task-checkbox:hover {
-            border-color: var(--accent-color);
-            background: rgba(255, 255, 255, 0.05);
-        }
-        .task-checkbox.checked {
-            background: #2ecc71;
-            border-color: #2ecc71;
-        }
-        .task-checkbox.checked::after {
-            content: '✓';
-            color: #ffffff;
-            font-weight: 700;
-            font-size: 12px;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-        }
-        .task-content {
-            flex: 1;
-            min-width: 0;
-        }
         .task-text {
-            font-size: 0.95rem;
-            color: #f8fbff;
-            word-wrap: break-word;
-            word-break: break-word;
             margin: 0;
+            font-size: 0.95rem;
         }
         .task-meta {
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.5);
-            margin-top: 4px;
             display: flex;
-            gap: 12px;
+            gap: 10px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
         }
         .task-priority {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
             padding: 2px 8px;
-            border-radius: 6px;
+            border-radius: 999px;
             font-weight: 600;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
         }
         .task-priority.high {
-            background: rgba(255, 145, 97, 0.2);
             color: #ff9161;
+            background: rgba(255, 145, 97, 0.2);
         }
         .task-priority.medium {
-            background: rgba(107, 233, 255, 0.2);
             color: #6be9ff;
+            background: rgba(107, 233, 255, 0.2);
         }
         .task-priority.low {
-            background: rgba(180, 131, 255, 0.2);
             color: #b483ff;
+            background: rgba(180, 131, 255, 0.2);
         }
-        .tasklist-empty {
+        .empty-state {
+            color: var(--text-muted);
             text-align: center;
-            padding: 40px 20px;
-            color: rgba(255, 255, 255, 0.5);
+            margin: 0;
+            padding: 40px 0;
         }
-        .tasklist-empty-icon {
-            font-size: 2.5rem;
-            margin-bottom: 12px;
-            opacity: 0.4;
-        }
-        .tasklist-empty-text {
-            font-size: 0.95rem;
-        }
-        .tasklist-footer {
+        .task-footer {
+            display: flex;
+            justify-content: space-between;
             font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.4);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+        }
+        .error-screen {
+            width: min(90vw, 560px);
+            padding: 24px;
+            background: rgba(0, 0, 0, 0.75);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: var(--shadow);
             text-align: center;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding-top: 12px;
+        }
+        .error-card h1 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 1.5rem;
+        }
+        @media (max-width: 960px) {
+            .overlay-root {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="placeholder" id="timerPlaceholder">Append <code>&timer</code> to the overlay URL to show the Specter timer.</div>
-    <div class="placeholder" id="tasklistPlaceholder">Append <code>&tasklist</code> to the overlay URL to show the Specter task list.</div>
-    <div class="timer-wrapper" id="timerWrapper">
-        <div class="timer-card" id="timerCard">
-            <div class="timer-status" id="phaseLabel">Focus sprint</div>
-            <div class="timer-ring-container">
+    <?php if ($error_html): ?>
+        <div class="error-screen">
+            <h1>Overlay unavailable</h1>
+            <p id="overlayErrorMessage"><?php echo $error_html; ?></p>
+        </div>
+    <?php else: ?>
+        <div class="overlay-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>" id="overlayRoot">
+            <section class="timer-card" data-visible="<?php echo $show_timer_panel ? 'true' : 'false'; ?>">
+                <div class="status-row">
+                    <span class="connection-status" id="connectionStatus" data-state="connecting">
+                        <span class="dot"></span>
+                        Connecting…
+                    </span>
+                    <span class="overlay-label">Overlay for <?php echo htmlspecialchars($username ?: 'Specter'); ?></span>
+                </div>
                 <div class="timer-ring">
-                    <svg viewBox="0 0 280 280">
-                        <circle class="timer-ring-background" cx="140" cy="140" r="130" fill="none" stroke-width="12"/>
-                        <circle id="timerRingProgress" class="timer-ring-progress" cx="140" cy="140" r="130" fill="none" stroke-width="12"/>
+                    <svg viewBox="0 0 220 220">
+                        <circle class="ring-bg" cx="110" cy="110" r="98"></circle>
+                        <circle class="ring-progress" id="timerRingProgress" cx="110" cy="110" r="98"></circle>
                     </svg>
-                    <div class="timer-display-inner">
-                        <div class="timer-display" id="timerDisplay">00:00</div>
+                    <div class="timer-inner">
+                        <div id="phaseLabel" class="phase-label">Focus Sprint</div>
+                        <div id="timerDisplay" class="timer-display">00:00</div>
+                        <div id="statusText" class="timer-status">Waiting</div>
                     </div>
                 </div>
-            </div>
-            <div class="status-chip" id="statusChip">
-                <span class="status-indicator"></span>
-                <span id="statusText">Ready to focus</span>
-            </div>
-            <div class="stats-large-display" id="statsLargeDisplay">
-                <div class="stat-large-item">
-                    <span class="stat-large-label has-text-white">Current Session</span>
-                    <span class="stat-large-value" id="sessionsCompletedLarge">0</span>
+                <div class="stats-row">
+                    <div>
+                        <div class="stat-label">Sessions</div>
+                        <div class="stat-value" id="sessionsCompleted">0</div>
+                    </div>
+                    <div>
+                        <div class="stat-label">Total time</div>
+                        <div class="stat-value" id="totalTimeLogged">0m</div>
+                    </div>
                 </div>
-                <div class="stat-large-item">
-                    <span class="stat-large-label has-text-white">Focus Time</span>
-                    <span class="stat-large-value" id="totalTimeLoggedLarge">0h 0m</span>
+            </section>
+            <section class="task-card" data-visible="<?php echo $show_tasklist_panel ? 'true' : 'false'; ?>">
+                <header>
+                    <span class="task-title">Task List</span>
+                </header>
+                <div class="task-list" id="taskList">
+                    <p class="empty-state">Loading tasks…</p>
                 </div>
-            </div>
+                <div class="task-footer">
+                    <span id="taskCount">0 tasks</span>
+                    <span id="taskUpdated">Updated: --:--</span>
+                </div>
+            </section>
         </div>
-    </div>
-    <div class="tasklist-wrapper" id="tasklistWrapper" style="display: none;">
-        <div class="tasklist-card" id="tasklistCard">
-            <div class="tasklist-header">
-                <h2 class="tasklist-title">Task List</h2>
-                <p class="tasklist-subtitle" id="tasklistSubtitle">0 tasks</p>
-            </div>
-            <div class="tasklist-container" id="tasklistContainer">
-                <div class="tasklist-empty">
-                    <div class="tasklist-empty-icon">📋</div>
-                    <div class="tasklist-empty-text">No tasks yet. Get started!</div>
-                </div>
-            </div>
-            <div class="tasklist-footer" id="tasklistFooter">
-                Updated: <span id="lastUpdate">--:--</span>
-            </div>
-        </div>
-    </div>
+    <?php endif; ?>
     <script>
-        (() => {
-            const overlayDebug = false;
-            if (typeof localStorage !== 'undefined') {
-                const storedDebug = localStorage.getItem('debug');
-                if (storedDebug && /socket\.io|engine\.io/.test(storedDebug)) {
-                    localStorage.removeItem('debug');
+        const overlayApiKey = <?php echo json_encode($api_key ?? null); ?>;
+        const overlayUserName = <?php echo json_encode($username ?? 'Specter User'); ?>;
+        const overlayErrorMessage = <?php echo json_encode($error_html ?? null); ?>;
+        (function () {
+            if (overlayErrorMessage) {
+                const errorNode = document.getElementById('overlayErrorMessage');
+                if (errorNode) {
+                    errorNode.innerHTML = overlayErrorMessage;
                 }
+                return;
             }
-            const urlParams = new URLSearchParams(window.location.search);
-            const parseMinutesParam = (value, fallback) => {
-                if (value === undefined || value === null || value === '') return fallback;
-                const numeric = Number(value);
-                return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
-            };
-            const minutesToSeconds = minutes => Math.max(1, Math.round(minutes * 60));
-            const parseMinutesValue = value => {
-                const numeric = Number(value);
-                return Number.isFinite(numeric) && numeric > 0 ? minutesToSeconds(numeric) : null;
-            };
-            const focusSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('focus_minutes'), 60));
-            const microSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('break_minutes'), 5));
-            const rechargeSeconds = minutesToSeconds(parseMinutesParam(urlParams.get('recharge_minutes'), 30));
-            const phases = {
-                focus: { label: 'Focus sprint', duration: focusSeconds, status: 'Flow mode on', accent: '#ff9161' },
-                micro: { label: 'Micro break', duration: microSeconds, status: 'Recharge quickly', accent: '#6be9ff' },
-                recharge: { label: 'Recharge stretch', duration: rechargeSeconds, status: 'Stretch & hydrate', accent: '#b483ff' }
-            };
-            const defaultDurations = {
-                focus: focusSeconds,
-                micro: microSeconds,
-                recharge: rechargeSeconds
-            };
-            let showTimer = false;
-            let showTasklist = false;
-            const TIMER_STATE_KEY = 'specterWorkingStudyTimerState';
-            const TIMER_STATE_TTL = 2 * 60 * 1000;
-            let currentPhase = 'focus';
-            let remainingSeconds = phases[currentPhase].duration;
-            let totalDurationForPhase = phases[currentPhase].duration;
-            let countdownId = null;
-            let sessionsCompleted = 0;
-            let totalTimeLogged = 0;
-            let timerRunning = false;
-            let timerPaused = false;
+            if (!overlayApiKey) {
+                console.warn('Overlay missing API key.');
+                return;
+            }
+            const overlayRoot = document.getElementById('overlayRoot');
+            if (!overlayRoot) {
+                return;
+            }
+            const connectionStatus = document.getElementById('connectionStatus');
             const phaseLabel = document.getElementById('phaseLabel');
-            const statusChip = document.getElementById('statusChip');
-            const statusText = document.getElementById('statusText');
             const timerDisplay = document.getElementById('timerDisplay');
-            const timerRingProgress = document.getElementById('timerRingProgress');
-            const sessionsCompletedLargeEl = document.getElementById('sessionsCompletedLarge');
-            const totalTimeLoggedLargeEl = document.getElementById('totalTimeLoggedLarge');
-            const circumference = 2 * Math.PI * 130;
-            // Task List State and Functions
-            let taskList = [];
-            let isStreamerView = false;
-            const tasklistWrapper = document.getElementById('tasklistWrapper');
-            const tasklistPlaceholder = document.getElementById('tasklistPlaceholder');
-            const tasklistContainer = document.getElementById('tasklistContainer');
-            const tasklistSubtitle = document.getElementById('tasklistSubtitle');
-            const lastUpdate = document.getElementById('lastUpdate');
-            const maxTasksStreamer = 3;
-            const maxTasksUsers = 5;
-            const getMaxTasks = () => isStreamerView ? maxTasksStreamer : maxTasksUsers;
-            const updateTaskListHeight = () => {
-                const container = document.getElementById('tasklistContainer');
-                const maxTasks = getMaxTasks();
-                const itemHeight = 60; // approximate height per task item
-                const maxHeight = maxTasks * itemHeight;
-                container.style.maxHeight = `${maxHeight}px`;
+            const statusText = document.getElementById('statusText');
+            const sessionsCompletedEl = document.getElementById('sessionsCompleted');
+            const totalTimeLoggedEl = document.getElementById('totalTimeLogged');
+            const taskListEl = document.getElementById('taskList');
+            const taskCountEl = document.getElementById('taskCount');
+            const taskUpdatedEl = document.getElementById('taskUpdated');
+            const ringElement = document.getElementById('timerRingProgress');
+            const circleRadius = 98;
+            const circumference = 2 * Math.PI * circleRadius;
+            ringElement.style.strokeDasharray = circumference;
+            ringElement.style.strokeDashoffset = circumference;
+            const defaultDurations = {
+                focus: 60 * 60,
+                micro: 5 * 60,
+                recharge: 30 * 60
             };
-            const formatUpdateTime = () => {
-                const now = new Date();
-                return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            const phases = {
+                focus: { label: 'Focus Sprint', status: 'Flow mode on', accent: '#ff9161' },
+                micro: { label: 'Micro Break', status: 'Reignite energy', accent: '#6be9ff' },
+                recharge: { label: 'Recharge Stretch', status: 'Stretch & hydrate', accent: '#b483ff' }
             };
-            const renderTaskList = () => {
-                tasklistContainer.innerHTML = '';
-                
-                if (!taskList || taskList.length === 0) {
-                    tasklistContainer.innerHTML = `
-                        <div class="tasklist-empty">
-                            <div class="tasklist-empty-icon">📋</div>
-                            <div class="tasklist-empty-text">No tasks yet. Get started!</div>
-                        </div>
-                    `;
-                    tasklistSubtitle.textContent = '0 tasks';
-                    return;
-                }
-                tasklistSubtitle.textContent = `${taskList.length} task${taskList.length !== 1 ? 's' : ''}`;
-                taskList.forEach((task, index) => {
-                    const taskElement = document.createElement('div');
-                    taskElement.className = `task-item${task.completed ? ' completed' : ''}`;
-                    taskElement.innerHTML = `
-                        <div class="task-checkbox${task.completed ? ' checked' : ''}" data-task-id="${task.id || index}"></div>
-                        <div class="task-content">
-                            <p class="task-text">${escapeHtml(task.title)}</p>
-                            <div class="task-meta">
-                                ${task.priority ? `<span class="task-priority ${task.priority.toLowerCase()}">${task.priority}</span>` : ''}
-                                ${task.dueDate ? `<span class="task-due">${task.dueDate}</span>` : ''}
-                            </div>
-                        </div>
-                    `;
-                    // Add click handler for checkbox (if not streamer view, allow local interaction)
-                    const checkbox = taskElement.querySelector('.task-checkbox');
-                    if (!isStreamerView) {
-                        checkbox.style.cursor = 'pointer';
-                        checkbox.addEventListener('click', () => {
-                            task.completed = !task.completed;
-                            renderTaskList();
-                            emitTaskListUpdate();
-                        });
-                    } else {
-                        checkbox.style.cursor = 'default';
-                        checkbox.style.opacity = '0.5';
-                    }
-                    tasklistContainer.appendChild(taskElement);
-                });
-                lastUpdate.textContent = formatUpdateTime();
-                updateTaskListHeight();
+            const timerState = {
+                currentPhase: 'focus',
+                remainingSeconds: defaultDurations.focus,
+                totalDuration: defaultDurations.focus,
+                timerRunning: false,
+                timerPaused: false,
+                countdownId: null,
+                sessionsCompleted: 0,
+                totalTimeLogged: 0,
+                durations: { ...defaultDurations }
             };
-            const updateTaskList = (tasks, streamer = false) => {
-                taskList = tasks || [];
-                isStreamerView = streamer;
-                renderTaskList();
-            };
-            const emitTaskListUpdate = () => {
-                if (socket && socket.connected && !isStreamerView) {
-                    socket.emit('SPECTER_TASKLIST_UPDATE', {
-                        code: apiCode,
-                        tasks: taskList,
-                        timestamp: Date.now()
-                    });
-                }
-            };
-            const escapeHtml = (text) => {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            };
-            const emitTimerState = (state) => {
-                if (socket && socket.connected) {
-                    socket.emit('SPECTER_TIMER_STATE', { state, code: apiCode });
-                }
-            };
-            const emitSessionStats = () => {
-                if (socket && socket.connected) {
-                    socket.emit('SPECTER_SESSION_STATS', {
-                        code: apiCode,
-                        sessionsCompleted,
-                        totalTimeLogged
-                    });
-                }
-            };
-            const emitTimerUpdate = () => {
-                if (socket && socket.connected) {
-                    socket.emit('SPECTER_TIMER_UPDATE', {
-                        code: apiCode,
-                        phase: currentPhase,
-                        remainingSeconds,
-                        totalDurationForPhase,
-                        timerRunning,
-                        timerPaused,
-                        phaseLabel: phases[currentPhase].label,
-                        phaseStatus: phases[currentPhase].status,
-                        phaseColor: phases[currentPhase].accent
-                    });
-                }
-            };
-            const formatTime = seconds => {
+            const formatDuration = seconds => {
                 const mins = Math.floor(seconds / 60);
                 const secs = seconds % 60;
                 return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
@@ -790,473 +573,386 @@ ob_end_clean();
                 }
                 return `${minutes}m`;
             };
-            const updateProgressRing = () => {
-                const progressPercent = remainingSeconds / totalDurationForPhase;
-                const offset = circumference * (1 - progressPercent);
-                timerRingProgress.style.strokeDasharray = circumference;
-                timerRingProgress.style.strokeDashoffset = offset;
+            const escapeHtml = text => {
+                const div = document.createElement('div');
+                div.textContent = text || '';
+                return div.innerHTML;
             };
-            const updateDisplay = () => {
-                phaseLabel.textContent = phases[currentPhase].label;
-                statusText.textContent = getStatusText();
-                timerDisplay.textContent = formatTime(remainingSeconds);
-                document.documentElement.style.setProperty('--accent-color', phases[currentPhase].accent);
-                timerRingProgress.style.stroke = phases[currentPhase].accent;
-                updateProgressRing();
-                persistTimerState();
-            };
-            const clearCountdown = () => {
-                if (countdownId) {
-                    clearInterval(countdownId);
-                    countdownId = null;
-                }
-            };
-            const playNotificationSound = () => {
-                try {
-                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    const now = audioContext.currentTime;
-                    const osc = audioContext.createOscillator();
-                    const env = audioContext.createGain();
-                    osc.connect(env);
-                    env.connect(audioContext.destination);
-                    osc.frequency.value = 800;
-                    env.gain.setValueAtTime(0.3, now);
-                    env.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-                    osc.start(now);
-                    osc.stop(now + 0.3);
-                } catch (e) {
-                    console.debug('Audio notification not available');
-                }
-            };
-            const startCountdown = () => {
-                clearCountdown();
-                timerRunning = true;
-                timerPaused = false;
-                statusChip.classList.add('active');
-                emitTimerState('running');
-                countdownId = setInterval(() => {
-                    if (remainingSeconds <= 0) {
-                        clearCountdown();
-                        statusChip.classList.remove('active');
-                        statusText.textContent = 'Session complete — choose next phase';
-                        playNotificationSound();
-                        sessionsCompleted += 1;
-                        totalTimeLogged += totalDurationForPhase;
-                        updateStats();
-                        emitSessionStats();
-                        timerRunning = false;
-                        emitTimerState('stopped');
-                        return;
-                    }
-                    remainingSeconds -= 1;
-                    updateDisplay();
-                    emitTimerUpdate();
-                }, 1000);
-                updateDisplay();
-            };
-            const pauseTimer = () => {
-                clearCountdown();
-                timerRunning = false;
-                timerPaused = true;
-                statusChip.classList.remove('active');
-                statusText.textContent = 'Paused — resume when ready';
-                emitTimerState('paused');
-                updateDisplay();
-                emitTimerUpdate();
-            };
-            const resumeTimer = () => {
-                if (remainingSeconds <= 0) return;
-                timerRunning = true;
-                timerPaused = false;
-                statusChip.classList.add('active');
-                emitTimerState('running');
-                countdownId = setInterval(() => {
-                    if (remainingSeconds <= 0) {
-                        clearCountdown();
-                        statusChip.classList.remove('active');
-                        statusText.textContent = 'Session complete — choose next phase';
-                        playNotificationSound();
-                        sessionsCompleted += 1;
-                        totalTimeLogged += totalDurationForPhase;
-                        updateStats();
-                        emitSessionStats();
-                        timerRunning = false;
-                        emitTimerState('stopped');
-                        return;
-                    }
-                    remainingSeconds -= 1;
-                    updateDisplay();
-                    emitTimerUpdate();
-                }, 1000);
-                updateDisplay();
-                emitTimerUpdate();
-            };
-            const resetTimer = () => {
-                clearCountdown();
-                timerRunning = false;
-                timerPaused = false;
-                statusChip.classList.remove('active');
-                remainingSeconds = defaultDurations[currentPhase];
-                totalDurationForPhase = defaultDurations[currentPhase];
-                statusText.textContent = 'Ready for another round';
-                emitTimerState('stopped');
-                updateDisplay();
-                emitTimerUpdate();
-            };
-            const stopTimer = () => {
-                clearCountdown();
-                timerRunning = false;
-                timerPaused = false;
-                statusChip.classList.remove('active');
-                remainingSeconds = 0;
-                updateDisplay();
-                statusText.textContent = 'Timer stopped';
-                emitTimerState('stopped');
-                emitTimerUpdate();
-            };
-            function readTimerStateFromStorage() {
-                if (typeof localStorage === 'undefined') {
+            const minutesToSeconds = minutes => {
+                const numeric = Number(minutes);
+                if (!Number.isFinite(numeric) || numeric <= 0) {
                     return null;
                 }
-                try {
-                    const raw = localStorage.getItem(TIMER_STATE_KEY);
-                    return raw ? JSON.parse(raw) : null;
-                } catch (error) {
-                    console.debug('[Overlay] Unable to read stored timer state:', error);
-                    return null;
-                }
-            }
-            function persistTimerState() {
-                if (!showTimer || typeof localStorage === 'undefined') {
+                return Math.max(1, Math.round(numeric * 60));
+            };
+            const updateDurationsFromPayload = payload => {
+                if (!payload) {
                     return;
                 }
-                try {
-                    const state = {
-                        phase: currentPhase,
-                        remainingSeconds,
-                        totalDurationForPhase,
-                        timerRunning,
-                        timerPaused,
-                        sessionsCompleted,
-                        totalTimeLogged,
-                        lastUpdated: Date.now()
-                    };
-                    localStorage.setItem(TIMER_STATE_KEY, JSON.stringify(state));
-                } catch (error) {
-                    console.debug('[Overlay] Unable to persist timer state:', error);
+                if (payload.focus_minutes !== undefined && payload.focus_minutes !== null) {
+                    const converted = minutesToSeconds(payload.focus_minutes);
+                    if (converted) {
+                        timerState.durations.focus = converted;
+                    }
                 }
-            }
-            function getStatusText() {
-                if (timerPaused) {
-                    return 'Paused — resume when ready';
+                if (payload.micro_break_minutes !== undefined && payload.micro_break_minutes !== null) {
+                    const converted = minutesToSeconds(payload.micro_break_minutes);
+                    if (converted) {
+                        timerState.durations.micro = converted;
+                    }
                 }
-                if (!timerRunning && remainingSeconds <= 0) {
-                    return 'Timer stopped';
+                if (payload.recharge_break_minutes !== undefined && payload.recharge_break_minutes !== null) {
+                    const converted = minutesToSeconds(payload.recharge_break_minutes);
+                    if (converted) {
+                        timerState.durations.recharge = converted;
+                    }
                 }
-                return phases[currentPhase].status;
-            }
-            function restoreTimerState() {
-                if (!showTimer || typeof localStorage === 'undefined') {
-                    return false;
-                }
-                const saved = readTimerStateFromStorage();
-                if (!saved || typeof saved !== 'object') {
-                    return false;
-                }
-                const lastUpdated = Number(saved.lastUpdated);
-                if (lastUpdated && Date.now() - lastUpdated > TIMER_STATE_TTL) {
-                    return false;
-                }
-                const storedPhase = saved.phase;
-                if (!storedPhase || !phases[storedPhase]) {
-                    return false;
-                }
-                const storedRemaining = Number(saved.remainingSeconds);
-                if (!Number.isFinite(storedRemaining)) {
-                    return false;
-                }
-                clearCountdown();
-                currentPhase = storedPhase;
-                totalDurationForPhase = defaultDurations[currentPhase];
-                remainingSeconds = Math.min(Math.max(0, storedRemaining), totalDurationForPhase);
-                timerPaused = Boolean(saved.timerPaused);
-                timerRunning = Boolean(saved.timerRunning) && remainingSeconds > 0;
-                sessionsCompleted = Number.isFinite(saved.sessionsCompleted) ? saved.sessionsCompleted : sessionsCompleted;
-                totalTimeLogged = Number.isFinite(saved.totalTimeLogged) ? saved.totalTimeLogged : totalTimeLogged;
-                updateDisplay();
-                updateStats();
-                if (timerRunning && !countdownId) {
-                    startCountdown();
-                }
-                return true;
-            }
-            const updateDefaultDurationsFromPayload = payload => {
-                if (!payload) return;
-                const focusOverride = parseMinutesValue(payload.focus_minutes);
-                const breakOverride = parseMinutesValue(payload.break_minutes);
-                if (focusOverride) {
-                    defaultDurations.focus = focusOverride;
-                }
-                if (breakOverride) {
-                    defaultDurations.micro = breakOverride;
-                    defaultDurations.recharge = breakOverride;
+                if (payload.break_minutes !== undefined && payload.break_minutes !== null) {
+                    const converted = minutesToSeconds(payload.break_minutes);
+                    if (converted) {
+                        timerState.durations.micro = converted;
+                        timerState.durations.recharge = converted;
+                    }
                 }
             };
             const parseDurationOverride = payload => {
-                if (!payload) return null;
+                if (!payload) {
+                    return null;
+                }
                 if (payload.duration_seconds !== undefined && payload.duration_seconds !== null) {
                     const numeric = Number(payload.duration_seconds);
                     return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
                 }
                 if (payload.duration_minutes !== undefined && payload.duration_minutes !== null) {
                     const numeric = Number(payload.duration_minutes);
-                    return Number.isFinite(numeric) && numeric > 0 ? minutesToSeconds(numeric) : null;
-                }
-                if (payload.focus_minutes !== undefined && payload.focus_minutes !== null) {
-                    return parseMinutesValue(payload.focus_minutes);
-                }
-                if (payload.break_minutes !== undefined && payload.break_minutes !== null) {
-                    return parseMinutesValue(payload.break_minutes);
+                    return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric * 60) : null;
                 }
                 if (payload.duration !== undefined && payload.duration !== null) {
                     const numeric = Number(payload.duration);
                     return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
                 }
+                if (payload.focus_minutes !== undefined && payload.focus_minutes !== null) {
+                    return minutesToSeconds(payload.focus_minutes);
+                }
+                if (payload.break_minutes !== undefined && payload.break_minutes !== null) {
+                    return minutesToSeconds(payload.break_minutes);
+                }
                 return null;
             };
-            const updateStats = () => {
-                sessionsCompletedLargeEl.textContent = sessionsCompleted;
-                totalTimeLoggedLargeEl.textContent = formatTotalTime(totalTimeLogged);
-                persistTimerState();
+            const updateDisplay = () => {
+                const phase = timerState.currentPhase;
+                phaseLabel.textContent = phases[phase].label;
+                timerDisplay.textContent = formatDuration(timerState.remainingSeconds);
+                statusText.textContent = getStatusLabel();
+                document.documentElement.style.setProperty('--accent-color', phases[phase].accent);
+                const progress = timerState.totalDuration > 0 ? timerState.remainingSeconds / timerState.totalDuration : 0;
+                const offset = circumference * (1 - progress);
+                ringElement.style.strokeDashoffset = isNaN(offset) ? circumference : offset;
             };
-            const setPhase = (phase, { autoStart = true, duration = null } = {}) => {
-                if (!phases[phase]) return;
-                currentPhase = phase;
-                const durationSeconds = typeof duration === 'number' && Number.isFinite(duration) && duration > 0 ? duration : defaultDurations[phase];
-                phases[phase] = { ...phases[phase], duration: durationSeconds };
-                remainingSeconds = durationSeconds;
-                totalDurationForPhase = durationSeconds;
-                timerRunning = false;
-                timerPaused = false;
+            const getStatusLabel = () => {
+                if (timerState.timerPaused) {
+                    return 'Paused';
+                }
+                if (timerState.timerRunning) {
+                    return phases[timerState.currentPhase].status;
+                }
+                if (timerState.remainingSeconds === 0) {
+                    return 'Stopped';
+                }
+                return 'Waiting';
+            };
+            const updateStatsDisplay = () => {
+                sessionsCompletedEl.textContent = timerState.sessionsCompleted;
+                totalTimeLoggedEl.textContent = formatTotalTime(timerState.totalTimeLogged);
+            };
+            const emitTimerState = state => {
+                if (socket && socket.connected) {
+                    socket.emit('SPECTER_TIMER_STATE', { code: overlayApiKey, state });
+                }
+            };
+            const emitTimerUpdate = () => {
+                if (socket && socket.connected) {
+                    socket.emit('SPECTER_TIMER_UPDATE', {
+                        code: overlayApiKey,
+                        phase: timerState.currentPhase,
+                        remainingSeconds: timerState.remainingSeconds,
+                        totalDurationForPhase: timerState.totalDuration,
+                        timerRunning: timerState.timerRunning,
+                        timerPaused: timerState.timerPaused,
+                        phaseLabel: phases[timerState.currentPhase].label,
+                        phaseStatus: phases[timerState.currentPhase].status,
+                        phaseColor: phases[timerState.currentPhase].accent
+                    });
+                }
+            };
+            const emitSessionStats = () => {
+                if (socket && socket.connected) {
+                    socket.emit('SPECTER_SESSION_STATS', {
+                        code: overlayApiKey,
+                        sessionsCompleted: timerState.sessionsCompleted,
+                        totalTimeLogged: timerState.totalTimeLogged
+                    });
+                }
+            };
+            const startCountdown = () => {
+                clearInterval(timerState.countdownId);
+                timerState.timerRunning = true;
+                timerState.timerPaused = false;
+                emitTimerState('running');
+                timerState.countdownId = setInterval(() => {
+                    timerState.remainingSeconds = Math.max(0, timerState.remainingSeconds - 1);
+                    if (timerState.remainingSeconds <= 0) {
+                        clearInterval(timerState.countdownId);
+                        timerState.countdownId = null;
+                        finishPhase();
+                        return;
+                    }
+                    updateDisplay();
+                    emitTimerUpdate();
+                }, 1000);
                 updateDisplay();
-                if (autoStart) {
+                emitTimerUpdate();
+            };
+            const finishPhase = () => {
+                timerState.timerRunning = false;
+                timerState.timerPaused = false;
+                timerState.remainingSeconds = 0;
+                timerState.sessionsCompleted += 1;
+                timerState.totalTimeLogged += timerState.totalDuration;
+                updateStatsDisplay();
+                emitSessionStats();
+                emitTimerState('stopped');
+                updateDisplay();
+            };
+            const pauseTimer = () => {
+                if (!timerState.timerRunning) {
+                    return;
+                }
+                clearInterval(timerState.countdownId);
+                timerState.countdownId = null;
+                timerState.timerRunning = false;
+                timerState.timerPaused = true;
+                emitTimerState('paused');
+                updateDisplay();
+                emitTimerUpdate();
+            };
+            const resumeTimer = () => {
+                if (timerState.remainingSeconds <= 0 || timerState.timerRunning) {
+                    return;
+                }
+                startCountdown();
+            };
+            const stopTimer = () => {
+                clearInterval(timerState.countdownId);
+                timerState.countdownId = null;
+                timerState.timerRunning = false;
+                timerState.timerPaused = false;
+                timerState.remainingSeconds = 0;
+                emitTimerState('stopped');
+                updateDisplay();
+                emitTimerUpdate();
+            };
+            const resetTimer = () => {
+                clearInterval(timerState.countdownId);
+                timerState.countdownId = null;
+                timerState.timerRunning = false;
+                timerState.timerPaused = false;
+                timerState.remainingSeconds = timerState.durations[timerState.currentPhase];
+                timerState.totalDuration = timerState.durations[timerState.currentPhase];
+                emitTimerState('stopped');
+                updateDisplay();
+                emitTimerUpdate();
+            };
+            const setPhase = (phase, options = { autoStart: true, duration: null }) => {
+                if (!phases[phase]) {
+                    return;
+                }
+                timerState.currentPhase = phase;
+                const durationSeconds = typeof options.duration === 'number' && options.duration > 0
+                    ? options.duration
+                    : timerState.durations[phase];
+                timerState.totalDuration = durationSeconds;
+                timerState.remainingSeconds = durationSeconds;
+                timerState.timerRunning = false;
+                timerState.timerPaused = false;
+                updateDisplay();
+                emitTimerState('stopped');
+                emitTimerUpdate();
+                if (options.autoStart) {
                     startCountdown();
-                } else {
-                    emitTimerState('stopped');
                 }
             };
-            window.SpecterWorkingStudyTimer = {
-                startPhase: (phaseKey, options) => setPhase(phaseKey, options),
-                pause: pauseTimer,
-                resume: resumeTimer,
-                reset: resetTimer,
-                stop: stopTimer
+            const getCurrentTimeStamp = () => {
+                const now = new Date();
+                return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             };
-            // Helper function for boolean parsing
-            const parseBool = (value, fallback = false) => {
-                if (value === undefined || value === null) return fallback;
-                const normalized = String(value).toLowerCase();
-                if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
-                if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
-                return fallback;
-            };
-            const timerWrapper = document.getElementById('timerWrapper');
-            const timerPlaceholder = document.getElementById('timerPlaceholder');
-            showTimer = urlParams.has('timer');
-            showTasklist = urlParams.has('tasklist');
-            // Handle overlay mode selection
-            if (!showTimer && !showTasklist) {
-                timerWrapper.style.display = 'none';
-                tasklistWrapper.style.display = 'none';
-                timerPlaceholder.style.display = 'block';
-                tasklistPlaceholder.style.display = 'block';
-                return;
-            }
-            if (showTasklist) {
-                timerWrapper.style.display = 'none';
-                timerPlaceholder.style.display = 'none';
-                tasklistWrapper.style.display = 'flex';
-                tasklistPlaceholder.style.display = 'none';
-                isStreamerView = urlParams.has('streamer') ? parseBool(urlParams.get('streamer'), true) : true;
-                updateTaskListHeight();
-                // Initialize empty task list
-                updateTaskList([], isStreamerView);
-            } else if (showTimer) {
-                timerWrapper.style.display = 'flex';
-                timerPlaceholder.style.display = 'none';
-                tasklistWrapper.style.display = 'none';
-                tasklistPlaceholder.style.display = 'none';
-            }
-            const apiCode = urlParams.get('code');
-            if (!apiCode) {
-                console.warn('Overlay missing viewer API code; websocket control disabled.');
-                if (showTimer) {
-                    timerPlaceholder.style.display = 'none';
-                    timerWrapper.style.display = 'flex';
+            const renderTasks = tasks => {
+                taskListEl.innerHTML = '';
+                if (!tasks || !tasks.length) {
+                    taskListEl.innerHTML = '<p class="empty-state">No tasks yet.</p>';
+                    taskCountEl.textContent = '0 tasks';
+                    taskUpdatedEl.textContent = `Updated: ${getCurrentTimeStamp()}`;
+                    return;
                 }
-                return;
-            }
-            if (!showTimer && !showTasklist) return;
-            const socketUrl = 'wss://websocket.botofthespecter.com';
-            let socket;
-            let attempts = 0;
-            if (showTimer) {
-                timerPlaceholder.style.display = 'none';
-                timerWrapper.style.display = 'flex';
-                setPhase('focus', { autoStart: false });
-                updateStats();
-                restoreTimerState();
-            }
-            // Determine connection name based on mode - format: "[Type]"
-            const connectionName = showTasklist ? 'Working Study Task List' : 'Working Study Timer';
-            // Dashboard will emit SPECTER_TASKLIST events to the Overlay channel as well
-            const channelName = 'Overlay';
+                tasks.forEach(task => {
+                    const node = document.createElement('article');
+                    node.className = 'task-item' + (task.completed ? ' completed' : '');
+                    node.innerHTML = `
+                        <p class="task-text">${escapeHtml(task.title)}</p>
+                        <div class="task-meta">
+                            ${task.priority ? `<span class="task-priority ${task.priority.toLowerCase()}">${task.priority}</span>` : ''}
+                            ${task.completed ? '<span>Completed</span>' : ''}
+                        </div>
+                    `;
+                    taskListEl.appendChild(node);
+                });
+                taskCountEl.textContent = `${tasks.length} task${tasks.length === 1 ? '' : 's'}`;
+                taskUpdatedEl.textContent = `Updated: ${getCurrentTimeStamp()}`;
+            };
+            const tasksEndpoint = `${window.location.pathname}?code=${encodeURIComponent(overlayApiKey)}&action=get_tasks`;
+            const settingsEndpoint = `${window.location.pathname}?code=${encodeURIComponent(overlayApiKey)}&action=get_settings`;
+            const loadTasksFromAPI = async () => {
+                try {
+                    const response = await fetch(tasksEndpoint, { cache: 'no-store' });
+                    const data = await response.json();
+                    if (data.success) {
+                        renderTasks(data.data);
+                    } else {
+                        console.error('[Overlay] Task list failed:', data.error);
+                    }
+                } catch (error) {
+                    console.error('[Overlay] Unable to load tasks:', error);
+                }
+            };
+            const loadSettingsFromAPI = async () => {
+                try {
+                    const response = await fetch(settingsEndpoint, { cache: 'no-store' });
+                    const data = await response.json();
+                    if (data.success && data.data) {
+                        updateDurationsFromPayload(data.data);
+                        timerState.durations.focus = timerState.durations.focus || defaultDurations.focus;
+                        timerState.durations.micro = timerState.durations.micro || defaultDurations.micro;
+                        timerState.durations.recharge = timerState.durations.recharge || defaultDurations.recharge;
+                        setPhase(timerState.currentPhase, { autoStart: false });
+                    }
+                } catch (error) {
+                    console.error('[Overlay] Unable to load settings:', error);
+                }
+            };
+            let socket = null;
+            let reconnectAttempts = 0;
+            let statsTicker = null;
+            const setConnectionStatus = (text, state) => {
+                if (!connectionStatus) return;
+                connectionStatus.textContent = text;
+                connectionStatus.dataset.state = state;
+            };
+            const startStatsTicker = () => {
+                clearInterval(statsTicker);
+                statsTicker = setInterval(() => {
+                    emitSessionStats();
+                }, 5000);
+            };
+            const stopStatsTicker = () => {
+                if (statsTicker) {
+                    clearInterval(statsTicker);
+                    statsTicker = null;
+                }
+            };
             const scheduleReconnect = () => {
-                attempts += 1;
-                const delay = Math.min(5000 * attempts, 30000);
-                console.log(`[Overlay] Scheduling reconnect in ${delay}ms (attempt ${attempts})`);
+                reconnectAttempts += 1;
+                const delay = Math.min(5000 * reconnectAttempts, 30000);
+                setConnectionStatus('Reconnecting…', 'connecting');
                 if (socket) {
                     socket.removeAllListeners();
                     socket = null;
                 }
                 setTimeout(connect, delay);
             };
-            // Load settings from dashboard API
-            const loadSettingsFromAPI = async () => {
-                try {
-                    const overlayUrl = `${window.location.pathname}?code=${encodeURIComponent(apiCode)}&action=get_settings`;
-                    const response = await fetch(overlayUrl);
-                    const result = await response.json();
-                    if (result.success && result.data) {
-                        // Update default durations from database
-                        defaultDurations.focus = minutesToSeconds(result.data.focus_minutes);
-                        defaultDurations.micro = minutesToSeconds(result.data.micro_break_minutes);
-                        defaultDurations.recharge = minutesToSeconds(result.data.recharge_break_minutes);
-                        // Update phases with new durations
-                        phases.focus.duration = defaultDurations.focus;
-                        phases.micro.duration = defaultDurations.micro;
-                        phases.recharge.duration = defaultDurations.recharge;
-                        console.log('[Overlay] Settings loaded from API:', result.data);
-                        updateDisplay();
-                        restoreTimerState();
-                    } else if (!result.success) {
-                        console.error('[Overlay] Error loading settings:', result.error);
-                    }
-                } catch (error) {
-                    console.error('[Overlay] Error loading settings from API:', error);
-                }
-            };
-            // Load tasks from overlay's own API (uses database.php connection)
-            const loadTasksFromAPI = async () => {
-                try {
-                    const overlayUrl = `${window.location.pathname}?code=${encodeURIComponent(apiCode)}&action=get_tasks`;
-                    const response = await fetch(overlayUrl);
-                    const result = await response.json();
-                    if (result.success && result.data) {
-                        console.log('[Overlay] Tasks loaded from API:', result.data.length, 'tasks');
-                        updateTaskList(result.data, isStreamerView);
-                    } else if (!result.success) {
-                        console.error('[Overlay] Error loading tasks:', result.error);
-                    }
-                } catch (error) {
-                    console.error('[Overlay] Error loading tasks from API:', error);
-                }
-            };
             const connect = () => {
-                console.log(`[Overlay] Connecting to WebSocket as "${connectionName}"...`);
-                socket = io(socketUrl, { reconnection: false });
+                setConnectionStatus('Connecting…', 'connecting');
+                socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
                 socket.on('connect', () => {
-                    attempts = 0;
-                    console.log(`[Overlay] ✓ WebSocket connected, registering as "${connectionName}"`);
-                    socket.emit('REGISTER', { 
-                        code: apiCode, 
-                        channel: channelName, 
-                        name: connectionName
+                    reconnectAttempts = 0;
+                    setConnectionStatus('Connected', 'connected');
+                    socket.emit('REGISTER', {
+                        code: overlayApiKey,
+                        channel: 'Overlay',
+                        name: `Working Study Timer - ${overlayUserName}`
                     });
-                    // Emit stats immediately on connect
-                    if (showTimer) {
-                        emitSessionStats();
-                        loadSettingsFromAPI();
-                    }
-                    // Load tasks from API on connect
-                    if (showTasklist) {
-                        loadTasksFromAPI();
-                    }
+                    emitSessionStats();
+                    loadSettingsFromAPI();
+                    loadTasksFromAPI();
+                    startStatsTicker();
                 });
-                socket.on('disconnect', (reason) => {
-                    console.log(`[Overlay] ✗ WebSocket disconnected: ${reason}`);
+                socket.on('disconnect', reason => {
+                    setConnectionStatus('Disconnected', 'error');
+                    stopStatsTicker();
                     scheduleReconnect();
                 });
-                socket.on('connect_error', (error) => {
-                    console.error(`[Overlay] Connection error: ${error.message}`);
+                socket.on('connect_error', error => {
+                    console.error('[Overlay] WebSocket error:', error);
+                    setConnectionStatus('Connection error', 'error');
+                    stopStatsTicker();
                     scheduleReconnect();
                 });
-                // Timer-specific handlers
-                if (showTimer) {
-                    socket.on('SPECTER_PHASE', payload => {
-                        const phaseKey = (payload.phase || payload.phase_key || '').toLowerCase();
-                        if (!phaseKey || !phases[phaseKey]) return;
-                        const autoStart = parseBool(payload.auto_start, true);
-                        const overriddenDuration = parseDurationOverride(payload);
-                        updateDefaultDurationsFromPayload(payload);
-                        window.SpecterWorkingStudyTimer.startPhase(phaseKey, { autoStart, duration: overriddenDuration });
-                    });
-                    socket.on('SPECTER_TIMER_CONTROL', payload => {
-                        console.log('[Overlay] SPECTER_TIMER_CONTROL payload:', payload);
-                        const action = (payload.action || payload.command || '').toLowerCase();
-                        updateDefaultDurationsFromPayload(payload);
-                        const overriddenDuration = parseDurationOverride(payload);
-                        if (action === 'pause') {
-                            window.SpecterWorkingStudyTimer.pause();
-                        } else if (action === 'resume') {
-                            window.SpecterWorkingStudyTimer.resume();
-                        } else if (action === 'reset') {
-                            window.SpecterWorkingStudyTimer.reset();
-                        } else if (action === 'start') {
-                            const baseDuration = typeof overriddenDuration === 'number'
-                                ? overriddenDuration
-                                : defaultDurations[currentPhase];
-                            window.SpecterWorkingStudyTimer.startPhase(currentPhase, {
-                                autoStart: true,
-                                duration: baseDuration
-                            });
-                        } else if (action === 'stop') {
-                            window.SpecterWorkingStudyTimer.stop();
-                        }
-                    });
-                    socket.on('SPECTER_STATS_REQUEST', payload => {
-                        console.log('[Overlay] Dashboard requesting session stats');
-                        emitSessionStats();
-                    });
-                }
-                // Task list handlers
-                if (showTasklist) {
-                    socket.on('SPECTER_TASKLIST', payload => {
-                        console.log('[Overlay] Received task list update via WebSocket');
-                        // Fetch fresh tasks from database when notified of updates
-                        loadTasksFromAPI();
-                    });
-                }
-                if (overlayDebug) {
-                    socket.onAny((event, ...args) => {
-                        console.debug('[Overlay]', event, args);
-                    });
-                }
-                socket.onAny((event, ...args) => {
-                    if (event === 'SPECTER_TIMER_CONTROL') {
-                        console.log('[Overlay] onAny captured control event', args);
+                socket.on('SUCCESS', payload => {
+                    if (payload && typeof payload.message === 'string' && payload.message.toLowerCase().includes('registration')) {
+                        setConnectionStatus('Registered', 'connected');
                     }
+                });
+                socket.on('SPECTER_PHASE', payload => {
+                    const phaseKey = (payload.phase || payload.phase_key || '').toLowerCase();
+                    if (!phaseKey || !phases[phaseKey]) {
+                        return;
+                    }
+                    updateDurationsFromPayload(payload);
+                    const autoStart = payload.auto_start !== undefined ? Boolean(payload.auto_start) : true;
+                    const overrideDuration = parseDurationOverride(payload);
+                    setPhase(phaseKey, { autoStart, duration: overrideDuration });
+                });
+                socket.on('SPECTER_TIMER_CONTROL', payload => {
+                    if (!payload) return;
+                    const action = (payload.action || payload.command || '').toLowerCase();
+                    updateDurationsFromPayload(payload);
+                    const overrideDuration = parseDurationOverride(payload);
+                    if (action === 'pause') {
+                        pauseTimer();
+                    } else if (action === 'resume') {
+                        resumeTimer();
+                    } else if (action === 'reset') {
+                        resetTimer();
+                    } else if (action === 'stop') {
+                        stopTimer();
+                    } else if (action === 'start') {
+                        const durationOverride = typeof overrideDuration === 'number' ? overrideDuration : timerState.durations[timerState.currentPhase];
+                        setPhase(timerState.currentPhase, { autoStart: true, duration: durationOverride });
+                    }
+                });
+                socket.on('SPECTER_STATS_REQUEST', () => {
+                    emitSessionStats();
+                });
+                socket.on('SPECTER_TASKLIST_UPDATE', () => {
+                    loadTasksFromAPI();
+                });
+                socket.on('SPECTER_TASKLIST', () => {
+                    loadTasksFromAPI();
+                });
+                socket.on('SPECTER_SESSION_STATS', payload => {
+                    if (!payload) return;
+                    if (typeof payload.sessionsCompleted === 'number') {
+                        timerState.sessionsCompleted = payload.sessionsCompleted;
+                    }
+                    if (typeof payload.totalTimeLogged === 'number') {
+                        timerState.totalTimeLogged = payload.totalTimeLogged;
+                    }
+                    updateStatsDisplay();
                 });
             };
-            // Emit stats every 5 seconds to keep dashboard updated (timer mode only)
-            if (showTimer) {
-                setInterval(() => {
-                    if (socket && socket.connected) {
-                        emitSessionStats();
-                    }
-                }, 5000);
-            }
             connect();
+            renderTasks([]);
+            updateStatsDisplay();
+            updateDisplay();
         })();
     </script>
 </body>
