@@ -1138,10 +1138,9 @@ ob_end_clean();
                 // Task list handlers
                 if (showTasklist) {
                     socket.on('SPECTER_TASKLIST', payload => {
-                        console.log('[Overlay] Received task list update via WebSocket:', payload.tasks?.length || 0, 'tasks');
-                        if (payload.tasks) {
-                            updateTaskList(payload.tasks, payload.streamerView || false);
-                        }
+                        console.log('[Overlay] Received task list update via WebSocket');
+                        // Fetch fresh tasks from database when notified of updates
+                        loadTasksFromAPI();
                     });
                 }
                 socket.onAny((event, ...args) => {
