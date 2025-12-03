@@ -34,6 +34,9 @@
             width: 100%;
             padding: 0;
         }
+        .has-text-white {
+            color: #f8fbff !important;
+        }
         .placeholder {
             display: none;
             font-size: 1rem;
@@ -183,6 +186,35 @@
             font-weight: 600;
             font-size: 0.9rem;
         }
+        .stats-large-display {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            gap: 24px;
+            padding: 20px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .stat-large-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .stat-large-label {
+            font-size: 0.75rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 500;
+        }
+        .stat-large-value {
+            font-size: clamp(32px, 6vw, 48px);
+            font-weight: 700;
+            color: var(--accent-color);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            font-variant-numeric: tabular-nums;
+        }
     </style>
 </head>
 <body>
@@ -205,14 +237,14 @@
                 <span class="status-indicator"></span>
                 <span id="statusText">Ready to focus</span>
             </div>
-            <div class="session-stats" id="sessionStats">
-                <div class="stat-item">
-                    <span id="sessionsCompleted">0</span>
-                    <span>Sessions</span>
+            <div class="stats-large-display" id="statsLargeDisplay">
+                <div class="stat-large-item">
+                    <span class="stat-large-label has-text-white">Current Session</span>
+                    <span class="stat-large-value" id="sessionsCompletedLarge">0</span>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-value" id="totalTimeLogged">0m</span>
-                    <span>Total Time</span>
+                <div class="stat-large-item">
+                    <span class="stat-large-label has-text-white">Focus Time</span>
+                    <span class="stat-large-value" id="totalTimeLoggedLarge">0h 0m</span>
                 </div>
             </div>
         </div>
@@ -256,8 +288,8 @@
             const statusText = document.getElementById('statusText');
             const timerDisplay = document.getElementById('timerDisplay');
             const timerRingProgress = document.getElementById('timerRingProgress');
-            const sessionsCompletedEl = document.getElementById('sessionsCompleted');
-            const totalTimeLoggedEl = document.getElementById('totalTimeLogged');
+            const sessionsCompletedLargeEl = document.getElementById('sessionsCompletedLarge');
+            const totalTimeLoggedLargeEl = document.getElementById('totalTimeLoggedLarge');
             const circumference = 2 * Math.PI * 130;
             
             const emitTimerState = (state) => {
@@ -441,8 +473,8 @@
                 return null;
             };
             const updateStats = () => {
-                sessionsCompletedEl.textContent = sessionsCompleted;
-                totalTimeLoggedEl.textContent = formatTotalTime(totalTimeLogged);
+                sessionsCompletedLargeEl.textContent = sessionsCompleted;
+                totalTimeLoggedLargeEl.textContent = formatTotalTime(totalTimeLogged);
             };
             const setPhase = (phase, { autoStart = true, duration = null } = {}) => {
                 if (!phases[phase]) return;
