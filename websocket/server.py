@@ -123,6 +123,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.ip = self.get_own_ip()
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
         self.registered_clients = {}
+        self.last_timer_control_event = {}
         # Global listeners that receive events from all channels
         self.global_listeners = []
         # Track explicitly registered event names so wildcard handling doesn't duplicate
@@ -144,7 +145,6 @@ class BotOfTheSpecter_WebsocketServer:
         self.obs_handler = ObsHandler(logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid)
         self.donation_handler = DonationEventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals)
         socketio_logger = logging.getLogger('socketio')
-        socketio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from socketio
         engineio_logger = logging.getLogger('engineio')
         engineio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from engineio
         # Initialize SocketIO server
@@ -251,6 +251,21 @@ class BotOfTheSpecter_WebsocketServer:
     async def event(self, sid, event, data):
         # Handle generic events for SocketIO.
         self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
+        if event == "SPECTER_TIMER_CONTROL":
+            payload_repr = "<empty>"
+            if data:
+                try:
+                    payload_repr = json.dumps(data, default=str)
+                except Exception:
+                    payload_repr = str(data)
+                if len(payload_repr) > 400:
+                    payload_repr = f"{payload_repr[:400]}..."
+            self.last_timer_control_event = {
+                "sid": sid,
+                "data": data,
+                "timestamp": time.time()
+            }
+            self.logger.info(f"SPECTER_TIMER_CONTROL from [{sid}]: {payload_repr}")
         # Relay NOW_PLAYING and MUSIC_SETTINGS to all clients with same code
         if event in ("NOW_PLAYING", "MUSIC_SETTINGS"):
             code = None
@@ -438,6 +453,10 @@ class BotOfTheSpecter_WebsocketServer:
                 effective_code = self.get_code_by_sid(source_sid)
             if not effective_code and data and isinstance(data, dict):
                 effective_code = data.get('code') or data.get('channel_code')
+        targeted_clients = self.registered_clients.get(effective_code, []) if effective_code else []
+        if event_name.startswith("SPECTER_"):
+            client_names = [client.get('name', '<unnamed>') for client in targeted_clients]
+            self.logger.info(f"{event_name} will target {len(client_names)} client(s) for code {effective_code}: {client_names}")
         # Broadcast to specific code clients if code is provided
         if effective_code and effective_code in self.registered_clients:
             for client in self.registered_clients[effective_code]:
