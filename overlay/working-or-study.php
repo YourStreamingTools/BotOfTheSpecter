@@ -173,7 +173,7 @@
         }
         .session-stats {
             font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.6);
+            color: #f8fbff;
             display: flex;
             justify-content: space-around;
             padding-top: 12px;
@@ -274,6 +274,16 @@
                 }
             };
             
+            const emitSessionStats = () => {
+                if (socket && socket.connected) {
+                    socket.emit('SPECTER_SESSION_STATS', {
+                        code: apiCode,
+                        sessionsCompleted,
+                        totalTimeLogged
+                    });
+                }
+            };
+            
             const formatTime = seconds => {
                 const mins = Math.floor(seconds / 60);
                 const secs = seconds % 60;
@@ -339,6 +349,7 @@
                         sessionsCompleted += 1;
                         totalTimeLogged += totalDurationForPhase;
                         updateStats();
+                        emitSessionStats();
                         timerRunning = false;
                         emitTimerState('stopped');
                         return;
@@ -372,6 +383,7 @@
                         sessionsCompleted += 1;
                         totalTimeLogged += totalDurationForPhase;
                         updateStats();
+                        emitSessionStats();
                         timerRunning = false;
                         emitTimerState('stopped');
                         return;

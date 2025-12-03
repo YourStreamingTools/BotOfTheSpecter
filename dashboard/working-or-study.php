@@ -217,6 +217,8 @@ ob_start();
         const resetBtn = document.querySelector('[data-specter-control="reset"]');
         let isRequesting = false;
         let timerState = 'stopped'; // stopped, running, paused
+        let sessionsCompleted = 0;
+        let totalTimeLogged = 0;
         const getToastArea = () => {
             if (toastArea) return toastArea;
             const fallback = document.querySelector('.toast-area');
@@ -265,6 +267,19 @@ ob_start();
                 stopBtn.style.cursor = 'pointer';
                 stopBtn.disabled = false;
             }
+        };
+        
+        const formatTotalTime = (totalSeconds) => {
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            }
+            return `${minutes}m`;
+        };
+        
+        const updateStatsDisplay = () => {
+            console.log(`[Timer Dashboard] Session stats updated - Sessions: ${sessionsCompleted}, Total Time: ${formatTotalTime(totalTimeLogged)}`);
         };
         const phaseNames = {
             focus: 'Focus Sprint',
@@ -365,6 +380,12 @@ ob_start();
                     timerState = newState;
                     updateButtonStates();
                 }
+            });
+            socket.on('SPECTER_SESSION_STATS', payload => {
+                console.log('[Timer Dashboard] Received session stats update:', payload);
+                sessionsCompleted = payload.sessionsCompleted || 0;
+                totalTimeLogged = payload.totalTimeLogged || 0;
+                updateStatsDisplay();
             });
             socket.onAny((event, ...args) => {
                 console.debug(`[Timer Dashboard] WebSocket event: ${event}`, args);
