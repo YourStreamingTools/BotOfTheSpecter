@@ -55,10 +55,9 @@
             width: var(--timer-width);
             padding: 40px;
             border-radius: 32px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(4, 6, 11, 0.98));
-            border: 2px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 50px 100px rgba(0, 0, 0, 0.75), 
-                        inset 0 1px rgba(255, 255, 255, 0.1);
+            background: transparent;
+            border: 2px solid rgba(255, 255, 255, 1);
+            box-shadow: none;
             display: flex;
             flex-direction: column;
             gap: 24px;
@@ -67,14 +66,7 @@
             overflow: hidden;
         }
         .timer-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--accent-color), transparent);
-            opacity: 0.6;
+            display: none;
         }
         .timer-ring-container {
             position: relative;
