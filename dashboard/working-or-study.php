@@ -1086,7 +1086,7 @@ ob_start();
             if (socket && socket.connected) {
                 socket.emit('SPECTER_STATS_REQUEST', { code: apiKey });
             }
-        }, 3000);
+        }, 15000);
     })();
 </script>
 <?php
