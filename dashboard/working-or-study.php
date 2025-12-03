@@ -39,12 +39,12 @@ ob_start();
                 Working / Study Overlay Control
             </p>
             <div class="buttons">
-                <a class="button is-primary is-loading-toggle" href="<?php echo htmlspecialchars($overlayLinkWithCode); ?>" target="_blank" rel="noreferrer">
+                <button type="button" class="button is-primary" id="copyOverlayLinkBtn">
                     <span class="icon">
-                        <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                        <i class="fas fa-copy" aria-hidden="true"></i>
                     </span>
-                    <span>Open Timer Overlay</span>
-                </a>
+                    <span>Copy Timer Overlay Link</span>
+                </button>
             </div>
         </header>
         <div class="card-content">
@@ -268,6 +268,8 @@ ob_start();
 <script>
     (function () {
         const apiKey = <?php echo json_encode($api_key); ?>;
+        const overlayLink = <?php echo json_encode($overlayLinkWithCode); ?>;
+        const copyOverlayLinkBtn = document.getElementById('copyOverlayLinkBtn');
         const buttonsPhase = document.querySelectorAll('[data-specter-phase]');
         const buttonsControl = document.querySelectorAll('[data-specter-control]');
         const focusLengthInput = document.getElementById('focusLengthMinutes');
@@ -504,6 +506,22 @@ ob_start();
         connect();
         // Initialize button states
         updateButtonStates();
+        // Copy overlay link button
+        copyOverlayLinkBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(overlayLink);
+                showToast('✓ Timer overlay link copied to clipboard!', 'success');
+                // Change button appearance temporarily
+                const originalHTML = copyOverlayLinkBtn.innerHTML;
+                copyOverlayLinkBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>Copied!</span>';
+                setTimeout(() => {
+                    copyOverlayLinkBtn.innerHTML = originalHTML;
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                showToast('⚠️ Failed to copy link to clipboard', 'danger');
+            }
+        });
         buttonsPhase.forEach(button => {
             button.addEventListener('click', async () => {
                 const phase = button.getAttribute('data-specter-phase');
