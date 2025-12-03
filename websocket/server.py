@@ -448,6 +448,12 @@ class BotOfTheSpecter_WebsocketServer:
         for listener in self.global_listeners:
             await self.sio.emit(event_name, {**data, "channel_code": channel_code_for_globals}, to=listener['sid'])
             count += 1
+        if data:
+            try:
+                payload_repr = json.dumps(data, default=str)
+            except Exception:
+                payload_repr = str(data)
+            self.logger.debug(f"Payload for {event_name}: {payload_repr}")
         self.logger.info(f"Broadcasted {event_name} to {count} clients (code: {effective_code})")
         return count
 
