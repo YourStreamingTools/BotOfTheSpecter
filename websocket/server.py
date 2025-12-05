@@ -273,12 +273,16 @@ class BotOfTheSpecter_WebsocketServer:
                 for client in clients:
                     if client['sid'] == sid:
                         code = c
+                        self.logger.info(f"[TIMER ROUTING DEBUG] Found sender SID {sid} with code {code}, client data: {client}")
                         # Check if this is Dashboard trying to send to Overlay
                         if client.get('channel') == 'Dashboard':
                             target_channel = 'Overlay'
+                            self.logger.info(f"[TIMER ROUTING DEBUG] Sender has Dashboard channel, setting target to Overlay")
                         break
                 if code:
                     break
+            self.logger.info(f"[TIMER ROUTING DEBUG] After lookup: code={code}, target_channel={target_channel}")
+            self.logger.info(f"[TIMER ROUTING DEBUG] All registered clients: {self.registered_clients}")
             if code and target_channel:
                 self.logger.info(f"Routing SPECTER_TIMER_CONTROL from Dashboard to Overlay for code {code}")
                 # Send to all Overlay clients with the same code
@@ -407,7 +411,7 @@ class BotOfTheSpecter_WebsocketServer:
                     else:
                         self.logger.warning(f"Code [{code}] was removed from registered_clients before old client removal. Skipping removal.")
                     break # Register the new client
-            client_data = {"sid": sid, "name": name, "is_admin": is_admin}
+            client_data = {"sid": sid, "name": name, "is_admin": is_admin, "channel": channel}
             # Ensure the code key exists before appending
             if code not in self.registered_clients:
                 self.registered_clients[code] = []
