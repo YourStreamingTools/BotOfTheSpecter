@@ -335,6 +335,12 @@ ob_end_clean();
                         timerState.durations.micro = converted;
                     }
                 }
+                if (payload.micro_minutes !== undefined && payload.micro_minutes !== null) {
+                    const converted = minutesToSeconds(payload.micro_minutes);
+                    if (converted) {
+                        timerState.durations.micro = converted;
+                    }
+                }
                 if (payload.recharge_break_minutes !== undefined && payload.recharge_break_minutes !== null) {
                     const converted = minutesToSeconds(payload.recharge_break_minutes);
                     if (converted) {
@@ -605,7 +611,9 @@ ob_end_clean();
             };
             const connect = () => {
                 setConnectionStatus('Connecting…', 'connecting');
+                console.log('[Overlay] Creating socket connection...');
                 socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
+                console.log('[Overlay] Socket instance created, registering event listeners...');
                 socket.on('connect', () => {
                     reconnectAttempts = 0;
                     setConnectionStatus('Connected', 'connected');
@@ -619,6 +627,7 @@ ob_end_clean();
                     loadTasksFromAPI();
                     startStatsTicker();
                 });
+                console.log('[Overlay] Registering all WebSocket event listeners...');
                 socket.on('disconnect', reason => {
                     setConnectionStatus('Disconnected', 'error');
                     stopStatsTicker();
@@ -636,6 +645,7 @@ ob_end_clean();
                     }
                 });
                 socket.on('SPECTER_PHASE', payload => {
+                    console.log('[Overlay] SPECTER_TIMER_CONTROL listener registered');
                     const phaseKey = (payload.phase || payload.phase_key || '').toLowerCase();
                     if (!phaseKey || !phases[phaseKey]) {
                         return;
@@ -646,21 +656,48 @@ ob_end_clean();
                     setPhase(phaseKey, { autoStart, duration: overrideDuration });
                 });
                 socket.on('SPECTER_TIMER_CONTROL', payload => {
-                    if (!payload) return;
+                    console.log('[Overlay] SPECTER_TIMER_CONTROL listener triggered');
+                    console.log('[Overlay] SPECTER_TIMER_CONTROL event received:', payload);
+                    if (!payload) {
+                        console.log('[Overlay] No payload in SPECTER_TIMER_CONTROL');
+                        return;
+                    }
                     const action = (payload.action || payload.command || '').toLowerCase();
+                    console.log(`[Overlay] Parsed action: "${action}"`);
+                    // Update timer durations from payload
+                    console.log('[Overlay] Updating durations from payload:', { 
+                        focus_minutes: payload.focus_minutes,
+                        micro_minutes: payload.micro_minutes,
+                        break_minutes: payload.break_minutes
+                    });
                     updateDurationsFromPayload(payload);
                     const overrideDuration = parseDurationOverride(payload);
+                    console.log(`[Overlay] Timer control received: ${action}, Override duration: ${overrideDuration}`, payload);
+                    console.log(`[Overlay] Current timerState:`, {
+                        currentPhase: timerState.currentPhase,
+                        durations: timerState.durations,
+                        timerRunning: timerState.timerRunning
+                    });
                     if (action === 'pause') {
+                        console.log('[Overlay] Executing PAUSE');
                         pauseTimer();
                     } else if (action === 'resume') {
+                        console.log('[Overlay] Executing RESUME');
                         resumeTimer();
                     } else if (action === 'reset') {
+                        console.log('[Overlay] Executing RESET');
                         resetTimer();
                     } else if (action === 'stop') {
+                        console.log('[Overlay] Executing STOP');
                         stopTimer();
                     } else if (action === 'start') {
+                        // Start the timer with optional duration override
                         const durationOverride = typeof overrideDuration === 'number' ? overrideDuration : timerState.durations[timerState.currentPhase];
+                        console.log(`[Overlay] Executing START with duration: ${durationOverride}s (${Math.floor(durationOverride / 60)}m)`);
                         setPhase(timerState.currentPhase, { autoStart: true, duration: durationOverride });
+                        console.log(`[Overlay] Timer started successfully`);
+                    } else {
+                        console.warn(`[Overlay] Unknown action received: "${action}"`);
                     }
                 });
                 socket.on('SPECTER_STATS_REQUEST', () => {

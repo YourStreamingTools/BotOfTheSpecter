@@ -805,16 +805,25 @@ ob_start();
             try {
                 if (!socket || !socket.connected || !socketReady) {
                     console.error('[Timer Dashboard] Socket not connected');
+                    console.log('[Timer Dashboard] Socket state:', { 
+                        exists: !!socket, 
+                        connected: socket?.connected, 
+                        ready: socketReady 
+                    });
                     showToast('⚠️ Not connected to timer server', 'danger');
                     setButtonsLoading(false);
                     return;
                 }
-                console.log('[Timer Dashboard] Sending command via WebSocket:', payload);
-                // Send via WebSocket instead of HTTP
-                socket.emit(payload.specter_event, {
+                console.log('[Timer Dashboard] notifyServer called with payload:', payload);
+                console.log('[Timer Dashboard] gatherDurations result:', gatherDurations());
+                const fullPayload = {
                     code: apiKey,
                     ...payload
-                });
+                };
+                console.log('[Timer Dashboard] Full payload to emit:', fullPayload);
+                console.log('[Timer Dashboard] Event name:', payload.specter_event);
+                // Send via WebSocket instead of HTTP
+                socket.emit(payload.specter_event, fullPayload);
                 if (toastMessage) {
                     console.log(`[Timer Dashboard] Command sent: ${toastMessage}`);
                     showToast(`✓ ${toastMessage}`, toastType);
@@ -1038,6 +1047,7 @@ ob_start();
         buttonsControl.forEach(button => {
             button.addEventListener('click', async () => {
                 const action = button.getAttribute('data-specter-control');
+                console.log(`[Timer Dashboard] Control button clicked: ${action}`);
                 const toastMessage = controlMessages[action] || `Timer ${action}`;
                 await notifyServer(
                     { specter_event: 'SPECTER_TIMER_CONTROL', action, ...gatherDurations() }, 
