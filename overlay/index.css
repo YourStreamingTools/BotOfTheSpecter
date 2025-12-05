@@ -253,3 +253,312 @@
     opacity: 0;
     animation: fadeOut 1s forwards;
 }
+
+/* Study Overlay Styles */
+.study-overlay-root {
+    --accent-color: #ff9161;
+    --focus-color: #ff9161;
+    --micro-color: #6be9ff;
+    --recharge-color: #b483ff;
+    --panel-bg: rgba(7, 7, 13, 0.9);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-muted: rgba(255, 255, 255, 0.6);
+    --shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+    width: min(1080px, 95vw);
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1.25fr 0.75fr;
+    gap: 24px;
+}
+
+.study-overlay-root.study-overlay--timer-only,
+.study-overlay-root.study-overlay--tasks-only {
+    width: min(760px, 95vw);
+    grid-template-columns: 1fr;
+}
+
+.study-overlay-timer-card,
+.study-overlay-task-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 24px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(18px);
+}
+
+.study-overlay-timer-card {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.study-overlay-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.study-overlay-connection-status {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.study-overlay-connection-status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    display: inline-block;
+}
+
+.study-overlay-connection-status[data-state="connected"] {
+    border-color: #32d486;
+    color: #32d486;
+}
+
+.study-overlay-connection-status[data-state="connecting"] {
+    color: #f6c451;
+}
+
+.study-overlay-connection-status[data-state="error"] {
+    color: #ff6555;
+}
+
+.study-overlay-label {
+    color: var(--text-muted);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+}
+
+.study-overlay-timer-ring {
+    position: relative;
+    width: 100%;
+    max-width: 320px;
+    aspect-ratio: 1 / 1;
+    margin: 0 auto;
+}
+
+.study-overlay-timer-ring svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.study-overlay-ring-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.08);
+    stroke-width: 12;
+}
+
+.study-overlay-ring-progress {
+    fill: none;
+    stroke-width: 12;
+    stroke-linecap: round;
+    stroke: var(--accent-color);
+    transition: stroke-dashoffset 0.75s linear, stroke 0.3s ease;
+}
+
+.study-overlay-timer-inner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    width: 160px;
+}
+
+.study-overlay-phase-label {
+    font-size: 0.9rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.study-overlay-timer-display {
+    font-size: 3.5rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    margin: 8px 0;
+}
+
+.study-overlay-timer-status {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--accent-color);
+}
+
+.study-overlay-stats-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.study-overlay-stat-value {
+    font-size: 1.2rem;
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+.study-overlay-task-card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.study-overlay-timer-card[data-visible="false"],
+.study-overlay-task-card[data-visible="false"] {
+    display: none;
+}
+
+.study-overlay-task-card header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.study-overlay-task-title {
+    font-size: 1rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.study-overlay-task-card button {
+    padding: 6px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: transparent;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: background 0.2s ease, border 0.2s ease;
+}
+
+.study-overlay-task-card button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.study-overlay-task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.study-overlay-task-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.study-overlay-task-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+.study-overlay-task-item {
+    padding: 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.study-overlay-task-item.completed {
+    opacity: 0.7;
+}
+
+.study-overlay-task-text {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.study-overlay-task-meta {
+    display: flex;
+    gap: 10px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.study-overlay-task-priority {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+}
+
+.study-overlay-task-priority.high {
+    color: #ff9161;
+    background: rgba(255, 145, 97, 0.2);
+}
+
+.study-overlay-task-priority.medium {
+    color: #6be9ff;
+    background: rgba(107, 233, 255, 0.2);
+}
+
+.study-overlay-task-priority.low {
+    color: #b483ff;
+    background: rgba(180, 131, 255, 0.2);
+}
+
+.study-overlay-empty-state {
+    color: var(--text-muted);
+    text-align: center;
+    margin: 0;
+    padding: 40px 0;
+}
+
+.study-overlay-task-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+}
+
+.study-overlay-error-screen {
+    width: min(90vw, 560px);
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.75);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+
+.study-overlay-error-card h1 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 1.5rem;
+}
+
+@media (max-width: 960px) {
+    .study-overlay-root {
+        grid-template-columns: 1fr;
+    }
+}
