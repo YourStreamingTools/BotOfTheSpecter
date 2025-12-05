@@ -50,15 +50,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 // If executeCommand returned false, it likely timed out or failed to run
                 if ($output === false) {
                     $success = false;
-                    if (empty($output)) $output = "Command execution failed or timed out";
+                    $output = "Command execution failed or timed out";
                 } else {
-                    // First, check the recorded exit status if available (exit 0 = success)
+                    // The most reliable indicator is the exit status code (0 = success)
                     $exit_status = SSHConnectionManager::$last_exit_status ?? null;
-                    if ($exit_status !== null) {
-                        $success = ($exit_status === 0);
-                    } else {
-                        // Fallback: consider success if systemctl reports 'Active:' state or common success words
-                        $success = strpos($output, 'Active:') !== false || strpos($output, 'Started') !== false || strpos($output, 'Stopped') !== false || strpos($output, 'inactive') !== false || strpos($output, 'running') !== false || trim($output) !== '';
+                    $success = ($exit_status === 0);
+                    
+                    // If exit status is not available, we should log this as a warning
+                    if ($exit_status === null) {
+                        error_log("[admin service control] Warning: exit status not available for $service $action. Output: " . substr($output, 0, 200));
                     }
                 }
             }
@@ -897,19 +897,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         position: 'top-end',
                         icon: 'error',
                         title: 'Command failed',
-                        text: output ? undefined : 'Check logs for details.',
+                        text: output || 'Check logs for details.',
                         showConfirmButton: false,
                         timer: 5000,
                         timerProgressBar: true
                     });
                     if (output) {
-                        Swal.fire({
-                            title: 'Command output',
-                            html: '<pre style="text-align:left; white-space:pre-wrap; max-height:400px; overflow:auto;">' + output + '</pre>',
-                            icon: 'info',
-                            confirmButtonText: 'Close',
-                            width: 800
-                        });
+                        console.log('[admin control] error details:', output);
+                    }
+                    if (data.diagnostics && data.diagnostics.exit_status !== null && data.diagnostics.exit_status !== 0) {
+                        console.error('[admin control] exit status:', data.diagnostics.exit_status);
                     }
                     scheduleStatusRefresh(meta);
                 }
