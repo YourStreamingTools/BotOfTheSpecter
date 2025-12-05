@@ -18,10 +18,10 @@ $show_tasklist_panel = true;
 $overlay_mode_class = '';
 if ($has_timer_query && !$has_tasklist_query) {
     $show_tasklist_panel = false;
-    $overlay_mode_class = 'overlay--timer-only';
+    $overlay_mode_class = 'study-overlay--timer-only';
 } elseif ($has_tasklist_query && !$has_timer_query) {
     $show_timer_panel = false;
-    $overlay_mode_class = 'overlay--tasks-only';
+    $overlay_mode_class = 'study-overlay--tasks-only';
 }
 
 include '/var/www/config/database.php';
@@ -170,17 +170,8 @@ ob_end_clean();
     <title>Specter Working/Study Timer</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <link rel="stylesheet" href="index.css">
     <style>
-        :root {
-            --accent-color: #ff9161;
-            --focus-color: #ff9161;
-            --micro-color: #6be9ff;
-            --recharge-color: #b483ff;
-            --panel-bg: rgba(7, 7, 13, 0.9);
-            --panel-border: rgba(255, 255, 255, 0.12);
-            --text-muted: rgba(255, 255, 255, 0.6);
-            --shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
-        }
         * {
             box-sizing: border-box;
         }
@@ -194,311 +185,54 @@ ob_end_clean();
             justify-content: center;
             align-items: center;
         }
-        .overlay-root {
-            width: min(1080px, 95vw);
-            padding: 24px;
-            display: grid;
-            grid-template-columns: 1.25fr 0.75fr;
-            gap: 24px;
-        }
-        .overlay-root.overlay--timer-only,
-        .overlay-root.overlay--tasks-only {
-            width: min(760px, 95vw);
-            grid-template-columns: 1fr;
-        }
-        .timer-card,
-        .task-card {
-            background: var(--panel-bg);
-            border: 1px solid var(--panel-border);
-            border-radius: 24px;
-            padding: 32px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(18px);
-        }
-        .timer-card {
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-        }
-        .status-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.9rem;
-            color: var(--text-muted);
-        }
-        .connection-status {
-            padding: 6px 12px;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            font-size: 0.75rem;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .connection-status .dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-            display: inline-block;
-        }
-        .connection-status[data-state="connected"] {
-            border-color: #32d486;
-            color: #32d486;
-        }
-        .connection-status[data-state="connecting"] {
-            color: #f6c451;
-        }
-        .connection-status[data-state="error"] {
-            color: #ff6555;
-        }
-        .overlay-label {
-            color: var(--text-muted);
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            font-size: 0.8rem;
-        }
-        .timer-ring {
-            position: relative;
-            width: 100%;
-            max-width: 320px;
-            aspect-ratio: 1 / 1;
-            margin: 0 auto;
-        }
-        .timer-ring svg {
-            width: 100%;
-            height: 100%;
-            transform: rotate(-90deg);
-        }
-        .ring-bg {
-            fill: none;
-            stroke: rgba(255, 255, 255, 0.08);
-            stroke-width: 12;
-        }
-        .ring-progress {
-            fill: none;
-            stroke-width: 12;
-            stroke-linecap: round;
-            stroke: var(--accent-color);
-            transition: stroke-dashoffset 0.75s linear, stroke 0.3s ease;
-        }
-        .timer-inner {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            width: 160px;
-        }
-        .phase-label {
-            font-size: 0.9rem;
-            letter-spacing: 0.4em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-        }
-        .timer-display {
-            font-size: 3.5rem;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            margin: 8px 0;
-        }
-        .timer-status {
-            font-size: 0.85rem;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: var(--accent-color);
-        }
-        .stats-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-        .stat-value {
-            font-size: 1.2rem;
-            color: var(--accent-color);
-            font-weight: 600;
-        }
-        .task-card {
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-        }
-        .timer-card[data-visible="false"],
-        .task-card[data-visible="false"] {
-            display: none;
-        }
-        .task-card header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-        }
-        .task-title {
-            font-size: 1rem;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-        }
-        .task-card button {
-            padding: 6px 16px;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            background: transparent;
-            color: #ffffff;
-            text-transform: uppercase;
-            letter-spacing: 0.2em;
-            font-size: 0.7rem;
-            cursor: pointer;
-            transition: background 0.2s ease, border 0.2s ease;
-        }
-        .task-card button:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.4);
-        }
-        .task-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            max-height: 480px;
-            overflow-y: auto;
-            padding-right: 4px;
-        }
-        .task-list::-webkit-scrollbar {
-            width: 6px;
-        }
-        .task-list::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
-        }
-        .task-item {
-            padding: 16px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.02);
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .task-item.completed {
-            opacity: 0.7;
-        }
-        .task-text {
-            margin: 0;
-            font-size: 0.95rem;
-        }
-        .task-meta {
-            display: flex;
-            gap: 10px;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-        .task-priority {
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-weight: 600;
-            font-size: 0.65rem;
-            text-transform: uppercase;
-            letter-spacing: 0.2em;
-        }
-        .task-priority.high {
-            color: #ff9161;
-            background: rgba(255, 145, 97, 0.2);
-        }
-        .task-priority.medium {
-            color: #6be9ff;
-            background: rgba(107, 233, 255, 0.2);
-        }
-        .task-priority.low {
-            color: #b483ff;
-            background: rgba(180, 131, 255, 0.2);
-        }
-        .empty-state {
-            color: var(--text-muted);
-            text-align: center;
-            margin: 0;
-            padding: 40px 0;
-        }
-        .task-footer {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.3em;
-        }
-        .error-screen {
-            width: min(90vw, 560px);
-            padding: 24px;
-            background: rgba(0, 0, 0, 0.75);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: var(--shadow);
-            text-align: center;
-        }
-        .error-card h1 {
-            margin-top: 0;
-            margin-bottom: 12px;
-            font-size: 1.5rem;
-        }
-        @media (max-width: 960px) {
-            .overlay-root {
-                grid-template-columns: 1fr;
-            }
-        }
     </style>
 </head>
 <body>
     <?php if ($error_html): ?>
-        <div class="error-screen">
+        <div class="study-overlay-error-screen">
             <h1>Overlay unavailable</h1>
             <p id="overlayErrorMessage"><?php echo $error_html; ?></p>
         </div>
     <?php else: ?>
-        <div class="overlay-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>" id="overlayRoot">
-            <section class="timer-card" data-visible="<?php echo $show_timer_panel ? 'true' : 'false'; ?>">
-                <div class="status-row">
-                    <span class="connection-status" id="connectionStatus" data-state="connecting">
+        <div class="study-overlay-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>" id="overlayRoot">
+            <section class="study-overlay-timer-card" data-visible="<?php echo $show_timer_panel ? 'true' : 'false'; ?>">
+                <div class="study-overlay-status-row">
+                    <span class="study-overlay-connection-status" id="connectionStatus" data-state="connecting">
                         <span class="dot"></span>
                         Connecting…
                     </span>
-                    <span class="overlay-label">Overlay for <?php echo htmlspecialchars($username ?: 'Specter'); ?></span>
+                    <span class="study-overlay-label">Overlay for <?php echo htmlspecialchars($username ?: 'Specter'); ?></span>
                 </div>
-                <div class="timer-ring">
+                <div class="study-overlay-timer-ring">
                     <svg viewBox="0 0 220 220">
-                        <circle class="ring-bg" cx="110" cy="110" r="98"></circle>
-                        <circle class="ring-progress" id="timerRingProgress" cx="110" cy="110" r="98"></circle>
+                        <circle class="study-overlay-ring-bg" cx="110" cy="110" r="98"></circle>
+                        <circle class="study-overlay-ring-progress" id="timerRingProgress" cx="110" cy="110" r="98"></circle>
                     </svg>
-                    <div class="timer-inner">
-                        <div id="phaseLabel" class="phase-label">Focus Sprint</div>
-                        <div id="timerDisplay" class="timer-display">00:00</div>
-                        <div id="statusText" class="timer-status">Waiting</div>
+                    <div class="study-overlay-timer-inner">
+                        <div id="phaseLabel" class="study-overlay-phase-label">Focus Sprint</div>
+                        <div id="timerDisplay" class="study-overlay-timer-display">00:00</div>
+                        <div id="statusText" class="study-overlay-timer-status">Waiting</div>
                     </div>
                 </div>
-                <div class="stats-row">
+                <div class="study-overlay-stats-row">
                     <div>
-                        <div class="stat-label">Sessions</div>
-                        <div class="stat-value" id="sessionsCompleted">0</div>
+                        <div class="study-overlay-stat-label">Sessions</div>
+                        <div class="study-overlay-stat-value" id="sessionsCompleted">0</div>
                     </div>
                     <div>
-                        <div class="stat-label">Total time</div>
-                        <div class="stat-value" id="totalTimeLogged">0m</div>
+                        <div class="study-overlay-stat-label">Total time</div>
+                        <div class="study-overlay-stat-value" id="totalTimeLogged">0m</div>
                     </div>
                 </div>
             </section>
-            <section class="task-card" data-visible="<?php echo $show_tasklist_panel ? 'true' : 'false'; ?>">
+            <section class="study-overlay-task-card" data-visible="<?php echo $show_tasklist_panel ? 'true' : 'false'; ?>">
                 <header>
-                    <span class="task-title">Task List</span>
+                    <span class="study-overlay-task-title">Task List</span>
                 </header>
-                <div class="task-list" id="taskList">
-                    <p class="empty-state">Loading tasks…</p>
+                <div class="study-overlay-task-list" id="taskList">
+                    <p class="study-overlay-empty-state">Loading tasks…</p>
                 </div>
-                <div class="task-footer">
+                <div class="study-overlay-task-footer">
                     <span id="taskCount">0 tasks</span>
                     <span id="taskUpdated">Updated: --:--</span>
                 </div>
@@ -789,18 +523,18 @@ ob_end_clean();
             const renderTasks = tasks => {
                 taskListEl.innerHTML = '';
                 if (!tasks || !tasks.length) {
-                    taskListEl.innerHTML = '<p class="empty-state">No tasks yet.</p>';
+                    taskListEl.innerHTML = '<p class="study-overlay-empty-state">No tasks yet.</p>';
                     taskCountEl.textContent = '0 tasks';
                     taskUpdatedEl.textContent = `Updated: ${getCurrentTimeStamp()}`;
                     return;
                 }
                 tasks.forEach(task => {
                     const node = document.createElement('article');
-                    node.className = 'task-item' + (task.completed ? ' completed' : '');
+                    node.className = 'study-overlay-task-item' + (task.completed ? ' completed' : '');
                     node.innerHTML = `
-                        <p class="task-text">${escapeHtml(task.title)}</p>
-                        <div class="task-meta">
-                            ${task.priority ? `<span class="task-priority ${task.priority.toLowerCase()}">${task.priority}</span>` : ''}
+                        <p class="study-overlay-task-text">${escapeHtml(task.title)}</p>
+                        <div class="study-overlay-task-meta">
+                            ${task.priority ? `<span class="study-overlay-task-priority ${task.priority.toLowerCase()}">${task.priority}</span>` : ''}
                             ${task.completed ? '<span>Completed</span>' : ''}
                         </div>
                     `;
