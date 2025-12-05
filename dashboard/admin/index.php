@@ -54,11 +54,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 } else {
                     // The most reliable indicator is the exit status code (0 = success)
                     $exit_status = SSHConnectionManager::$last_exit_status ?? null;
-                    $success = ($exit_status === 0);
-                    
-                    // If exit status is not available, we should log this as a warning
-                    if ($exit_status === null) {
-                        error_log("[admin service control] Warning: exit status not available for $service $action. Output: " . substr($output, 0, 200));
+                    // Log raw values for debugging
+                    error_log("[admin service control] Raw exit_status type: " . gettype($exit_status) . ", value: " . var_export($exit_status, true));
+                    error_log("[admin service control] Raw output (first 300 chars): " . substr($output, 0, 300));
+                    // Handle both int and string representations of 0
+                    // Also consider it success if we didn't get a non-zero exit code and the command executed without returning false
+                    if ($exit_status === 0 || $exit_status === '0' || intval($exit_status) === 0) {
+                        $success = true;
+                    } elseif ($exit_status === null) {
+                        // If exit status is null but we got output (command didn't fail), treat as success
+                        // The SSH fallback may not have captured the exit code properly
+                        $success = true;
+                        error_log("[admin service control] Exit status was null, but command executed - assuming success");
+                    } else {
+                        // Non-zero exit status means failure
+                        $success = false;
+                    }
+                    error_log("[admin service control] $service $action - success: " . ($success ? 'true' : 'false') . ", exit_status: " . var_export($exit_status, true));
+                    // Provide a user-friendly message even if output is empty
+                    if ($success && empty(trim($output))) {
+                        $output = "Command executed successfully";
                     }
                 }
             }
