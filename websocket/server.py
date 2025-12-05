@@ -269,27 +269,39 @@ class BotOfTheSpecter_WebsocketServer:
             # Route SPECTER_TIMER_CONTROL to Overlay clients with same code
             code = None
             target_channel = None
+            sender_channel = None
+            self.logger.info(f"[TIMER ROUTING DEBUG] Starting routing lookup. registered_clients keys: {list(self.registered_clients.keys())}")
             for c, clients in self.registered_clients.items():
-                for client in clients:
+                self.logger.info(f"[TIMER ROUTING DEBUG] Checking code {c} with {len(clients)} clients")
+                for i, client in enumerate(clients):
+                    self.logger.info(f"[TIMER ROUTING DEBUG] Client #{i}: sid={client.get('sid')}, name={client.get('name')}, channel={client.get('channel')}")
                     if client['sid'] == sid:
                         code = c
-                        self.logger.info(f"[TIMER ROUTING DEBUG] Found sender SID {sid} with code {code}, client data: {client}")
+                        sender_channel = client.get('channel')
+                        self.logger.info(f"[TIMER ROUTING DEBUG] *** FOUND SENDER *** SID {sid} matched with code {code}, channel='{sender_channel}', full client: {client}")
                         # Check if this is Dashboard trying to send to Overlay
-                        if client.get('channel') == 'Dashboard':
+                        if sender_channel == 'Dashboard':
                             target_channel = 'Overlay'
-                            self.logger.info(f"[TIMER ROUTING DEBUG] Sender has Dashboard channel, setting target to Overlay")
+                            self.logger.info(f"[TIMER ROUTING DEBUG] *** CHANNEL MATCH *** Sender channel is Dashboard, setting target to Overlay")
+                        else:
+                            self.logger.info(f"[TIMER ROUTING DEBUG] Channel mismatch: sender_channel='{sender_channel}' vs 'Dashboard' (types: {type(sender_channel)} vs str)")
                         break
                 if code:
                     break
-            self.logger.info(f"[TIMER ROUTING DEBUG] After lookup: code={code}, target_channel={target_channel}")
-            self.logger.info(f"[TIMER ROUTING DEBUG] All registered clients: {self.registered_clients}")
+            self.logger.info(f"[TIMER ROUTING DEBUG] FINAL LOOKUP RESULT: code={code}, target_channel={target_channel}, sender_channel={sender_channel}")
             if code and target_channel:
                 self.logger.info(f"Routing SPECTER_TIMER_CONTROL from Dashboard to Overlay for code {code}")
                 # Send to all Overlay clients with the same code
                 for client in self.registered_clients.get(code, []):
-                    if client.get('channel') == target_channel:
-                        self.logger.debug(f"Sending SPECTER_TIMER_CONTROL to overlay SID [{client['sid']}]")
+                    client_channel = client.get('channel')
+                    self.logger.info(f"[TIMER ROUTING DEBUG] Checking client sid={client['sid']}, channel='{client_channel}' against target_channel='{target_channel}'")
+                    if client_channel == target_channel:
+                        self.logger.info(f"Sending SPECTER_TIMER_CONTROL to overlay SID [{client['sid']}]")
                         await self.sio.emit(event, data, to=client['sid'])
+                    else:
+                        self.logger.info(f"[TIMER ROUTING DEBUG] Skipping client {client['sid']} - channel mismatch")
+            else:
+                self.logger.warning(f"[TIMER ROUTING DEBUG] *** ROUTING FAILED *** code={code}, target_channel={target_channel} - will fall through to broadcast")
             # Don't broadcast SPECTER_TIMER_CONTROL, it's been routed
             return
         # Relay NOW_PLAYING and MUSIC_SETTINGS to all clients with same code
