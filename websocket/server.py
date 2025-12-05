@@ -266,6 +266,28 @@ class BotOfTheSpecter_WebsocketServer:
                 "timestamp": time.time()
             }
             self.logger.info(f"SPECTER_TIMER_CONTROL from [{sid}]: {payload_repr}")
+            # Route SPECTER_TIMER_CONTROL to Overlay clients with same code
+            code = None
+            target_channel = None
+            for c, clients in self.registered_clients.items():
+                for client in clients:
+                    if client['sid'] == sid:
+                        code = c
+                        # Check if this is Dashboard trying to send to Overlay
+                        if client.get('channel') == 'Dashboard':
+                            target_channel = 'Overlay'
+                        break
+                if code:
+                    break
+            if code and target_channel:
+                self.logger.info(f"Routing SPECTER_TIMER_CONTROL from Dashboard to Overlay for code {code}")
+                # Send to all Overlay clients with the same code
+                for client in self.registered_clients.get(code, []):
+                    if client.get('channel') == target_channel:
+                        self.logger.debug(f"Sending SPECTER_TIMER_CONTROL to overlay SID [{client['sid']}]")
+                        await self.sio.emit(event, data, to=client['sid'])
+            # Don't broadcast SPECTER_TIMER_CONTROL, it's been routed
+            return
         # Relay NOW_PLAYING and MUSIC_SETTINGS to all clients with same code
         if event in ("NOW_PLAYING", "MUSIC_SETTINGS"):
             code = None
