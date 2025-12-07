@@ -41,53 +41,43 @@ ob_start();
 			<p>BotOfTheSpecter's API provides several endpoints to interact with bot features.<br>All API requests must include your API key as a URL query parameter, for example <code>?api_key=YOUR_API_KEY</code>.<br>This is the only supported authentication method.</p>
 			<h3 class="title is-5 has-text-light">Bot</h3>
 			<ul>
-				<li><code>GET /versions</code> — Get the current bot versions</li>
-				<li><code>GET /chat-instructions</code> — Get AI chat instructions</li>
-				<li><code>GET /api/song</code> — Get the remaining song requests</li>
-				<li><code>GET /api/exchangerate</code> — Get the remaining exchangerate requests</li>
-				<li><code>GET /api/weather</code> — Get the remaining weather API requests</li>
+				<li><code>GET /versions</code> — Fetch the beta, stable, and discord bot version numbers</li>
+				<li><code>GET /chat-instructions</code> — Return the AI system instructions used by the Twitch chat bot (<code>?discord</code> flag switches to the Discord-specific instructions file if present)</li>
+				<li><code>GET /api/song</code> — Get the number of remaining song requests for the current reset period</li>
+				<li><code>GET /api/exchangerate</code> — Retrieve the number of remaining exchange rate requests for the current reset period</li>
+				<li><code>GET /api/weather</code> — Retrieve the number of remaining weather API requests for the current day, as well as the time remaining until midnight</li>
 			</ul>
 			<h3 class="title is-5 has-text-light">Commands</h3>
 			<ul>
-				<li><code>GET /quotes</code> — Get a random quote</li>
-				<li><code>GET /fortune</code> — Get a random fortune</li>
-				<li><code>GET /kill</code> — Retrieve the Kill Command responses</li>
-				<li><code>GET /joke</code> — Get a random joke</li>
-				<li><code>GET /weather</code> — Get weather data and trigger WebSocket weather event</li>
+				<li><code>GET /quotes</code> — Retrieve a random quote from the database of quotes, based on a random author</li>
+				<li><code>GET /fortune</code> — Retrieve a random fortune from the database of fortunes</li>
+				<li><code>GET /kill</code> — Fetch kill command responses for various events.</li>
+				<li><code>GET /joke</code> — Fetch a random joke from a joke API, filtered to exclude inappropriate content.</li>
+				<li><code>GET /sound-alerts</code> — Retrieve a list of all sound alert files available for the authenticated user from the website server</li>
+				<li><code>GET /weather</code> — Retrieve current weather data for a given location and send it to the WebSocket server</li>
 			</ul>
 			<h3 class="title is-5 has-text-light">Webhooks</h3>
 			<ul>
-				<li><code>POST /fourthwall</code> — Receive and process FOURTHWALL webhook requests</li>
-				<li><code>POST /kofi</code> — Receive and process Ko-fi webhook requests</li>
-				<li><code>POST /patreon</code> — Receive and process Patreon webhook requests</li>
+				<li><code>POST /fourthwall</code> — This endpoint allows you to send webhook data from FOURTHWALL to be processed by the bot's WebSocket server</li>
+				<li><code>POST /kofi</code> — This endpoint allows you to receive KOFI webhook events and forward them to the WebSocket server</li>
+				<li><code>POST /patreon</code> — This endpoint allows you to send webhook data from Patreon to be processed by the bot's WebSocket server</li>
 			</ul>
 			<h3 class="title is-5 has-text-light">WebSocket</h3>
 			<p>Endpoints for interacting with the internal WebSocket server / triggering overlay events:</p>
 			<ul>
-				<li><code>GET /websocket/tts</code> — Trigger TTS via API</li>
-				<li><code>GET /websocket/walkon</code> — Trigger Walkon via API</li>
-				<li><code>GET /websocket/deaths</code> — Trigger Deaths via API</li>
-				<li><code>GET /websocket/sound_alert</code> — Trigger Sound Alert via API</li>
-				<li><code>GET /websocket/stream_online</code> — Trigger Stream Online via API</li>
-				<li><code>GET /websocket/stream_offline</code> — Trigger Stream Offline via API</li>
-				<li><code>POST /SEND_OBS_EVENT</code> — Pass OBS events to the websocket server</li>
+				<li><code>GET /websocket/tts</code> — Send a text-to-speech (TTS) event to the WebSocket server, allowing TTS to be triggered via API</li>
+				<li><code>GET /websocket/walkon</code> — Trigger the 'Walkon' event for a specified user via the WebSocket server. Supports .mp3 (audio) and .mp4 (video) walkons</li>
+				<li><code>GET /websocket/deaths</code> — Trigger the 'Deaths' event with custom death text for a game via the WebSocket server</li>
+				<li><code>GET /websocket/sound_alert</code> — Trigger a sound alert for the specified sound file via the WebSocket server</li>
+				<li><code>GET /websocket/stream_online</code> — Send a 'Stream Online' event to the WebSocket server to notify that the stream is live</li>
+				<li><code>GET /websocket/stream_offline</code> — Send a 'Stream Offline' event to the WebSocket server to notify that the stream is offline</li>
+				<li><code>POST /SEND_OBS_EVENT</code> — Send a 'OBS EVENT' to the WebSocket server to notify the system of a change in the OBS Connector</li>
 			</ul>
 			<h3 class="title is-5 has-text-light">Heartbeats</h3>
 			<ul>
-				<li><code>GET /heartbeat/websocket</code> — Get the heartbeat status of the websocket server</li>
-				<li><code>GET /heartbeat/api</code> — Get the heartbeat status of the API server</li>
-				<li><code>GET /heartbeat/database</code> — Get the heartbeat status of the database server</li>
-			</ul>
-			<h3 class="title is-5 has-text-light">Webhooks</h3>
-			<ul>
-				<li><code>POST /fourthwall</code> - Receive and process FourthWall webhook requests</li>
-				<li><code>POST /kofi</code> - Receive and process Ko-fi webhook requests</li>
-			</ul>
-			<h3 class="title is-5 has-text-light">System Status</h3>
-			<ul>
-				<li><code>GET /heartbeat/websocket</code> - Check WebSocket server status</li>
-				<li><code>GET /heartbeat/api</code> - Check API server status</li>
-				<li><code>GET /heartbeat/database</code> - Check database server status</li>
+				<li><code>GET /heartbeat/websocket</code> — Retrieve the current heartbeat status of the WebSocket server</li>
+				<li><code>GET /heartbeat/api</code> — Retrieve the current heartbeat status of the API server</li>
+				<li><code>GET /heartbeat/database</code> — Retrieve the current heartbeat status of the database server</li>
 			</ul>
 			<h2 class="title is-4 has-text-light">Using the API</h2>
 			<p>To use the BotOfTheSpecter API include your API key as a URL query parameter on every request.<br>Example: <code>https://api.botofthespecter.com/quotes?api_key=YOUR_API_KEY</code>.<br>Do not expose the key in public client-side code; treat it like a secret and rotate it if you suspect compromise.</p>
