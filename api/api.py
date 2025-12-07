@@ -702,10 +702,9 @@ async def database_heartbeat():
     tags=["BotOfTheSpecter"],
     operation_id="get_chat_instructions"
 )
-async def chat_instructions(request: Request):
-    # If the caller requests discord-specific instructions, prefer ai.discord.json
-    # Check the actual request query parameters for 'discord'
-    use_discord = 'discord' in request.query_params
+async def chat_instructions(request: Request, discord: bool = Query(False, description="Return Discord-specific AI instructions if available")):
+    # Prefer Discord-specific instructions when the query flag is set
+    use_discord = discord
     # Decide which file to load
     base_dir = "/home/botofthespecter"
     discord_path = os.path.join(base_dir, "ai.discord.json")
