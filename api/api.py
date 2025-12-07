@@ -13,6 +13,8 @@ import aiohttp
 import aiomysql
 import uvicorn
 import aioping
+from paramiko import SSHClient, AutoAddPolicy
+import time
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -843,6 +845,87 @@ async def joke(api_key: str = Query(...)):
     if "category" not in get_joke:
         raise HTTPException(status_code=500, detail="Error: Unable to retrieve joke from API.")
     return get_joke
+
+# Sound Alerts Endpoint
+@app.get(
+    "/sound-alerts",
+    summary="Get list of sound alerts for user",
+    description="Retrieve a list of all sound alert files available for the authenticated user from the website server.",
+    tags=["Commands"],
+    operation_id="get_sound_alerts"
+)
+async def get_sound_alerts(api_key: str = Query(...)):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    channel = valid
+    try:
+        # Get SSH credentials from environment
+        website_ssh_host = os.getenv('WEB-HOST')
+        website_ssh_username = os.getenv('SSH_USERNAME')
+        website_ssh_password = os.getenv('SSH_PASSWORD')
+        # Connect to website server via SSH
+        ssh_client = SSHClient()
+        ssh_client.set_missing_host_key_policy(AutoAddPolicy())
+        # Run connection in executor to avoid blocking
+        await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: ssh_client.connect(
+                hostname=website_ssh_host,
+                port=22,
+                username=website_ssh_username,
+                password=website_ssh_password,
+                timeout=10
+            )
+        )
+        try:
+            # Build the command to list files in the user's sound alerts directory
+            sound_alerts_dir = f"/var/www/soundalerts/{channel}"
+            # List only files directly in the directory (maxdepth 1), excluding the twitch subdirectory
+            command = f'ls -1 "{sound_alerts_dir}" 2>/dev/null | grep -v "^twitch$" | while read f; do [ -f "{sound_alerts_dir}/$f" ] && echo "$f"; done | sort'
+            # Execute command in executor to avoid blocking
+            stdin, stdout, stderr = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: ssh_client.exec_command(command)
+            )
+            # Read output in executor
+            stdout_data = await asyncio.get_event_loop().run_in_executor(
+                None,
+                stdout.read
+            )
+            stderr_data = await asyncio.get_event_loop().run_in_executor(
+                None,
+                stderr.read
+            )
+            return_code = stdout.channel.recv_exit_status()
+            if return_code != 0:
+                error_msg = stderr_data.decode('utf-8').strip()
+                if "No such file" in error_msg or "cannot access" in error_msg:
+                    raise HTTPException(status_code=404, detail=f"No sound alerts directory found for user '{channel}'")
+                logging.error(f"Error listing sound alerts for '{channel}': {error_msg}")
+                raise HTTPException(status_code=500, detail=f"Error retrieving sound alerts")
+            # Parse output and filter for valid audio/video extensions
+            output = stdout_data.decode('utf-8').strip()
+            if not output:
+                sound_files = []
+            else:
+                valid_extensions = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.avi', '.mov')
+                all_files = output.split('\n')
+                sound_files = [f for f in all_files if f.lower().endswith(valid_extensions)]
+            # Return formatted JSON response
+            return {
+                "user": channel,
+                "total_sounds": len(sound_files),
+                "sounds": sound_files
+            }
+        finally:
+            # Close SSH connection
+            ssh_client.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving sound alerts for user '{channel}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving sound alerts: {str(e)}")
 
 # Weather Data Endpoint
 @app.get(
