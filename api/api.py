@@ -698,7 +698,7 @@ async def database_heartbeat():
 @app.get(
     "/chat-instructions",
     summary="Get AI chat instructions",
-    description="Return the AI system instructions used by the bot.",
+    description="Return the AI system instructions used by the Twitch chat bot (?discord flag switches to the Discord-specific instructions file if present)",
     tags=["BotOfTheSpecter"],
     operation_id="get_chat_instructions"
 )
