@@ -38,7 +38,28 @@ ob_start();
 			<h2 class="title is-4 has-text-light">Webhook Integrations</h2>
 			<p>The API supports webhook integrations with various third-party services.<br>These integrations allow BotOfTheSpecter to receive real-time notifications from external platforms and trigger appropriate actions in your Twitch chat or stream overlays.</p>
 			<h2 class="title is-4 has-text-light">API Endpoints</h2>
-			<p>BotOfTheSpecter's API provides several endpoints to interact with bot features.<br>All API requests must include your API key as a URL query parameter, for example <code>?api_key=YOUR_API_KEY</code>.<br>This is the only supported authentication method.</p>
+			<p>BotOfTheSpecter's API provides several endpoints to interact with bot features.<br>Most public endpoints do not require authentication, but the webhook relays, WebSocket triggers, weather/sound data, and the commands listed below still expect your API key as a query parameter (e.g. <code>?api_key=YOUR_API_KEY</code>).</p>
+			<div class="notification is-dark" style="display:flex; flex-direction:column; gap:0.75rem;">
+				<p><strong>Endpoints that require an API key</strong></p>
+				<div class="tags" style="flex-wrap:wrap; gap:0.35rem;">
+					<span class="tag is-link is-light">POST /SEND_OBS_EVENT</span>
+					<span class="tag is-link is-light">GET /websocket/stream_offline</span>
+					<span class="tag is-link is-light">GET /websocket/stream_online</span>
+					<span class="tag is-link is-light">GET /websocket/sound_alert</span>
+					<span class="tag is-link is-light">GET /websocket/deaths</span>
+					<span class="tag is-link is-light">GET /websocket/walkon</span>
+					<span class="tag is-link is-light">GET /websocket/tts</span>
+					<span class="tag is-link is-light">POST /patreon</span>
+					<span class="tag is-link is-light">POST /kofi</span>
+					<span class="tag is-link is-light">POST /fourthwall</span>
+					<span class="tag is-link is-light">GET /weather</span>
+					<span class="tag is-link is-light">GET /sound-alerts</span>
+					<span class="tag is-link is-light">GET /joke</span>
+					<span class="tag is-link is-light">GET /kill</span>
+					<span class="tag is-link is-light">GET /fortune</span>
+					<span class="tag is-link is-light">GET /quotes</span>
+				</div>
+			</div>
 			<h3 class="title is-5 has-text-light">Bot</h3>
 			<ul>
 				<li><code>GET /versions</code> — Fetch the beta, stable, and discord bot version numbers</li>
