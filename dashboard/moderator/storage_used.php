@@ -27,33 +27,29 @@ switch ($tier) {
         break;
 }
 
-// Create the user's walkon directory if it doesn't exist
-if (!is_dir($walkon_path)) {
-    if (!mkdir($walkon_path, 0755, true)) {
-        exit("Failed to create directory.");
+// Helper function to ensure directory is writable
+function ensureDirectoryWritable($path) {
+    if (!is_dir($path)) {
+        if (!mkdir($path, 0755, true)) {
+            error_log("Failed to create directory: $path");
+            return false;
+        }
     }
+    // Fix permissions if directory exists but isn't writable
+    if (!is_writable($path)) {
+        if (!chmod($path, 0755)) {
+            error_log("Failed to chmod directory: $path");
+            return false;
+        }
+    }
+    return true;
 }
 
-// Create the user's sound alerts directory if it doesn't exist
-if (!is_dir($soundalert_path)) {
-    if (!mkdir($soundalert_path, 0755, true)) {
-        exit("Failed to create directory.");
-    }
-}
-
-// Create the user's video alerts directory if it doesn't exist
-if (!is_dir($videoalert_path)) {
-    if (!mkdir($videoalert_path, 0755, true)) {
-        exit("Failed to create directory.");
-    }
-}
-
-// Create the user's Twitch sound alerts directory if it doesn't exist
-if (!is_dir($twitch_sound_alert_path)) {
-    if (!mkdir($twitch_sound_alert_path, 0755, true)) {
-        exit("Failed to create directory.");
-    }
-}
+// Create and fix permissions for user directories
+ensureDirectoryWritable($walkon_path);
+ensureDirectoryWritable($soundalert_path);
+ensureDirectoryWritable($videoalert_path);
+ensureDirectoryWritable($twitch_sound_alert_path);
 
 // Calculate total storage used by the user across both directories
 function calculateStorageUsed($directories) {
