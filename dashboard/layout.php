@@ -157,7 +157,7 @@ function uuidv4() {
                         <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
                     </a>
                     <ul class="sidebar-submenu">
-                        <li><a href="streaming.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-video"></i></span><span class="sidebar-menu-text">><?php echo t('navbar_recording'); ?></span></a></li>
+                        <li><a href="streaming.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-video"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_recording'); ?></span></a></li>
                         <li><a href="overlays.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-layer-group"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_overlays'); ?></span></a></li>
                         <li><a href="sound-alerts.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-volume-up"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_sound_alerts'); ?></span></a></li>
                         <li><a href="video-alerts.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-film"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_video_alerts'); ?></span></a></li>
@@ -383,7 +383,7 @@ function uuidv4() {
                     <li>
                         <a href="streaming.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-video"></i></span>
-                            <span class="sidebar-menu-text">><?php echo t('navbar_recording'); ?></span>
+                            <span class="sidebar-menu-text"><?php echo t('navbar_recording'); ?></span>
                         </a>
                     </li>
                     <li>
