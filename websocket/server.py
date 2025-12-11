@@ -15,6 +15,7 @@ import json
 import aiomysql
 import shutil
 import subprocess
+from scp import SCPClient
 
 # Import our modular components
 from music_handler import MusicHandler
@@ -1133,7 +1134,6 @@ class BotOfTheSpecter_WebsocketServer:
             mkdir_command = f"mkdir -p '{remote_dir}'"
             ssh_client.exec_command(mkdir_command)
             # Transfer file using SCP
-            from scp import SCPClient
             with SCPClient(ssh_client.get_transport()) as scp:
                 scp.put(local_file_path, remote_file_path)
             self.logger.info(f"File transferred successfully: {remote_file_path}")
