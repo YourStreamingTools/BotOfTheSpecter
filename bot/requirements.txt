@@ -33,3 +33,5 @@ PyNaCl
 paramiko
 # YouTube video downloader
 yt_dlp
+# OpenAI API client
+openai
