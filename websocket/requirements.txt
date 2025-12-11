@@ -3,3 +3,4 @@ aiohttp
 aiomysql
 paramiko
 python-dotenv
+scp
