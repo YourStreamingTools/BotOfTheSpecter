@@ -43,6 +43,7 @@ html, body {
 }
 
 .columns.is-fullheight {
+    /* Default desktop full-height layout. On narrow screens this will be overridden below. */
     min-height: calc(100vh - 3.25rem);
     max-height: calc(100vh - 3.25rem);
     height: calc(100vh - 3.25rem);
@@ -53,6 +54,26 @@ html, body {
 
 .columns.is-fullheight .column {
     overflow-y: auto;
+}
+
+/* Mobile override: prevent forcing full-viewport heights on small screens */
+@media screen and (max-width: 1023px) {
+    .columns.is-fullheight {
+        min-height: auto !important;
+        max-height: none !important;
+        height: auto !important;
+        display: block !important;
+    }
+    .columns.is-fullheight .column {
+        overflow-y: visible !important;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+    .mod-channels-grid .card,
+    .card {
+        min-height: 0 !important;
+        height: auto !important;
+    }
 }
 
 /* Mod Channels grid should expand to show full list. */
