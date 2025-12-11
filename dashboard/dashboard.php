@@ -83,6 +83,23 @@ if ($isLoggedIn) {
                     <div class="card">
                         <div class="card-content has-text-centered">
                             <div class="mb-3">
+                                <span class="icon is-large has-text-primary">
+                                    <i class="fab fa-discord fa-2x"></i>
+                                </span>
+                            </div>
+                            <h4 class="title is-5">Discord Bot</h4>
+                            <p class="subtitle is-6">Manage your Discord integration</p>
+                            <a href="discordbot.php" class="button is-primary is-fullwidth">
+                                <span class="icon"><i class="fas fa-cog"></i></span>
+                                <span>Manage Discord Bot</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-6-tablet is-3-desktop">
+                    <div class="card">
+                        <div class="card-content has-text-centered">
+                            <div class="mb-3">
                                 <span class="icon is-large has-text-warning">
                                     <i class="fas fa-list-check fa-2x"></i>
                                 </span>
@@ -147,7 +164,7 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                 </div>
-                <div class="column is-6-tablet is-3-desktop">
+                <div class="column is-6-tablet is-3-desktop is-hidden">
                     <div class="card">
                         <div class="card-content has-text-centered">
                             <div class="mb-3">
