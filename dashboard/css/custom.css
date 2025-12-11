@@ -1947,6 +1947,55 @@ nav.top-navbar,
     pointer-events: auto !important;
     cursor: pointer !important;
 }
+
+/* Ensure the mobile toggle always sits above other UI and is clickable */
+#mobileTopNavbar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 20000 !important;
+}
+#mobileTopNavbar #mobileSidebarToggle {
+    z-index: 20010 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+/* Removed emergency fixed-position override for #mobileSidebarToggle — restore native layout */
+
+/* When sidebar is open, make the JS-injected overlay visible and interactive */
+body.sidebar-open #mobileSidebarOverlay {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 1095 !important;
+    background: rgba(0,0,0,0.45) !important;
+    pointer-events: auto !important;
+}
+
+/* Final override: ensure mobile navbar and hamburger are clickable on small screens */
+@media screen and (max-width: 1023px) {
+    #mobileTopNavbar {
+        pointer-events: auto !important;
+        z-index: 20000 !important;
+        position: fixed !important;
+    }
+    #mobileTopNavbar, #mobileTopNavbar * {
+        pointer-events: auto !important;
+    }
+    #mobileSidebarToggle {
+        pointer-events: auto !important;
+        cursor: pointer !important;
+        z-index: 20010 !important;
+        background: transparent !important;
+    }
+}
     .subtitle.is-5-desktop {
         font-size: 1.25rem !important;
     }
