@@ -282,8 +282,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
       }
     } else {
-      // Handle form POST requests
-      if (isset($_POST['guild_id']) && !isset($_POST['live_channel_id'])) {
+    // Handle form POST requests
+    if (isset($_POST['guild_id']) && !isset($_POST['live_channel_id']) && !isset($_POST['save_stream_online']) && !isset($_POST['save_alert_channels']) && !isset($_POST['save_stream_monitoring'])) {
         // Server Configuration: Save only guild_id to discord_users table
         $guild_id = $_POST['guild_id'];
         $stmt = $conn->prepare("UPDATE discord_users SET guild_id = ? WHERE user_id = ?");
@@ -295,29 +295,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         $stmt->close();
         updateExistingDiscordValues(); // Refresh existing values after update
-      } elseif (isset($_POST['live_channel_id']) && isset($_POST['guild_id']) && isset($_POST['online_text']) && isset($_POST['offline_text'])) {
-        // Update live_channel_id and guild_id
+      } elseif (isset($_POST['save_stream_online'])) {
+        // Save Stream Online / Live Status settings
         $guild_id = $_POST['guild_id'];
         $live_channel_id = $_POST['live_channel_id'] ?? null;
-        $onlineText = !empty($live_channel_id) ? $_POST['online_text'] : null;
-        $offlineText = !empty($live_channel_id) ? $_POST['offline_text'] : null;
-        if (!empty($_POST['stream_channel_id'])) { $streamChannelID = $_POST['stream_channel_id']; }
-        else { $streamChannelID = null; }
+        $onlineText = isset($_POST['online_text']) ? $_POST['online_text'] : null;
+        $offlineText = isset($_POST['offline_text']) ? $_POST['offline_text'] : null;
+        $streamChannelID = !empty($_POST['stream_channel_id']) ? $_POST['stream_channel_id'] : null;
         $streamAlertEveryone = isset($_POST['stream_alert_everyone']) ? 1 : 0;
         $streamAlertCustomRole = !empty($_POST['stream_alert_custom_role']) ? $_POST['stream_alert_custom_role'] : null;
-        if (!empty($_POST['mod_channel_id'])) { $moderationChannelID = $_POST['mod_channel_id']; }
-        else { $moderationChannelID = null; }
-        if (!empty($_POST['alert_channel_id'])) { $alertChannelID = $_POST['alert_channel_id']; }
-        else { $alertChannelID = null; }
-        if (!empty($_POST['twitch_stream_monitor_id'])) { $memberStreamsID = $_POST['twitch_stream_monitor_id']; }
-        else { $memberStreamsID = null; }
         $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
         $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
         if ($stmt->execute()) { $buildStatus .= "Live Channel ID and Guild ID updated successfully<br>"; }
         else { $errorMsg .= "Error updating Live Channel ID and Guild ID: " . $stmt->error . "<br>"; }
-        if (strlen($onlineText) > 20) { // Validate character limits (max 20 characters each)
+        // Validate lengths for online/offline text
+        if (!is_null($onlineText) && strlen($onlineText) > 20) {
           $errorMsg .= "Online text cannot exceed 20 characters. Current length: " . strlen($onlineText) ."<br>";
-        } elseif (strlen($offlineText) > 20) {
+        } elseif (!is_null($offlineText) && strlen($offlineText) > 20) {
           $errorMsg .= "Offline text cannot exceed 20 characters. Current length: " . strlen($offlineText) ."<br>";
         } else {
           $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
@@ -328,15 +322,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMsg .= "Error updating Online and Offline Text: " . $stmt->error . "<br>";
           }
         }
-        $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, moderation_channel_id = ?, alert_channel_id = ?, member_streams_id = ?, stream_alert_everyone = ?, stream_alert_custom_role = ? WHERE user_id = ?");
-        $stmt->bind_param("iiiiisi", $streamChannelID, $moderationChannelID, $alertChannelID, $memberStreamsID, $streamAlertEveryone, $streamAlertCustomRole, $user_id);
+        $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, stream_alert_everyone = ?, stream_alert_custom_role = ? WHERE user_id = ?");
+        $stmt->bind_param("iisi", $streamChannelID, $streamAlertEveryone, $streamAlertCustomRole, $user_id);
         if ($stmt->execute()) {
-          $buildStatus .= "Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID updated successfully<br>";
+          $buildStatus .= "Stream Alert Channel and mention settings updated successfully<br>";
         } else {
-          $errorMsg .= "Error updating Stream Alert Channel ID, Moderation Channel ID, and Alert Channel ID: " . $stmt->error . "<br>";
+          $errorMsg .= "Error updating Stream Alert Channel or mention settings: " . $stmt->error . "<br>";
         }
         $stmt->close();
         updateExistingDiscordValues(); // Refresh existing values after update
+      } elseif (isset($_POST['save_alert_channels'])) {
+        // Save Alerts Channels (moderation, event alerts)
+        $moderationChannelID = !empty($_POST['mod_channel_id']) ? $_POST['mod_channel_id'] : null;
+        $alertChannelID = !empty($_POST['alert_channel_id']) ? $_POST['alert_channel_id'] : null;
+        $stmt = $conn->prepare("UPDATE discord_users SET moderation_channel_id = ?, alert_channel_id = ? WHERE user_id = ?");
+        $stmt->bind_param("iii", $moderationChannelID, $alertChannelID, $user_id);
+        if ($stmt->execute()) {
+          $buildStatus .= "Moderation and Alert channels updated successfully<br>";
+        } else {
+          $errorMsg .= "Error updating Moderation/Alert channels: " . $stmt->error . "<br>";
+        }
+        $stmt->close();
+        updateExistingDiscordValues();
+      } elseif (isset($_POST['save_stream_monitoring'])) {
+        // Save the Twitch Stream Monitoring channel selection
+        $memberStreamsID = !empty($_POST['twitch_stream_monitor_id']) ? $_POST['twitch_stream_monitor_id'] : null;
+        $stmt = $conn->prepare("UPDATE discord_users SET member_streams_id = ? WHERE user_id = ?");
+        $stmt->bind_param("ii", $memberStreamsID, $user_id);
+        if ($stmt->execute()) {
+          $buildStatus .= "Twitch Stream Monitoring channel updated successfully<br>";
+        } else {
+          $errorMsg .= "Error updating Twitch Stream Monitoring channel: " . $stmt->error . "<br>";
+        }
+        $stmt->close();
+        updateExistingDiscordValues();
       } elseif (isset($_POST['disconnect_discord'])) {
         $discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token FROM discord_users WHERE user_id = ?");
         $discord_userSTMT->bind_param("i", $user_id);
@@ -1513,6 +1532,28 @@ ob_start();
                   </form>
                 </div>
               </div>
+              <!-- Channel Input Mode Notification (moved here from Twitch Online Alert) -->
+              <?php if ($useManualIds): ?>
+                <div class="notification is-info is-light" style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
+                  <span class="icon"><i class="fas fa-keyboard"></i></span>
+                  <strong>Manual Mode:</strong> Paste channel IDs here (one ID per field).
+                </div>
+              <?php elseif (!empty($guildChannels)): ?>
+                <div class="notification is-success is-light" style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
+                  <span class="icon"><i class="fas fa-list"></i></span>
+                  <strong>Pick From Server:</strong> Choose channels from the dropdowns below.
+                </div>
+              <?php elseif (!empty($existingGuildId)): ?>
+                <div class="notification is-warning is-light" style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
+                  <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                  <strong>Can't load channels:</strong> Reconnect Discord or check the bot's server permissions.
+                </div>
+              <?php else: ?>
+                <div class="notification is-warning is-light" style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
+                  <span class="icon"><i class="fas fa-server"></i></span>
+                  <strong>No server selected:</strong> Pick a Discord server above to enable channel dropdowns.
+                </div>
+              <?php endif; ?>
             </div>
           </div>
         </div>
@@ -1552,11 +1593,12 @@ ob_start();
     <!-- Discord Event Channels Configuration Cards -->
     <div class="columns is-variable is-6">
       <div class="column is-6">
+        <!-- Twitch Online Alert Card -->
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
-              Discord Event Channels
+              Twitch Online Alert
             </p>
             <div class="card-header-icon" style="cursor: default;">
               <span class="tag is-success is-light">
@@ -1567,31 +1609,10 @@ ob_start();
           </header>
           <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
             <p class="has-text-grey-light mb-4">
-              Configure Discord channels for different bot events.
+              Configure Discord channels for stream online alerts and voice status.
             </p>
-            <!-- Channel Input Mode Notification -->
-            <?php if ($useManualIds): ?>
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <span class="icon"><i class="fas fa-keyboard"></i></span>
-                <strong>Manual Input Mode:</strong> You are in manual ID mode. Enter channel IDs directly.
-              </div>
-            <?php elseif (!empty($guildChannels)): ?>
-              <div class="notification is-success is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <span class="icon"><i class="fas fa-list"></i></span>
-                <strong>Channel Selector Mode:</strong> Select channels from your Discord server dropdowns.
-              </div>
-            <?php elseif (!empty($existingGuildId)): ?>
-              <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                <strong>Loading Channels:</strong> Unable to load channels. You may need to re-authorize your Discord account or check server permissions.
-              </div>
-            <?php else: ?>
-              <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <span class="icon"><i class="fas fa-server"></i></span>
-                <strong>Server Required:</strong> Please configure your Discord Server above to enable channel selection.
-              </div>
-            <?php endif; ?>
-            <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <!-- Stream Online / Live Status Form -->
+            <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 1rem;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
               <div class="field">
                 <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
@@ -1631,36 +1652,6 @@ ob_start();
                     'fas fa-user-tag', 
                     false
                   ); ?>
-                </div>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" for="mod_channel_id" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
-                  Twitch Moderation Actions Channel
-                </label>
-                <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g. bans, timeouts, message deletions</p>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
-                  Twitch Event Alerts Channel
-                </label>
-                <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g. Followers, Subscriptions, Bits</p>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" for="twitch_stream_monitor_id" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-info"><i class="fab fa-twitch"></i></span>
-                  Twitch Stream Monitoring Channel
-                </label>
-                <p class="help has-text-grey-light mb-2">For our Twitch Stream Monitoring system, this channel will be used to post when the users you're tracking goes live.</p>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('twitch_stream_monitor_id', 'twitch_stream_monitor_id', $existingTwitchStreamMonitoringID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
               </div>
               <div class="field">
@@ -1717,9 +1708,9 @@ ob_start();
               <?php endif; ?>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_stream_online" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-cog"></i></span>
-                    <span>Save Channel Configuration</span>
+                    <span>Save Stream & Live Status</span>
                   </button>
                 </div>
                 <?php if (!$is_linked || $needs_relink): ?>
@@ -1728,9 +1719,57 @@ ob_start();
                 <p class="help has-text-warning has-text-centered mt-2">Guild ID not setup</p>
                 <?php else: ?>
                 <p class="help has-text-grey-light has-text-centered mt-2">
-                  Most of these features are currently under development. You can still set the channel IDs and text for future use.
+                  These settings control stream online alerts and the voice channel status text.
                 </p>
                 <?php endif; ?>
+              </div>
+            </form>
+          </div>
+        </div>
+        <!-- Twitch Event/Action Audit Log Card (separate box below) -->
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem; width: 100%;">
+          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="card-header-title has-text-white" style="font-weight: 600;">
+              <span class="icon mr-2 has-text-primary"><i class="fas fa-clipboard-list"></i></span>
+              Twitch Event/Action Audit Log
+            </p>
+            <div class="card-header-icon" style="cursor: default;">
+              <span class="tag is-info is-light">
+                <span class="icon"><i class="fas fa-list"></i></span>
+                <span>AUDIT</span>
+              </span>
+            </div>
+          </header>
+          <div class="card-content" style="display: flex; flex-direction: column;">
+            <form action="" method="post" style="display: flex; flex-direction: column; width: 100%;">
+              <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
+              <div class="field">
+                <label class="label has-text-white" for="mod_channel_id" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
+                  Twitch Moderation Actions Channel
+                </label>
+                <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g. bans, timeouts, message deletions</p>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
+                  Twitch Event Alerts Channel
+                </label>
+                <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g. Followers, Subscriptions, Bits</p>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_alert_channels" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="icon"><i class="fas fa-bell"></i></span>
+                    <span>Save Audit Log Channels</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -1779,6 +1818,25 @@ ob_start();
                 <span>View Tracked Streamers</span>
               </button>
             </div>
+            <!-- Twitch Stream Monitoring Channel Selector -->
+            <form action="" method="post" style="margin-top: 0.75rem;">
+              <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
+              <div class="field">
+                <label class="label has-text-white" for="twitch_stream_monitor_id" style="font-weight: 500;">Twitch Stream Monitoring Channel</label>
+                <p class="help has-text-grey-light mb-2">Channel to post when tracked Twitch users go live</p>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('twitch_stream_monitor_id', 'twitch_stream_monitor_id', $existingTwitchStreamMonitoringID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_stream_monitoring" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="icon"><i class="fas fa-wifi"></i></span>
+                    <span>Save Monitoring Channel</span>
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
         <!-- Discord Server Management Card -->
