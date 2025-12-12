@@ -1588,7 +1588,105 @@ ob_start();
             </div>
           <?php endif; ?>
         <?php endif; ?>
+      <?php endif; ?>
+    </div>
+    <!-- Discord Server Management Card -->
+    <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+      <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+        <p class="card-header-title has-text-white" style="font-weight: 600;">
+          <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
+          Discord Server Management
+        </p>
+        <div class="card-header-icon" style="cursor: default;">
+          <span class="tag is-success is-light">
+            <span class="icon"><i class="fas fa-flask"></i></span>
+            <span>PARTIAL COMPLETED</span>
+          </span>
+        </div>
+      </header>
+      <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
+        <?php if (!$is_linked || $needs_relink): ?>
+        <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+          <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+          <strong>Account Not Linked:</strong> Please link your Discord account to access server management features.
+        </div>
+        <?php elseif (!$hasGuildId): ?>
+        <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+          <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+          <strong>Guild ID Required:</strong> Please configure your Discord Server ID above to enable server management features.
+        </div>
+        <?php else: ?>
+        <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+          <span class="icon"><i class="fas fa-info-circle"></i></span>
+          <strong>Comprehensive Discord server management and moderation tools. Features include welcome messages, auto-role assignment, role history tracking, message monitoring (edited/deleted messages), and role change tracking for complete server oversight.</strong>
+        </div>
         <?php endif; ?>
+        <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
+          <div class="field">
+            <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
+            <div class="field" style="margin-bottom: 0.75rem;">
+              <div class="control">
+                <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="welcomeMessage" class="has-text-white">Welcome Message</label>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom: 0.75rem;">
+              <div class="control">
+                <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="autoRole" class="has-text-white">Auto Role on Join</label>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom: 0.75rem;">
+              <div class="control">
+                <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="roleHistory" class="has-text-white">Role History (Restore roles on rejoin)</label>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom: 0.75rem;">
+              <div class="control">
+                <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="messageTracking" class="has-text-white">Message Tracking (Edited/Deleted messages)</label>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom: 0.75rem;">
+              <div class="control">
+                <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="roleTracking" class="has-text-white">Role Tracking (User added/removed from roles)</label>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom: 0.75rem;">
+              <div class="control">
+                <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="serverRoleManagement" class="has-text-white">Server Role Management (Track role creation/deletion)</label>
+              </div>
+            </div>
+            <div class="field">
+              <div class="control">
+                <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="userTracking" class="has-text-white">User Tracking (Nickname, profile picture, status changes)</label>
+              </div>
+            </div>
+            <div class="field">
+              <div class="control">
+                <input id="reactionRoles" type="checkbox" name="reactionRoles" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="reactionRoles" class="has-text-white">Reaction Roles (Self-assignable roles via reactions)</label>
+              </div>
+            </div>
+            <div class="field">
+              <div class="control">
+                <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="rulesConfiguration" class="has-text-white">Rules Configuration (Post server rules embed)</label>
+              </div>
+            </div>
+            <div class="field">
+              <div class="control">
+                <input id="streamSchedule" type="checkbox" name="streamSchedule" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                <label for="streamSchedule" class="has-text-white">Stream Schedule (Post your streaming schedule)</label>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
     <!-- Discord Event Channels Configuration Cards -->
     <div class="columns is-variable is-6">
@@ -1726,54 +1824,6 @@ ob_start();
             </form>
           </div>
         </div>
-        <!-- Twitch Event/Action Audit Log Card (separate box below) -->
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem; width: 100%;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-primary"><i class="fas fa-clipboard-list"></i></span>
-              Twitch Event/Action Audit Log
-            </p>
-            <div class="card-header-icon" style="cursor: default;">
-              <span class="tag is-info is-light">
-                <span class="icon"><i class="fas fa-list"></i></span>
-                <span>AUDIT</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content" style="display: flex; flex-direction: column;">
-            <form action="" method="post" style="display: flex; flex-direction: column; width: 100%;">
-              <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
-              <div class="field">
-                <label class="label has-text-white" for="mod_channel_id" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
-                  Twitch Moderation Actions Channel
-                </label>
-                <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g. bans, timeouts, message deletions</p>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
-                  Twitch Event Alerts Channel
-                </label>
-                <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g. Followers, Subscriptions, Bits</p>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_alert_channels" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <span class="icon"><i class="fas fa-bell"></i></span>
-                    <span>Save Audit Log Channels</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
       </div>
       <!-- Right Column -->
       <div class="column is-6">
@@ -1839,99 +1889,49 @@ ob_start();
             </form>
           </div>
         </div>
-        <!-- Discord Server Management Card -->
-        <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+        <!-- Twitch Event/Action Audit Log Card (separate box below) -->
+        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem; width: 100%;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
-              Discord Server Management
+              <span class="icon mr-2 has-text-primary"><i class="fas fa-clipboard-list"></i></span>
+              Twitch Event/Action Audit Log
             </p>
             <div class="card-header-icon" style="cursor: default;">
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-flask"></i></span>
-                <span>PARTIAL COMPLETED</span>
+              <span class="tag is-info is-light">
+                <span class="icon"><i class="fas fa-list"></i></span>
+                <span>AUDIT</span>
               </span>
             </div>
           </header>
-          <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
-            <?php if (!$is_linked || $needs_relink): ?>
-            <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-              <strong>Account Not Linked:</strong> Please link your Discord account to access server management features.
-            </div>
-            <?php elseif (!$hasGuildId): ?>
-            <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-              <strong>Guild ID Required:</strong> Please configure your Discord Server ID above to enable server management features.
-            </div>
-            <?php else: ?>
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <span class="icon"><i class="fas fa-info-circle"></i></span>
-              <strong>Comprehensive Discord server management and moderation tools. Features include welcome messages, auto-role assignment, role history tracking, message monitoring (edited/deleted messages), and role change tracking for complete server oversight.</strong>
-            </div>
-            <?php endif; ?>
-            <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
+          <div class="card-content" style="display: flex; flex-direction: column;">
+            <form action="" method="post" style="display: flex; flex-direction: column; width: 100%;">
+              <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
-                <div class="field" style="margin-bottom: 0.75rem;">
-                  <div class="control">
-                    <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="welcomeMessage" class="has-text-white">Welcome Message</label>
-                  </div>
+                <label class="label has-text-white" for="mod_channel_id" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
+                  Twitch Moderation Actions Channel
+                </label>
+                <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g. bans, timeouts, message deletions</p>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
-                <div class="field" style="margin-bottom: 0.75rem;">
-                  <div class="control">
-                    <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="autoRole" class="has-text-white">Auto Role on Join</label>
-                  </div>
+              </div>
+              <div class="field">
+                <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
+                  <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
+                  Twitch Event Alerts Channel
+                </label>
+                <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g. Followers, Subscriptions, Bits</p>
+                <div class="control has-icons-left">
+                  <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
-                <div class="field" style="margin-bottom: 0.75rem;">
-                  <div class="control">
-                    <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="roleHistory" class="has-text-white">Role History (Restore roles on rejoin)</label>
-                  </div>
-                </div>
-                <div class="field" style="margin-bottom: 0.75rem;">
-                  <div class="control">
-                    <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="messageTracking" class="has-text-white">Message Tracking (Edited/Deleted messages)</label>
-                  </div>
-                </div>
-                <div class="field" style="margin-bottom: 0.75rem;">
-                  <div class="control">
-                    <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="roleTracking" class="has-text-white">Role Tracking (User added/removed from roles)</label>
-                  </div>
-                </div>
-                <div class="field" style="margin-bottom: 0.75rem;">
-                  <div class="control">
-                    <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="serverRoleManagement" class="has-text-white">Server Role Management (Track role creation/deletion)</label>
-                  </div>
-                </div>
-                <div class="field">
-                  <div class="control">
-                    <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="userTracking" class="has-text-white">User Tracking (Nickname, profile picture, status changes)</label>
-                  </div>
-                </div>
-                <div class="field">
-                  <div class="control">
-                    <input id="reactionRoles" type="checkbox" name="reactionRoles" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="reactionRoles" class="has-text-white">Reaction Roles (Self-assignable roles via reactions)</label>
-                  </div>
-                </div>
-                <div class="field">
-                  <div class="control">
-                    <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="rulesConfiguration" class="has-text-white">Rules Configuration (Post server rules embed)</label>
-                  </div>
-                </div>
-                <div class="field">
-                  <div class="control">
-                    <input id="streamSchedule" type="checkbox" name="streamSchedule" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                    <label for="streamSchedule" class="has-text-white">Stream Schedule (Post your streaming schedule)</label>
-                  </div>
+              </div>
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_alert_channels" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="icon"><i class="fas fa-bell"></i></span>
+                    <span>Save Audit Log Channels</span>
+                  </button>
                 </div>
               </div>
             </form>
