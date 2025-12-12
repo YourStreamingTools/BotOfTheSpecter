@@ -1547,6 +1547,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(StreamerPostingCog(self, self.logger))
         await self.add_cog(ServerManagement(self, self.logger))
         await self.add_cog(RoleHistoryCog(self, self.logger))
+        await self.add_cog(RoleTrackingCog(self, self.logger))
         await self.add_cog(AdminCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
@@ -6642,20 +6643,19 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
 
     async def _migrate_server_management_table(self):
         try:
-            # Check if column exists
-            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='server_management' AND COLUMN_NAME='role_history_configuration' AND TABLE_SCHEMA='specterdiscordbot'"
-            result = await self.mysql.fetchone(check_query, database_name='specterdiscordbot')
+            # Check if columns exist and add them if needed
+            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
+            # Check and add role_history_configuration
+            result = await self.mysql.fetchone(check_query, params=('role_history_configuration',), database_name='specterdiscordbot')
             if not result:
-                # Column doesn't exist, add it
-                alter_query = """
-                    ALTER TABLE server_management 
-                    ADD COLUMN role_history_configuration JSON DEFAULT NULL 
-                    COMMENT 'JSON config for role history: {enabled: boolean, retention_days: int}'
-                """
+                alter_query = "ALTER TABLE server_management ADD COLUMN role_history_configuration JSON DEFAULT NULL"
                 await self.mysql.execute(alter_query, database_name='specterdiscordbot')
-                self.logger.info("Added role_history_configuration column to server_management table")
-            else:
-                self.logger.debug("role_history_configuration column already exists in server_management table")
+            # Check and add role_tracking_configuration
+            result = await self.mysql.fetchone(check_query, params=('role_tracking_configuration',), database_name='specterdiscordbot')
+            if not result:
+                alter_query_tracking = "ALTER TABLE server_management ADD COLUMN role_tracking_configuration JSON DEFAULT NULL"
+                await self.mysql.execute(alter_query_tracking, database_name='specterdiscordbot')
+            self.logger.info("Ensured role_history_configuration and role_tracking_configuration columns exist in server_management table")
         except Exception as e:
             self.logger.error(f"Error migrating server_management table: {e}")
 
@@ -7031,6 +7031,214 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
 
     def cog_unload(self):
         self.logger.info("RoleHistoryCog cog unloaded")
+
+# Role Tracking cog - logs role changes to a designated channel
+class RoleTrackingCog(commands.Cog, name='Role Tracking'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.mysql = MySQLHelper(logger)
+        asyncio.create_task(self._init_role_tracking())
+
+    async def _init_role_tracking(self):
+        try:
+            await self.bot.wait_until_ready()
+            await self._ensure_role_tracking_log_table()
+            await self._migrate_server_management_table()
+            self.logger.info("Role Tracking system initialized")
+        except Exception as e:
+            self.logger.error(f"Error initializing Role Tracking: {e}")
+
+    async def _ensure_role_tracking_log_table(self):
+        try:
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS role_tracking_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    server_id VARCHAR(255) NOT NULL,
+                    user_id VARCHAR(255) NOT NULL,
+                    username VARCHAR(255),
+                    action VARCHAR(50) NOT NULL COMMENT 'added or removed',
+                    role_id VARCHAR(255) NOT NULL,
+                    role_name VARCHAR(255),
+                    changed_by VARCHAR(255) COMMENT 'User who made the change, if available',
+                    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_server_id (server_id),
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_changed_at (changed_at)
+                ) COMMENT 'Stores logs of role additions and removals'
+            """
+            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
+            self.logger.info("Ensured role_tracking_logs table exists")
+        except Exception as e:
+            self.logger.error(f"Error creating role_tracking_logs table: {e}")
+
+    async def _migrate_server_management_table(self):
+        try:
+            # Check if columns exist and add them if needed
+            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
+            
+            # Check and add role_history_configuration
+            result = await self.mysql.fetchone(check_query, params=('role_history_configuration',), database_name='specterdiscordbot')
+            if not result:
+                alter_query = "ALTER TABLE server_management ADD COLUMN role_history_configuration JSON DEFAULT NULL"
+                await self.mysql.execute(alter_query, database_name='specterdiscordbot')
+            
+            # Check and add role_tracking_configuration
+            result = await self.mysql.fetchone(check_query, params=('role_tracking_configuration',), database_name='specterdiscordbot')
+            if not result:
+                alter_query_tracking = "ALTER TABLE server_management ADD COLUMN role_tracking_configuration JSON DEFAULT NULL"
+                await self.mysql.execute(alter_query_tracking, database_name='specterdiscordbot')
+            
+            self.logger.info("Ensured role_history_configuration and role_tracking_configuration columns exist in server_management table")
+        except Exception as e:
+            self.logger.error(f"Error migrating server_management table: {e}")
+
+    async def _get_settings(self, server_id: str):
+        try:
+            query = "SELECT role_tracking_configuration FROM server_management WHERE server_id = %s"
+            result = await self.mysql.fetchone(query, params=(str(server_id),), database_name='specterdiscordbot', dict_cursor=True)
+            if result and result['role_tracking_configuration']:
+                try:
+                    config_json = json.loads(result['role_tracking_configuration'])
+                    return {
+                        'enabled': bool(config_json.get('enabled', False)),
+                        'log_channel_id': config_json.get('log_channel_id', None),
+                        'track_additions': bool(config_json.get('track_additions', True)),
+                        'track_removals': bool(config_json.get('track_removals', True))
+                    }
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
+                    self.logger.warning(f"Error parsing role_tracking_configuration JSON for server {server_id}: {e}")
+            return {
+                'enabled': False,
+                'log_channel_id': None,
+                'track_additions': True,
+                'track_removals': True
+            }
+        except Exception as e:
+            self.logger.error(f"Error fetching role tracking settings for server {server_id}: {e}")
+            return {'enabled': False, 'log_channel_id': None, 'track_additions': True, 'track_removals': True}
+
+    async def _log_role_change(self, guild_id: str, user_id: str, username: str, action: str, role_id: str, role_name: str, changed_by: str = None):
+        try:
+            query = """
+                INSERT INTO role_tracking_logs (server_id, user_id, username, action, role_id, role_name, changed_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            await self.mysql.execute(
+                query,
+                params=(str(guild_id), str(user_id), username, action, str(role_id), role_name, changed_by),
+                database_name='specterdiscordbot'
+            )
+        except Exception as e:
+            self.logger.error(f"Error logging role change: {e}")
+
+    async def _send_log_message(self, guild: discord.Guild, channel_id: str, embed: discord.Embed):
+        try:
+            channel = guild.get_channel(int(channel_id))
+            if channel and isinstance(channel, discord.TextChannel):
+                await channel.send(embed=embed)
+            else:
+                self.logger.warning(f"Role tracking log channel {channel_id} not found in {guild.name}")
+        except Exception as e:
+            self.logger.error(f"Error sending role tracking log: {e}")
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        try:
+            settings = await self._get_settings(str(after.guild.id))
+            if not settings['enabled'] or not settings['log_channel_id']:
+                return
+            # Get role differences
+            before_roles = set(before.roles)
+            after_roles = set(after.roles)
+            # Check for added roles
+            added_roles = after_roles - before_roles
+            removed_roles = before_roles - after_roles
+            # Try to get who made the change from audit logs
+            changed_by = None
+            try:
+                async for entry in after.guild.audit_logs(limit=5, action=discord.AuditLogAction.member_role_update):
+                    if entry.target.id == after.id:
+                        changed_by = f"{entry.user.name}#{entry.user.discriminator}"
+                        break
+            except discord.Forbidden:
+                changed_by = "Unknown (no audit log access)"
+            except Exception as e:
+                self.logger.warning(f"Error fetching audit logs: {e}")
+                changed_by = "Unknown"
+            
+            # Log added roles (if tracking additions is enabled)
+            if settings['track_additions']:
+                for role in added_roles:
+                    if role.name == "@everyone":
+                        continue
+                    # Log to database
+                    await self._log_role_change(
+                        str(after.guild.id),
+                        str(after.id),
+                        after.name,
+                        'added',
+                        str(role.id),
+                        role.name,
+                        changed_by
+                    )
+                    # Send log message
+                    embed = discord.Embed(
+                        title="Role Added",
+                        description=f"**{after.mention}** received the **{role.name}** role",
+                        color=discord.Color.green(),
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    embed.set_author(name=after.name, icon_url=after.avatar.url if after.avatar else None)
+                    embed.add_field(name="User ID", value=str(after.id), inline=True)
+                    embed.add_field(name="Role ID", value=str(role.id), inline=True)
+                    embed.set_footer(text=after.guild.name)
+                    
+                    await self._send_log_message(after.guild, settings['log_channel_id'], embed)
+            # Log removed roles (if tracking removals is enabled)
+            if settings['track_removals']:
+                for role in removed_roles:
+                    if role.name == "@everyone":
+                        continue
+                    # Log to database
+                    await self._log_role_change(
+                        str(after.guild.id),
+                        str(after.id),
+                        after.name,
+                        'removed',
+                        str(role.id),
+                        role.name,
+                        changed_by
+                    )
+                    # Send log message
+                    embed = discord.Embed(
+                        title="Role Removed",
+                        description=f"**{after.mention}** lost the **{role.name}** role",
+                        color=discord.Color.red(),
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    embed.set_author(name=after.name, icon_url=after.avatar.url if after.avatar else None)
+                    embed.add_field(name="User ID", value=str(after.id), inline=True)
+                    embed.add_field(name="Role ID", value=str(role.id), inline=True)
+                    embed.set_footer(text=after.guild.name)
+                    await self._send_log_message(after.guild, settings['log_channel_id'], embed)
+            # Update role history if the role history feature is enabled
+            if added_roles or removed_roles:
+                role_history_settings = await self.bot.get_cog('Role History')._get_settings(str(after.guild.id)) if self.bot.get_cog('Role History') else None
+                if role_history_settings and role_history_settings['enabled']:
+                    current_role_ids = [str(role.id) for role in after.roles if role.name != "@everyone"]
+                    role_ids_json = json.dumps(current_role_ids)
+                    update_query = "UPDATE role_history SET role_ids = %s, last_checked = CURRENT_TIMESTAMP WHERE server_id = %s AND user_id = %s"
+                    await self.mysql.execute(
+                        update_query,
+                        params=(role_ids_json, str(after.guild.id), str(after.id)),
+                        database_name='specterdiscordbot'
+                    )
+        except Exception as e:
+            self.logger.error(f"Error in on_member_update: {e}")
+
+    def cog_unload(self):
+        self.logger.info("RoleTrackingCog cog unloaded")
 
 # Admin commands cog - restricted to bot owner
 class AdminCog(commands.Cog, name='Admin'):
