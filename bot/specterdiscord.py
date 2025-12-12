@@ -1546,6 +1546,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(VoiceCog(self, self.logger))
         await self.add_cog(StreamerPostingCog(self, self.logger))
         await self.add_cog(ServerManagement(self, self.logger))
+        await self.add_cog(RoleHistoryCog(self, self.logger))
         await self.add_cog(AdminCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
@@ -6596,6 +6597,281 @@ class ServerManagement(commands.Cog, name='Server Management'):
 
     def cog_unload(self):
         self.logger.info("ServerManagement cog unloaded")
+
+# Role History cog - tracks member roles for restoration when they rejoin
+class RoleHistoryCog(commands.Cog, name='Role History'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.mysql = MySQLHelper(logger)
+        # Start initialization tasks
+        asyncio.create_task(self._init_role_history())
+
+    async def _init_role_history(self):
+        try:
+            await self.bot.wait_until_ready()
+            await self._ensure_role_history_table()
+            await self._migrate_server_management_table()
+            await self._cleanup_expired_roles()
+            self.logger.info("Role History system initialized")
+            # Start periodic cleanup task
+            asyncio.create_task(self._periodic_cleanup())
+        except Exception as e:
+            self.logger.error(f"Error initializing Role History: {e}")
+
+    async def _ensure_role_history_table(self):
+        try:
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS role_history (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    server_id VARCHAR(255) NOT NULL,
+                    user_id VARCHAR(255) NOT NULL,
+                    role_ids JSON NOT NULL COMMENT 'JSON array of role IDs',
+                    last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last time we checked if user is in server',
+                    UNIQUE KEY unique_server_user (server_id, user_id),
+                    INDEX idx_server_id (server_id),
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_last_checked (last_checked)
+                ) COMMENT 'Stores role history for members who leave and rejoin servers'
+            """
+            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
+            self.logger.info("Ensured role_history table exists with correct schema")
+        except Exception as e:
+            self.logger.error(f"Error creating role_history table: {e}")
+
+    async def _migrate_server_management_table(self):
+        try:
+            # Check if column exists
+            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='server_management' AND COLUMN_NAME='role_history_configuration' AND TABLE_SCHEMA='specterdiscordbot'"
+            result = await self.mysql.fetchone(check_query, database_name='specterdiscordbot')
+            if not result:
+                # Column doesn't exist, add it
+                alter_query = """
+                    ALTER TABLE server_management 
+                    ADD COLUMN role_history_configuration JSON DEFAULT NULL 
+                    COMMENT 'JSON config for role history: {enabled: boolean, retention_days: int}'
+                """
+                await self.mysql.execute(alter_query, database_name='specterdiscordbot')
+                self.logger.info("Added role_history_configuration column to server_management table")
+            else:
+                self.logger.debug("role_history_configuration column already exists in server_management table")
+        except Exception as e:
+            self.logger.error(f"Error migrating server_management table: {e}")
+
+    async def _get_settings(self, server_id: str):
+        try:
+            # Fetch from server_management table (where dashboard saves settings)
+            query = "SELECT role_history_configuration FROM server_management WHERE server_id = %s"
+            result = await self.mysql.fetchone(query, params=(str(server_id),), database_name='specterdiscordbot', dict_cursor=True)
+            if result and result['role_history_configuration']:
+                try:
+                    config_json = json.loads(result['role_history_configuration'])
+                    return {
+                        'enabled': bool(config_json.get('enabled', False)),
+                        'retention_days': int(config_json.get('retention_days', 30))
+                    }
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
+                    self.logger.warning(f"Error parsing role_history_configuration JSON for server {server_id}: {e}")
+            # Return default settings if not found
+            return {
+                'enabled': False,
+                'retention_days': 30
+            }
+        except Exception as e:
+            self.logger.error(f"Error fetching role history settings for server {server_id}: {e}")
+            return {'enabled': False, 'retention_days': 30}
+
+    async def _save_role_history(self, server_id: str, user_id: str, role_ids: list, retention_days: int):
+        try:
+            if not role_ids:
+                self.logger.debug(f"No roles to save for user {user_id} in server {server_id}")
+                return
+            role_ids_json = json.dumps(role_ids)
+            # Use UPSERT to insert or update the record
+            # last_checked will be updated to CURRENT_TIMESTAMP automatically
+            query = """
+                INSERT INTO role_history (server_id, user_id, role_ids)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                role_ids = VALUES(role_ids),
+                last_checked = CURRENT_TIMESTAMP
+            """
+            params = (str(server_id), str(user_id), role_ids_json)
+            await self.mysql.execute(query, params=params, database_name='specterdiscordbot')
+            self.logger.info(f"Saved role history for user {user_id} in server {server_id} ({len(role_ids)} roles, retention: {retention_days} days)")
+        except Exception as e:
+            self.logger.error(f"Error saving role history: {e}")
+
+    async def _restore_member_roles(self, member: discord.Member, role_ids: list):
+        try:
+            restored_count = 0
+            for role_id in role_ids:
+                try:
+                    role = member.guild.get_role(int(role_id))
+                    if role:
+                        # Check if bot can assign this role
+                        if role >= member.guild.me.top_role:
+                            self.logger.warning(f"Cannot assign role {role.name} to {member.name}: bot's top role is too low")
+                            continue
+                        if role in member.roles:
+                            self.logger.debug(f"Member {member.name} already has role {role.name}")
+                            continue
+                        await member.add_roles(role, reason="Role History restoration")
+                        restored_count += 1
+                        self.logger.debug(f"Restored role {role.name} to {member.name}")
+                    else:
+                        self.logger.debug(f"Role {role_id} no longer exists in guild {member.guild.name}")
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(f"Invalid role ID {role_id}: {e}")
+                except discord.Forbidden:
+                    self.logger.warning(f"Missing permissions to assign role {role_id} to {member.name}")
+                except Exception as e:
+                    self.logger.error(f"Error assigning role {role_id} to {member.name}: {e}")
+            if restored_count > 0:
+                self.logger.info(f"Restored {restored_count} roles to {member.name} in {member.guild.name}")
+            return restored_count
+        except Exception as e:
+            self.logger.error(f"Error in _restore_member_roles: {e}")
+            return 0
+
+    async def _cleanup_expired_roles(self):
+        try:
+            # Try to use per-server retention settings if available, otherwise use 30-day default
+            # This query checks if role_history_configuration exists in server_management table
+            query = """
+                DELETE rh FROM role_history rh
+                WHERE TIMESTAMPDIFF(DAY, rh.last_checked, NOW()) > COALESCE(
+                    (SELECT CAST(JSON_EXTRACT(sm.role_history_configuration, '$.retention_days') AS UNSIGNED)
+                     FROM server_management sm 
+                     WHERE sm.server_id = rh.server_id
+                     AND sm.role_history_configuration IS NOT NULL),
+                    30
+                )
+            """
+            result = await self.mysql.execute(query, database_name='specterdiscordbot')
+            if result and result > 0:
+                self.logger.info(f"Cleaned up {result} expired role history entries")
+        except Exception as e:
+            self.logger.debug(f"Attempted per-server cleanup (may fail if column doesn't exist yet): {e}")
+            # Fallback to simple 30-day cleanup
+            try:
+                fallback_query = "DELETE FROM role_history WHERE TIMESTAMPDIFF(DAY, last_checked, NOW()) > 30"
+                result = await self.mysql.execute(fallback_query, database_name='specterdiscordbot')
+                if result and result > 0:
+                    self.logger.info(f"Cleaned up {result} expired role history entries (30-day default)")
+            except Exception as fallback_e:
+                self.logger.error(f"Error in fallback cleanup: {fallback_e}")
+
+    async def _periodic_cleanup(self):
+        try:
+            while not self.bot.is_closed():
+                await asyncio.sleep(3600)  # Run every hour
+                await self._cleanup_expired_roles()
+        except asyncio.CancelledError:
+            self.logger.debug("Periodic cleanup task cancelled")
+        except Exception as e:
+            self.logger.error(f"Error in periodic cleanup: {e}")
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        try:
+            settings = await self._get_settings(str(member.guild.id))
+            if not settings['enabled']:
+                self.logger.debug(f"Role History is disabled for server {member.guild.name}")
+                return
+            # Get list of role IDs (excluding @everyone role)
+            role_ids = [str(role.id) for role in member.roles if role != member.guild.default_role]
+            await self._save_role_history(
+                str(member.guild.id),
+                str(member.id),
+                role_ids,
+                settings['retention_days']
+            )
+            self.logger.info(f"Recorded role history for {member.name} leaving {member.guild.name}")
+        except Exception as e:
+            self.logger.error(f"Error in on_member_remove: {e}")
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        try:
+            settings = await self._get_settings(str(member.guild.id))
+            if not settings['enabled']:
+                self.logger.debug(f"Role History is disabled for server {member.guild.name}")
+                return
+            # Check for saved role history
+            query = """
+                SELECT role_ids, last_checked 
+                FROM role_history 
+                WHERE server_id = %s AND user_id = %s
+            """
+            result = await self.mysql.fetchone(
+                query,
+                params=(str(member.guild.id), str(member.id)),
+                database_name='specterdiscordbot',
+                dict_cursor=True
+            )
+            if result:
+                try:
+                    role_ids = result['role_ids']
+                    last_checked = result['last_checked']
+                    # Parse role_ids from JSON
+                    if isinstance(role_ids, str):
+                        role_ids = json.loads(role_ids)
+                    # Check if the record is within retention period
+                    days_since_checked = (datetime.now(timezone.utc) - last_checked.replace(tzinfo=timezone.utc)).days
+                    if days_since_checked <= settings['retention_days']:
+                        # Within retention period, restore roles
+                        restored_count = await self._restore_member_roles(member, role_ids)
+                        self.logger.info(f"Member {member.name} ({member.id}) rejoined {member.guild.name} - restored {restored_count} roles (last_checked: {days_since_checked} days ago)")
+                    else:
+                        # Outside retention period, don't restore
+                        self.logger.info(f"Member {member.name} ({member.id}) rejoined {member.guild.name} but role history expired ({days_since_checked} days > {settings['retention_days']} day retention)")
+                    # Always delete the history entry after attempting restoration
+                    delete_query = "DELETE FROM role_history WHERE server_id = %s AND user_id = %s"
+                    await self.mysql.execute(
+                        delete_query,
+                        params=(str(member.guild.id), str(member.id)),
+                        database_name='specterdiscordbot'
+                    )
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"Error parsing role history JSON for {member.name}: {e}")
+                except Exception as e:
+                    self.logger.error(f"Error processing role history for {member.name}: {e}")
+            else:
+                self.logger.debug(f"No role history found for {member.name} ({member.id}) in {member.guild.name}")
+        except Exception as e:
+            self.logger.error(f"Error in on_member_join: {e}")
+
+    @commands.command(name="rolehistoryinfo")
+    @commands.has_permissions(administrator=True)
+    async def role_history_info(self, ctx):
+        try:
+            settings = await self._get_settings(str(ctx.guild.id))
+            embed = discord.Embed(
+                title="Role History Settings",
+                color=config.bot_color
+            )
+            embed.add_field(name="Status", value="✅ Enabled" if settings['enabled'] else "❌ Disabled", inline=False)
+            embed.add_field(name="Retention Period", value=f"{settings['retention_days']} days", inline=False)
+            embed.set_footer(text=f"{ctx.guild.name} | Configure from dashboard")
+            await ctx.send(embed=embed)
+        except Exception as e:
+            await ctx.send(f"❌ Error retrieving role history settings: {e}")
+            self.logger.error(f"Error in role_history_info command: {e}")
+
+    @commands.command(name="rolehistorycleanup")
+    @commands.has_permissions(administrator=True)
+    async def role_history_cleanup(self, ctx):
+        try:
+            await self._cleanup_expired_roles()
+            await ctx.send("✅ Role history cleanup completed!")
+            self.logger.info(f"Manual role history cleanup triggered by {ctx.author.name} in {ctx.guild.name}")
+        except Exception as e:
+            await ctx.send(f"❌ Error during cleanup: {e}")
+            self.logger.error(f"Error in role_history_cleanup command: {e}")
+
+    def cog_unload(self):
+        self.logger.info("RoleHistoryCog cog unloaded")
 
 # Admin commands cog - restricted to bot owner
 class AdminCog(commands.Cog, name='Admin'):
