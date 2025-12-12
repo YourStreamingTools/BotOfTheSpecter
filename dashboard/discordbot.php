@@ -1618,7 +1618,7 @@ ob_start();
         <?php else: ?>
         <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
           <span class="icon"><i class="fas fa-info-circle"></i></span>
-          <strong>Comprehensive Discord server management and moderation tools. Features include welcome messages, auto-role assignment, role history tracking, message monitoring (edited/deleted messages), and role change tracking for complete server oversight.</strong>
+          <strong>Control your Discord server with welcome messages, automatic roles, message tracking, and more.</strong>
         </div>
         <?php endif; ?>
         <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
