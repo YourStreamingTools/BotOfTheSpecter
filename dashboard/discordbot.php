@@ -280,6 +280,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           echo json_encode(['success' => false, 'message' => 'Failed to save auto role']);
         }
         $stmt->close();
+      } elseif ($action === 'save_role_history') {
+        $enabled = isset($data['enabled']) ? (int)$data['enabled'] : 0;
+        $retention_days = isset($data['retention_days']) ? (int)$data['retention_days'] : 30;
+        // Validate retention days
+        if ($retention_days < 1 || $retention_days > 365) {
+          $retention_days = 30;
+        }
+        // Create JSON config
+        $role_history_config = json_encode([
+          'enabled' => $enabled,
+          'retention_days' => $retention_days
+        ]);
+        // Update server_management table
+        $stmt = $discord_conn->prepare("UPDATE server_management SET role_history_configuration = ? WHERE server_id = ?");
+        $stmt->bind_param("ss", $role_history_config, $server_id);
+        if ($stmt->execute()) {
+          echo json_encode(['success' => true, 'message' => 'Role History settings saved successfully']);
+        } else {
+          echo json_encode(['success' => false, 'message' => 'Failed to save Role History settings']);
+        }
+        $stmt->close();
       }
     } else {
     // Handle form POST requests
@@ -434,6 +455,50 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           }
           $checkStmt->close();
         }
+      } elseif (isset($_POST['save_role_history'])) {
+        // Save Role History settings
+        // Fetch guild ID from discord_users table if not already set
+        $role_history_guild_id = null;
+        if ($is_linked) {
+          $guildStmt = $conn->prepare("SELECT guild_id FROM discord_users WHERE user_id = ?");
+          $guildStmt->bind_param("i", $user_id);
+          $guildStmt->execute();
+          $guildResult = $guildStmt->get_result();
+          if ($guildResult->num_rows > 0) {
+            $guildData = $guildResult->fetch_assoc();
+            $role_history_guild_id = $guildData['guild_id'];
+          }
+          $guildStmt->close();
+        }
+        // Check if we have both guild ID and database connection
+        if (!empty($role_history_guild_id) && $discord_conn && !$discord_conn->connect_error) {
+          $restore_roles = isset($_POST['restore_roles']) ? 1 : 0;
+          $history_retention_days = isset($_POST['history_retention_days']) ? (int)$_POST['history_retention_days'] : 30;
+          // Validate retention days
+          if ($history_retention_days < 1 || $history_retention_days > 365) {
+            $history_retention_days = 30;
+          }
+          // Create JSON config
+          $role_history_config = json_encode([
+            'enabled' => $restore_roles,
+            'retention_days' => $history_retention_days
+          ]);
+          // Update server_management table in Discord bot database
+          $stmt = $discord_conn->prepare("UPDATE server_management SET role_history_configuration = ? WHERE server_id = ?");
+          if ($stmt) {
+            $stmt->bind_param("ss", $role_history_config, $role_history_guild_id);
+            if ($stmt->execute()) {
+              $buildStatus .= "Role History settings saved successfully (Restore Roles: " . ($restore_roles ? 'Yes' : 'No') . ", Retention: " . $history_retention_days . " days)<br>";
+            } else {
+              $errorMsg .= "Error saving Role History settings: " . $stmt->error . "<br>";
+            }
+            $stmt->close();
+          } else {
+            $errorMsg .= "Error preparing Role History update statement: " . $discord_conn->error . "<br>";
+          }
+        } else {
+          $errorMsg .= "Cannot save Role History settings: User not linked or no guild selected.<br>";
+        }
       }
     }
   } catch (mysqli_sql_exception $e) {
@@ -490,6 +555,8 @@ $existingStreamScheduleTitle = "";
 $existingStreamScheduleContent = "";
 $existingStreamScheduleColor = "";
 $existingStreamScheduleTimezone = "";
+$existingRoleHistoryEnabled = 0;
+$existingRoleHistoryRetention = 30;
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -555,6 +622,14 @@ if ($is_linked && $hasGuildId) {
       $existingWelcomeColour = $serverMgmtData['welcome_message_configuration_colour'] ?? "#00d1b2";
       if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
         $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
+      }
+      // Parse role_history_configuration JSON
+      if (!empty($serverMgmtData['role_history_configuration'])) {
+        $roleHistoryConfig = json_decode($serverMgmtData['role_history_configuration'], true);
+        if ($roleHistoryConfig && is_array($roleHistoryConfig)) {
+          $existingRoleHistoryEnabled = isset($roleHistoryConfig['enabled']) ? (int)$roleHistoryConfig['enabled'] : 0;
+          $existingRoleHistoryRetention = isset($roleHistoryConfig['retention_days']) ? (int)$roleHistoryConfig['retention_days'] : 30;
+        }
       }
       if (!empty($serverMgmtData['message_tracking_configuration_channel'])) {
         $existingMessageLogChannelID = $serverMgmtData['message_tracking_configuration_channel'];
@@ -2119,38 +2194,36 @@ ob_start();
               Role History Configuration
             </p>
             <div class="card-header-icon">
-              <span class="tag is-warning is-light">
-                <span class="icon"><i class="fas fa-clock"></i></span>
-                <span>Coming Soon</span>
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check"></i></span>
+                <span>Active</span>
               </span>
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
-            </div>
-            <p class="has-text-white-ter mb-1">Configure role restoration settings for members who rejoin your Discord server.</p>
-            <form action="" method="post">
+            <p class="has-text-white-ter mb-3">Automatically restore roles to members when they rejoin your server. Roles are kept on record for a configurable period after they leave.</p>
+            <form id="roleHistoryForm" method="POST">
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Role History Settings</label>
+                <label class="label has-text-white" style="font-weight: 500;">Enable Role Restoration</label>
                 <div class="control">
                   <label class="checkbox has-text-white">
-                    <input type="checkbox" name="restore_all_roles" style="margin-right: 8px;" disabled>
+                    <input type="checkbox" id="restore_roles" name="restore_roles" <?php echo ($existingRoleHistoryEnabled == 1 ? 'checked' : ''); ?> style="margin-right: 8px;">
                     Restore all previous roles when member rejoins
                   </label>
                 </div>
+                <p class="help has-text-grey-light">When enabled, users will automatically receive their previous roles when they rejoin</p>
               </div>
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">History Retention (Days)</label>
+                <label class="label has-text-white" style="font-weight: 500;">History Retention Period (Days)</label>
                 <div class="control has-icons-left">
-                  <input class="input" type="number" name="history_retention_days" value="30" min="1" max="365" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" disabled>
+                  <input class="input" type="number" id="history_retention_days" name="history_retention_days" value="<?php echo $existingRoleHistoryRetention ?? 30; ?>" min="1" max="365" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                   <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-calendar"></i></span>
                 </div>
-                <p class="help has-text-grey-light">How long to keep role history data</p>
+                <p class="help has-text-grey-light">How long to keep role history data after a member leaves (1-365 days)</p>
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_role_history" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_role_history" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Save Role History Settings</span>
                   </button>
