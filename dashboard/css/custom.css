@@ -1187,53 +1187,6 @@ aside.sidebar-nav,
     pointer-events: none !important;
 }
 
-/* Server Management: equalize boxes and stabilize switches */
-.server-management-toggles {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 18px;
-}
-.server-management-toggles .toggle-item.box {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 0;
-    min-width: 220px;
-    flex: 1 1 220px;
-    min-height: 140px;
-    overflow: hidden;
-}
-.server-management-toggles .toggle-item.box .toggle-title {
-    background: #1f2326;
-    padding: 12px 16px;
-    height: 48px;
-    line-height: 24px;
-    font-weight: 700;
-    color: #fff;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
-}
-.server-management-toggles .toggle-item.box .toggle-body {
-    padding: 18px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 12px;
-}
-.server-management-toggles .toggle-item.box .control {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 0;
-    padding: 0;
-}
-.server-management-toggles .toggle-status {
-    display: inline-block;
-    margin-left: 6px;
-    line-height: 24px;
-    color: #bfc9d1;
-}
-.server-management-toggles .toggle-status.enabled { color: #36c36b; }
 .server-management-toggles .toggle-status.disabled { color: #98a0a6; }
 
 /* Ensure small screens don't enforce fixed max-height */
@@ -2451,18 +2404,18 @@ body {
 
 /* Discord Server Management toggles layout */
 .server-management-toggles {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 0.75rem 1.25rem;
-    align-items: center;
+    align-items: stretch;
+    /* Pack items left-to-right and fill gaps when items wrap */
+    grid-auto-flow: row dense;
+    justify-items: stretch;
 }
 .server-management-toggles .toggle-item {
-    /* default inline layout for non-box items */
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    display: block;
     min-width: 220px;
-    max-width: 36%;
+    width: 100%;
 }
 @media (max-width: 900px) {
     .server-management-toggles .toggle-item {
@@ -2497,9 +2450,9 @@ body {
     flex-direction: column;
     align-items: stretch;
     overflow: hidden;
-    /* fixed uniform size for consistent layout */
-    height: 128px;
+    height: 132px;
     box-sizing: border-box;
+    justify-self: stretch;
 }
 .server-management-toggles .toggle-item.box .toggle-title {
     display: block;
@@ -2507,7 +2460,6 @@ body {
     padding: 0 0.75rem;
     border-radius: 8px 8px 0 0;
     color: #e6eef6;
-    /* fixed header height for visual consistency */
     height: 46px;
     line-height: 46px;
 }
@@ -2515,9 +2467,9 @@ body {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    /* use remaining vertical space under the header and center contents */
-    height: calc(128px - 46px);
     padding: 0 0.75rem;
+    height: auto;
+    min-height: 64px;
     box-sizing: border-box;
 }
 .server-management-toggles .toggle-item.box .toggle-status {
