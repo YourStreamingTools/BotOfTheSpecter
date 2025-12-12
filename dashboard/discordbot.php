@@ -1624,64 +1624,66 @@ ob_start();
         <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
           <div class="field">
             <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
-            <div class="field" style="margin-bottom: 0.75rem;">
-              <div class="control">
-                <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="welcomeMessage" class="has-text-white">Welcome Message</label>
+            <div class="server-management-toggles" style="margin-bottom: 0.75rem;">
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="welcomeMessage" class="has-text-white">Welcome Message</label>
+                </div>
               </div>
-            </div>
-            <div class="field" style="margin-bottom: 0.75rem;">
-              <div class="control">
-                <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="autoRole" class="has-text-white">Auto Role on Join</label>
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="autoRole" class="has-text-white">Auto Role on Join</label>
+                </div>
               </div>
-            </div>
-            <div class="field" style="margin-bottom: 0.75rem;">
-              <div class="control">
-                <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="roleHistory" class="has-text-white">Role History (Restore roles on rejoin)</label>
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="roleHistory" class="has-text-white">Role History</label>
+                </div>
               </div>
-            </div>
-            <div class="field" style="margin-bottom: 0.75rem;">
-              <div class="control">
-                <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="messageTracking" class="has-text-white">Message Tracking (Edited/Deleted messages)</label>
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="messageTracking" class="has-text-white">Message Tracking</label>
+                </div>
               </div>
-            </div>
-            <div class="field" style="margin-bottom: 0.75rem;">
-              <div class="control">
-                <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="roleTracking" class="has-text-white">Role Tracking (User added/removed from roles)</label>
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="roleTracking" class="has-text-white">Role Tracking</label>
+                </div>
               </div>
-            </div>
-            <div class="field" style="margin-bottom: 0.75rem;">
-              <div class="control">
-                <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="serverRoleManagement" class="has-text-white">Server Role Management (Track role creation/deletion)</label>
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="serverRoleManagement" class="has-text-white">Server Role Management</label>
+                </div>
               </div>
-            </div>
-            <div class="field">
-              <div class="control">
-                <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="userTracking" class="has-text-white">User Tracking (Nickname, profile picture, status changes)</label>
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="userTracking" class="has-text-white">User Tracking</label>
+                </div>
               </div>
-            </div>
-            <div class="field">
-              <div class="control">
-                <input id="reactionRoles" type="checkbox" name="reactionRoles" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="reactionRoles" class="has-text-white">Reaction Roles (Self-assignable roles via reactions)</label>
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="reactionRoles" type="checkbox" name="reactionRoles" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="reactionRoles" class="has-text-white">Reaction Roles</label>
+                </div>
               </div>
-            </div>
-            <div class="field">
-              <div class="control">
-                <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="rulesConfiguration" class="has-text-white">Rules Configuration (Post server rules embed)</label>
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="rulesConfiguration" class="has-text-white">Rules Configuration</label>
+                </div>
               </div>
-            </div>
-            <div class="field">
-              <div class="control">
-                <input id="streamSchedule" type="checkbox" name="streamSchedule" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                <label for="streamSchedule" class="has-text-white">Stream Schedule (Post your streaming schedule)</label>
+              <div class="toggle-item">
+                <div class="control">
+                  <input id="streamSchedule" type="checkbox" name="streamSchedule" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <label for="streamSchedule" class="has-text-white">Stream Schedule</label>
+                </div>
               </div>
             </div>
           </div>
