@@ -6614,8 +6614,9 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
             await self._migrate_server_management_table()
             await self._cleanup_expired_roles()
             self.logger.info("Role History system initialized")
-            # Start periodic cleanup task
+            # Start periodic cleanup and member role check tasks
             asyncio.create_task(self._periodic_cleanup())
+            asyncio.create_task(self._periodic_member_role_check())
         except Exception as e:
             self.logger.error(f"Error initializing Role History: {e}")
 
@@ -6772,6 +6773,95 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
         except Exception as e:
             self.logger.error(f"Error in periodic cleanup: {e}")
 
+    async def _periodic_member_role_check(self):
+        try:
+            while not self.bot.is_closed():
+                await asyncio.sleep(600)  # Run every 10 minutes
+                for guild in self.bot.guilds:
+                    try:
+                        await self._scan_guild_members(guild)
+                    except Exception as e:
+                        self.logger.error(f"Error scanning guild {guild.name}: {e}")
+        except asyncio.CancelledError:
+            self.logger.debug("Periodic member role check task cancelled")
+        except Exception as e:
+            self.logger.error(f"Error in periodic member role check: {e}")
+            self.logger.error(f"Error in periodic member role check: {e}")
+
+    async def _scan_guild_members(self, guild: discord.Guild):
+        try:
+            settings = await self._get_settings(str(guild.id))
+            if not settings['enabled']:
+                self.logger.debug(f"Role History is disabled for guild {guild.name}")
+                return
+            self.logger.info(f"Scanning {guild.member_count} members in {guild.name}")
+            scanned_count = 0
+            updated_count = 0
+            async for member in guild.fetch_members(limit=None):
+                scanned_count += 1
+                # Skip bots
+                if member.bot:
+                    continue
+                # Get current roles (exclude @everyone)
+                current_role_ids = [str(role.id) for role in member.roles if role.name != "@everyone"]
+                # Check if we have existing role history for this member
+                query = "SELECT role_ids FROM role_history WHERE server_id = %s AND user_id = %s"
+                result = await self.mysql.fetchone(
+                    query,
+                    params=(str(guild.id), str(member.id)),
+                    database_name='specterdiscordbot',
+                    dict_cursor=True
+                )
+                if result:
+                    # Member has history, update if roles changed
+                    try:
+                        existing_role_ids = json.loads(result['role_ids']) if isinstance(result['role_ids'], str) else result['role_ids']
+                    except (json.JSONDecodeError, TypeError):
+                        existing_role_ids = []
+                    # Check if roles have changed
+                    if set(current_role_ids) != set(existing_role_ids):
+                        # Roles changed, update the record
+                        update_query = "UPDATE role_history SET role_ids = %s, last_checked = CURRENT_TIMESTAMP WHERE server_id = %s AND user_id = %s"
+                        role_ids_json = json.dumps(current_role_ids)
+                        await self.mysql.execute(
+                            update_query,
+                            params=(role_ids_json, str(guild.id), str(member.id)),
+                            database_name='specterdiscordbot'
+                        )
+                        updated_count += 1
+                        self.logger.debug(f"Updated roles for {member.name} in {guild.name}: {len(existing_role_ids)} → {len(current_role_ids)} roles")
+                    else:
+                        # Roles unchanged, just update last_checked
+                        update_query = "UPDATE role_history SET last_checked = CURRENT_TIMESTAMP WHERE server_id = %s AND user_id = %s"
+                        await self.mysql.execute(
+                            update_query,
+                            params=(str(guild.id), str(member.id)),
+                            database_name='specterdiscordbot'
+                        )
+                else:
+                    # New member (no history), create initial record if they have roles
+                    if current_role_ids:
+                        role_ids_json = json.dumps(current_role_ids)
+                        insert_query = """
+                            INSERT INTO role_history (server_id, user_id, role_ids)
+                            VALUES (%s, %s, %s)
+                            ON DUPLICATE KEY UPDATE
+                            role_ids = VALUES(role_ids),
+                            last_checked = CURRENT_TIMESTAMP
+                        """
+                        await self.mysql.execute(
+                            insert_query,
+                            params=(str(guild.id), str(member.id), role_ids_json),
+                            database_name='specterdiscordbot'
+                        )
+                        updated_count += 1
+                        self.logger.debug(f"Created initial role history for {member.name} in {guild.name} ({len(current_role_ids)} roles)")
+                # Add small delay to avoid rate limiting
+                await asyncio.sleep(0.01)
+            self.logger.info(f"Completed role history scan for {guild.name}: scanned {scanned_count} members, updated {updated_count}")
+        except Exception as e:
+            self.logger.error(f"Error scanning guild members for {guild.name}: {e}")
+
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         try:
@@ -6869,6 +6959,75 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
         except Exception as e:
             await ctx.send(f"❌ Error during cleanup: {e}")
             self.logger.error(f"Error in role_history_cleanup command: {e}")
+
+    @commands.command(name="rolehistoryscan")
+    @commands.has_permissions(administrator=True)
+    async def role_history_scan(self, ctx):
+        try:
+            embed = discord.Embed(
+                title="Role History Scan",
+                description="Scanning all members in this guild...",
+                color=discord.Color.blue()
+            )
+            msg = await ctx.send(embed=embed)
+            await self._scan_guild_members(ctx.guild)
+            embed = discord.Embed(
+                title="✅ Role History Scan Complete",
+                description="All members have been scanned and their role history has been updated.",
+                color=discord.Color.green()
+            )
+            embed.set_footer(text=f"{ctx.guild.name} | Scan completed")
+            await msg.edit(embed=embed)
+            self.logger.info(f"Manual role history scan triggered by {ctx.author.name} in {ctx.guild.name}")
+        except Exception as e:
+            embed = discord.Embed(
+                title="❌ Role History Scan Error",
+                description=f"An error occurred during the scan: {str(e)}",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            self.logger.error(f"Error in role_history_scan command: {e}")
+
+    @commands.command(name="rolehistorystatus")
+    @commands.has_permissions(administrator=True)
+    async def role_history_status(self, ctx):
+        try:
+            query = "SELECT COUNT(DISTINCT user_id) as total_users FROM role_history WHERE server_id = %s"
+            result = await self.mysql.fetchone(
+                query,
+                params=(str(ctx.guild.id),),
+                database_name='specterdiscordbot',
+                dict_cursor=True
+            )
+            total_users = result['total_users'] if result else 0
+            # Get recently updated records
+            query_recent = """
+                SELECT COUNT(*) as recent_count 
+                FROM role_history 
+                WHERE server_id = %s AND last_checked > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            """
+            result_recent = await self.mysql.fetchone(
+                query_recent,
+                params=(str(ctx.guild.id),),
+                database_name='specterdiscordbot',
+                dict_cursor=True
+            )
+            recent_count = result_recent['recent_count'] if result_recent else 0
+            embed = discord.Embed(
+                title="Role History Status",
+                color=config.bot_color
+            )
+            embed.add_field(name="Total Users Tracked", value=str(total_users), inline=True)
+            embed.add_field(name="Updated (Last 24h)", value=str(recent_count), inline=True)
+            embed.add_field(name="Guild Member Count", value=str(ctx.guild.member_count), inline=True)
+            settings = await self._get_settings(str(ctx.guild.id))
+            embed.add_field(name="Status", value="✅ Enabled" if settings['enabled'] else "❌ Disabled", inline=False)
+            embed.add_field(name="Retention Period", value=f"{settings['retention_days']} days", inline=False)
+            embed.set_footer(text=f"{ctx.guild.name} | Use !rolehistoryscan to update now")
+            await ctx.send(embed=embed)
+        except Exception as e:
+            await ctx.send(f"❌ Error retrieving role history status: {e}")
+            self.logger.error(f"Error in role_history_status command: {e}")
 
     def cog_unload(self):
         self.logger.info("RoleHistoryCog cog unloaded")
