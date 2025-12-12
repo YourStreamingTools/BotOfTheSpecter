@@ -1187,6 +1187,64 @@ aside.sidebar-nav,
     pointer-events: none !important;
 }
 
+/* Server Management: equalize boxes and stabilize switches */
+.server-management-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+.server-management-toggles .toggle-item.box {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0;
+    min-width: 220px;
+    flex: 1 1 220px;
+    min-height: 140px;
+    overflow: hidden;
+}
+.server-management-toggles .toggle-item.box .toggle-title {
+    background: #1f2326;
+    padding: 12px 16px;
+    height: 48px;
+    line-height: 24px;
+    font-weight: 700;
+    color: #fff;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+.server-management-toggles .toggle-item.box .toggle-body {
+    padding: 18px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+}
+.server-management-toggles .toggle-item.box .control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+}
+.server-management-toggles .toggle-status {
+    display: inline-block;
+    margin-left: 6px;
+    line-height: 24px;
+    color: #bfc9d1;
+}
+.server-management-toggles .toggle-status.enabled { color: #36c36b; }
+.server-management-toggles .toggle-status.disabled { color: #98a0a6; }
+
+/* Ensure small screens don't enforce fixed max-height */
+@media (max-width: 900px) {
+    .server-management-toggles .toggle-item.box {
+        min-height: 120px;
+        max-height: none;
+    }
+    .server-management-toggles .toggle-item.box .toggle-body { padding: 14px 12px; }
+}
+
 /* Ensure navbar shows by default on mobile/tablet */
 .mobile-only,
 nav.navbar,
@@ -2399,6 +2457,7 @@ body {
     align-items: center;
 }
 .server-management-toggles .toggle-item {
+    /* default inline layout for non-box items */
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -2410,6 +2469,9 @@ body {
         min-width: 45%;
         max-width: 45%;
     }
+    .server-management-toggles .toggle-item.box {
+        min-height: 120px;
+    }
 }
 @media (max-width: 720px) {
     .server-management-toggles {
@@ -2420,4 +2482,90 @@ body {
         max-width: 100%;
         min-width: 100%;
     }
+    .server-management-toggles .toggle-item.box {
+        min-height: 110px;
+    }
 }
+
+/* Visual style for each toggle box */
+.server-management-toggles .toggle-item.box {
+    background-color: rgba(255,255,255,0.02);
+    border: 1px solid #363636;
+    border-radius: 8px;
+    padding: 0; /* header and body handle spacing */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: hidden;
+    /* fixed uniform size for consistent layout */
+    height: 128px;
+    box-sizing: border-box;
+}
+.server-management-toggles .toggle-item.box .toggle-title {
+    display: block;
+    background-color: #23272b; /* darker header */
+    padding: 0 0.75rem;
+    border-radius: 8px 8px 0 0;
+    color: #e6eef6;
+    /* fixed header height for visual consistency */
+    height: 46px;
+    line-height: 46px;
+}
+.server-management-toggles .toggle-item.box .control {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    /* use remaining vertical space under the header and center contents */
+    height: calc(128px - 46px);
+    padding: 0 0.75rem;
+    box-sizing: border-box;
+}
+.server-management-toggles .toggle-item.box .toggle-status {
+    margin-left: 0.6rem;
+    padding: 0;
+}
+
+.server-management-toggles .toggle-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+.server-management-toggles .toggle-status { font-size: 0.85rem; margin-left: 0.6rem; white-space: nowrap; }
+
+/* Ensure switches render as rounded toggles inside server-management area
+   (provides a fallback if Bulma's switch styles are missing or overridden) */
+.server-management-toggles .control label.switch {
+    display: inline-block;
+    position: relative;
+    width: 48px;
+    height: 26px;
+    background: #3a3f44;
+    border-radius: 999px;
+    cursor: pointer;
+    vertical-align: middle;
+}
+.server-management-toggles .control label.switch .check {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    background: #ffffff;
+    border-radius: 50%;
+    transition: transform 160ms ease, background 160ms ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.server-management-toggles .control label.switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.server-management-toggles .control label.switch input:checked + .check {
+    transform: translateX(22px);
+    background: #23d160;
+}
+.server-management-toggles .control label.switch input:disabled + .check {
+    opacity: 0.6;
+}
+

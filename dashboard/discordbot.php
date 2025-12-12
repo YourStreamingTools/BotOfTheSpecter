@@ -1625,64 +1625,104 @@ ob_start();
           <div class="field">
             <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
             <div class="server-management-toggles" style="margin-bottom: 0.75rem;">
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="welcomeMessage" type="checkbox" name="welcomeMessage" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="welcomeMessage" class="has-text-white">Welcome Message</label>
+              <div class="toggle-item box">
+                <label for="welcomeMessage" class="toggle-title has-text-white">Welcome Message</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="welcomeMessage" type="checkbox" name="welcomeMessage"<?php echo (!empty($serverManagementSettings['welcomeMessage']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="welcomeMessage">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="autoRole" type="checkbox" name="autoRole" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="autoRole" class="has-text-white">Auto Role on Join</label>
+              <div class="toggle-item box">
+                <label for="autoRole" class="toggle-title has-text-white">Auto Role on Join</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="autoRole" type="checkbox" name="autoRole"<?php echo (!empty($serverManagementSettings['autoRole']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="autoRole">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="roleHistory" type="checkbox" name="roleHistory" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="roleHistory" class="has-text-white">Role History</label>
+              <div class="toggle-item box">
+                <label for="roleHistory" class="toggle-title has-text-white">Role History</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="roleHistory" type="checkbox" name="roleHistory"<?php echo (!empty($serverManagementSettings['roleHistory']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="roleHistory">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="messageTracking" type="checkbox" name="messageTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="messageTracking" class="has-text-white">Message Tracking</label>
+              <div class="toggle-item box">
+                <label for="messageTracking" class="toggle-title has-text-white">Message Tracking</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="messageTracking" type="checkbox" name="messageTracking"<?php echo (!empty($serverManagementSettings['messageTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="messageTracking">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="roleTracking" type="checkbox" name="roleTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="roleTracking" class="has-text-white">Role Tracking</label>
+              <div class="toggle-item box">
+                <label for="roleTracking" class="toggle-title has-text-white">Role Tracking</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="roleTracking" type="checkbox" name="roleTracking"<?php echo (!empty($serverManagementSettings['roleTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="roleTracking">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="serverRoleManagement" type="checkbox" name="serverRoleManagement" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="serverRoleManagement" class="has-text-white">Server Role Management</label>
+              <div class="toggle-item box">
+                <label for="serverRoleManagement" class="toggle-title has-text-white">Server Role Management</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="serverRoleManagement" type="checkbox" name="serverRoleManagement"<?php echo (!empty($serverManagementSettings['serverRoleManagement']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="serverRoleManagement">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="userTracking" type="checkbox" name="userTracking" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="userTracking" class="has-text-white">User Tracking</label>
+              <div class="toggle-item box">
+                <label for="userTracking" class="toggle-title has-text-white">User Tracking</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="userTracking" type="checkbox" name="userTracking"<?php echo (!empty($serverManagementSettings['userTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="userTracking">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="reactionRoles" type="checkbox" name="reactionRoles" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="reactionRoles" class="has-text-white">Reaction Roles</label>
+              <div class="toggle-item box">
+                <label for="reactionRoles" class="toggle-title has-text-white">Reaction Roles</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="reactionRoles" type="checkbox" name="reactionRoles"<?php echo (!empty($serverManagementSettings['reactionRoles']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="reactionRoles">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="rulesConfiguration" class="has-text-white">Rules Configuration</label>
+              <div class="toggle-item box">
+                <label for="rulesConfiguration" class="toggle-title has-text-white">Rules Configuration</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="rulesConfiguration" type="checkbox" name="rulesConfiguration"<?php echo (!empty($serverManagementSettings['rulesConfiguration']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="rulesConfiguration">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item">
-                <div class="control">
-                  <input id="streamSchedule" type="checkbox" name="streamSchedule" class="switch is-rounded"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
-                  <label for="streamSchedule" class="has-text-white">Stream Schedule</label>
+              <div class="toggle-item box">
+                <label for="streamSchedule" class="toggle-title has-text-white">Stream Schedule</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="streamSchedule" type="checkbox" name="streamSchedule"<?php echo (!empty($serverManagementSettings['streamSchedule']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="streamSchedule">Disabled</div>
                 </div>
               </div>
             </div>
@@ -3773,6 +3813,30 @@ function removeStreamer(username) {
   });
 </script>
 <?php } ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  function updateToggleStatus(input) {
+    if (!input || !input.id) return;
+    var status = document.querySelector('.toggle-status[data-for="' + input.id + '"]');
+    if (!status) return;
+    if (input.checked) {
+      status.textContent = 'Enabled';
+      status.classList.add('enabled');
+      status.classList.remove('disabled');
+    } else {
+      status.textContent = 'Disabled';
+      status.classList.add('disabled');
+      status.classList.remove('enabled');
+    }
+  }
+
+  var toggles = document.querySelectorAll('.server-management-toggles input[type="checkbox"]');
+  toggles.forEach(function(t) {
+    updateToggleStatus(t);
+    t.addEventListener('change', function() { updateToggleStatus(t); });
+  });
+});
+</script>
 <script>
 <?php
 // Output all console logs at once
