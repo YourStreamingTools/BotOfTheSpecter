@@ -552,6 +552,61 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
           $errorMsg .= "Cannot save Role Tracking settings: User not linked or no guild selected.<br>";
         }
+      } elseif (isset($_POST['save_server_role_management'])) {
+        // Save Server Role Management settings
+        $server_role_management_guild_id = null;
+        if ($is_linked) {
+          $guildStmt = $conn->prepare("SELECT guild_id FROM discord_users WHERE user_id = ?");
+          $guildStmt->bind_param("i", $user_id);
+          $guildStmt->execute();
+          $guildResult = $guildStmt->get_result();
+          if ($guildResult->num_rows > 0) {
+            $guildData = $guildResult->fetch_assoc();
+            $server_role_management_guild_id = $guildData['guild_id'];
+          }
+          $guildStmt->close();
+        }
+        
+        if (!empty($server_role_management_guild_id) && $discord_conn && !$discord_conn->connect_error) {
+          $server_role_mgmt_enabled = 1;
+          $server_role_mgmt_log_channel = !empty($_POST['server_mgmt_log_channel_id']) ? $_POST['server_mgmt_log_channel_id'] : null;
+          $track_role_creation = isset($_POST['track_role_creation']) ? 1 : 0;
+          $track_role_deletion = isset($_POST['track_role_deletion']) ? 1 : 0;
+          
+          // Validate that at least one tracking option is selected
+          if (empty($server_role_mgmt_log_channel)) {
+            $errorMsg .= "Please select a log channel for Server Role Management.<br>";
+          } elseif (!$track_role_creation && !$track_role_deletion) {
+            $errorMsg .= "Please select at least one tracking option (role creation or deletion).<br>";
+          } else {
+            // Prepare the configuration JSON
+            $config = json_encode([
+              'enabled' => $server_role_mgmt_enabled,
+              'log_channel_id' => $server_role_mgmt_log_channel,
+              'track_creation' => $track_role_creation,
+              'track_deletion' => $track_role_deletion
+            ]);
+            
+            $stmt = $discord_conn->prepare("UPDATE server_management SET server_role_management_configuration = ? WHERE server_id = ?");
+            if ($stmt) {
+              $stmt->bind_param("ss", $config, $server_role_management_guild_id);
+              if ($stmt->execute()) {
+                $buildStatus .= "Server Role Management settings saved successfully (Log Channel: <#" . $server_role_mgmt_log_channel . ">)<br>";
+                $existingServerRoleManagementEnabled = $server_role_mgmt_enabled;
+                $existingServerRoleManagementLogChannel = $server_role_mgmt_log_channel;
+                $existingRoleCreationTracking = $track_role_creation;
+                $existingRoleDeletionTracking = $track_role_deletion;
+              } else {
+                $errorMsg .= "Error saving Server Role Management settings: " . $stmt->error . "<br>";
+              }
+              $stmt->close();
+            } else {
+              $errorMsg .= "Error preparing Server Role Management update statement: " . $discord_conn->error . "<br>";
+            }
+          }
+        } else {
+          $errorMsg .= "Cannot save Server Role Management settings: User not linked or no guild selected.<br>";
+        }
       }
     }
   } catch (mysqli_sql_exception $e) {
@@ -614,6 +669,10 @@ $existingRoleTrackingEnabled = 0;
 $existingRoleTrackingLogChannel = "";
 $existingRoleTrackingAdditions = 1;
 $existingRoleTrackingRemovals = 1;
+$existingServerRoleManagementEnabled = 0;
+$existingServerRoleManagementLogChannel = "";
+$existingRoleCreationTracking = 1;
+$existingRoleDeletionTracking = 1;
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -696,6 +755,16 @@ if ($is_linked && $hasGuildId) {
           $existingRoleTrackingLogChannel = isset($roleTrackingConfig['log_channel_id']) ? $roleTrackingConfig['log_channel_id'] : "";
           $existingRoleTrackingAdditions = isset($roleTrackingConfig['track_additions']) ? (int)$roleTrackingConfig['track_additions'] : 1;
           $existingRoleTrackingRemovals = isset($roleTrackingConfig['track_removals']) ? (int)$roleTrackingConfig['track_removals'] : 1;
+        }
+      }
+      // Parse server_role_management_configuration JSON
+      if (!empty($serverMgmtData['server_role_management_configuration'])) {
+        $serverRoleManagementConfig = json_decode($serverMgmtData['server_role_management_configuration'], true);
+        if ($serverRoleManagementConfig && is_array($serverRoleManagementConfig)) {
+          $existingServerRoleManagementEnabled = isset($serverRoleManagementConfig['enabled']) ? (int)$serverRoleManagementConfig['enabled'] : 0;
+          $existingServerRoleManagementLogChannel = isset($serverRoleManagementConfig['log_channel_id']) ? $serverRoleManagementConfig['log_channel_id'] : "";
+          $existingRoleCreationTracking = isset($serverRoleManagementConfig['track_creation']) ? (int)$serverRoleManagementConfig['track_creation'] : 1;
+          $existingRoleDeletionTracking = isset($serverRoleManagementConfig['track_deletion']) ? (int)$serverRoleManagementConfig['track_deletion'] : 1;
         }
       }
       if (!empty($serverMgmtData['message_tracking_configuration_channel'])) {
@@ -833,7 +902,9 @@ function updateExistingDiscordValues() {
   global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingWelcomeColour, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
   global $existingRulesChannelID, $existingRulesTitle, $existingRulesContent, $existingRulesColor, $existingRulesAcceptRoleID;
   global $existingStreamScheduleChannelID, $existingStreamScheduleTitle, $existingStreamScheduleContent, $existingStreamScheduleColor, $existingStreamScheduleTimezone;
+  global $existingRoleHistoryEnabled, $existingRoleHistoryRetention;
   global $existingRoleTrackingEnabled, $existingRoleTrackingLogChannel, $existingRoleTrackingAdditions, $existingRoleTrackingRemovals;
+  global $existingServerRoleManagementEnabled, $existingServerRoleManagementLogChannel, $existingRoleCreationTracking, $existingRoleDeletionTracking;
   global $userAdminGuilds, $is_linked, $needs_relink, $useManualIds, $guildChannels, $guildRoles, $guildVoiceChannels;
   // Update discord_users table values from website database
   $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -932,6 +1003,16 @@ function updateExistingDiscordValues() {
             $existingRoleTrackingLogChannel = isset($roleTrackingConfig['log_channel_id']) ? $roleTrackingConfig['log_channel_id'] : "";
             $existingRoleTrackingAdditions = isset($roleTrackingConfig['track_additions']) ? (int)$roleTrackingConfig['track_additions'] : 1;
             $existingRoleTrackingRemovals = isset($roleTrackingConfig['track_removals']) ? (int)$roleTrackingConfig['track_removals'] : 1;
+          }
+        }
+        // Parse server_role_management_configuration JSON
+        if (!empty($serverMgmtData['server_role_management_configuration'])) {
+          $serverRoleManagementConfig = json_decode($serverMgmtData['server_role_management_configuration'], true);
+          if ($serverRoleManagementConfig && is_array($serverRoleManagementConfig)) {
+            $existingServerRoleManagementEnabled = isset($serverRoleManagementConfig['enabled']) ? (int)$serverRoleManagementConfig['enabled'] : 0;
+            $existingServerRoleManagementLogChannel = isset($serverRoleManagementConfig['log_channel_id']) ? $serverRoleManagementConfig['log_channel_id'] : "";
+            $existingRoleCreationTracking = isset($serverRoleManagementConfig['track_creation']) ? (int)$serverRoleManagementConfig['track_creation'] : 1;
+            $existingRoleDeletionTracking = isset($serverRoleManagementConfig['track_deletion']) ? (int)$serverRoleManagementConfig['track_deletion'] : 1;
           }
         }
         if (!empty($serverMgmtData['message_tracking_configuration_channel'])) {
@@ -2434,16 +2515,13 @@ ob_start();
               Server Role Management Configuration
             </p>
             <div class="card-header-icon">
-              <span class="tag is-warning is-light">
-                <span class="icon"><i class="fas fa-clock"></i></span>
-                <span>Coming Soon</span>
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check"></i></span>
+                <span>Active</span>
               </span>
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
-            </div>
             <p class="has-text-white-ter mb-1">Configure tracking for role creation and deletion within your Discord server.</p>
             <form action="" method="post">
               <div class="field">
@@ -2457,18 +2535,18 @@ ob_start();
                 <label class="label has-text-white" style="font-weight: 500;">Management Options</label>
                 <div class="control">
                   <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" disabled>
+                    <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" <?php echo $existingRoleCreationTracking ? 'checked' : ''; ?>>
                     Track role creation
                   </label>
                   <label class="checkbox has-text-white">
-                    <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" disabled>
+                    <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" <?php echo $existingRoleDeletionTracking ? 'checked' : ''; ?>>
                     Track role deletion
                   </label>
                 </div>
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveServerRoleManagement()" name="save_server_role_management" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_server_role_management" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Save Server Role Management Settings</span>
                   </button>
