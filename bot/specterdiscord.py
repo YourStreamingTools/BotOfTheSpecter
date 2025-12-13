@@ -7454,8 +7454,8 @@ class ServerRoleManagementCog(commands.Cog, name='Server Role Management'):
             # Get who edited the role from audit logs
             edited_by = "Unknown"
             try:
-                async for entry in after.guild.audit_logs(limit=5, action=discord.AuditLogAction.role_update):
-                    if entry.target.id == after.id:
+                async for entry in after.guild.audit_logs(limit=10, action=discord.AuditLogAction.role_update):
+                    if entry.target and entry.target.id == after.id:
                         edited_by = f"{entry.user.name}#{entry.user.discriminator}"
                         break
             except discord.Forbidden:
