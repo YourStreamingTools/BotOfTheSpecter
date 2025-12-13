@@ -563,8 +563,8 @@ class BotOfTheSpecter_WebsocketServer:
         elif event == "PATREON":
             # Handle Patreon-specific event
             await self.handle_patreon_event(code, data)
-        elif event in ["STREAM_ONLINE", "STREAM_OFFLINE", "POST_REACTION_ROLES_MESSAGE", "POST_RULES_MESSAGE"]:
-            # Handle stream status events, reaction roles message, and rules message with proper global broadcasting
+        elif event in ["STREAM_ONLINE", "STREAM_OFFLINE", "POST_REACTION_ROLES_MESSAGE", "POST_RULES_MESSAGE", "POST_STREAM_SCHEDULE_MESSAGE"]:
+            # Handle stream status events, reaction roles message, rules message, and stream schedule message with proper global broadcasting
             count = await self.broadcast_event_with_globals(event, data, code)
             self.logger.info(f"Broadcasted {event} event to {count} clients (including global listeners)")
         else:
