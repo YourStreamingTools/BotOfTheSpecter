@@ -254,6 +254,66 @@ if (isset($_GET['code']) && !$is_linked) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+  // Handle Message Tracking Configuration save
+  if (isset($_POST['save_message_tracking'])) {
+    // Fetch guild ID from discord_users table
+    $message_tracking_guild_id = null;
+    if ($is_linked) {
+      $guildStmt = $conn->prepare("SELECT guild_id FROM discord_users WHERE user_id = ?");
+      $guildStmt->bind_param("i", $user_id);
+      $guildStmt->execute();
+      $guildResult = $guildStmt->get_result();
+      if ($guildResult->num_rows > 0) {
+        $guildData = $guildResult->fetch_assoc();
+        $message_tracking_guild_id = $guildData['guild_id'];
+      }
+      $guildStmt->close();
+    }
+    // Check if we have both guild ID and database connection
+    if (!empty($message_tracking_guild_id) && $discord_conn && !$discord_conn->connect_error) {
+      if (!empty($_POST['message_tracking_log_channel_id'])) {
+        $message_tracking_log_channel_id = $_POST['message_tracking_log_channel_id'];
+        $track_message_edits = isset($_POST['track_message_edits']) ? 1 : 0;
+        $track_message_deletes = isset($_POST['track_message_deletes']) ? 1 : 0;
+        if (!$track_message_edits && !$track_message_deletes) {
+          $errorMsg .= "Please select at least one tracking option (message edits or deletions).<br>";
+        } else {
+          $messageTrackingConfig = [
+            'enabled' => 1,
+            'log_channel_id' => $message_tracking_log_channel_id,
+            'track_edits' => $track_message_edits,
+            'track_deletes' => $track_message_deletes
+          ];
+          $stmt = $discord_conn->prepare(
+            "UPDATE server_management SET message_tracking_configuration = ? WHERE server_id = ?"
+          );
+          $stmt->bind_param("ss", json_encode($messageTrackingConfig), $message_tracking_guild_id);
+          if ($stmt->execute()) {
+            // Fetch channels to get the channel name for the success message
+            $message_tracking_channels = array();
+            if (!empty($discordData['access_token'])) {
+              $message_tracking_channels = fetchGuildChannels($discordData['access_token'], $message_tracking_guild_id);
+              $channel_name = getChannelNameFromId($message_tracking_log_channel_id, $message_tracking_channels);
+            } else {
+              $channel_name = $message_tracking_log_channel_id;
+            }
+            $buildStatus .= "Message Tracking configuration saved successfully (Log Channel: " . $channel_name . ")<br>";
+            $existingMessageTrackingEnabled = 1;
+            $existingMessageTrackingLogChannel = $message_tracking_log_channel_id;
+            $existingMessageTrackingEdits = $track_message_edits;
+            $existingMessageTrackingDeletes = $track_message_deletes;
+          } else {
+            $errorMsg .= "Failed to save message tracking configuration: " . $discord_conn->error . "<br>";
+          }
+          $stmt->close();
+        }
+      } else {
+        $errorMsg .= "Message tracking log channel is required.<br>";
+      }
+    } else {
+      $errorMsg .= "Guild not linked or no guild selected.<br>";
+    }
+  }
   try {
     // Handle JSON POST requests for server management settings
     $content = file_get_contents('php://input');
@@ -538,7 +598,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($stmt) {
               $stmt->bind_param("ss", $role_tracking_config, $role_tracking_guild_id);
               if ($stmt->execute()) {
-                $buildStatus .= "Role Tracking settings saved successfully (Log Channel: <#" . $role_tracking_log_channel . ">)<br>";
+                $channel_name = getChannelNameFromId($role_tracking_log_channel, $guildChannels);
+                $buildStatus .= "Role Tracking settings saved successfully (Log Channel: " . $channel_name . ")<br>";
                 $existingRoleTrackingEnabled = $role_tracking_enabled;
                 $existingRoleTrackingLogChannel = $role_tracking_log_channel;
               } else {
@@ -591,7 +652,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($stmt) {
               $stmt->bind_param("ss", $config, $server_role_management_guild_id);
               if ($stmt->execute()) {
-                $buildStatus .= "Server Role Management settings saved successfully (Log Channel: <#" . $server_role_mgmt_log_channel . ">)<br>";
+                // Fetch channels to get the channel name for the success message
+                $server_role_mgmt_channels = array();
+                if (!empty($discordData['access_token'])) {
+                  $server_role_mgmt_channels = fetchGuildChannels($discordData['access_token'], $server_role_management_guild_id);
+                  $channel_name = getChannelNameFromId($server_role_mgmt_log_channel, $server_role_mgmt_channels);
+                } else {
+                  $channel_name = $server_role_mgmt_log_channel;
+                }
+                $buildStatus .= "Server Role Management settings saved successfully (Log Channel: " . $channel_name . ")<br>";
                 $existingServerRoleManagementEnabled = $server_role_mgmt_enabled;
                 $existingServerRoleManagementLogChannel = $server_role_mgmt_log_channel;
                 $existingRoleCreationTracking = $track_role_creation;
@@ -645,7 +714,10 @@ $existingWelcomeUseDefault = false;
 $existingWelcomeEmbed = false;
 $existingAutoRoleID = "";
 $existingMessageLogChannelID = "";
-$existingRoleLogChannelID = "";
+$existingMessageTrackingEnabled = 0;
+$existingMessageTrackingLogChannel = "";
+$existingMessageTrackingEdits = 1;
+$existingMessageTrackingDeletes = 1;
 $existingServerMgmtLogChannelID = "";
 $existingUserLogChannelID = "";
 $existingReactionRolesChannelID = "";
@@ -767,14 +839,18 @@ if ($is_linked && $hasGuildId) {
           $existingRoleDeletionTracking = isset($serverRoleManagementConfig['track_deletion']) ? (int)$serverRoleManagementConfig['track_deletion'] : 1;
         }
       }
-      if (!empty($serverMgmtData['message_tracking_configuration_channel'])) {
-        $existingMessageLogChannelID = $serverMgmtData['message_tracking_configuration_channel'];
+      // Parse message_tracking_configuration JSON
+      if (!empty($serverMgmtData['message_tracking_configuration'])) {
+        $messageTrackingConfig = json_decode($serverMgmtData['message_tracking_configuration'], true);
+        if ($messageTrackingConfig && is_array($messageTrackingConfig)) {
+          $existingMessageTrackingEnabled = isset($messageTrackingConfig['enabled']) ? (int)$messageTrackingConfig['enabled'] : 0;
+          $existingMessageTrackingLogChannel = isset($messageTrackingConfig['log_channel_id']) ? $messageTrackingConfig['log_channel_id'] : "";
+          $existingMessageTrackingEdits = isset($messageTrackingConfig['track_edits']) ? (int)$messageTrackingConfig['track_edits'] : 1;
+          $existingMessageTrackingDeletes = isset($messageTrackingConfig['track_deletes']) ? (int)$messageTrackingConfig['track_deletes'] : 1;
+        }
       }
       if (!empty($serverMgmtData['role_tracking_configuration_channel'])) {
         $existingRoleLogChannelID = $serverMgmtData['role_tracking_configuration_channel'];
-      }
-      if (!empty($serverMgmtData['server_role_management_configuration_channel'])) {
-        $existingServerMgmtLogChannelID = $serverMgmtData['server_role_management_configuration_channel'];
       }
       if (!empty($serverMgmtData['user_tracking_configuration_channel'])) {
         $existingUserLogChannelID = $serverMgmtData['user_tracking_configuration_channel'];
@@ -899,7 +975,7 @@ function updateExistingDiscordValues() {
   global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData, $consoleLogs;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
-  global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingWelcomeColour, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions;
+  global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingWelcomeColour, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions, $existingMessageTrackingEnabled, $existingMessageTrackingLogChannel, $existingMessageTrackingEdits, $existingMessageTrackingDeletes;
   global $existingRulesChannelID, $existingRulesTitle, $existingRulesContent, $existingRulesColor, $existingRulesAcceptRoleID;
   global $existingStreamScheduleChannelID, $existingStreamScheduleTitle, $existingStreamScheduleContent, $existingStreamScheduleColor, $existingStreamScheduleTimezone;
   global $existingRoleHistoryEnabled, $existingRoleHistoryRetention;
@@ -930,7 +1006,10 @@ function updateExistingDiscordValues() {
   $existingWelcomeColour = "";
   $existingAutoRoleID = "";
   $existingMessageLogChannelID = "";
-  $existingRoleLogChannelID = "";
+  $existingMessageTrackingEnabled = 0;
+  $existingMessageTrackingLogChannel = "";
+  $existingMessageTrackingEdits = 1;
+  $existingMessageTrackingDeletes = 1;
   $existingServerMgmtLogChannelID = "";
   $existingUserLogChannelID = "";
   $existingReactionRolesChannelID = "";
@@ -1015,8 +1094,12 @@ function updateExistingDiscordValues() {
             $existingRoleDeletionTracking = isset($serverRoleManagementConfig['track_deletion']) ? (int)$serverRoleManagementConfig['track_deletion'] : 1;
           }
         }
-        if (!empty($serverMgmtData['message_tracking_configuration_channel'])) {
-          $existingMessageLogChannelID = $serverMgmtData['message_tracking_configuration_channel'];
+        if (!empty($serverMgmtData['message_tracking_configuration'])) {
+          $messageTrackingConfig = json_decode($serverMgmtData['message_tracking_configuration'], true);
+          $existingMessageTrackingEnabled = isset($messageTrackingConfig['enabled']) ? (int)$messageTrackingConfig['enabled'] : 0;
+          $existingMessageTrackingLogChannel = $messageTrackingConfig['log_channel_id'] ?? "";
+          $existingMessageTrackingEdits = isset($messageTrackingConfig['track_edits']) ? (int)$messageTrackingConfig['track_edits'] : 1;
+          $existingMessageTrackingDeletes = isset($messageTrackingConfig['track_deletes']) ? (int)$messageTrackingConfig['track_deletes'] : 1;
         }
         if (!empty($serverMgmtData['role_tracking_configuration_channel'])) {
           $existingRoleLogChannelID = $serverMgmtData['role_tracking_configuration_channel'];
@@ -1428,6 +1511,19 @@ function generateVoiceChannelInput($fieldId, $fieldName, $currentValue, $placeho
   }
 }
 
+// Helper function to get channel name from ID
+function getChannelNameFromId($channel_id, $channels_array) {
+  if (empty($channel_id) || !is_array($channels_array)) {
+    return $channel_id; // Return ID if not found
+  }
+  foreach ($channels_array as $channel) {
+    if ($channel['id'] == $channel_id) {
+      return '#' . $channel['name'];
+    }
+  }
+  return $channel_id; // Return ID if channel not found in array
+}
+
 // Start output buffering for layout
 ob_start();
 ?>
@@ -1736,6 +1832,7 @@ ob_start();
                                 <?php 
                                   $isSelected = ($existingGuildId === $guild['id']) ? 'selected' : '';
                                   $guildName = htmlspecialchars($guild['name']);
+                                  $ownerBadge = (isset($guild['owner']) && $guild['owner']) ? '' : '';
                                 ?>
                                 <option value="<?php echo htmlspecialchars($guild['id']); ?>" <?php echo $isSelected; ?>>
                                   <?php echo $guildName . $ownerBadge; ?>
@@ -2410,22 +2507,19 @@ ob_start();
               Message Tracking Configuration
             </p>
             <div class="card-header-icon">
-              <span class="tag is-warning is-light">
-                <span class="icon"><i class="fas fa-clock"></i></span>
-                <span>Coming Soon</span>
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>COMPLETED</span>
               </span>
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
-            </div>
             <p class="has-text-white-ter mb-1">Configure message tracking for edited and deleted messages in your Discord server.</p>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Message Log Channel ID</label>
                 <div class="control has-icons-left">
-                  <?php echo generateChannelInput('message_log_channel_id', 'message_log_channel_id', $existingMessageLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  <?php echo generateChannelInput('message_tracking_log_channel_id', 'message_tracking_log_channel_id', $existingMessageTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
                 <p class="help has-text-grey-light">Channel where message edit/delete logs will be sent</p>
               </div>
@@ -2433,18 +2527,18 @@ ob_start();
                 <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
                 <div class="control">
                   <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_edits" style="margin-right: 8px;" disabled>
+                    <input type="checkbox" name="track_message_edits" style="margin-right: 8px;" <?php echo $existingMessageTrackingEdits ? 'checked' : ''; ?>>
                     Track message edits
                   </label>
                   <label class="checkbox has-text-white">
-                    <input type="checkbox" name="track_deletes" style="margin-right: 8px;" disabled>
+                    <input type="checkbox" name="track_message_deletes" style="margin-right: 8px;" <?php echo $existingMessageTrackingDeletes ? 'checked' : ''; ?>>
                     Track message deletions
                   </label>
                 </div>
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveMessageTracking()" name="save_message_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_message_tracking" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Save Message Tracking Settings</span>
                   </button>
@@ -2516,8 +2610,8 @@ ob_start();
             </p>
             <div class="card-header-icon">
               <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check"></i></span>
-                <span>Active</span>
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>COMPLETED</span>
               </span>
             </div>
           </header>
@@ -2527,7 +2621,7 @@ ob_start();
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Server Management Log Channel ID</label>
                 <div class="control has-icons-left">
-                  <?php echo generateChannelInput('server_mgmt_log_channel_id', 'server_mgmt_log_channel_id', $existingServerMgmtLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  <?php echo generateChannelInput('server_mgmt_log_channel_id', 'server_mgmt_log_channel_id', $existingServerRoleManagementLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
                 <p class="help has-text-grey-light">Channel where server role management logs will be sent</p>
               </div>
