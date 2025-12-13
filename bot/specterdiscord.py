@@ -6793,9 +6793,7 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
         try:
             settings = await self._get_settings(str(guild.id))
             if not settings['enabled']:
-                self.logger.debug(f"Role History is disabled for guild {guild.name}")
                 return
-            self.logger.info(f"Scanning {guild.member_count} members in {guild.name}")
             scanned_count = 0
             updated_count = 0
             async for member in guild.fetch_members(limit=None):
@@ -6859,7 +6857,6 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
                         self.logger.debug(f"Created initial role history for {member.name} in {guild.name} ({len(current_role_ids)} roles)")
                 # Add small delay to avoid rate limiting
                 await asyncio.sleep(0.01)
-            self.logger.info(f"Completed role history scan for {guild.name}: scanned {scanned_count} members, updated {updated_count}")
         except Exception as e:
             self.logger.error(f"Error scanning guild members for {guild.name}: {e}")
 
