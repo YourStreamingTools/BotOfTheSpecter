@@ -681,6 +681,79 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
       }
     }
+    // Handle User Tracking Configuration save
+    if (isset($_POST['save_user_tracking'])) {
+      $user_tracking_guild_id = null;
+      $guildStmt = $conn->prepare("SELECT guild_id FROM discord_users WHERE user_id = ?");
+      if ($guildStmt) {
+        $guildStmt->bind_param("i", $user_id);
+        $guildStmt->execute();
+        $guildResult = $guildStmt->get_result();
+        if ($guildResult->num_rows > 0) {
+          $guildData = $guildResult->fetch_assoc();
+          $user_tracking_guild_id = $guildData['guild_id'];
+        }
+        $guildStmt->close();
+      }
+      if (!empty($user_tracking_guild_id) && $discord_conn && !$discord_conn->connect_error) {
+        $user_tracking_enabled = 1;
+        $user_tracking_log_channel = !empty($_POST['user_tracking_log_channel_id']) ? $_POST['user_tracking_log_channel_id'] : null;
+        $track_user_joins = isset($_POST['track_user_joins']) ? 1 : 0;
+        $track_user_leaves = isset($_POST['track_user_leaves']) ? 1 : 0;
+        $track_user_nickname = isset($_POST['track_user_nickname']) ? 1 : 0;
+        $track_user_username = isset($_POST['track_user_username']) ? 1 : 0;
+        $track_user_avatar = isset($_POST['track_user_avatar']) ? 1 : 0;
+        $track_user_status = isset($_POST['track_user_status']) ? 1 : 0;
+        // Validate that at least one tracking option is selected
+        if (empty($user_tracking_log_channel)) {
+          $errorMsg .= "Please select a log channel for User Tracking.<br>";
+        } elseif (!$track_user_joins && !$track_user_leaves && !$track_user_nickname && !$track_user_username && !$track_user_avatar && !$track_user_status) {
+          $errorMsg .= "Please select at least one tracking option.<br>";
+        } else {
+          // Prepare the configuration JSON
+          $config = json_encode([
+            'enabled' => $user_tracking_enabled,
+            'log_channel_id' => $user_tracking_log_channel,
+            'track_joins' => $track_user_joins,
+            'track_leaves' => $track_user_leaves,
+            'track_nickname' => $track_user_nickname,
+            'track_username' => $track_user_username,
+            'track_avatar' => $track_user_avatar,
+            'track_status' => $track_user_status
+          ]);
+          $stmt = $discord_conn->prepare("UPDATE server_management SET user_tracking_configuration = ? WHERE server_id = ?");
+          if ($stmt) {
+            $stmt->bind_param("ss", $config, $user_tracking_guild_id);
+            if ($stmt->execute()) {
+              // Fetch channels to get the channel name for the success message
+              $user_tracking_channels = array();
+              if (!empty($discordData['access_token'])) {
+                $user_tracking_channels = fetchGuildChannels($discordData['access_token'], $user_tracking_guild_id);
+                $channel_name = getChannelNameFromId($user_tracking_log_channel, $user_tracking_channels);
+              } else {
+                $channel_name = $user_tracking_log_channel;
+              }
+              $buildStatus .= "User Tracking settings saved successfully (Log Channel: " . $channel_name . ")<br>";
+              $existingUserTrackingEnabled = $user_tracking_enabled;
+              $existingUserTrackingLogChannel = $user_tracking_log_channel;
+              $existingUserJoinTracking = $track_user_joins;
+              $existingUserLeaveTracking = $track_user_leaves;
+              $existingUserNicknameTracking = $track_user_nickname;
+              $existingUserUsernameTracking = $track_user_username;
+              $existingUserAvatarTracking = $track_user_avatar;
+              $existingUserStatusTracking = $track_user_status;
+            } else {
+              $errorMsg .= "Error saving User Tracking settings: " . $stmt->error . "<br>";
+            }
+            $stmt->close();
+          } else {
+            $errorMsg .= "Error preparing User Tracking update statement: " . $discord_conn->error . "<br>";
+          }
+        }
+      } else {
+        $errorMsg .= "Cannot save User Tracking settings: User not linked or no guild selected.<br>";
+      }
+    }
   } catch (mysqli_sql_exception $e) {
     if (strpos($e->getMessage(), 'Data too long for column') !== false) {
       $errorMsg = "The text entered is too long. Please reduce the length and try again.";
@@ -749,6 +822,14 @@ $existingServerRoleManagementLogChannel = "";
 $existingRoleCreationTracking = 1;
 $existingRoleDeletionTracking = 1;
 $existingRoleEditTracking = 1;
+$existingUserTrackingEnabled = 0;
+$existingUserTrackingLogChannel = "";
+$existingUserJoinTracking = 1;
+$existingUserLeaveTracking = 1;
+$existingUserNicknameTracking = 1;
+$existingUserUsernameTracking = 1;
+$existingUserAvatarTracking = 1;
+$existingUserStatusTracking = 1;
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -852,6 +933,20 @@ if ($is_linked && $hasGuildId) {
           $existingMessageTrackingLogChannel = isset($messageTrackingConfig['log_channel_id']) ? $messageTrackingConfig['log_channel_id'] : "";
           $existingMessageTrackingEdits = isset($messageTrackingConfig['track_edits']) ? (int)$messageTrackingConfig['track_edits'] : 1;
           $existingMessageTrackingDeletes = isset($messageTrackingConfig['track_deletes']) ? (int)$messageTrackingConfig['track_deletes'] : 1;
+        }
+      }
+      // Parse user_tracking_configuration JSON
+      if (!empty($serverMgmtData['user_tracking_configuration'])) {
+        $userTrackingConfig = json_decode($serverMgmtData['user_tracking_configuration'], true);
+        if ($userTrackingConfig && is_array($userTrackingConfig)) {
+          $existingUserTrackingEnabled = isset($userTrackingConfig['enabled']) ? (int)$userTrackingConfig['enabled'] : 0;
+          $existingUserTrackingLogChannel = isset($userTrackingConfig['log_channel_id']) ? $userTrackingConfig['log_channel_id'] : "";
+          $existingUserJoinTracking = isset($userTrackingConfig['track_joins']) ? (int)$userTrackingConfig['track_joins'] : 1;
+          $existingUserLeaveTracking = isset($userTrackingConfig['track_leaves']) ? (int)$userTrackingConfig['track_leaves'] : 1;
+          $existingUserNicknameTracking = isset($userTrackingConfig['track_nickname']) ? (int)$userTrackingConfig['track_nickname'] : 1;
+          $existingUserUsernameTracking = isset($userTrackingConfig['track_username']) ? (int)$userTrackingConfig['track_username'] : 1;
+          $existingUserAvatarTracking = isset($userTrackingConfig['track_avatar']) ? (int)$userTrackingConfig['track_avatar'] : 1;
+          $existingUserStatusTracking = isset($userTrackingConfig['track_status']) ? (int)$userTrackingConfig['track_status'] : 1;
         }
       }
       if (!empty($serverMgmtData['role_tracking_configuration_channel'])) {
@@ -2669,45 +2764,54 @@ ob_start();
               User Tracking Configuration
             </p>
             <div class="card-header-icon">
-              <span class="tag is-warning is-light">
-                <span class="icon"><i class="fas fa-clock"></i></span>
-                <span>Coming Soon</span>
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>COMPLETED</span>
               </span>
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
-            </div>
-            <p class="has-text-white-ter mb-1">Configure user profile change tracking for your Discord server.</p>
+            <p class="has-text-white-ter mb-1">Configure tracking for user activity and profile changes in your Discord server.</p>
             <form action="" method="post">
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">User Log Channel ID</label>
+                <label class="label has-text-white" style="font-weight: 500;">User Tracking Log Channel ID</label>
                 <div class="control has-icons-left">
-                  <?php echo generateChannelInput('user_log_channel_id', 'user_log_channel_id', $existingUserLogChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  <?php echo generateChannelInput('user_tracking_log_channel_id', 'user_tracking_log_channel_id', $existingUserTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
-                <p class="help has-text-grey-light">Channel where user change logs will be sent</p>
+                <p class="help has-text-grey-light">Channel where user tracking logs will be sent</p>
               </div>
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
                 <div class="control">
                   <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_nickname_changes" style="margin-right: 8px;" disabled>
+                    <input type="checkbox" name="track_user_joins" style="margin-right: 8px;" <?php echo $existingUserJoinTracking ? 'checked' : ''; ?>>
+                    Track user joins
+                  </label>
+                  <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <input type="checkbox" name="track_user_leaves" style="margin-right: 8px;" <?php echo $existingUserLeaveTracking ? 'checked' : ''; ?>>
+                    Track user leaves
+                  </label>
+                  <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <input type="checkbox" name="track_user_nickname" style="margin-right: 8px;" <?php echo $existingUserNicknameTracking ? 'checked' : ''; ?>>
                     Track nickname changes
                   </label>
                   <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_avatar_changes" style="margin-right: 8px;" disabled>
+                    <input type="checkbox" name="track_user_username" style="margin-right: 8px;" <?php echo $existingUserUsernameTracking ? 'checked' : ''; ?>>
+                    Track username changes
+                  </label>
+                  <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <input type="checkbox" name="track_user_avatar" style="margin-right: 8px;" <?php echo $existingUserAvatarTracking ? 'checked' : ''; ?>>
                     Track avatar changes
                   </label>
                   <label class="checkbox has-text-white">
-                    <input type="checkbox" name="track_status_changes" style="margin-right: 8px;" disabled>
+                    <input type="checkbox" name="track_user_status" style="margin-right: 8px;" <?php echo $existingUserStatusTracking ? 'checked' : ''; ?>>
                     Track status changes
                   </label>
                 </div>
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveUserTracking()" name="save_user_tracking" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_user_tracking" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Save User Tracking Settings</span>
                   </button>

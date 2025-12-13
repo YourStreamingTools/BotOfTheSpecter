@@ -27,7 +27,7 @@ import json
 from openai import AsyncOpenAI
 
 # Bot version
-VERSION = "5.9"
+VERSION = "5.10"
 
 # Global configuration class
 class Config:
@@ -7653,6 +7653,324 @@ class MessageTrackingCog(commands.Cog, name='Message Tracking'):
             await self._send_log_message(message.guild, settings['log_channel_id'], embed)
         except Exception as e:
             self.logger.error(f"Error in on_message_delete: {e}")
+
+    def cog_unload(self):
+        self.logger.info("MessageTrackingCog cog unloaded")
+
+# User Tracking cog - tracks user join and leave events
+class UserTrackingCog(commands.Cog, name='User Tracking'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.mysql = MySQLHelper(logger)
+        asyncio.create_task(self._init_user_tracking())
+
+    async def _init_user_tracking(self):
+        try:
+            await self.bot.wait_until_ready()
+            await self._ensure_user_tracking_tables()
+            await self._migrate_server_management_table()
+            self.logger.info("User Tracking system initialized")
+        except Exception as e:
+            self.logger.error(f"Error initializing User Tracking: {e}")
+
+    async def _ensure_user_tracking_tables(self):
+        try:
+            # Create discord_users table for storing user Discord information in the website database
+            # This table is shared with the website dashboard for authentication and configuration
+            create_discord_users_query = """
+                CREATE TABLE IF NOT EXISTS discord_users (
+                    user_id INT PRIMARY KEY,
+                    discord_id VARCHAR(255) UNIQUE NOT NULL,
+                    guild_id VARCHAR(255),
+                    live_channel_id VARCHAR(255),
+                    stream_alert_channel_id VARCHAR(255),
+                    stream_alert_everyone BOOLEAN DEFAULT FALSE,
+                    stream_alert_custom_role VARCHAR(255),
+                    moderation_channel_id VARCHAR(255),
+                    alert_channel_id VARCHAR(255),
+                    member_streams_id VARCHAR(255),
+                    online_text LONGTEXT,
+                    offline_text LONGTEXT,
+                    access_token VARCHAR(500),
+                    refresh_token VARCHAR(500),
+                    discord_username VARCHAR(255),
+                    discord_discriminator VARCHAR(10),
+                    discord_avatar VARCHAR(500),
+                    reauth BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_discord_id (discord_id),
+                    INDEX idx_guild_id (guild_id)
+                ) COMMENT 'Stores Discord user authentication and configuration data - shared with website'
+            """
+            # Note: This table should be created in the website database, not specterdiscordbot
+            # The bot will reference it but the dashboard manages it
+            # await self.mysql.execute(create_discord_users_query, database_name='specterdiscordbot')
+            self.logger.info("discord_users table is managed by the website database")
+            # Create user_tracking_logs table for storing user tracking events
+            create_logs_query = """
+                CREATE TABLE IF NOT EXISTS user_tracking_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    server_id VARCHAR(255) NOT NULL,
+                    user_id VARCHAR(255) NOT NULL,
+                    username VARCHAR(255),
+                    action VARCHAR(50) NOT NULL COMMENT 'joined, left, nickname_changed, username_changed, avatar_changed, status_changed',
+                    tracked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_server_id (server_id),
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_action (action),
+                    INDEX idx_tracked_at (tracked_at),
+                    INDEX idx_server_user (server_id, user_id)
+                ) COMMENT 'Stores logs of user profile changes and activity events'
+            """
+            await self.mysql.execute(create_logs_query, database_name='specterdiscordbot')
+            self.logger.info("Ensured user_tracking_logs table exists")
+            # Create discord_user_profiles table for tracking profile history
+            create_profiles_query = """
+                CREATE TABLE IF NOT EXISTS discord_user_profiles (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    server_id VARCHAR(255) NOT NULL,
+                    user_id VARCHAR(255) NOT NULL,
+                    username VARCHAR(255),
+                    nickname VARCHAR(255),
+                    avatar_url VARCHAR(500),
+                    status VARCHAR(50),
+                    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_server_user (server_id, user_id),
+                    INDEX idx_recorded_at (recorded_at)
+                ) COMMENT 'Stores historical snapshots of user profile information'
+            """
+            await self.mysql.execute(create_profiles_query, database_name='specterdiscordbot')
+            self.logger.info("Ensured discord_user_profiles table exists")
+        except Exception as e:
+            self.logger.error(f"Error creating user tracking tables: {e}")
+
+    async def _migrate_server_management_table(self):
+        try:
+            # First ensure the server_management table exists
+            create_server_management_query = """
+                CREATE TABLE IF NOT EXISTS server_management (
+                    server_id VARCHAR(255) PRIMARY KEY,
+                    welcome_channel_id VARCHAR(255),
+                    welcome_message LONGTEXT,
+                    welcome_use_default BOOLEAN DEFAULT TRUE,
+                    welcome_embed BOOLEAN DEFAULT FALSE,
+                    auto_role_id VARCHAR(255),
+                    message_tracking_configuration JSON,
+                    role_tracking_configuration JSON,
+                    server_role_management_configuration JSON,
+                    user_tracking_configuration JSON,
+                    role_history_configuration JSON,
+                    reaction_roles_configuration JSON,
+                    rules_configuration JSON,
+                    stream_schedule_configuration JSON,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_server_id (server_id)
+                ) COMMENT 'Stores server-level configuration for various Discord bot features'
+            """
+            await self.mysql.execute(create_server_management_query, database_name='specterdiscordbot')
+            self.logger.info("Ensured server_management table exists")
+            # List of columns that should exist in server_management table with their definitions
+            required_columns = {
+                'user_tracking_configuration': 'JSON DEFAULT NULL',
+                'role_history_configuration': 'JSON DEFAULT NULL',
+                'message_tracking_configuration': 'JSON DEFAULT NULL',
+                'role_tracking_configuration': 'JSON DEFAULT NULL',
+                'server_role_management_configuration': 'JSON DEFAULT NULL',
+                'reaction_roles_configuration': 'JSON DEFAULT NULL',
+                'rules_configuration': 'JSON DEFAULT NULL',
+                'stream_schedule_configuration': 'JSON DEFAULT NULL'
+            }
+            # Check and add missing columns
+            for column_name, column_definition in required_columns.items():
+                check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
+                result = await self.mysql.fetchone(check_query, params=(column_name,), database_name='specterdiscordbot')
+                if not result:
+                    alter_query = f"ALTER TABLE server_management ADD COLUMN {column_name} {column_definition}"
+                    try:
+                        await self.mysql.execute(alter_query, database_name='specterdiscordbot')
+                        self.logger.info(f"Added {column_name} column to server_management table")
+                    except Exception as e:
+                        self.logger.warning(f"Could not add {column_name} column: {e}")
+            self.logger.info("Completed migration of server_management table")
+        except Exception as e:
+            self.logger.error(f"Error migrating server_management table: {e}")
+
+    async def _get_settings(self, server_id: str):
+        try:
+            query = "SELECT user_tracking_configuration FROM server_management WHERE server_id = %s"
+            result = await self.mysql.fetchone(query, params=(str(server_id),), database_name='specterdiscordbot', dict_cursor=True)
+            if result and result['user_tracking_configuration']:
+                try:
+                    config_json = json.loads(result['user_tracking_configuration'])
+                    return {
+                        'enabled': bool(config_json.get('enabled', False)),
+                        'log_channel_id': config_json.get('log_channel_id', None),
+                        'track_joins': bool(config_json.get('track_joins', True)),
+                        'track_leaves': bool(config_json.get('track_leaves', True)),
+                        'track_nickname': bool(config_json.get('track_nickname', True)),
+                        'track_username': bool(config_json.get('track_username', True)),
+                        'track_avatar': bool(config_json.get('track_avatar', True)),
+                        'track_status': bool(config_json.get('track_status', True))
+                    }
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
+                    self.logger.warning(f"Error parsing user_tracking_configuration JSON for server {server_id}: {e}")
+            return {
+                'enabled': False,
+                'log_channel_id': None,
+                'track_joins': True,
+                'track_leaves': True,
+                'track_nickname': True,
+                'track_username': True,
+                'track_avatar': True,
+                'track_status': True
+            }
+        except Exception as e:
+            self.logger.error(f"Error fetching user tracking settings for server {server_id}: {e}")
+            return {'enabled': False, 'log_channel_id': None, 'track_joins': True, 'track_leaves': True, 'track_nickname': True, 'track_username': True, 'track_avatar': True, 'track_status': True}
+
+    async def _log_user_event(self, guild_id: str, user_id: str, username: str, action: str):
+        try:
+            insert_query = """
+                INSERT INTO user_tracking_logs (server_id, user_id, username, action)
+                VALUES (%s, %s, %s, %s)
+            """
+            await self.mysql.execute(
+                insert_query,
+                params=(str(guild_id), str(user_id), username, action),
+                database_name='specterdiscordbot'
+            )
+        except Exception as e:
+            self.logger.error(f"Error logging user {action} for server {guild_id}: {e}")
+
+    async def _send_log_message(self, guild: discord.Guild, channel_id: str, embed: discord.Embed):
+        try:
+            channel = guild.get_channel(int(channel_id))
+            if channel and isinstance(channel, discord.TextChannel):
+                await channel.send(embed=embed)
+            else:
+                self.logger.warning(f"User tracking log channel {channel_id} not found in {guild.name}")
+        except Exception as e:
+            self.logger.error(f"Error sending user tracking log: {e}")
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        try:
+            settings = await self._get_settings(str(member.guild.id))
+            if not settings['enabled'] or not settings['log_channel_id']:
+                return
+            # Only log if tracking joins is enabled
+            if not settings['track_joins']:
+                return
+            
+            # Log to database
+            await self._log_user_event(
+                str(member.guild.id),
+                str(member.id),
+                member.name,
+                'joined'
+            )
+            
+            # Send log message
+            embed = discord.Embed(
+                title="User Joined",
+                description=f"**{member.mention}** has joined the server",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.set_author(name=member.name, icon_url=member.avatar.url if member.avatar else None)
+            embed.add_field(name="User ID", value=str(member.id), inline=True)
+            embed.add_field(name="Account Created", value=member.created_at.strftime("%Y-%m-%d %H:%M:%S"), inline=True)
+            embed.set_footer(text=member.guild.name)
+            await self._send_log_message(member.guild, settings['log_channel_id'], embed)
+        except Exception as e:
+            self.logger.error(f"Error in on_member_join: {e}")
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        try:
+            settings = await self._get_settings(str(member.guild.id))
+            if not settings['enabled'] or not settings['log_channel_id']:
+                return
+            # Only log if tracking leaves is enabled
+            if not settings['track_leaves']:
+                return
+            # Log to database
+            await self._log_user_event(
+                str(member.guild.id),
+                str(member.id),
+                member.name,
+                'left'
+            )
+            # Send log message
+            embed = discord.Embed(
+                title="User Left",
+                description=f"**{member.mention}** has left the server",
+                color=discord.Color.red(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.set_author(name=member.name, icon_url=member.avatar.url if member.avatar else None)
+            embed.add_field(name="User ID", value=str(member.id), inline=True)
+            embed.add_field(name="Join Date", value=member.joined_at.strftime("%Y-%m-%d %H:%M:%S") if member.joined_at else "Unknown", inline=True)
+            embed.set_footer(text=member.guild.name)
+            await self._send_log_message(member.guild, settings['log_channel_id'], embed)
+        except Exception as e:
+            self.logger.error(f"Error in on_member_remove: {e}")
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        try:
+            settings = await self._get_settings(str(after.guild.id))
+            if not settings['enabled'] or not settings['log_channel_id']:
+                return
+            changes = []
+            # Track nickname changes
+            if settings['track_nickname'] and before.nick != after.nick:
+                before_nick = before.nick if before.nick else "(no nickname)"
+                after_nick = after.nick if after.nick else "(no nickname)"
+                changes.append(f"Nickname: **{before_nick}** → **{after_nick}**")
+                await self._log_user_event(str(after.guild.id), str(after.id), after.name, 'nickname_changed')
+            # Track username changes (Discord tag/name)
+            if settings['track_username'] and before.name != after.name:
+                changes.append(f"Username: **{before.name}** → **{after.name}**")
+                await self._log_user_event(str(after.guild.id), str(after.id), after.name, 'username_changed')
+            # Track avatar changes
+            if settings['track_avatar'] and before.avatar != after.avatar:
+                changes.append("Avatar: Profile picture was changed")
+                await self._log_user_event(str(after.guild.id), str(after.id), after.name, 'avatar_changed')
+            # Track status changes (only manual status updates, not bot presence)
+            if settings['track_status'] and before.status != after.status:
+                status_map = {
+                    discord.Status.online: "Online",
+                    discord.Status.idle: "Idle",
+                    discord.Status.dnd: "Do Not Disturb",
+                    discord.Status.offline: "Offline",
+                    discord.Status.invisible: "Invisible"
+                }
+                before_status = status_map.get(before.status, str(before.status))
+                after_status = status_map.get(after.status, str(after.status))
+                changes.append(f"Status: **{before_status}** → **{after_status}**")
+                await self._log_user_event(str(after.guild.id), str(after.id), after.name, 'status_changed')
+            # If there are changes, send a log message
+            if changes:
+                embed = discord.Embed(
+                    title="User Profile Updated",
+                    description=f"**{after.mention}** updated their profile",
+                    color=discord.Color.cyan(),
+                    timestamp=datetime.now(timezone.utc)
+                )
+                embed.set_author(name=after.name, icon_url=after.avatar.url if after.avatar else None)
+                embed.add_field(name="User ID", value=str(after.id), inline=True)
+                embed.add_field(name="Changes", value="\n".join(changes), inline=False)
+                embed.set_footer(text=after.guild.name)
+                await self._send_log_message(after.guild, settings['log_channel_id'], embed)
+        except Exception as e:
+            self.logger.error(f"Error in on_member_update: {e}")
+
+    def cog_unload(self):
+        self.logger.info("UserTrackingCog cog unloaded")
 
 # Admin commands cog - restricted to bot owner
 class AdminCog(commands.Cog, name='Admin'):
