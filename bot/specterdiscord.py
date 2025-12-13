@@ -6089,6 +6089,17 @@ class ServerManagement(commands.Cog, name='Server Management'):
             if not channel:
                 self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
                 return
+            # Fetch Twitch username from channel mapping to create Twitch schedule link
+            twitch_username = None
+            try:
+                # Query the channel_mappings table to get the username for this guild
+                query = "SELECT channel_code FROM channel_mappings WHERE guild_id = %s LIMIT 1"
+                mapping = await self.mysql.fetchone(query, params=(str(server_id),), database_name='specterdiscordbot', dict_cursor=True)
+                if mapping:
+                    twitch_username = mapping['channel_code']
+                    self.logger.info(f"Found Twitch username: {twitch_username} for guild {server_id}")
+            except Exception as e:
+                self.logger.warning(f"Could not fetch Twitch username for schedule link: {e}")
             # Check for existing stream schedule message and delete it
             try:
                 query = "SELECT channel_id, message_id FROM stream_schedule_messages WHERE server_id = %s"
@@ -6124,12 +6135,17 @@ class ServerManagement(commands.Cog, name='Server Management'):
             except (ValueError, TypeError) as e:
                 self.logger.warning(f"Invalid color {color_hex}, using default Twitch purple: {e}")
                 embed_color = discord.Color.from_rgb(145, 70, 255)
-            # Create embed for the stream schedule
-            embed = discord.Embed(
-                title=title,
-                description=schedule,
-                color=embed_color
-            )
+            # Create embed for the stream schedule with URL if Twitch username available
+            embed_kwargs = {
+                'title': title,
+                'description': schedule,
+                'color': embed_color
+            }
+            # Add URL to embed if we have a Twitch username
+            if twitch_username:
+                embed_kwargs['url'] = f"https://www.twitch.tv/{twitch_username}/schedule"
+                self.logger.info(f"Added Twitch schedule URL to embed for {twitch_username}")
+            embed = discord.Embed(**embed_kwargs)
             if timezone:
                 embed.add_field(name="Timezone", value=timezone, inline=False)
             embed.set_footer(text=f"Stream Schedule | {guild.name}")
