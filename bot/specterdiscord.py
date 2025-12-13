@@ -7301,7 +7301,8 @@ class ServerRoleManagementCog(commands.Cog, name='Server Role Management'):
                         'enabled': bool(config_json.get('enabled', False)),
                         'log_channel_id': config_json.get('log_channel_id', None),
                         'track_creation': bool(config_json.get('track_creation', True)),
-                        'track_deletion': bool(config_json.get('track_deletion', True))
+                        'track_deletion': bool(config_json.get('track_deletion', True)),
+                        'track_edits': bool(config_json.get('track_edits', True))
                     }
                 except (json.JSONDecodeError, TypeError, ValueError) as e:
                     self.logger.warning(f"Error parsing server_role_management_configuration JSON for server {server_id}: {e}")
@@ -7309,11 +7310,12 @@ class ServerRoleManagementCog(commands.Cog, name='Server Role Management'):
                 'enabled': False,
                 'log_channel_id': None,
                 'track_creation': True,
-                'track_deletion': True
+                'track_deletion': True,
+                'track_edits': True
             }
         except Exception as e:
             self.logger.error(f"Error fetching server role management settings for server {server_id}: {e}")
-            return {'enabled': False, 'log_channel_id': None, 'track_creation': True, 'track_deletion': True}
+            return {'enabled': False, 'log_channel_id': None, 'track_creation': True, 'track_deletion': True, 'track_edits': True}
 
     async def _log_role_change(self, guild_id: str, action: str, role_id: str, role_name: str, created_by: str = None):
         try:
@@ -7424,6 +7426,65 @@ class ServerRoleManagementCog(commands.Cog, name='Server Role Management'):
             await self._send_log_message(role.guild, settings['log_channel_id'], embed)
         except Exception as e:
             self.logger.error(f"Error in on_guild_role_delete: {e}")
+
+    @commands.Cog.listener()
+    async def on_guild_role_update(self, before: discord.Role, after: discord.Role):
+        try:
+            settings = await self._get_settings(str(after.guild.id))
+            if not settings['enabled'] or not settings['log_channel_id']:
+                return
+            # Only log if tracking edits is enabled
+            if not settings.get('track_edits', True):
+                return
+            # Check what changed
+            changes = []
+            if before.name != after.name:
+                changes.append(f"Name: **{before.name}** → **{after.name}**")
+            if before.color != after.color:
+                changes.append(f"Color: **{before.color}** → **{after.color}**")
+            if before.permissions != after.permissions:
+                changes.append("Permissions were modified")
+            if before.mentionable != after.mentionable:
+                changes.append(f"Mentionable: **{before.mentionable}** → **{after.mentionable}**")
+            if before.hoist != after.hoist:
+                changes.append(f"Hoist: **{before.hoist}** → **{after.hoist}**")
+            # If no changes detected, return
+            if not changes:
+                return
+            # Get who edited the role from audit logs
+            edited_by = "Unknown"
+            try:
+                async for entry in after.guild.audit_logs(limit=5, action=discord.AuditLogAction.role_update):
+                    if entry.target.id == after.id:
+                        edited_by = f"{entry.user.name}#{entry.user.discriminator}"
+                        break
+            except discord.Forbidden:
+                edited_by = "Unknown (no audit log access)"
+            except Exception as e:
+                self.logger.warning(f"Error fetching audit logs for role update: {e}")
+            # Log to database with changes as note
+            changes_str = " | ".join(changes)
+            await self._log_role_change(
+                str(after.guild.id),
+                'edited',
+                str(after.id),
+                after.name,
+                edited_by
+            )
+            # Send log message
+            embed = discord.Embed(
+                title="Role Edited",
+                description=f"**{after.name}** role has been modified",
+                color=discord.Color.orange(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name="Role ID", value=str(after.id), inline=True)
+            embed.add_field(name="Edited By", value=edited_by, inline=True)
+            embed.add_field(name="Changes", value="\n".join(changes), inline=False)
+            embed.set_footer(text=after.guild.name)
+            await self._send_log_message(after.guild, settings['log_channel_id'], embed)
+        except Exception as e:
+            self.logger.error(f"Error in on_guild_role_update: {e}")
 
     def cog_unload(self):
         self.logger.info("ServerRoleManagementCog cog unloaded")
