@@ -454,116 +454,7 @@ class ChannelMapping:
         self._ready = asyncio.Event()
         asyncio.create_task(self._init_and_start_refresh())
 
-    async def _ensure_table_schema(self):
-        try:
-            # Define the complete enhanced schema
-            required_columns = {
-                'channel_code': 'VARCHAR(255) NOT NULL PRIMARY KEY',
-                'user_id': 'INT DEFAULT NULL',
-                'username': 'VARCHAR(255) DEFAULT NULL',
-                'twitch_display_name': 'VARCHAR(255) DEFAULT NULL',
-                'twitch_user_id': 'VARCHAR(255) DEFAULT NULL',
-                'guild_id': 'BIGINT NOT NULL',
-                'guild_name': 'VARCHAR(255) DEFAULT NULL',
-                'channel_id': 'BIGINT NOT NULL',
-                'channel_name': 'VARCHAR(255) DEFAULT NULL',
-                'stream_alert_channel_id': 'BIGINT DEFAULT NULL',
-                'moderation_channel_id': 'BIGINT DEFAULT NULL',
-                'alert_channel_id': 'BIGINT DEFAULT NULL',
-                'online_text': 'TEXT DEFAULT NULL',
-                'offline_text': 'TEXT DEFAULT NULL',
-                'is_active': 'TINYINT DEFAULT 1',
-                'event_count': 'INT DEFAULT 0',
-                'last_event_type': 'VARCHAR(50) DEFAULT NULL',
-                'last_seen_at': 'TIMESTAMP DEFAULT NULL',
-                'created_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                'updated_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
-            }
-            # Check if table exists first to avoid warnings
-            table_exists = await self._check_table_exists()
-            if not table_exists:
-                try:
-                    await self.mysql.execute(
-                        """CREATE TABLE channel_mappings (
-                            channel_code VARCHAR(255) NOT NULL PRIMARY KEY,
-                            guild_id BIGINT NOT NULL,
-                            channel_id BIGINT NOT NULL,
-                            channel_name VARCHAR(255) DEFAULT NULL
-                        )""",
-                        database_name='specterdiscordbot'
-                    )
-                    self.logger.info("Created channel_mappings table with basic schema")
-                except Exception as e:
-                    self.logger.error(f"Error creating channel_mappings table: {e}")
-                    return
-            else:
-                self.logger.debug("Channel_mappings table already exists")
-            # Get existing columns
-            existing_columns = await self._get_table_columns()
-            missing_columns = []
-            # Check which columns are missing
-            for column_name, column_definition in required_columns.items():
-                if column_name not in existing_columns:
-                    missing_columns.append((column_name, column_definition))
-            # Add missing columns
-            if missing_columns:
-                self.logger.info(f"Found {len(missing_columns)} missing columns in channel_mappings table")
-                for column_name, column_definition in missing_columns:
-                    try:
-                        # Skip primary key constraint for existing tables
-                        if 'PRIMARY KEY' in column_definition and column_name != 'channel_code':
-                            column_definition = column_definition.replace(' PRIMARY KEY', '')
-                        
-                        await self.mysql.execute(
-                            f"ALTER TABLE channel_mappings ADD COLUMN {column_name} {column_definition}",
-                            database_name='specterdiscordbot'
-                        )
-                        self.logger.info(f"Added column {column_name} to channel_mappings table")
-                    except Exception as e:
-                        self.logger.error(f"Error adding column {column_name}: {e}")
-            else:
-                self.logger.info("Channel_mappings table schema is up to date")
-            # Ensure existing columns have proper NULL/DEFAULT properties
-            columns_to_modify = [
-                ('channel_name', 'VARCHAR(255) DEFAULT NULL'),
-                ('guild_name', 'VARCHAR(255) DEFAULT NULL'),
-            ]
-            for column_name, column_definition in columns_to_modify:
-                if column_name in existing_columns:
-                    try:
-                        await self.mysql.execute(
-                            f"ALTER TABLE channel_mappings MODIFY COLUMN {column_name} {column_definition}",
-                            database_name='specterdiscordbot'
-                        )
-                        self.logger.debug(f"Modified column {column_name} to ensure proper NULL handling")
-                    except Exception as e:
-                        self.logger.debug(f"Could not modify column {column_name}: {e}")
-            # Create indexes for better performance if they don't exist
-            indexes = [
-                ('idx_guild_id', 'guild_id'),
-                ('idx_is_active', 'is_active'),
-                ('idx_last_seen', 'last_seen_at')
-            ]
-            for index_name, column in indexes:
-                try:
-                    # Check if index exists first
-                    index_exists = await self._check_index_exists(index_name)
-                    if not index_exists:
-                        await self.mysql.execute(
-                            f"CREATE INDEX {index_name} ON channel_mappings ({column})",
-                            database_name='specterdiscordbot'
-                        )
-                        self.logger.debug(f"Created index {index_name}")
-                    else:
-                        self.logger.debug(f"Index {index_name} already exists")
-                except Exception as e:
-                    # Ignore errors for index creation (might not be supported in all MySQL versions)
-                    self.logger.debug(f"Could not create index {index_name}: {e}")
-        except Exception as e:
-            self.logger.error(f"Error ensuring table schema: {e}")
-
     async def _init_and_start_refresh(self):
-        await self._ensure_table_schema()
         await self.refresh_mappings()
         self._ready.set()
         self._refresh_task = asyncio.create_task(self._periodic_refresh())
@@ -908,65 +799,6 @@ class LiveChannelManager:
         self.mysql = MySQLHelper(self.logger)
         self.check_interval = check_interval
         self._validate_task = None
-        # Ensure the table exists
-        asyncio.create_task(self._ensure_table_schema())
-
-    async def _ensure_table_schema(self):
-        try:
-            # Create the main table if it doesn't exist.
-            await self.mysql.execute(
-                """
-                CREATE TABLE IF NOT EXISTS online_streams (
-                    username VARCHAR(255) NOT NULL PRIMARY KEY,
-                    twitch_user_id VARCHAR(255) DEFAULT NULL,
-                    stream_id VARCHAR(255) DEFAULT NULL,
-                    started_at DATETIME DEFAULT NULL,
-                    last_checked DATETIME DEFAULT NULL,
-                    details TEXT DEFAULT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-                """,
-                (),
-                database_name='specterdiscordbot'
-            )
-            # Ensure missing columns / indexes are added in case of older schema
-            # Define required columns with expected definitions
-            required_columns = {
-                'username': 'VARCHAR(255) NOT NULL PRIMARY KEY',
-                'twitch_user_id': 'VARCHAR(255) DEFAULT NULL',
-                'stream_id': 'VARCHAR(255) DEFAULT NULL',
-                'started_at': 'DATETIME DEFAULT NULL',
-                'last_checked': 'DATETIME DEFAULT NULL',
-                'details': 'TEXT DEFAULT NULL',
-                'created_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                'updated_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
-            }
-            # Add missing columns if needed
-            existing_columns_rows = await self.mysql.fetchall("DESCRIBE online_streams", (), database_name='specterdiscordbot')
-            existing_columns = [row[0] for row in existing_columns_rows] if existing_columns_rows else []
-            missing_columns = [c for c in required_columns.keys() if c not in existing_columns]
-            if missing_columns:
-                for col in missing_columns:
-                    try:
-                        await self.mysql.execute(f"ALTER TABLE online_streams ADD COLUMN {col} {required_columns[col]}", (), database_name='specterdiscordbot')
-                    except Exception:
-                        # Ignore errors; column may exist due to race
-                        pass
-            # Create indices if they don't exist
-            idx_to_ensure = [
-                ('idx_online_last_checked', 'last_checked'),
-                ('idx_online_stream_id', 'stream_id')
-            ]
-            for idx_name, col_name in idx_to_ensure:
-                try:
-                    rows = await self.mysql.fetchall("SHOW INDEX FROM online_streams WHERE Key_name = %s", (idx_name,), database_name='specterdiscordbot')
-                    if not rows:
-                        await self.mysql.execute(f"CREATE INDEX {idx_name} ON online_streams ({col_name})", (), database_name='specterdiscordbot')
-                except Exception:
-                    pass
-        except Exception as e:
-            self.logger.debug(f"Could not ensure online_streams schema: {e}")
 
     async def mark_online(self, channel_code, username=None, twitch_user_id=None, stream_id=None, started_at=None, details=None):
         try:
@@ -1542,7 +1374,6 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         ticket_cog = TicketCog(self, self.logger)
         await self.add_cog(ticket_cog)
-        await ticket_cog.init_ticket_database()
         await self.add_cog(VoiceCog(self, self.logger))
         await self.add_cog(StreamerPostingCog(self, self.logger))
         await self.add_cog(ServerManagement(self, self.logger))
@@ -3030,28 +2861,6 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             self.logger.error(f"Exception in _process_stream_alert for {code}: {e}")
 
-    async def _ensure_live_notifications_table(self):
-        try:
-            await self.mysql.execute(
-                """
-                CREATE TABLE IF NOT EXISTS live_notifications (
-                    guild_id BIGINT NOT NULL,
-                    username VARCHAR(255) NOT NULL,
-                    stream_id VARCHAR(255) DEFAULT NULL,
-                    started_at DATETIME DEFAULT NULL,
-                    posted_at DATETIME DEFAULT NULL,
-                    PRIMARY KEY (guild_id, username)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-                """,
-                (),
-                database_name='specterdiscordbot'
-            )
-            rows = await self.mysql.fetchall("SHOW INDEX FROM live_notifications WHERE Key_name = %s", ('idx_live_posted_at',), database_name='specterdiscordbot')
-            if not rows:
-                await self.mysql.execute("CREATE INDEX idx_live_posted_at ON live_notifications (posted_at)", (), database_name='specterdiscordbot')
-        except Exception as e:
-            self.logger.debug(f"Could not ensure live_notifications schema: {e}")
-
 # QuoteCog class for fetching and sending public quotes
 class QuoteCog(commands.Cog, name='Quote'):
     def __init__(self, bot: BotOfTheSpecter, api_token: str, logger=None):
@@ -3111,109 +2920,6 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.pool = None
 
-    async def init_ticket_database(self):
-        if self.pool is None:
-            self.pool = await aiomysql.create_pool(
-                host=config.sql_host,
-                user=config.sql_user,
-                password=config.sql_password,
-                db='specterdiscordbot',
-                autocommit=True
-            )
-            # Ensure required tables exist
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    try:
-                        # Create tickets table if it doesn't exist
-                        await cur.execute("""
-                            CREATE TABLE IF NOT EXISTS tickets (
-                                ticket_id INT AUTO_INCREMENT PRIMARY KEY,
-                                guild_id VARCHAR(255) NOT NULL,
-                                user_id VARCHAR(255) NOT NULL,
-                                username VARCHAR(255) NOT NULL,
-                                issue TEXT,
-                                status VARCHAR(50) DEFAULT 'open',
-                                channel_id VARCHAR(255),
-                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                closed_at TIMESTAMP NULL,
-                                INDEX idx_guild_ticket (guild_id, ticket_id),
-                                INDEX idx_user (user_id),
-                                INDEX idx_status (status)
-                            )
-                        """)
-                        self.logger.info("Ensured tickets table exists")
-                        # Create ticket_history table if it doesn't exist
-                        await cur.execute("""
-                            CREATE TABLE IF NOT EXISTS ticket_history (
-                                history_id INT AUTO_INCREMENT PRIMARY KEY,
-                                ticket_id INT NOT NULL,
-                                user_id VARCHAR(255) NOT NULL,
-                                username VARCHAR(255) NOT NULL,
-                                action VARCHAR(100) NOT NULL,
-                                details TEXT,
-                                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                INDEX idx_ticket_id (ticket_id),
-                                INDEX idx_timestamp (timestamp),
-                                FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id) ON DELETE CASCADE
-                            )
-                        """)
-                        self.logger.info("Ensured ticket_history table exists")
-                        # Create ticket_comments table if it doesn't exist
-                        await cur.execute("""
-                            CREATE TABLE IF NOT EXISTS ticket_comments (
-                                comment_id INT AUTO_INCREMENT PRIMARY KEY,
-                                guild_id VARCHAR(255) NOT NULL,
-                                ticket_id INT NOT NULL,
-                                user_id VARCHAR(255) NOT NULL,
-                                username VARCHAR(255) NOT NULL,
-                                comment TEXT NOT NULL,
-                                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                INDEX idx_ticket_id (ticket_id),
-                                INDEX idx_guild_id (guild_id),
-                                INDEX idx_timestamp (timestamp),
-                                FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id) ON DELETE CASCADE
-                            )
-                        """)
-                        self.logger.info("Ensured ticket_comments table exists")
-                        # Create ticket_settings table if it doesn't exist
-                        await cur.execute("""
-                            CREATE TABLE IF NOT EXISTS ticket_settings (
-                                guild_id VARCHAR(255) PRIMARY KEY,
-                                owner_id VARCHAR(255) NOT NULL,
-                                info_channel_id VARCHAR(255) DEFAULT NULL,
-                                category_id VARCHAR(255) NOT NULL,
-                                closed_category_id VARCHAR(255) DEFAULT NULL,
-                                support_role_id VARCHAR(255) DEFAULT NULL,
-                                mod_channel_id VARCHAR(255) DEFAULT NULL,
-                                enabled BOOLEAN DEFAULT TRUE,
-                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                                INDEX idx_guild_id (guild_id),
-                                INDEX idx_enabled (enabled)
-                            )
-                        """)
-                        self.logger.info("Ensured ticket_settings table exists")
-                        # Check if info_channel_id column exists in ticket_settings (for migration)
-                        await cur.execute("SHOW COLUMNS FROM ticket_settings LIKE 'info_channel_id'")
-                        result = await cur.fetchone()
-                        if not result:
-                            # Add the info_channel_id column if it doesn't exist (for older installations)
-                            await cur.execute("ALTER TABLE ticket_settings ADD COLUMN info_channel_id VARCHAR(255) DEFAULT NULL")
-                            self.logger.info("Added info_channel_id column to ticket_settings table")
-                        else:
-                            self.logger.debug("info_channel_id column already exists in ticket_settings table")
-                        # Check if closed_category_id column exists in ticket_settings (for migration)
-                        await cur.execute("SHOW COLUMNS FROM ticket_settings LIKE 'closed_category_id'")
-                        result = await cur.fetchone()
-                        if not result:
-                            # Add the closed_category_id column if it doesn't exist (for older installations)
-                            await cur.execute("ALTER TABLE ticket_settings ADD COLUMN closed_category_id VARCHAR(255) DEFAULT NULL")
-                            self.logger.info("Added closed_category_id column to ticket_settings table")
-                        else:
-                            self.logger.debug("closed_category_id column already exists in ticket_settings table")
-                    except Exception as e:
-                        self.logger.error(f"Error ensuring ticket database tables: {e}")
-
     async def validate_ticket_command_channel(self, ctx, action):
         if action != "create":
             return True  # Only validate 'create' commands for channel restrictions
@@ -3264,7 +2970,13 @@ class TicketCog(commands.Cog, name='Tickets'):
 
     async def get_settings(self, guild_id: int):
         if not self.pool:
-            await self.init_ticket_database()
+            self.pool = await aiomysql.create_pool(
+                host=config.sql_host,
+                user=config.sql_user,
+                password=config.sql_password,
+                db='specterdiscordbot',
+                autocommit=True
+            )
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(
@@ -3321,7 +3033,13 @@ class TicketCog(commands.Cog, name='Tickets'):
         if not settings or not settings['enabled']:
             raise ValueError("Ticket system is not set up in this server")
         if not self.pool:
-            await self.init_ticket_database()
+            self.pool = await aiomysql.create_pool(
+                host=config.sql_host,
+                user=config.sql_user,
+                password=config.sql_password,
+                db='specterdiscordbot',
+                autocommit=True
+            )
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("INSERT INTO tickets (guild_id, user_id, username, issue) VALUES (%s, %s, %s, %s)",
@@ -3333,7 +3051,13 @@ class TicketCog(commands.Cog, name='Tickets'):
 
     async def close_ticket(self, ticket_id: int, channel_id: int, closer_id: int, closer_name: str, reason: str = "No reason provided", guild_id: int = None):
         if not self.pool:
-            await self.init_ticket_database()
+            self.pool = await aiomysql.create_pool(
+                host=config.sql_host,
+                user=config.sql_user,
+                password=config.sql_password,
+                db='specterdiscordbot',
+                autocommit=True
+            )
         channel = self.bot.get_channel(channel_id)
         if not channel:
             raise ValueError("Channel not found")
@@ -3442,7 +3166,13 @@ class TicketCog(commands.Cog, name='Tickets'):
 
     async def get_ticket(self, ticket_id: int, guild_id: int):
         if not self.pool:
-            await self.init_ticket_database()
+            self.pool = await aiomysql.create_pool(
+                host=config.sql_host,
+                user=config.sql_user,
+                password=config.sql_password,
+                db='specterdiscordbot',
+                autocommit=True
+            )
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute("SELECT * FROM tickets WHERE ticket_id = %s AND guild_id = %s", (ticket_id, guild_id))
@@ -3561,7 +3291,13 @@ class TicketCog(commands.Cog, name='Tickets'):
             try:
                 ticket_id = int(ctx.channel.name.split("-")[1])
                 if not self.pool:
-                    await self.init_ticket_database()
+                    self.pool = await aiomysql.create_pool(
+                        host=config.sql_host,
+                        user=config.sql_user,
+                        password=config.sql_password,
+                        db='specterdiscordbot',
+                        autocommit=True
+                    )
                 async with self.pool.acquire() as conn:
                     async with conn.cursor(aiomysql.DictCursor) as cur:
                         # Check if the channel_id in the database is correct
@@ -3614,7 +3350,13 @@ class TicketCog(commands.Cog, name='Tickets'):
     @commands.has_permissions(administrator=True)
     async def setup_tickets(self, ctx):
         if not self.pool:
-            await self.init_ticket_database()
+            self.pool = await aiomysql.create_pool(
+                host=config.sql_host,
+                user=config.sql_user,
+                password=config.sql_password,
+                db='specterdiscordbot',
+                autocommit=True
+            )
         def check(message):
             return message.author == ctx.author and message.channel == ctx.channel
         try:
@@ -4083,7 +3825,13 @@ class TicketCog(commands.Cog, name='Tickets'):
             except Exception:
                 return
             if not self.pool:
-                await self.init_ticket_database()
+                self.pool = await aiomysql.create_pool(
+                    host=config.sql_host,
+                    user=config.sql_user,
+                    password=config.sql_password,
+                    db='specterdiscordbot',
+                    autocommit=True
+                )
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(
@@ -5690,11 +5438,6 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
 
     async def start_monitoring(self):
         await self.bot.wait_until_ready()
-        # Ensure the live_notifications table exists
-        try:
-            await self._ensure_live_notifications_table()
-        except Exception:
-            pass
         self.logger.info("StreamerPostingCog monitoring started")
         while not self.bot.is_closed():
             try:
@@ -5899,64 +5642,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
         self.mysql = MySQLHelper(logger)
         # Cache for reaction role configurations: {message_id: {config}}
         self.reaction_roles_cache = {}
-        # Start initialization tasks
-        asyncio.create_task(self._init_reaction_roles_cache())
-
-    async def _init_reaction_roles_cache(self):
-        try:
-            await self.bot.wait_until_ready()
-            await self._ensure_role_messages_table()
-            await self._ensure_rules_messages_table()
-            await self._refresh_reaction_roles_cache()
-            self.logger.info("Reaction roles cache initialized")
-        except Exception as e:
-            self.logger.error(f"Error initializing reaction roles cache: {e}")
-    
-    async def _ensure_role_messages_table(self):
-        try:
-            create_table_query = """
-                CREATE TABLE IF NOT EXISTS role_selection_messages (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    server_id VARCHAR(255) NOT NULL,
-                    channel_id VARCHAR(255) NOT NULL,
-                    message_id VARCHAR(255) NOT NULL,
-                    message_text TEXT,
-                    mappings TEXT,
-                    role_mappings JSON,
-                    allow_multiple BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    UNIQUE KEY unique_server (server_id),
-                    KEY idx_message_id (message_id)
-                )
-            """
-            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
-            self.logger.info("Ensured role_selection_messages table exists")
-        except Exception as e:
-            self.logger.error(f"Error creating role_selection_messages table: {e}")
-
-    async def _ensure_rules_messages_table(self):
-        try:
-            create_table_query = """
-                CREATE TABLE IF NOT EXISTS rules_messages (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    server_id VARCHAR(255) NOT NULL,
-                    channel_id VARCHAR(255) NOT NULL,
-                    message_id VARCHAR(255) NOT NULL,
-                    title TEXT,
-                    rules_content TEXT,
-                    color VARCHAR(7),
-                    accept_role_id VARCHAR(255),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    UNIQUE KEY unique_server (server_id),
-                    KEY idx_message_id (message_id)
-                )
-            """
-            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
-            self.logger.info("Ensured rules_messages table exists")
-        except Exception as e:
-            self.logger.error(f"Error creating rules_messages table: {e}")
+        asyncio.create_task(self._refresh_reaction_roles_cache())
 
     async def _refresh_reaction_roles_cache(self):
         try:
@@ -6151,8 +5837,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     check_query = "SHOW TABLES LIKE 'role_selection_messages'"
                     table_exists = await self.mysql.fetchone(check_query, database_name='specterdiscordbot')
                     if not table_exists:
-                        self.logger.error("Table role_selection_messages does not exist! Creating it now...")
-                        await self._ensure_role_messages_table()
+                        self.logger.error("Table role_selection_messages does not exist!")
                     insert_query = """
                         INSERT INTO role_selection_messages 
                         (server_id, channel_id, message_id, message_text, mappings, role_mappings, allow_multiple)
@@ -6320,8 +6005,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     check_query = "SHOW TABLES LIKE 'rules_messages'"
                     table_exists = await self.mysql.fetchone(check_query, database_name='specterdiscordbot')
                     if not table_exists:
-                        self.logger.error("Table rules_messages does not exist! Creating it now...")
-                        await self._ensure_rules_messages_table()
+                        self.logger.error("Table rules_messages does not exist!")
                     insert_query = """
                         INSERT INTO rules_messages 
                         (server_id, channel_id, message_id, title, rules_content, color, accept_role_id)
@@ -6607,59 +6291,9 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.mysql = MySQLHelper(logger)
-        # Start initialization tasks
-        asyncio.create_task(self._init_role_history())
-
-    async def _init_role_history(self):
-        try:
-            await self.bot.wait_until_ready()
-            await self._ensure_role_history_table()
-            await self._migrate_server_management_table()
-            await self._cleanup_expired_roles()
-            self.logger.info("Role History system initialized")
-            # Start periodic cleanup and member role check tasks
-            asyncio.create_task(self._periodic_cleanup())
-            asyncio.create_task(self._periodic_member_role_check())
-        except Exception as e:
-            self.logger.error(f"Error initializing Role History: {e}")
-
-    async def _ensure_role_history_table(self):
-        try:
-            create_table_query = """
-                CREATE TABLE IF NOT EXISTS role_history (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    server_id VARCHAR(255) NOT NULL,
-                    user_id VARCHAR(255) NOT NULL,
-                    role_ids JSON NOT NULL COMMENT 'JSON array of role IDs',
-                    last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last time we checked if user is in server',
-                    UNIQUE KEY unique_server_user (server_id, user_id),
-                    INDEX idx_server_id (server_id),
-                    INDEX idx_user_id (user_id),
-                    INDEX idx_last_checked (last_checked)
-                ) COMMENT 'Stores role history for members who leave and rejoin servers'
-            """
-            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
-            self.logger.info("Ensured role_history table exists with correct schema")
-        except Exception as e:
-            self.logger.error(f"Error creating role_history table: {e}")
-
-    async def _migrate_server_management_table(self):
-        try:
-            # Check if columns exist and add them if needed
-            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
-            # Check and add role_history_configuration
-            result = await self.mysql.fetchone(check_query, params=('role_history_configuration',), database_name='specterdiscordbot')
-            if not result:
-                alter_query = "ALTER TABLE server_management ADD COLUMN role_history_configuration JSON DEFAULT NULL"
-                await self.mysql.execute(alter_query, database_name='specterdiscordbot')
-            # Check and add role_tracking_configuration
-            result = await self.mysql.fetchone(check_query, params=('role_tracking_configuration',), database_name='specterdiscordbot')
-            if not result:
-                alter_query_tracking = "ALTER TABLE server_management ADD COLUMN role_tracking_configuration JSON DEFAULT NULL"
-                await self.mysql.execute(alter_query_tracking, database_name='specterdiscordbot')
-            self.logger.info("Ensured role_history_configuration and role_tracking_configuration columns exist in server_management table")
-        except Exception as e:
-            self.logger.error(f"Error migrating server_management table: {e}")
+        # Start periodic cleanup and member role check tasks
+        asyncio.create_task(self._periodic_cleanup())
+        asyncio.create_task(self._periodic_member_role_check())
 
     async def _get_settings(self, server_id: str):
         try:
@@ -7037,60 +6671,6 @@ class RoleTrackingCog(commands.Cog, name='Role Tracking'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.mysql = MySQLHelper(logger)
-        asyncio.create_task(self._init_role_tracking())
-
-    async def _init_role_tracking(self):
-        try:
-            await self.bot.wait_until_ready()
-            await self._ensure_role_tracking_log_table()
-            await self._migrate_server_management_table()
-            self.logger.info("Role Tracking system initialized")
-        except Exception as e:
-            self.logger.error(f"Error initializing Role Tracking: {e}")
-
-    async def _ensure_role_tracking_log_table(self):
-        try:
-            create_table_query = """
-                CREATE TABLE IF NOT EXISTS role_tracking_logs (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    server_id VARCHAR(255) NOT NULL,
-                    user_id VARCHAR(255) NOT NULL,
-                    username VARCHAR(255),
-                    action VARCHAR(50) NOT NULL COMMENT 'added or removed',
-                    role_id VARCHAR(255) NOT NULL,
-                    role_name VARCHAR(255),
-                    changed_by VARCHAR(255) COMMENT 'User who made the change, if available',
-                    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_server_id (server_id),
-                    INDEX idx_user_id (user_id),
-                    INDEX idx_changed_at (changed_at)
-                ) COMMENT 'Stores logs of role additions and removals'
-            """
-            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
-            self.logger.info("Ensured role_tracking_logs table exists")
-        except Exception as e:
-            self.logger.error(f"Error creating role_tracking_logs table: {e}")
-
-    async def _migrate_server_management_table(self):
-        try:
-            # Check if columns exist and add them if needed
-            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
-            
-            # Check and add role_history_configuration
-            result = await self.mysql.fetchone(check_query, params=('role_history_configuration',), database_name='specterdiscordbot')
-            if not result:
-                alter_query = "ALTER TABLE server_management ADD COLUMN role_history_configuration JSON DEFAULT NULL"
-                await self.mysql.execute(alter_query, database_name='specterdiscordbot')
-            
-            # Check and add role_tracking_configuration
-            result = await self.mysql.fetchone(check_query, params=('role_tracking_configuration',), database_name='specterdiscordbot')
-            if not result:
-                alter_query_tracking = "ALTER TABLE server_management ADD COLUMN role_tracking_configuration JSON DEFAULT NULL"
-                await self.mysql.execute(alter_query_tracking, database_name='specterdiscordbot')
-            
-            self.logger.info("Ensured role_history_configuration and role_tracking_configuration columns exist in server_management table")
-        except Exception as e:
-            self.logger.error(f"Error migrating server_management table: {e}")
 
     async def _get_settings(self, server_id: str):
         try:
@@ -7245,50 +6825,6 @@ class ServerRoleManagementCog(commands.Cog, name='Server Role Management'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.mysql = MySQLHelper(logger)
-        asyncio.create_task(self._init_role_management())
-
-    async def _init_role_management(self):
-        try:
-            await self.bot.wait_until_ready()
-            await self._ensure_role_management_table()
-            await self._migrate_server_management_table()
-            self.logger.info("Server Role Management system initialized")
-        except Exception as e:
-            self.logger.error(f"Error initializing Server Role Management: {e}")
-
-    async def _ensure_role_management_table(self):
-        try:
-            create_table_query = """
-                CREATE TABLE IF NOT EXISTS server_role_management_logs (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    server_id VARCHAR(255) NOT NULL,
-                    action VARCHAR(50) NOT NULL COMMENT 'created or deleted',
-                    role_id VARCHAR(255) NOT NULL,
-                    role_name VARCHAR(255),
-                    created_by VARCHAR(255) COMMENT 'User who created/deleted the role',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_server_id (server_id),
-                    INDEX idx_action (action),
-                    INDEX idx_created_at (created_at)
-                ) COMMENT 'Stores logs of role creation and deletion'
-            """
-            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
-            self.logger.info("Ensured server_role_management_logs table exists")
-        except Exception as e:
-            self.logger.error(f"Error creating server_role_management_logs table: {e}")
-
-    async def _migrate_server_management_table(self):
-        try:
-            # Check if columns exist and add them if needed
-            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
-            # Check and add server_role_management_configuration
-            result = await self.mysql.fetchone(check_query, params=('server_role_management_configuration',), database_name='specterdiscordbot')
-            if not result:
-                alter_query = "ALTER TABLE server_management ADD COLUMN server_role_management_configuration JSON DEFAULT NULL"
-                await self.mysql.execute(alter_query, database_name='specterdiscordbot')
-            self.logger.info("Ensured server_role_management_configuration column exists in server_management table")
-        except Exception as e:
-            self.logger.error(f"Error migrating server_management table: {e}")
 
     async def _get_settings(self, server_id: str):
         try:
@@ -7495,57 +7031,6 @@ class MessageTrackingCog(commands.Cog, name='Message Tracking'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.mysql = MySQLHelper(logger)
-        # Start initialization tasks
-        asyncio.create_task(self._init_message_tracking())
-
-    async def _init_message_tracking(self):
-        try:
-            await self.bot.wait_until_ready()
-            await self._ensure_table_schema()
-            await self._migrate_server_management_table()
-            self.logger.info("Message Tracking system initialized")
-        except Exception as e:
-            self.logger.error(f"Error initializing Message Tracking: {e}")
-
-    async def _ensure_table_schema(self):
-        try:
-            await self.mysql.execute("""
-                CREATE TABLE IF NOT EXISTS message_tracking_logs (
-                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                    server_id BIGINT NOT NULL,
-                    channel_id BIGINT NOT NULL,
-                    message_id BIGINT NOT NULL,
-                    user_id BIGINT NOT NULL,
-                    username VARCHAR(255),
-                    action VARCHAR(50),
-                    original_content LONGTEXT,
-                    edited_content LONGTEXT,
-                    tracked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_server (server_id),
-                    INDEX idx_channel (channel_id),
-                    INDEX idx_user (user_id),
-                    INDEX idx_action (action),
-                    INDEX idx_tracked_at (tracked_at)
-                )
-            """, database_name='specterdiscordbot')
-            self.logger.info("Message tracking table schema verified")
-        except Exception as e:
-            self.logger.error(f"Error ensuring message tracking table schema: {e}")
-
-    async def _migrate_server_management_table(self):
-        try:
-            # Check if column exists
-            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
-            result = await self.mysql.fetchone(check_query, ('message_tracking_configuration',), database_name='specterdiscordbot')
-            
-            if not result:
-                await self.mysql.execute(
-                    "ALTER TABLE server_management ADD COLUMN message_tracking_configuration JSON",
-                    database_name='specterdiscordbot'
-                )
-                self.logger.info("Added message_tracking_configuration column to server_management")
-        except Exception as e:
-            self.logger.error(f"Error migrating server_management table: {e}")
 
     async def _get_settings(self, guild_id):
         try:
@@ -7663,140 +7148,6 @@ class UserTrackingCog(commands.Cog, name='User Tracking'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.mysql = MySQLHelper(logger)
-        asyncio.create_task(self._init_user_tracking())
-
-    async def _init_user_tracking(self):
-        try:
-            await self.bot.wait_until_ready()
-            await self._ensure_user_tracking_tables()
-            await self._migrate_server_management_table()
-            self.logger.info("User Tracking system initialized")
-        except Exception as e:
-            self.logger.error(f"Error initializing User Tracking: {e}")
-
-    async def _ensure_user_tracking_tables(self):
-        try:
-            # Create discord_users table for storing user Discord information in the website database
-            # This table is shared with the website dashboard for authentication and configuration
-            create_discord_users_query = """
-                CREATE TABLE IF NOT EXISTS discord_users (
-                    user_id INT PRIMARY KEY,
-                    discord_id VARCHAR(255) UNIQUE NOT NULL,
-                    guild_id VARCHAR(255),
-                    live_channel_id VARCHAR(255),
-                    stream_alert_channel_id VARCHAR(255),
-                    stream_alert_everyone BOOLEAN DEFAULT FALSE,
-                    stream_alert_custom_role VARCHAR(255),
-                    moderation_channel_id VARCHAR(255),
-                    alert_channel_id VARCHAR(255),
-                    member_streams_id VARCHAR(255),
-                    online_text LONGTEXT,
-                    offline_text LONGTEXT,
-                    access_token VARCHAR(500),
-                    refresh_token VARCHAR(500),
-                    discord_username VARCHAR(255),
-                    discord_discriminator VARCHAR(10),
-                    discord_avatar VARCHAR(500),
-                    reauth BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_discord_id (discord_id),
-                    INDEX idx_guild_id (guild_id)
-                ) COMMENT 'Stores Discord user authentication and configuration data - shared with website'
-            """
-            # Note: This table should be created in the website database, not specterdiscordbot
-            # The bot will reference it but the dashboard manages it
-            # await self.mysql.execute(create_discord_users_query, database_name='specterdiscordbot')
-            self.logger.info("discord_users table is managed by the website database")
-            # Create user_tracking_logs table for storing user tracking events
-            create_logs_query = """
-                CREATE TABLE IF NOT EXISTS user_tracking_logs (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    server_id VARCHAR(255) NOT NULL,
-                    user_id VARCHAR(255) NOT NULL,
-                    username VARCHAR(255),
-                    action VARCHAR(50) NOT NULL COMMENT 'joined, left, nickname_changed, username_changed, avatar_changed, status_changed',
-                    tracked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_server_id (server_id),
-                    INDEX idx_user_id (user_id),
-                    INDEX idx_action (action),
-                    INDEX idx_tracked_at (tracked_at),
-                    INDEX idx_server_user (server_id, user_id)
-                ) COMMENT 'Stores logs of user profile changes and activity events'
-            """
-            await self.mysql.execute(create_logs_query, database_name='specterdiscordbot')
-            self.logger.info("Ensured user_tracking_logs table exists")
-            # Create discord_user_profiles table for tracking profile history
-            create_profiles_query = """
-                CREATE TABLE IF NOT EXISTS discord_user_profiles (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    server_id VARCHAR(255) NOT NULL,
-                    user_id VARCHAR(255) NOT NULL,
-                    username VARCHAR(255),
-                    nickname VARCHAR(255),
-                    avatar_url VARCHAR(500),
-                    status VARCHAR(50),
-                    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_server_user (server_id, user_id),
-                    INDEX idx_recorded_at (recorded_at)
-                ) COMMENT 'Stores historical snapshots of user profile information'
-            """
-            await self.mysql.execute(create_profiles_query, database_name='specterdiscordbot')
-            self.logger.info("Ensured discord_user_profiles table exists")
-        except Exception as e:
-            self.logger.error(f"Error creating user tracking tables: {e}")
-
-    async def _migrate_server_management_table(self):
-        try:
-            # First ensure the server_management table exists
-            create_server_management_query = """
-                CREATE TABLE IF NOT EXISTS server_management (
-                    server_id VARCHAR(255) PRIMARY KEY,
-                    welcome_channel_id VARCHAR(255),
-                    welcome_message LONGTEXT,
-                    welcome_use_default BOOLEAN DEFAULT TRUE,
-                    welcome_embed BOOLEAN DEFAULT FALSE,
-                    auto_role_id VARCHAR(255),
-                    message_tracking_configuration JSON,
-                    role_tracking_configuration JSON,
-                    server_role_management_configuration JSON,
-                    user_tracking_configuration JSON,
-                    role_history_configuration JSON,
-                    reaction_roles_configuration JSON,
-                    rules_configuration JSON,
-                    stream_schedule_configuration JSON,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_server_id (server_id)
-                ) COMMENT 'Stores server-level configuration for various Discord bot features'
-            """
-            await self.mysql.execute(create_server_management_query, database_name='specterdiscordbot')
-            self.logger.info("Ensured server_management table exists")
-            # List of columns that should exist in server_management table with their definitions
-            required_columns = {
-                'user_tracking_configuration': 'JSON DEFAULT NULL',
-                'role_history_configuration': 'JSON DEFAULT NULL',
-                'message_tracking_configuration': 'JSON DEFAULT NULL',
-                'role_tracking_configuration': 'JSON DEFAULT NULL',
-                'server_role_management_configuration': 'JSON DEFAULT NULL',
-                'reaction_roles_configuration': 'JSON DEFAULT NULL',
-                'rules_configuration': 'JSON DEFAULT NULL',
-                'stream_schedule_configuration': 'JSON DEFAULT NULL'
-            }
-            # Check and add missing columns
-            for column_name, column_definition in required_columns.items():
-                check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
-                result = await self.mysql.fetchone(check_query, params=(column_name,), database_name='specterdiscordbot')
-                if not result:
-                    alter_query = f"ALTER TABLE server_management ADD COLUMN {column_name} {column_definition}"
-                    try:
-                        await self.mysql.execute(alter_query, database_name='specterdiscordbot')
-                        self.logger.info(f"Added {column_name} column to server_management table")
-                    except Exception as e:
-                        self.logger.warning(f"Could not add {column_name} column: {e}")
-            self.logger.info("Completed migration of server_management table")
-        except Exception as e:
-            self.logger.error(f"Error migrating server_management table: {e}")
 
     async def _get_settings(self, server_id: str):
         try:
