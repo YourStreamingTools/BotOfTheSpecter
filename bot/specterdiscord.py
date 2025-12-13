@@ -1383,6 +1383,7 @@ class BotOfTheSpecter(commands.Bot):
                 )
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
+        await self.add_cog(UtilityCog(self, self.logger))
         ticket_cog = TicketCog(self, self.logger)
         await self.add_cog(ticket_cog)
         await self.add_cog(VoiceCog(self, self.logger))
@@ -2923,6 +2924,114 @@ class QuoteCog(commands.Cog, name='Quote'):
         except Exception as e:
             self.logger.error(f"Error fetching quote: {e}")
             await ctx.send("An error occurred while fetching the quote.")
+
+# Utility cog for timestamp conversion and other utilities
+class UtilityCog(commands.Cog, name='Utility'):
+    def __init__(self, bot: commands.Bot, logger=None):
+        self.bot = bot
+        self.logger = logger
+
+    @commands.command(name="timestamp", aliases=["ts", "discordtime"])
+    async def convert_to_timestamp(self, ctx, *, time_input: str):
+        try:
+            import time
+            from datetime import datetime
+            timestamp = None
+            # Try to parse as Unix timestamp (integer)
+            try:
+                timestamp = int(time_input)
+                # Validate it's a reasonable timestamp (after 2000 and before 2100)
+                if timestamp < 946684800 or timestamp > 4102444800:
+                    timestamp = None
+            except ValueError:
+                pass
+            # If not a valid timestamp, try to parse as date/datetime string
+            if timestamp is None:
+                formats = [
+                    "%Y-%m-%d %H:%M:%S",
+                    "%Y-%m-%d %H:%M",
+                    "%Y-%m-%d",
+                    "%m/%d/%Y %H:%M:%S",
+                    "%m/%d/%Y %H:%M",
+                    "%m/%d/%Y",
+                    "%d/%m/%Y %H:%M:%S",
+                    "%d/%m/%Y %H:%M",
+                    "%d/%m/%Y",
+                    "%Y-%m-%d %I:%M:%S %p",
+                    "%Y-%m-%d %I:%M %p",
+                    "%m/%d/%Y %I:%M:%S %p",
+                    "%m/%d/%Y %I:%M %p"
+                ]
+                dt = None
+                for fmt in formats:
+                    try:
+                        dt = datetime.strptime(time_input, fmt)
+                        break
+                    except ValueError:
+                        continue
+                if dt is None:
+                    await ctx.send("❌ Could not parse the date/time. Please use format like:\n"
+                                   "- `2021-06-27 21:48:37` (YYYY-MM-DD HH:MM:SS)\n"
+                                   "- `2021-06-27` (YYYY-MM-DD)\n"
+                                   "- `1624855717` (Unix timestamp)")
+                    return
+                timestamp = int(dt.timestamp())
+            # Create embed with all Discord timestamp formats
+            embed = discord.Embed(
+                title="Discord Timestamp Converter",
+                description=f"Unix Timestamp: `{timestamp}`",
+                color=discord.Color.blue()
+            )
+            # Add all timestamp format variations
+            formats = {
+                "Short Date Time": f"<t:{timestamp}>",
+                "Short Date Time (alt)": f"<t:{timestamp}:f>",
+                "Long Date Time": f"<t:{timestamp}:F>",
+                "Short Date": f"<t:{timestamp}:d>",
+                "Long Date": f"<t:{timestamp}:D>",
+                "Short Time": f"<t:{timestamp}:t>",
+                "Long Time": f"<t:{timestamp}:T>",
+                "Relative Time": f"<t:{timestamp}:R>"
+            }
+            for name, value in formats.items():
+                embed.add_field(name=name, value=f"`{value}`", inline=False)
+            # Add preview field showing what they look like
+            embed.add_field(name="Preview (How they appear):", value="", inline=False)
+            for name, value in formats.items():
+                # Extract just the rendered timestamp for preview
+                embed.add_field(name=f"→ {name}", value=value, inline=False)
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error in timestamp conversion: {e}")
+            await ctx.send(f"❌ An error occurred: {e}")
+
+    @commands.command(name="epochnow", aliases=["now", "currenttime"])
+    async def current_epoch(self, ctx):
+        try:
+            import time
+            from datetime import datetime
+            current_timestamp = int(time.time())
+            current_time = datetime.now()
+            embed = discord.Embed(
+                title="Current Unix Timestamp",
+                description=f"`{current_timestamp}`",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Local Time", value=current_time.strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+            # Show all Discord timestamp formats for current time
+            formats = {
+                "Short Date Time": f"<t:{current_timestamp}>",
+                "Long Date Time": f"<t:{current_timestamp}:F>",
+                "Long Date": f"<t:{current_timestamp}:D>",
+                "Long Time": f"<t:{current_timestamp}:T>",
+                "Relative": f"<t:{current_timestamp}:R>"
+            }
+            format_text = "\n".join([f"**{name}:** `{value}`" for name, value in formats.items()])
+            embed.add_field(name="Discord Formats", value=format_text, inline=False)
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error getting current epoch: {e}")
+            await ctx.send(f"❌ An error occurred: {e}")
 
 # Ticket management cog
 class TicketCog(commands.Cog, name='Tickets'):
@@ -5653,6 +5762,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
         self.mysql = MySQLHelper(logger)
         # Cache for reaction role configurations: {message_id: {config}}
         self.reaction_roles_cache = {}
+        # Cache for timezone update tasks: {(server_id, timezone_message_id): asyncio.Task}
+        self.timezone_update_tasks = {}
         asyncio.create_task(self._refresh_reaction_roles_cache())
 
     async def _refresh_reaction_roles_cache(self):
@@ -6056,6 +6167,200 @@ class ServerManagement(commands.Cog, name='Server Management'):
             import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 
+    def _generate_timezone_conversions(self, base_timezone: str) -> str:
+        try:
+            import pytz
+            from datetime import datetime
+            # Common timezone mappings
+            common_zones = {
+                'UTC': 'UTC',
+                'EST': 'US/Eastern',
+                'CST': 'US/Central',
+                'MST': 'US/Mountain',
+                'PST': 'US/Pacific',
+                'GMT': 'Europe/London',
+                'CET': 'Europe/Paris',
+                'IST': 'Asia/Kolkata',
+                'JST': 'Asia/Tokyo',
+                'AEST': 'Australia/Sydney',
+            }
+            # Try to parse the base timezone
+            try:
+                if base_timezone.upper() in common_zones:
+                    base_tz_name = common_zones[base_timezone.upper()]
+                    base_tz = pytz.timezone(base_tz_name)
+                    base_tz_display = base_timezone.upper()
+                else:
+                    # Try direct timezone name
+                    base_tz_name = base_timezone
+                    base_tz = pytz.timezone(base_timezone)
+                    base_tz_display = base_timezone
+            except (pytz.exceptions.UnknownTimeZoneError, Exception):
+                self.logger.warning(f"Unknown timezone: {base_timezone}, defaulting to UTC")
+                base_tz_name = 'UTC'
+                base_tz = pytz.UTC
+                base_tz_display = 'UTC'
+            # Get current time in base timezone (user's main timezone)
+            now_base = datetime.now(base_tz)
+            base_time_str = now_base.strftime("%H:%M %Z")
+            # Build conversion string with base timezone first, then main timezones
+            conversion_lines = [f"**{base_tz_display}**: {base_time_str}"]
+            # Add conversions for major timezones in order: UTC, US East, US West, US Central, US Mountain, London, Tokyo
+            conversion_zones = [
+                ('UTC', 'UTC'),
+                ('America/New_York', 'US East'),
+                ('America/Los_Angeles', 'US West'),
+                ('America/Chicago', 'US Central'),
+                ('America/Denver', 'US Mountain'),
+                ('Europe/London', 'London'),
+                ('Asia/Tokyo', 'Tokyo'),
+            ]
+            for tz_name, tz_display in conversion_zones:
+                # Skip if this timezone is the same as the base timezone
+                if tz_name != base_tz_name:
+                    try:
+                        tz = pytz.timezone(tz_name)
+                        now_tz = datetime.now(tz)
+                        time_str = now_tz.strftime("%H:%M")
+                        conversion_lines.append(f"**{tz_display}**: {time_str}")
+                    except Exception as e:
+                        self.logger.warning(f"Could not convert to {tz_name}: {e}")
+            return "\n".join(conversion_lines)
+        except ImportError:
+            self.logger.warning("pytz not available, showing base timezone only")
+            return f"**{base_timezone}** (install pytz for timezone conversions)"
+        except Exception as e:
+            self.logger.error(f"Error generating timezone conversions: {e}")
+            return f"**{base_timezone}**"
+
+    def _get_base_timezone_time(self, base_timezone: str) -> str:
+        try:
+            import pytz
+            from datetime import datetime
+            # Common timezone mappings
+            common_zones = {
+                'UTC': 'UTC',
+                'EST': 'US/Eastern',
+                'CST': 'US/Central',
+                'MST': 'US/Mountain',
+                'PST': 'US/Pacific',
+                'GMT': 'Europe/London',
+                'CET': 'Europe/Paris',
+                'IST': 'Asia/Kolkata',
+                'JST': 'Asia/Tokyo',
+                'AEST': 'Australia/Sydney',
+            }
+            # Try to parse the base timezone
+            try:
+                if base_timezone.upper() in common_zones:
+                    base_tz_name = common_zones[base_timezone.upper()]
+                    base_tz = pytz.timezone(base_tz_name)
+                    base_tz_display = base_timezone.upper()
+                else:
+                    # Try direct timezone name
+                    base_tz_name = base_timezone
+                    base_tz = pytz.timezone(base_timezone)
+                    base_tz_display = base_timezone
+            except Exception:
+                self.logger.warning(f"Unknown timezone: {base_timezone}, defaulting to UTC")
+                base_tz = pytz.UTC
+                base_tz_display = 'UTC'
+            # Get current time in base timezone
+            now_base = datetime.now(base_tz)
+            base_time_str = now_base.strftime("%H:%M %Z")
+            return f"**{base_tz_display}**: {base_time_str}"
+        except ImportError:
+            return f"**{base_timezone}**"
+        except Exception as e:
+            self.logger.error(f"Error getting base timezone time: {e}")
+            return f"**{base_timezone}**"
+
+    def _create_timezone_embed(self, base_timezone: str, guild_name: str) -> discord.Embed:
+        try:
+            timezone_info = self._generate_timezone_conversions(base_timezone)
+            embed = discord.Embed(
+                title="⏰ Timezone Conversions",
+                description=timezone_info,
+                color=discord.Color.gold()
+            )
+            embed.set_footer(text=f"Updates every minute | {guild_name}")
+            return embed
+        except Exception as e:
+            self.logger.error(f"Error creating timezone embed: {e}")
+            return discord.Embed(
+                title="⏰ Stream Schedule - Timezone",
+                description=f"**{base_timezone}**",
+                color=discord.Color.gold()
+            )
+
+    async def _start_timezone_update_task(self, server_id: str, channel_id: str, timezone_message_id: str, base_timezone: str, guild_name: str):
+        try:
+            task_key = (server_id, timezone_message_id)
+            # Cancel any existing task for this timezone message
+            if task_key in self.timezone_update_tasks:
+                old_task = self.timezone_update_tasks[task_key]
+                if not old_task.done():
+                    old_task.cancel()
+                    self.logger.info(f"Cancelled old timezone update task for server {server_id}")
+            # Create and start the new update task
+            update_task = asyncio.create_task(
+                self._update_timezone_message_loop(server_id, channel_id, timezone_message_id, base_timezone, guild_name)
+            )
+            self.timezone_update_tasks[task_key] = update_task
+            self.logger.info(f"Started timezone update task for server {server_id}")
+        except Exception as e:
+            self.logger.error(f"Error starting timezone update task: {e}")
+
+    async def _update_timezone_message_loop(self, server_id: str, channel_id: str, timezone_message_id: str, base_timezone: str, guild_name: str):
+        try:
+            guild = self.bot.get_guild(int(server_id))
+            if not guild:
+                self.logger.error(f"Guild {server_id} not found for timezone updates")
+                return
+            channel = guild.get_channel(int(channel_id))
+            if not channel:
+                self.logger.error(f"Channel {channel_id} not found in guild {server_id} for timezone updates")
+                return
+            self.logger.info(f"Starting timezone update loop for message {timezone_message_id} in channel {channel_id}")
+            update_count = 0
+            while True:
+                try:
+                    # Sleep for 60 seconds before updating (skip on first iteration)
+                    if update_count > 0:
+                        await asyncio.sleep(60)
+                    update_count += 1
+                    # Fetch and update the message
+                    try:
+                        message = await channel.fetch_message(int(timezone_message_id))
+                        new_embed = self._create_timezone_embed(base_timezone, guild_name)
+                        await message.edit(embed=new_embed)
+                    except discord.NotFound:
+                        self.logger.warning(f"Timezone message (ID: {timezone_message_id}) not found, stopping updates for server {server_id}")
+                        break
+                    except discord.Forbidden:
+                        self.logger.warning(f"Missing permissions to edit timezone message (ID: {timezone_message_id}) in server {server_id}")
+                        break
+                    except discord.HTTPException as e:
+                        self.logger.error(f"Discord HTTP error updating timezone message: {e}")
+                        # Continue trying despite error
+                    except Exception as e:
+                        self.logger.error(f"Error updating timezone message: {e}")
+                        import traceback
+                        self.logger.error(f"Traceback: {traceback.format_exc()}")
+                        # Continue trying despite error
+                except asyncio.CancelledError:
+                    self.logger.info(f"Timezone update task cancelled for server {server_id}")
+                    break
+                except Exception as e:
+                    self.logger.error(f"Unexpected error in timezone update loop: {e}")
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
+                    break
+        except Exception as e:
+            self.logger.error(f"Error in timezone update loop initialization: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+
     async def post_stream_schedule_message(self, data):
         try:
             self.logger.info(f"post_stream_schedule_message called with data: {data}")
@@ -6102,11 +6407,12 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.warning(f"Could not fetch Twitch username for schedule link: {e}")
             # Check for existing stream schedule message and delete it
             try:
-                query = "SELECT channel_id, message_id FROM stream_schedule_messages WHERE server_id = %s"
+                query = "SELECT channel_id, message_id, timezone_message_id FROM stream_schedule_messages WHERE server_id = %s"
                 existing_message = await self.mysql.fetchone(query, params=(str(server_id),), database_name='specterdiscordbot', dict_cursor=True)
                 if existing_message:
                     old_channel_id = existing_message['channel_id']
                     old_message_id = existing_message['message_id']
+                    old_timezone_message_id = existing_message.get('timezone_message_id')
                     self.logger.info(f"Found existing stream schedule message (ID: {old_message_id}) in channel {old_channel_id}")
                     try:
                         # Try to delete the old message
@@ -6124,6 +6430,18 @@ class ServerManagement(commands.Cog, name='Server Management'):
                                 self.logger.error(f"Error deleting old stream schedule message: {e}")
                     except Exception as e:
                         self.logger.error(f"Error cleaning up old stream schedule message: {e}")
+                    # Also delete old timezone message if it exists
+                    if old_timezone_message_id:
+                        try:
+                            old_tz_message = await old_channel.fetch_message(int(old_timezone_message_id))
+                            await old_tz_message.delete()
+                            self.logger.info(f"Deleted old timezone message (ID: {old_timezone_message_id}) from #{old_channel.name}")
+                        except discord.NotFound:
+                            self.logger.info(f"Old timezone message (ID: {old_timezone_message_id}) no longer exists")
+                        except discord.Forbidden:
+                            self.logger.warning(f"Missing permissions to delete old timezone message (ID: {old_timezone_message_id})")
+                        except Exception as e:
+                            self.logger.error(f"Error deleting old timezone message: {e}")
             except Exception as e:
                 self.logger.error(f"Error checking for existing stream schedule message: {e}")
             # Convert hex color to Discord color
@@ -6146,17 +6464,30 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 embed_kwargs['url'] = f"https://www.twitch.tv/{twitch_username}/schedule"
                 self.logger.info(f"Added Twitch schedule URL to embed for {twitch_username}")
             embed = discord.Embed(**embed_kwargs)
+            # Add only the base timezone time to main embed if timezone specified
             if timezone:
-                embed.add_field(name="Timezone", value=timezone, inline=False)
+                embed.add_field(name="Stream Schedule Timezone", value=timezone, inline=False)
             embed.set_footer(text=f"Stream Schedule | {guild.name}")
             try:
-                # Send the embed
+                # Send the main schedule embed
                 sent_message = await channel.send(embed=embed)
                 message_id = sent_message.id
                 self.logger.info(f"Successfully posted stream schedule embed (ID: {message_id}) to #{channel.name}")
+                # Send separate timezone message if timezone is specified
+                timezone_message_id = None
+                if timezone:
+                    try:
+                        timezone_embed = self._create_timezone_embed(timezone, guild.name)
+                        timezone_message = await channel.send(embed=timezone_embed)
+                        timezone_message_id = timezone_message.id
+                        self.logger.info(f"Successfully posted timezone message (ID: {timezone_message_id}) to #{channel.name}")
+                        # Start the background update task for this timezone message
+                        await self._start_timezone_update_task(str(server_id), str(channel_id), str(timezone_message_id), timezone, guild.name)
+                    except Exception as e:
+                        self.logger.error(f"Error posting timezone message: {e}")
                 # Save to database using INSERT ... ON DUPLICATE KEY UPDATE
                 try:
-                    self.logger.info(f"Preparing to save to database - server_id: {server_id}, channel_id: {channel_id}, message_id: {message_id}")
+                    self.logger.info(f"Preparing to save to database - server_id: {server_id}, channel_id: {channel_id}, message_id: {message_id}, timezone_message_id: {timezone_message_id}")
                     # Verify table exists first
                     check_query = "SHOW TABLES LIKE 'stream_schedule_messages'"
                     table_exists = await self.mysql.fetchone(check_query, database_name='specterdiscordbot')
@@ -6164,11 +6495,12 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         self.logger.error("Table stream_schedule_messages does not exist!")
                     insert_query = """
                         INSERT INTO stream_schedule_messages 
-                        (server_id, channel_id, message_id, title, schedule_content, color, timezone)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        (server_id, channel_id, message_id, timezone_message_id, title, schedule_content, color, timezone)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         ON DUPLICATE KEY UPDATE
                         channel_id = %s,
                         message_id = %s,
+                        timezone_message_id = %s,
                         title = %s,
                         schedule_content = %s,
                         color = %s,
@@ -6176,8 +6508,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     """
                     # For ON DUPLICATE KEY UPDATE, we need to provide values twice
                     params = (
-                        str(server_id), str(channel_id), str(message_id), title, schedule, color_hex, timezone,
-                        str(channel_id), str(message_id), title, schedule, color_hex, timezone
+                        str(server_id), str(channel_id), str(message_id), str(timezone_message_id) if timezone_message_id else '', title, schedule, color_hex, timezone,
+                        str(channel_id), str(message_id), str(timezone_message_id) if timezone_message_id else '', title, schedule, color_hex, timezone
                     )
                     self.logger.info(f"Executing INSERT with {len(params)} parameters")
                     result = await self.mysql.execute(
@@ -6185,7 +6517,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         params=params,
                         database_name='specterdiscordbot'
                     )
-                    self.logger.info(f"Successfully saved stream schedule message (ID: {message_id}) to database for server {server_id}, affected rows: {result}")
+                    self.logger.info(f"Successfully saved stream schedule message (ID: {message_id}) and timezone message (ID: {timezone_message_id}) to database for server {server_id}, affected rows: {result}")
                 except Exception as e:
                     self.logger.error(f"Error saving stream schedule message to database: {e}")
                     import traceback
