@@ -1549,6 +1549,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(RoleHistoryCog(self, self.logger))
         await self.add_cog(RoleTrackingCog(self, self.logger))
         await self.add_cog(ServerRoleManagementCog(self, self.logger))
+        await self.add_cog(MessageTrackingCog(self, self.logger))
         await self.add_cog(AdminCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
@@ -7426,6 +7427,171 @@ class ServerRoleManagementCog(commands.Cog, name='Server Role Management'):
 
     def cog_unload(self):
         self.logger.info("ServerRoleManagementCog cog unloaded")
+
+# Message Tracking cog - tracks message edits and deletions
+class MessageTrackingCog(commands.Cog, name='Message Tracking'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.mysql = MySQLHelper(logger)
+        # Start initialization tasks
+        asyncio.create_task(self._init_message_tracking())
+
+    async def _init_message_tracking(self):
+        try:
+            await self.bot.wait_until_ready()
+            await self._ensure_table_schema()
+            await self._migrate_server_management_table()
+            self.logger.info("Message Tracking system initialized")
+        except Exception as e:
+            self.logger.error(f"Error initializing Message Tracking: {e}")
+
+    async def _ensure_table_schema(self):
+        try:
+            await self.mysql.execute("""
+                CREATE TABLE IF NOT EXISTS message_tracking_logs (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    server_id BIGINT NOT NULL,
+                    channel_id BIGINT NOT NULL,
+                    message_id BIGINT NOT NULL,
+                    user_id BIGINT NOT NULL,
+                    username VARCHAR(255),
+                    action VARCHAR(50),
+                    original_content LONGTEXT,
+                    edited_content LONGTEXT,
+                    tracked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_server (server_id),
+                    INDEX idx_channel (channel_id),
+                    INDEX idx_user (user_id),
+                    INDEX idx_action (action),
+                    INDEX idx_tracked_at (tracked_at)
+                )
+            """, database_name='specterdiscordbot')
+            self.logger.info("Message tracking table schema verified")
+        except Exception as e:
+            self.logger.error(f"Error ensuring message tracking table schema: {e}")
+
+    async def _migrate_server_management_table(self):
+        try:
+            # Check if column exists
+            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
+            result = await self.mysql.fetchone(check_query, ('message_tracking_configuration',), database_name='specterdiscordbot')
+            
+            if not result:
+                await self.mysql.execute(
+                    "ALTER TABLE server_management ADD COLUMN message_tracking_configuration JSON",
+                    database_name='specterdiscordbot'
+                )
+                self.logger.info("Added message_tracking_configuration column to server_management")
+        except Exception as e:
+            self.logger.error(f"Error migrating server_management table: {e}")
+
+    async def _get_settings(self, guild_id):
+        try:
+            result = await self.mysql.fetchone(
+                "SELECT message_tracking_configuration FROM server_management WHERE server_id = %s",
+                (guild_id,),
+                database_name='specterdiscordbot',
+                dict_cursor=True
+            )
+            if result and result['message_tracking_configuration']:
+                config = json.loads(result['message_tracking_configuration'])
+                return {
+                    'enabled': config.get('enabled', False),
+                    'log_channel_id': config.get('log_channel_id', ''),
+                    'track_edits': config.get('track_edits', True),
+                    'track_deletes': config.get('track_deletes', True)
+                }
+            return {'enabled': False, 'log_channel_id': '', 'track_edits': True, 'track_deletes': True}
+        except Exception as e:
+            self.logger.error(f"Error getting message tracking settings: {e}")
+            return {'enabled': False, 'log_channel_id': '', 'track_edits': True, 'track_deletes': True}
+
+    async def _log_message_change(self, guild_id, channel_id, message_id, user_id, username, action, original_content, edited_content=None):
+        try:
+            await self.mysql.execute(
+                """INSERT INTO message_tracking_logs 
+                (server_id, channel_id, message_id, user_id, username, action, original_content, edited_content)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (guild_id, channel_id, message_id, user_id, username, action, original_content, edited_content),
+                database_name='specterdiscordbot'
+            )
+        except Exception as e:
+            self.logger.error(f"Error logging message change: {e}")
+
+    async def _send_log_message(self, guild, log_channel_id, embed):
+        try:
+            channel = guild.get_channel(int(log_channel_id))
+            if channel:
+                await channel.send(embed=embed)
+            else:
+                self.logger.warning(f"Message tracking log channel {log_channel_id} not found in guild {guild.id}")
+        except Exception as e:
+            self.logger.error(f"Error sending message log: {e}")
+
+    @commands.Cog.listener()
+    async def on_message_edit(self, before, after):
+        if before.guild is None or before.author.bot:
+            return
+        try:
+            settings = await self._get_settings(before.guild.id)
+            if not settings['enabled'] or not settings['track_edits']:
+                return
+            await self._log_message_change(
+                before.guild.id,
+                before.channel.id,
+                before.id,
+                before.author.id,
+                str(before.author),
+                'edited',
+                before.content,
+                after.content
+            )
+            # Send embed to log channel
+            embed = discord.Embed(
+                title="Message Edited",
+                color=discord.Color.from_rgb(255, 165, 0),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name="User", value=str(before.author), inline=True)
+            embed.add_field(name="Channel", value=before.channel.mention, inline=True)
+            embed.add_field(name="Original Content", value=before.content[:1024] if before.content else "(no content)", inline=False)
+            embed.add_field(name="Edited Content", value=after.content[:1024] if after.content else "(no content)", inline=False)
+            embed.set_footer(text=before.guild.name)
+            await self._send_log_message(before.guild, settings['log_channel_id'], embed)
+        except Exception as e:
+            self.logger.error(f"Error in on_message_edit: {e}")
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message):
+        if message.guild is None or message.author.bot:
+            return
+        try:
+            settings = await self._get_settings(message.guild.id)
+            if not settings['enabled'] or not settings['track_deletes']:
+                return
+            await self._log_message_change(
+                message.guild.id,
+                message.channel.id,
+                message.id,
+                message.author.id,
+                str(message.author),
+                'deleted',
+                message.content
+            )
+            # Send embed to log channel
+            embed = discord.Embed(
+                title="Message Deleted",
+                color=discord.Color.from_rgb(255, 0, 0),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name="User", value=str(message.author), inline=True)
+            embed.add_field(name="Channel", value=message.channel.mention, inline=True)
+            embed.add_field(name="Content", value=message.content[:1024] if message.content else "(no content)", inline=False)
+            embed.set_footer(text=message.guild.name)
+            await self._send_log_message(message.guild, settings['log_channel_id'], embed)
+        except Exception as e:
+            self.logger.error(f"Error in on_message_delete: {e}")
 
 # Admin commands cog - restricted to bot owner
 class AdminCog(commands.Cog, name='Admin'):
