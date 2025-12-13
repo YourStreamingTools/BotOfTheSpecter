@@ -27,7 +27,7 @@ import json
 from openai import AsyncOpenAI
 
 # Bot version
-VERSION = "5.10"
+VERSION = "6.0"
 
 # Global configuration class
 class Config:
