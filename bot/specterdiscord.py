@@ -435,6 +435,17 @@ class WebsocketListener:
                 await server_mgmt.post_rules_message(data)
             else:
                 self.logger.warning("ServerManagement cog not loaded, cannot handle rules message")
+        # Event handler for posting stream schedule message
+        @self.specterSocket.on('POST_STREAM_SCHEDULE_MESSAGE')
+        async def post_stream_schedule_message(data):
+            self.logger.info("POST_STREAM_SCHEDULE_MESSAGE event handler called!")
+            # Forward to ServerManagement cog if loaded
+            server_mgmt = self.bot.get_cog('Server Management')
+            if server_mgmt:
+                self.logger.info("Forwarding to ServerManagement cog")
+                await server_mgmt.post_stream_schedule_message(data)
+            else:
+                self.logger.warning("ServerManagement cog not loaded, cannot handle stream schedule message")
         # Log all other events generically
         @self.specterSocket.on('*')
         async def catch_all(event, data):
@@ -6042,6 +6053,135 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.error(f"Unexpected error sending rules message: {e}")
         except Exception as e:
             self.logger.error(f"Error in post_rules_message: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+
+    async def post_stream_schedule_message(self, data):
+        try:
+            self.logger.info(f"post_stream_schedule_message called with data: {data}")
+            server_id = data.get('server_id')
+            channel_id = data.get('channel_id')
+            title = data.get('title', 'Stream Schedule')
+            schedule = data.get('schedule', '')
+            color_hex = data.get('color', '#9146ff')
+            timezone = data.get('timezone', 'UTC')
+            self.logger.info(f"Parsed data - server_id: {server_id}, channel_id: {channel_id}, title: {title}, color: {color_hex}, timezone: {timezone}")
+            if not server_id or not channel_id:
+                self.logger.error("Missing server_id or channel_id in stream schedule message data")
+                return
+            # Get the guild
+            try:
+                guild = self.bot.get_guild(int(server_id))
+                self.logger.info(f"Got guild: {guild.name if guild else 'None'} (ID: {server_id})")
+            except (ValueError, TypeError) as e:
+                self.logger.error(f"Invalid server_id: {server_id}, error: {e}")
+                return
+            if not guild:
+                self.logger.error(f"Bot not in guild {server_id}")
+                return
+            # Get the channel
+            try:
+                channel = guild.get_channel(int(channel_id))
+                self.logger.info(f"Got channel: #{channel.name if channel else 'None'} (ID: {channel_id})")
+            except (ValueError, TypeError) as e:
+                self.logger.error(f"Invalid channel_id: {channel_id}, error: {e}")
+                return
+            if not channel:
+                self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
+                return
+            # Check for existing stream schedule message and delete it
+            try:
+                query = "SELECT channel_id, message_id FROM stream_schedule_messages WHERE server_id = %s"
+                existing_message = await self.mysql.fetchone(query, params=(str(server_id),), database_name='specterdiscordbot', dict_cursor=True)
+                if existing_message:
+                    old_channel_id = existing_message['channel_id']
+                    old_message_id = existing_message['message_id']
+                    self.logger.info(f"Found existing stream schedule message (ID: {old_message_id}) in channel {old_channel_id}")
+                    try:
+                        # Try to delete the old message
+                        old_channel = guild.get_channel(int(old_channel_id))
+                        if old_channel:
+                            try:
+                                old_message = await old_channel.fetch_message(int(old_message_id))
+                                await old_message.delete()
+                                self.logger.info(f"Deleted old stream schedule message (ID: {old_message_id}) from #{old_channel.name}")
+                            except discord.NotFound:
+                                self.logger.info(f"Old stream schedule message (ID: {old_message_id}) no longer exists, proceeding with new message")
+                            except discord.Forbidden:
+                                self.logger.warning(f"Missing permissions to delete old stream schedule message (ID: {old_message_id})")
+                            except Exception as e:
+                                self.logger.error(f"Error deleting old stream schedule message: {e}")
+                    except Exception as e:
+                        self.logger.error(f"Error cleaning up old stream schedule message: {e}")
+            except Exception as e:
+                self.logger.error(f"Error checking for existing stream schedule message: {e}")
+            # Convert hex color to Discord color
+            try:
+                # Remove # if present and convert to integer
+                color_int = int(color_hex.replace('#', ''), 16)
+                embed_color = discord.Color(color_int)
+                self.logger.info(f"Converted color {color_hex} to Discord color")
+            except (ValueError, TypeError) as e:
+                self.logger.warning(f"Invalid color {color_hex}, using default Twitch purple: {e}")
+                embed_color = discord.Color.from_rgb(145, 70, 255)
+            # Create embed for the stream schedule
+            embed = discord.Embed(
+                title=title,
+                description=schedule,
+                color=embed_color
+            )
+            if timezone:
+                embed.add_field(name="Timezone", value=timezone, inline=False)
+            embed.set_footer(text=f"Stream Schedule | {guild.name}")
+            try:
+                # Send the embed
+                sent_message = await channel.send(embed=embed)
+                message_id = sent_message.id
+                self.logger.info(f"Successfully posted stream schedule embed (ID: {message_id}) to #{channel.name}")
+                # Save to database using INSERT ... ON DUPLICATE KEY UPDATE
+                try:
+                    self.logger.info(f"Preparing to save to database - server_id: {server_id}, channel_id: {channel_id}, message_id: {message_id}")
+                    # Verify table exists first
+                    check_query = "SHOW TABLES LIKE 'stream_schedule_messages'"
+                    table_exists = await self.mysql.fetchone(check_query, database_name='specterdiscordbot')
+                    if not table_exists:
+                        self.logger.error("Table stream_schedule_messages does not exist!")
+                    insert_query = """
+                        INSERT INTO stream_schedule_messages 
+                        (server_id, channel_id, message_id, title, schedule_content, color, timezone)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                        channel_id = %s,
+                        message_id = %s,
+                        title = %s,
+                        schedule_content = %s,
+                        color = %s,
+                        timezone = %s
+                    """
+                    # For ON DUPLICATE KEY UPDATE, we need to provide values twice
+                    params = (
+                        str(server_id), str(channel_id), str(message_id), title, schedule, color_hex, timezone,
+                        str(channel_id), str(message_id), title, schedule, color_hex, timezone
+                    )
+                    self.logger.info(f"Executing INSERT with {len(params)} parameters")
+                    result = await self.mysql.execute(
+                        insert_query, 
+                        params=params,
+                        database_name='specterdiscordbot'
+                    )
+                    self.logger.info(f"Successfully saved stream schedule message (ID: {message_id}) to database for server {server_id}, affected rows: {result}")
+                except Exception as e:
+                    self.logger.error(f"Error saving stream schedule message to database: {e}")
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
+            except discord.HTTPException as e:
+                self.logger.error(f"Discord HTTP error sending stream schedule message: {e}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error sending stream schedule message: {e}")
+        except Exception as e:
+            self.logger.error(f"Error in post_stream_schedule_message: {e}")
             import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 

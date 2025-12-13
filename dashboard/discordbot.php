@@ -2992,15 +2992,15 @@ ob_start();
               Stream Schedule Configuration
             </p>
             <div class="card-header-icon">
-              <span class="tag is-warning is-light">
-                <span class="icon"><i class="fas fa-clock"></i></span>
-                <span>Coming Soon</span>
+              <span class="tag is-success is-light">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <span>COMPLETED</span>
               </span>
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-warning is-light mb-1">
-              <p class="has-text-dark"><strong>Coming Soon:</strong> The UI for this feature is completed, but the backend implementation is not yet finished.</p>
+            <div class="notification is-info is-light mb-1">
+              <p class="has-text-dark"><strong>Stream Schedule:</strong> Post an embed with your streaming schedule to keep your community informed about when you stream.</p>
             </div>
             <p class="has-text-white-ter mb-1">Configure and post an embed message with your stream schedule.</p>
             <form action="" method="post">
@@ -3249,6 +3249,7 @@ function removeStreamer(username) {
   validateDropdownSelection('user_log_channel_id', 'save_user_tracking');
   validateDropdownSelection('reaction_roles_channel_id', 'save_reaction_roles');
   validateDropdownSelection('rules_channel_id', 'save_rules');
+  validateDropdownSelection('stream_schedule_channel_id', 'save_stream_schedule');
   // Validation for send reaction roles message button
   function validateSendReactionRolesButton() {
     const channelId = $('#reaction_roles_channel_id').val();
