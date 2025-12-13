@@ -633,19 +633,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $server_role_mgmt_log_channel = !empty($_POST['server_mgmt_log_channel_id']) ? $_POST['server_mgmt_log_channel_id'] : null;
           $track_role_creation = isset($_POST['track_role_creation']) ? 1 : 0;
           $track_role_deletion = isset($_POST['track_role_deletion']) ? 1 : 0;
+          $track_role_edits = isset($_POST['track_role_edits']) ? 1 : 0;
           
           // Validate that at least one tracking option is selected
           if (empty($server_role_mgmt_log_channel)) {
             $errorMsg .= "Please select a log channel for Server Role Management.<br>";
-          } elseif (!$track_role_creation && !$track_role_deletion) {
-            $errorMsg .= "Please select at least one tracking option (role creation or deletion).<br>";
+          } elseif (!$track_role_creation && !$track_role_deletion && !$track_role_edits) {
+            $errorMsg .= "Please select at least one tracking option (role creation, deletion, or edits).<br>";
           } else {
             // Prepare the configuration JSON
             $config = json_encode([
               'enabled' => $server_role_mgmt_enabled,
               'log_channel_id' => $server_role_mgmt_log_channel,
               'track_creation' => $track_role_creation,
-              'track_deletion' => $track_role_deletion
+              'track_deletion' => $track_role_deletion,
+              'track_edits' => $track_role_edits
             ]);
             
             $stmt = $discord_conn->prepare("UPDATE server_management SET server_role_management_configuration = ? WHERE server_id = ?");
@@ -665,6 +667,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $existingServerRoleManagementLogChannel = $server_role_mgmt_log_channel;
                 $existingRoleCreationTracking = $track_role_creation;
                 $existingRoleDeletionTracking = $track_role_deletion;
+                $existingRoleEditTracking = $track_role_edits;
               } else {
                 $errorMsg .= "Error saving Server Role Management settings: " . $stmt->error . "<br>";
               }
@@ -745,6 +748,7 @@ $existingServerRoleManagementEnabled = 0;
 $existingServerRoleManagementLogChannel = "";
 $existingRoleCreationTracking = 1;
 $existingRoleDeletionTracking = 1;
+$existingRoleEditTracking = 1;
 $hasGuildId = !empty($existingGuildId) && trim($existingGuildId) !== "";
 // Check if manual IDs mode is explicitly enabled (only true if database value is 1)
 $useManualIds = (isset($discordData['manual_ids']) && $discordData['manual_ids'] == 1);
@@ -837,6 +841,7 @@ if ($is_linked && $hasGuildId) {
           $existingServerRoleManagementLogChannel = isset($serverRoleManagementConfig['log_channel_id']) ? $serverRoleManagementConfig['log_channel_id'] : "";
           $existingRoleCreationTracking = isset($serverRoleManagementConfig['track_creation']) ? (int)$serverRoleManagementConfig['track_creation'] : 1;
           $existingRoleDeletionTracking = isset($serverRoleManagementConfig['track_deletion']) ? (int)$serverRoleManagementConfig['track_deletion'] : 1;
+          $existingRoleEditTracking = isset($serverRoleManagementConfig['track_edits']) ? (int)$serverRoleManagementConfig['track_edits'] : 1;
         }
       }
       // Parse message_tracking_configuration JSON
@@ -2632,9 +2637,13 @@ ob_start();
                     <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" <?php echo $existingRoleCreationTracking ? 'checked' : ''; ?>>
                     Track role creation
                   </label>
-                  <label class="checkbox has-text-white">
+                  <label class="checkbox has-text-white mb-2" style="display: block;">
                     <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" <?php echo $existingRoleDeletionTracking ? 'checked' : ''; ?>>
                     Track role deletion
+                  </label>
+                  <label class="checkbox has-text-white">
+                    <input type="checkbox" name="track_role_edits" style="margin-right: 8px;" <?php echo $existingRoleEditTracking ? 'checked' : ''; ?>>
+                    Track role edits
                   </label>
                 </div>
               </div>
