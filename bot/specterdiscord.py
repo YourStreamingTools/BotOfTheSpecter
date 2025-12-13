@@ -1548,6 +1548,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(ServerManagement(self, self.logger))
         await self.add_cog(RoleHistoryCog(self, self.logger))
         await self.add_cog(RoleTrackingCog(self, self.logger))
+        await self.add_cog(ServerRoleManagementCog(self, self.logger))
         await self.add_cog(AdminCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
@@ -7239,6 +7240,195 @@ class RoleTrackingCog(commands.Cog, name='Role Tracking'):
 
     def cog_unload(self):
         self.logger.info("RoleTrackingCog cog unloaded")
+
+# Server Role Management cog - tracks role creation and deletion
+class ServerRoleManagementCog(commands.Cog, name='Server Role Management'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.mysql = MySQLHelper(logger)
+        asyncio.create_task(self._init_role_management())
+
+    async def _init_role_management(self):
+        try:
+            await self.bot.wait_until_ready()
+            await self._ensure_role_management_table()
+            await self._migrate_server_management_table()
+            self.logger.info("Server Role Management system initialized")
+        except Exception as e:
+            self.logger.error(f"Error initializing Server Role Management: {e}")
+
+    async def _ensure_role_management_table(self):
+        try:
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS server_role_management_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    server_id VARCHAR(255) NOT NULL,
+                    action VARCHAR(50) NOT NULL COMMENT 'created or deleted',
+                    role_id VARCHAR(255) NOT NULL,
+                    role_name VARCHAR(255),
+                    created_by VARCHAR(255) COMMENT 'User who created/deleted the role',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_server_id (server_id),
+                    INDEX idx_action (action),
+                    INDEX idx_created_at (created_at)
+                ) COMMENT 'Stores logs of role creation and deletion'
+            """
+            await self.mysql.execute(create_table_query, database_name='specterdiscordbot')
+            self.logger.info("Ensured server_role_management_logs table exists")
+        except Exception as e:
+            self.logger.error(f"Error creating server_role_management_logs table: {e}")
+
+    async def _migrate_server_management_table(self):
+        try:
+            # Check if columns exist and add them if needed
+            check_query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'server_management' AND COLUMN_NAME = %s AND TABLE_SCHEMA = 'specterdiscordbot'"
+            # Check and add server_role_management_configuration
+            result = await self.mysql.fetchone(check_query, params=('server_role_management_configuration',), database_name='specterdiscordbot')
+            if not result:
+                alter_query = "ALTER TABLE server_management ADD COLUMN server_role_management_configuration JSON DEFAULT NULL"
+                await self.mysql.execute(alter_query, database_name='specterdiscordbot')
+            self.logger.info("Ensured server_role_management_configuration column exists in server_management table")
+        except Exception as e:
+            self.logger.error(f"Error migrating server_management table: {e}")
+
+    async def _get_settings(self, server_id: str):
+        try:
+            query = "SELECT server_role_management_configuration FROM server_management WHERE server_id = %s"
+            result = await self.mysql.fetchone(query, params=(str(server_id),), database_name='specterdiscordbot', dict_cursor=True)
+            if result and result['server_role_management_configuration']:
+                try:
+                    config_json = json.loads(result['server_role_management_configuration'])
+                    return {
+                        'enabled': bool(config_json.get('enabled', False)),
+                        'log_channel_id': config_json.get('log_channel_id', None),
+                        'track_creation': bool(config_json.get('track_creation', True)),
+                        'track_deletion': bool(config_json.get('track_deletion', True))
+                    }
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
+                    self.logger.warning(f"Error parsing server_role_management_configuration JSON for server {server_id}: {e}")
+            return {
+                'enabled': False,
+                'log_channel_id': None,
+                'track_creation': True,
+                'track_deletion': True
+            }
+        except Exception as e:
+            self.logger.error(f"Error fetching server role management settings for server {server_id}: {e}")
+            return {'enabled': False, 'log_channel_id': None, 'track_creation': True, 'track_deletion': True}
+
+    async def _log_role_change(self, guild_id: str, action: str, role_id: str, role_name: str, created_by: str = None):
+        try:
+            insert_query = """
+                INSERT INTO server_role_management_logs (server_id, action, role_id, role_name, created_by)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            await self.mysql.execute(
+                insert_query,
+                params=(str(guild_id), action, str(role_id), role_name, created_by),
+                database_name='specterdiscordbot'
+            )
+        except Exception as e:
+            self.logger.error(f"Error logging role {action} for server {guild_id}: {e}")
+
+    async def _send_log_message(self, guild: discord.Guild, channel_id: str, embed: discord.Embed):
+        try:
+            channel = guild.get_channel(int(channel_id))
+            if channel and isinstance(channel, discord.TextChannel):
+                await channel.send(embed=embed)
+            else:
+                self.logger.warning(f"Server role management log channel {channel_id} not found in {guild.name}")
+        except Exception as e:
+            self.logger.error(f"Error sending server role management log: {e}")
+
+    @commands.Cog.listener()
+    async def on_guild_role_create(self, role: discord.Role):
+        try:
+            settings = await self._get_settings(str(role.guild.id))
+            if not settings['enabled'] or not settings['log_channel_id']:
+                return
+            # Only log if tracking creations is enabled
+            if not settings['track_creation']:
+                return
+            # Get who created the role from audit logs
+            created_by = "Unknown"
+            try:
+                async for entry in role.guild.audit_logs(limit=5, action=discord.AuditLogAction.role_create):
+                    if entry.target.id == role.id:
+                        created_by = f"{entry.user.name}#{entry.user.discriminator}"
+                        break
+            except discord.Forbidden:
+                created_by = "Unknown (no audit log access)"
+            except Exception as e:
+                self.logger.warning(f"Error fetching audit logs for role creation: {e}")
+            # Log to database
+            await self._log_role_change(
+                str(role.guild.id),
+                'created',
+                str(role.id),
+                role.name,
+                created_by
+            )
+            # Send log message
+            embed = discord.Embed(
+                title="Role Created",
+                description=f"**{role.name}** role has been created",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name="Role ID", value=str(role.id), inline=True)
+            embed.add_field(name="Created By", value=created_by, inline=True)
+            if role.color:
+                embed.add_field(name="Color", value=str(role.color), inline=True)
+            embed.set_footer(text=role.guild.name)
+            await self._send_log_message(role.guild, settings['log_channel_id'], embed)
+        except Exception as e:
+            self.logger.error(f"Error in on_guild_role_create: {e}")
+
+    @commands.Cog.listener()
+    async def on_guild_role_delete(self, role: discord.Role):
+        try:
+            settings = await self._get_settings(str(role.guild.id))
+            if not settings['enabled'] or not settings['log_channel_id']:
+                return
+            # Only log if tracking deletions is enabled
+            if not settings['track_deletion']:
+                return
+            # Get who deleted the role from audit logs
+            deleted_by = "Unknown"
+            try:
+                async for entry in role.guild.audit_logs(limit=5, action=discord.AuditLogAction.role_delete):
+                    if entry.target.id == role.id:
+                        deleted_by = f"{entry.user.name}#{entry.user.discriminator}"
+                        break
+            except discord.Forbidden:
+                deleted_by = "Unknown (no audit log access)"
+            except Exception as e:
+                self.logger.warning(f"Error fetching audit logs for role deletion: {e}")
+            # Log to database
+            await self._log_role_change(
+                str(role.guild.id),
+                'deleted',
+                str(role.id),
+                role.name,
+                deleted_by
+            )
+            # Send log message
+            embed = discord.Embed(
+                title="Role Deleted",
+                description=f"**{role.name}** role has been deleted",
+                color=discord.Color.red(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name="Role ID", value=str(role.id), inline=True)
+            embed.add_field(name="Deleted By", value=deleted_by, inline=True)
+            embed.set_footer(text=role.guild.name)
+            await self._send_log_message(role.guild, settings['log_channel_id'], embed)
+        except Exception as e:
+            self.logger.error(f"Error in on_guild_role_delete: {e}")
+
+    def cog_unload(self):
+        self.logger.info("ServerRoleManagementCog cog unloaded")
 
 # Admin commands cog - restricted to bot owner
 class AdminCog(commands.Cog, name='Admin'):
