@@ -3305,6 +3305,29 @@ function removeStreamer(username) {
       $('#rules_accept_role_id').val('');
     }
   });
+  // Validation for send stream schedule message button
+  function validateSendStreamScheduleButton() {
+    const channelId = $('#stream_schedule_channel_id').val();
+    const title = $('#stream_schedule_title').val().trim();
+    const content = $('#stream_schedule_content').val().trim();
+    let hasChannel = false;
+    if ($('#stream_schedule_channel_id').is('select')) {
+      hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
+    } else {
+      hasChannel = channelId && channelId.trim() !== '';
+    }
+    const hasTitle = title !== '';
+    const hasContent = content !== '';
+    const sendButton = $('#send_stream_schedule_message');
+    if (hasChannel && hasTitle && hasContent) {
+      sendButton.prop('disabled', false);
+    } else {
+      sendButton.prop('disabled', true);
+    }
+  }
+  // Check validation on page load and when inputs change
+  validateSendStreamScheduleButton();
+  $('#stream_schedule_channel_id, #stream_schedule_title, #stream_schedule_content').on('change input', validateSendStreamScheduleButton);
 });
 </script>
 <?php if (!$is_linked) { ?>
@@ -4087,6 +4110,9 @@ function removeStreamer(username) {
       stream_schedule_content: scheduleContent,
       stream_schedule_color: scheduleColor,
       stream_schedule_timezone: scheduleTimezone
+    }, function() {
+      // Enable send button after successful save
+      validateSendStreamScheduleButton();
     });
   }
 
@@ -4251,6 +4277,11 @@ function removeStreamer(username) {
           welcomeColourField.style.display = 'none';
         }
       });
+    }
+
+    // Validate send stream schedule button on page load
+    if (typeof validateSendStreamScheduleButton === 'function') {
+      validateSendStreamScheduleButton();
     }
   });
 </script>
