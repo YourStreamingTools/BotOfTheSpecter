@@ -345,6 +345,51 @@ class MySQLHelper:
             if conn:
                 conn.close()
 
+    async def track_message(self, bot_system='discordbot'):
+        conn = await self.get_connection('website')
+        if conn is None:
+            self.logger.error("Failed to get connection for website database to track message")
+            return
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                # Get current record
+                await cursor.execute(
+                    "SELECT messages_sent, counted_since FROM bot_messages WHERE bot_system = %s",
+                    (bot_system,)
+                )
+                record = await cursor.fetchone()
+                if record is None:
+                    # First entry for this bot system
+                    await cursor.execute(
+                        """INSERT INTO bot_messages (bot_system, counted_since, messages_sent, last_updated)
+                           VALUES (%s, NOW(), 1, NOW())""",
+                        (bot_system,)
+                    )
+                    self.logger.info(f"Created initial tracking record for {bot_system}")
+                elif record['messages_sent'] == 0 or record['counted_since'] is None:
+                    # First message being counted
+                    await cursor.execute(
+                        """UPDATE bot_messages 
+                           SET counted_since = NOW(), messages_sent = 1, last_updated = NOW()
+                           WHERE bot_system = %s""",
+                        (bot_system,)
+                    )
+                    self.logger.debug(f"Initialized message counting for {bot_system}")
+                else:
+                    # Subsequent messages
+                    await cursor.execute(
+                        """UPDATE bot_messages 
+                           SET messages_sent = messages_sent + 1, last_updated = NOW()
+                           WHERE bot_system = %s""",
+                        (bot_system,)
+                    )
+                await conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error tracking message for {bot_system}: {e}")
+        finally:
+            if conn:
+                conn.close()
+
 # Setup websocket listener for global actions
 class WebsocketListener:
     def __init__(self, bot, logger=None):
@@ -1301,6 +1346,7 @@ class BotOfTheSpecter(commands.Bot):
         self.channel_mapping = ChannelMapping(logger=discord_logger)
         # Live channel manager - track currently online streams
         self.live_channel_manager = LiveChannelManager(self, self.logger)
+        self.mysql_helper = MySQLHelper(logger=discord_logger)
         self.cooldowns = {}
         # Define internal commands that should never be overridden by custom commands
         self.internal_commands = {
@@ -1431,23 +1477,23 @@ class BotOfTheSpecter(commands.Bot):
                     role_id = int(custom_id.replace('role_', ''))
                     role = interaction.guild.get_role(role_id)
                     if not role:
-                        await interaction.followup.send("❌ Role not found.", ephemeral=True)
+                        await self.send_interaction_response(interaction, content="❌ Role not found.", ephemeral=True)
                         return
                     member = interaction.user
                     self.logger.info(f"[PERSISTENT_ROLE] Role button clicked by {member.name} for role {role.name}")
                     if role in member.roles:
                         await member.remove_roles(role, reason="Role button - user requested removal")
-                        await interaction.followup.send(f"✅ Removed role **{role.name}**", ephemeral=True)
+                        await self.send_interaction_response(interaction, content=f"✅ Removed role **{role.name}**", ephemeral=True)
                         self.logger.info(f"[PERSISTENT_ROLE] Role {role.name} removed from {member.name}")
                     else:
                         await member.add_roles(role, reason="Role button - user requested assignment")
-                        await interaction.followup.send(f"✅ Added role **{role.name}**", ephemeral=True)
+                        await self.send_interaction_response(interaction, content=f"✅ Added role **{role.name}**", ephemeral=True)
                         self.logger.info(f"[PERSISTENT_ROLE] Role {role.name} added to {member.name}")
                 except discord.Forbidden:
                     try:
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
-                        await interaction.followup.send("❌ I don't have permission to manage this role.", ephemeral=True)
+                        await self.send_interaction_response(interaction, content="❌ I don't have permission to manage this role.", ephemeral=True)
                     except:
                         pass
                     self.logger.error(f"[PERSISTENT_ROLE] Permission denied when managing role")
@@ -1456,7 +1502,7 @@ class BotOfTheSpecter(commands.Bot):
                     try:
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
-                        await interaction.followup.send("❌ An error occurred. Please try again.", ephemeral=True)
+                        await self.send_interaction_response(interaction, content="❌ An error occurred. Please try again.", ephemeral=True)
                     except:
                         pass
             # Handle persistent rules buttons
@@ -1467,21 +1513,21 @@ class BotOfTheSpecter(commands.Bot):
                     role_id = int(custom_id.replace('rules_accept_', ''))
                     role = interaction.guild.get_role(role_id)
                     if not role:
-                        await interaction.followup.send("❌ Role not found.", ephemeral=True)
+                        await self.send_interaction_response(interaction, content="❌ Role not found.", ephemeral=True)
                         return
                     user = interaction.user
                     self.logger.info(f"[PERSISTENT_RULES] Rules button clicked by {user.name} for role {role.name}")
                     if role in user.roles:
-                        await interaction.followup.send("✅ You have already accepted the rules!", ephemeral=True)
+                        await self.send_interaction_response(interaction, content="✅ You have already accepted the rules!", ephemeral=True)
                     else:
                         await user.add_roles(role, reason="Accepted server rules via button")
-                        await interaction.followup.send("✅ Thank you for accepting the rules! You now have access to the server. 🎉", ephemeral=True)
+                        await self.send_interaction_response(interaction, content="✅ Thank you for accepting the rules! You now have access to the server. 🎉", ephemeral=True)
                         self.logger.info(f"[PERSISTENT_RULES] Rules accepted by {user.name}")
                 except discord.Forbidden:
                     try:
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
-                        await interaction.followup.send("❌ I don't have permission to assign this role.", ephemeral=True)
+                        await self.send_interaction_response(interaction, content="❌ I don't have permission to assign this role.", ephemeral=True)
                     except:
                         pass
                     self.logger.error(f"[PERSISTENT_RULES] Permission denied when assigning role")
@@ -1490,7 +1536,7 @@ class BotOfTheSpecter(commands.Bot):
                     try:
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
-                        await interaction.followup.send("❌ An error occurred. Please try again.", ephemeral=True)
+                        await self.send_interaction_response(interaction, content="❌ An error occurred. Please try again.", ephemeral=True)
                     except:
                         pass
 
@@ -1952,8 +1998,10 @@ class BotOfTheSpecter(commands.Bot):
                                 typing_delay = len(chunk) / self.typing_speed
                                 await asyncio.sleep(min(typing_delay, 3))
                                 await message.author.send(chunk)
+                                await self.mysql_helper.track_message('discordbot')
                         else:
                             await message.author.send("The AI did not return any text.")
+                            await self.mysql_helper.track_message('discordbot')
                     except Exception as stream_exc:
                         self.logger.error(f"Streaming failed: {stream_exc}; falling back to non-streaming send")
                         # Fallback: call the non-streaming API and send chunks as before
@@ -1964,6 +2012,7 @@ class BotOfTheSpecter(commands.Bot):
                                     typing_delay = len(ai_response) / self.typing_speed
                                     await asyncio.sleep(typing_delay)
                                     await message.author.send(ai_response)
+                                    await self.mysql_helper.track_message('discordbot')
                                 else:
                                     self.logger.error("AI response chunk was empty, not sending.")
                     except Exception as stream_exc:
@@ -1976,6 +2025,7 @@ class BotOfTheSpecter(commands.Bot):
                                     typing_delay = len(ai_response) / self.typing_speed
                                     await asyncio.sleep(typing_delay)
                                     await message.author.send(ai_response)
+                                    await self.mysql_helper.track_message('discordbot')
                                 else:
                                     self.logger.error("AI response chunk was empty, not sending.")
             except discord.HTTPException as e:
@@ -2003,6 +2053,7 @@ class BotOfTheSpecter(commands.Bot):
                                 f"{message.author.mention} This channel is for ticket commands only. "
                                 "Please use `!ticket create` to open a ticket."
                             )
+                            await self.mysql_helper.track_message('discordbot')
                             # Set a delay before deleting the warning message
                             await asyncio.sleep(10)  # Wait for 10 seconds
                             await warning.delete()  # Delete the warning message after the delay
@@ -2173,6 +2224,7 @@ class BotOfTheSpecter(commands.Bot):
                     # Send the main response (only if not empty after processing)
                     if response.strip():
                         await message.channel.send(response)
+                        await self.mysql_helper.track_message('discordbot')
                     # Execute follow-up commands
                     for follow_command in follow_up_commands:
                         follow_response = await mysql_helper.fetchone(
@@ -2191,6 +2243,7 @@ class BotOfTheSpecter(commands.Bot):
                             # Send the follow-up command response
                             if follow_message_response.strip():
                                 await message.channel.send(follow_message_response)
+                                await self.mysql_helper.track_message('discordbot')
                         else:
                             self.logger.error(f"Follow-up command '{follow_command}' not found in database")
                     self.logger.info(f"Executed custom command '{command_name}' for {database_name} in guild {message.guild.name} (ID: {guild_id})")
@@ -2401,6 +2454,8 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 # Prefer explicit content over fallback_text
                 await channel.send(content if content is not None else fallback_text)
+            # Track the message
+            await self.mysql_helper.track_message('discordbot')
             return True
         except discord.Forbidden:
             self.logger.error(f"Missing permissions to send {logger_context} message in #{channel.name} (ID: {channel.id})")
@@ -2410,6 +2465,8 @@ class BotOfTheSpecter(commands.Bot):
                 try:
                     await channel.send(fallback)
                     self.logger.info(f"Sent {logger_context} as plain text fallback in #{channel.name}")
+                    # Track the fallback message
+                    await self.mysql_helper.track_message('discordbot')
                     return True
                 except Exception as fallback_error:
                     self.logger.error(f"Fallback text message also failed in #{channel.name}: {fallback_error}")
@@ -2418,6 +2475,16 @@ class BotOfTheSpecter(commands.Bot):
             # Channel.name may not exist for DMChannel etc; guard log formatting
             chan_name = getattr(channel, 'name', str(channel))
             self.logger.error(f"Failed to send {logger_context} message to #{chan_name}: {type(e).__name__}: {e}")
+            return False
+
+    async def send_interaction_response(self, interaction: discord.Interaction, content: str = None, embed: discord.Embed = None, ephemeral: bool = False):
+        try:
+            await interaction.followup.send(content=content, embed=embed, ephemeral=ephemeral)
+            # Track the message
+            await self.mysql_helper.track_message('discordbot')
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to send interaction response: {type(e).__name__}: {e}")
             return False
 
     async def handle_twitch_event(self, event_type, data):
@@ -3914,6 +3981,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                         f"{message.author.mention} This channel is for ticket commands only. "
                         "Please use `!ticket create` to open a ticket."
                     )
+                    await self.mysql_helper.track_message('discordbot')
                     # Set a delay before deleting the warning message
                     await asyncio.sleep(10)  # Wait for 10 seconds
                     await warning.delete()  # Delete the warning message after the delay
@@ -3925,7 +3993,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                         f"{message.author.mention} This channel is for ticket commands only. "
                         "Please use `!ticket create` to open a ticket."
                     )
-                    # Set a delay before deleting the warning message
+                    await self.mysql_helper.track_message('discordbot')                    # Set a delay before deleting the warning message
                     await asyncio.sleep(10)  # Wait for 10 seconds
                     await warning.delete()  # Delete the warning message after the delay
                     self.logger.info(f"Deleted ticket create command from {message.author} in ticket-info channel")
