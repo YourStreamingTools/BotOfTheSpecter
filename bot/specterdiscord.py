@@ -1049,9 +1049,8 @@ class LiveChannelManager:
                 pass
         except Exception as e:
             self.logger.error(f"Error marking offline by username {username}: {e}")
+
     async def _resolve_channel_code_for_username(self, username):
-        """Try to resolve channel_code for a given username using in-memory cache or database.
-        Returns channel_code or None."""
         try:
             if not username:
                 return None
@@ -3296,7 +3295,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                     closed_category = channel.guild.get_channel(int(settings['closed_category_id']))
                     if not closed_category:
                         self.logger.warning(f"Saved closed category {settings['closed_category_id']} not found, will create new one")
-                
                 if not closed_category:
                     # Look for existing "Closed Tickets" category
                     closed_category = discord.utils.get(channel.guild.categories, name="Closed Tickets")
@@ -3824,7 +3822,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                     inline=False
                 )
             final_embed.set_footer(text="Users can now create tickets using !ticket create")
-            
             await ctx.send(embed=final_embed)
             self.logger.info(f"Ticket system set up completed in {ctx.guild.name} by {ctx.author}")
         except Exception as e:
@@ -4467,7 +4464,6 @@ class MusicPlayer:
             description=desc,
             color=config.bot_color
         )
-        
         # Create fallback text
         fallback_text = f"🎵 **Music Queue**\n\n{desc}"
         success = await self.bot._send_message_with_fallback(
@@ -5833,6 +5829,53 @@ class ServerManagement(commands.Cog, name='Server Management'):
         # Cache for timezone update tasks: {(server_id, timezone_message_id): asyncio.Task}
         self.timezone_update_tasks = {}
         asyncio.create_task(self._refresh_reaction_roles_cache())
+        asyncio.create_task(self._resume_stream_schedule_updates())
+
+    async def _resume_stream_schedule_updates(self):
+        try:
+            self.logger.info("Attempting to resume stream schedule timezone updates...")
+            # Wait a moment for the bot to be fully ready
+            await asyncio.sleep(2)
+            # Fetch all stream schedule messages from database
+            query = "SELECT server_id, channel_id, message_id, timezone_message_id, timezone FROM stream_schedule_messages WHERE timezone_message_id IS NOT NULL AND timezone IS NOT NULL"
+            schedules = await self.mysql.fetchall(query, database_name='specterdiscordbot', dict_cursor=True)
+            if not schedules:
+                self.logger.info("No stream schedule messages found in database")
+                return
+            self.logger.info(f"Found {len(schedules)} stream schedule message(s) to resume")
+            for schedule in schedules:
+                try:
+                    server_id = str(schedule['server_id'])
+                    channel_id = str(schedule['channel_id'])
+                    timezone_message_id = str(schedule['timezone_message_id'])
+                    timezone = schedule['timezone']
+                    # Get the guild
+                    guild = self.bot.get_guild(int(server_id))
+                    if not guild:
+                        self.logger.warning(f"Guild {server_id} not found, skipping stream schedule resume")
+                        continue
+                    # Verify the timezone message still exists
+                    try:
+                        channel = guild.get_channel(int(channel_id))
+                        if not channel:
+                            self.logger.warning(f"Channel {channel_id} not found in guild {server_id}, skipping")
+                            continue
+                        message = await channel.fetch_message(int(timezone_message_id))
+                        self.logger.info(f"Resuming timezone update for server {server_id}, timezone: {timezone}")
+                        # Start the background update task for this timezone message
+                        await self._start_timezone_update_task(server_id, channel_id, timezone_message_id, timezone, guild.name)
+                    except discord.NotFound:
+                        self.logger.info(f"Timezone message {timezone_message_id} no longer exists in channel {channel_id}, skipping")
+                    except discord.Forbidden:
+                        self.logger.warning(f"Missing permissions to access message in channel {channel_id}")
+                    except Exception as e:
+                        self.logger.error(f"Error verifying timezone message {timezone_message_id}: {e}")
+                except Exception as e:
+                    self.logger.error(f"Error resuming stream schedule for server {server_id}: {e}")
+        except Exception as e:
+            self.logger.error(f"Error in _resume_stream_schedule_updates: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
 
     async def _refresh_reaction_roles_cache(self):
         try:
@@ -6613,7 +6656,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
             # Ignore bot reactions
             if payload.user_id == self.bot.user.id:
                 return
-            
             # Check if this message is a reaction roles message
             message_id = payload.message_id
             if message_id not in self.reaction_roles_cache:
@@ -6775,7 +6817,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     except (ValueError, AttributeError):
                         self.logger.warning(f"Invalid colour format '{embed_colour}', using default")
                         colour_int = 0x00d1b2  # Default turquoise colour
-                    
                     embed = discord.Embed(
                         title="Welcome!",
                         description=message_text,
@@ -6799,7 +6840,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
             except discord.HTTPException as e:
                 self.logger.error(f"Failed to send welcome message due to HTTP error: {e}")
                 return False
-                
         except Exception as e:
             self.logger.error(f"Error in handle_welcome_message: {e}")
             return False
@@ -7307,7 +7347,6 @@ class RoleTrackingCog(commands.Cog, name='Role Tracking'):
             except Exception as e:
                 self.logger.warning(f"Error fetching audit logs: {e}")
                 changed_by = "Unknown"
-            
             # Log added roles (if tracking additions is enabled)
             if settings['track_additions']:
                 for role in added_roles:
@@ -7334,7 +7373,6 @@ class RoleTrackingCog(commands.Cog, name='Role Tracking'):
                     embed.add_field(name="User ID", value=str(after.id), inline=True)
                     embed.add_field(name="Role ID", value=str(role.id), inline=True)
                     embed.set_footer(text=after.guild.name)
-                    
                     await self._send_log_message(after.guild, settings['log_channel_id'], embed)
             # Log removed roles (if tracking removals is enabled)
             if settings['track_removals']:
@@ -7777,7 +7815,6 @@ class UserTrackingCog(commands.Cog, name='User Tracking'):
             # Only log if tracking joins is enabled
             if not settings['track_joins']:
                 return
-            
             # Log to database
             await self._log_user_event(
                 str(member.guild.id),
@@ -7785,7 +7822,6 @@ class UserTrackingCog(commands.Cog, name='User Tracking'):
                 member.name,
                 'joined'
             )
-            
             # Send log message
             embed = discord.Embed(
                 title="User Joined",
