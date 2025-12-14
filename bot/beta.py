@@ -10391,6 +10391,55 @@ async def check_next_ad_after_completion(ads_api_url, headers):
     except Exception as e:
         api_logger.error(f"Error checking next ad after completion: {e}")
 
+# Function to track chat messages for the bot counter
+async def track_chat_message():
+    # Construct bot_system identifier using SYSTEM variable (e.g., 'twitch_beta', 'twitch_stable')
+    bot_system = f"twitch_{SYSTEM.lower()}"
+    connection = await mysql_connection('website')
+    if connection is None:
+        chat_logger.error("Failed to get connection for website database to track message")
+        return
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            # Get current record
+            await cursor.execute(
+                "SELECT messages_sent, counted_since FROM bot_messages WHERE bot_system = %s",
+                (bot_system,)
+            )
+            record = await cursor.fetchone()
+            if record is None:
+                # First entry for this bot system
+                await cursor.execute(
+                    """INSERT INTO bot_messages (bot_system, counted_since, messages_sent, last_updated)
+                       VALUES (%s, NOW(), 1, NOW())""",
+                    (bot_system,)
+                )
+                chat_logger.info(f"Created initial tracking record for {bot_system}")
+            elif record['messages_sent'] == 0 or record['counted_since'] is None:
+                # First message being counted
+                await cursor.execute(
+                    """UPDATE bot_messages 
+                       SET counted_since = NOW(), messages_sent = 1, last_updated = NOW()
+                       WHERE bot_system = %s""",
+                    (bot_system,)
+                )
+                chat_logger.debug(f"Initialized message counting for {bot_system}")
+            else:
+                # Subsequent messages
+                await cursor.execute(
+                    """UPDATE bot_messages 
+                       SET messages_sent = messages_sent + 1, last_updated = NOW()
+                       WHERE bot_system = %s""",
+                    (bot_system,)
+                )
+            await connection.commit()
+    except Exception as e:
+        chat_logger.error(f"Error tracking message for {bot_system}: {e}")
+    finally:
+        if connection:
+            await connection.ensure_closed()
+
+# Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     if len(message) > 255:
         chat_logger.error(f"Message too long: {len(message)} characters (max 255)")
@@ -10420,6 +10469,8 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
                         drop_reason = msg_data.get("drop_reason")
                         if is_sent:
                             chat_logger.info(f"Successfully sent chat message: {message} (ID: {message_id})")
+                            # Track message for chat counter
+                            await track_chat_message()
                             return True
                         else:
                             chat_logger.error(f"Message not sent. Drop reason: {drop_reason}")
