@@ -720,7 +720,11 @@ ob_start();
     </div>
 </div>
 <div class="box">
-    <h2 class="title is-4"><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
+    <div class="collapsible-header" onclick="toggleCollapsible('token-management', event)" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0 0 1rem 0;">
+        <h2 class="title is-4" style="margin-bottom: 0;"><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
+        <span class="collapse-icon" data-section="token-management" style="font-size: 1.5rem; transition: transform 0.3s ease;">▶</span>
+    </div>
+    <div class="collapsible-content" id="token-management" style="display: none; padding-top: 1rem;">
     <div style="display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between;">
         <div style="flex: 1; min-width: 250px;">
             <div class="box hover-box">
@@ -750,9 +754,14 @@ ob_start();
             </div>
         </div>
     </div>
+    </div>
 </div>
 <div class="box">
-    <h2 class="title is-4"><span class="icon"><i class="fas fa-comments"></i></span> Bot Message Counts</h2>
+    <div class="collapsible-header" onclick="toggleCollapsible('bot-message-counts', event)" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0 0 1rem 0;">
+        <h2 class="title is-4" style="margin-bottom: 0;"><span class="icon"><i class="fas fa-comments"></i></span> Bot Message Counts</h2>
+        <span class="collapse-icon" data-section="bot-message-counts" style="font-size: 1.5rem; transition: transform 0.3s ease;">▶</span>
+    </div>
+    <div class="collapsible-content" id="bot-message-counts" style="display: none; padding-top: 1rem;">
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; grid-auto-rows: 1fr;">
         <?php foreach ($messageSystemNames as $key => $label): ?>
         <div class="box hover-box bot-message-box" data-bot-system="<?php echo $key; ?>">
@@ -780,13 +789,21 @@ ob_start();
         </div>
         <?php endforeach; ?>
     </div>
+    </div>
 </div>
-<div class="box" id="bot-overview-container">
-    <h2 class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
-    <p>Loading bot overview...</p>
+<div class="box">
+    <div class="collapsible-header" onclick="toggleCollapsible('bot-overview', event)" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0 0 1rem 0;">
+        <h2 class="title is-4" style="margin-bottom: 0;"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
+        <span class="collapse-icon" data-section="bot-overview" style="font-size: 1.5rem; transition: transform 0.3s ease;">▼</span>
+    </div>
+    <div class="collapsible-content" id="bot-overview" style="display: block;">
+        <div id="bot-overview-container">
+            <p>Loading bot overview...</p>
+        </div>
+    </div>
 </div>
 <div class="columns is-variable is-3" style="align-items: stretch;">
-    <div class="column is-half">
+    <div class="column is-half is-hidden">
         <div class="box" style="height: 100%; display: flex; flex-direction: column;">
             <h2 class="title is-4"><span class="icon"><i class="fas fa-chart-pie"></i></span> User Overview</h2>
             <div class="columns" style="flex: 1;">
@@ -858,6 +875,81 @@ $content = ob_get_clean();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // ===== Cookie Management for Collapsible Sections =====
+    function setCookie(name, value, days = 365) {
+        const date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        const expires = "expires=" + date.toUTCString();
+        document.cookie = name + "=" + value + ";" + expires + ";path=/";
+    }
+
+    function getCookie(name) {
+        const nameEQ = name + "=";
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            let cookie = cookies[i].trim();
+            if (cookie.indexOf(nameEQ) === 0) return cookie.substring(nameEQ.length);
+        }
+        return null;
+    }
+
+    // Toggle collapsible section and save state to cookie
+    window.toggleCollapsible = function(sectionId, event) {
+        event.preventDefault();
+        const content = document.getElementById(sectionId);
+        const icon = document.querySelector(`.collapse-icon[data-section="${sectionId}"]`);
+        
+        if (content) {
+            content.classList.toggle('open');
+            content.style.display = content.classList.contains('open') ? 'block' : 'none';
+            
+            if (icon) {
+                icon.classList.toggle('open');
+            }
+            
+            // Save state to cookie
+            const isOpen = content.classList.contains('open');
+            setCookie(`collapsible_${sectionId}`, isOpen ? 'open' : 'closed');
+        }
+    };
+
+    // Initialize collapsible states from cookies
+    function initializeCollapsibles() {
+        const sections = ['token-management', 'bot-message-counts', 'bot-overview'];
+        sections.forEach(sectionId => {
+            const content = document.getElementById(sectionId);
+            const icon = document.querySelector(`.collapse-icon[data-section="${sectionId}"]`);
+            const savedState = getCookie(`collapsible_${sectionId}`);
+            
+            if (content && icon) {
+                // Set default state (bot-overview defaults to open, others to closed)
+                let shouldOpen = (sectionId === 'bot-overview');
+                
+                // Check if we have a saved state
+                if (savedState === 'open') {
+                    shouldOpen = true;
+                } else if (savedState === 'closed') {
+                    shouldOpen = false;
+                }
+                
+                if (shouldOpen) {
+                    content.classList.add('open');
+                    content.style.display = 'block';
+                    icon.classList.add('open');
+                } else {
+                    content.classList.remove('open');
+                    content.style.display = 'none';
+                    icon.classList.remove('open');
+                }
+            }
+        });
+    }
+
+    // Initialize on page load
+    initializeCollapsibles();
+
+    // ===== End Collapsible Section Code =====
+    
     // Show toast notifications for messages
     <?php if (isset($success_message)): ?>
     Swal.fire({
@@ -1283,20 +1375,27 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Load bot overview after page load (diffs DOM instead of replacing everything)
     const loadBotOverview = () => {
+        // Check if bot-overview section is open before fetching
+        const botOverviewSection = document.getElementById('bot-overview');
+        if (botOverviewSection && !botOverviewSection.classList.contains('open')) {
+            // Section is closed, skip refresh to save resources
+            return;
+        }
         const botContainer = document.getElementById('bot-overview-container');
         if (!botContainer) return;
-        // Ensure header and columns wrapper exist. Include an updated-at span inside the header.
-        if (!document.getElementById('bot-overview-header')) {
-            botContainer.innerHTML = '<h2 id="bot-overview-header" class="title is-4"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview <small id="bot-updated-at" class="ml-2 has-text-grey">Updated: --</small></h2>';
-        } else if (!document.getElementById('bot-updated-at')) {
-            // If header exists but timestamp is missing (older markup), append it
-            const header = document.getElementById('bot-overview-header');
-            const small = document.createElement('small');
-            small.id = 'bot-updated-at';
-            small.className = 'ml-2 has-text-grey';
-            small.textContent = 'Updated: --';
-            header.appendChild(small);
+        // Add timestamp to the collapsible header if not already present
+        const collapsibleHeader = botContainer.closest('.collapsible-content')?.previousElementSibling;
+        if (collapsibleHeader && !document.getElementById('bot-updated-at')) {
+            const headerTitle = collapsibleHeader.querySelector('.title');
+            if (headerTitle) {
+                const small = document.createElement('small');
+                small.id = 'bot-updated-at';
+                small.className = 'ml-2 has-text-grey';
+                small.textContent = 'Updated: --';
+                headerTitle.appendChild(small);
+            }
         }
+        // Ensure columns wrapper exists
         let columns = document.getElementById('bot-columns');
         if (!columns) {
             columns = document.createElement('div');
@@ -1304,20 +1403,15 @@ document.addEventListener('DOMContentLoaded', function() {
             columns.className = 'columns is-multiline';
             botContainer.appendChild(columns);
         }
-        // Show loading text while we fetch the bot overview, but only on first load
-        let loadingEl = document.getElementById('bot-loading');
-        if (!botHasLoadedOnce && !loadingEl) {
-            loadingEl = document.createElement('p');
-            loadingEl.id = 'bot-loading';
-            loadingEl.textContent = 'Loading bot overview...';
-            botContainer.appendChild(loadingEl);
-        }
         const base = window.location.href.split('?')[0];
         fetch(base + '?ajax=bot_overview')
             .then(response => response.json())
             .then(data => {
-                // remove loading indicator (first load only)
-                if (loadingEl && loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
+                // Clear loading text on first successful load
+                if (!botHasLoadedOnce) {
+                    botContainer.innerHTML = '';
+                    botContainer.appendChild(columns);
+                }
                 botHasLoadedOnce = true;
                 // update the 'updated at' relative timestamp
                 setBotUpdatedNow();
@@ -1408,15 +1502,52 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error('Error loading bot overview:', error);
-                if (loadingEl && loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
                 botHasLoadedOnce = true;
                 setBotUpdatedNow();
                 columns.innerHTML = '<div class="column"><p>Error loading bot overview.</p></div>';
             });
     };
-    setTimeout(loadBotOverview, 200);
-    // Update bot overview every 60 seconds
-    setInterval(loadBotOverview, 60000);
+    
+    // Smart refresh for bot overview - only refresh if section is open
+    let botOverviewRefreshInterval = null;
+    
+    function startBotOverviewRefresh() {
+        if (botOverviewRefreshInterval === null) {
+            loadBotOverview();
+            setTimeout(() => {
+                botOverviewRefreshInterval = setInterval(loadBotOverview, 60000);
+            }, 200);
+        }
+    }
+    
+    function stopBotOverviewRefresh() {
+        if (botOverviewRefreshInterval !== null) {
+            clearInterval(botOverviewRefreshInterval);
+            botOverviewRefreshInterval = null;
+        }
+    }
+    
+    // Initial load and setup refresh based on open/closed state
+    const botOverviewSection = document.getElementById('bot-overview');
+    if (botOverviewSection && botOverviewSection.classList.contains('open')) {
+        startBotOverviewRefresh();
+    }
+    
+    // Override toggle function to handle bot overview refresh
+    const originalToggleCollapsible = window.toggleCollapsible;
+    window.toggleCollapsible = function(sectionId, event) {
+        originalToggleCollapsible(sectionId, event);
+        
+        // Handle bot overview refresh logic
+        if (sectionId === 'bot-overview') {
+            const content = document.getElementById(sectionId);
+            if (content && content.classList.contains('open')) {
+                startBotOverviewRefresh();
+            } else {
+                stopBotOverviewRefresh();
+            }
+        }
+    };
     
     // Function to update bot message counts
     function updateBotMessageCounts() {
