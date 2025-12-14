@@ -216,9 +216,9 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a href="discord_tracking.php" class="sidebar-menu-link">
+                    <a href="discordbot_overview.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fab fa-discord"></i></span>
-                        <span class="sidebar-menu-text">Discord Tracking</span>
+                        <span class="sidebar-menu-text">Discord Bot Overview</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">

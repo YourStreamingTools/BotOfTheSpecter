@@ -543,9 +543,9 @@ ob_start();
             <span class="icon"><i class="fab fa-twitch"></i></span>
             <span>Twitch Tokens</span>
         </a>
-        <a href="discord_tracking.php" class="button is-link is-light">
+        <a href="discordbot_overview.php" class="button is-link is-light">
             <span class="icon"><i class="fab fa-discord"></i></span>
-            <span>Discord Tracking</span>
+            <span>Discord Bot Overview</span>
         </a>
         <a href="websocket_clients.php" class="button is-success is-light">
             <span class="icon"><i class="fas fa-plug"></i></span>
