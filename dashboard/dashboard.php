@@ -16,7 +16,7 @@ $dashboardVersion = $config['dashboardVersion'];
 
 if ($isLoggedIn) {
     // User is logged in - show dashboard interface
-    $pageTitle = 'Bot Management Dashboard';
+    $pageTitle = 'Management Dashboard';
     // Include authentication and user data
     require_once "/var/www/config/db_connect.php";
     include '/var/www/config/twitch.php';
@@ -206,7 +206,7 @@ if ($isLoggedIn) {
     include "layout.php";
 } else {
     // User is not logged in - show landing page
-    $pageTitle = 'Dashboard Login';
+    $pageTitle = 'Dashboard Information';
     // Start output buffering for content
     ob_start();
     ?>
@@ -221,8 +221,8 @@ if ($isLoggedIn) {
                     Your Complete Twitch Bot Management Solution
                 </h2>
                 <p class="is-size-6 has-text-white mb-4">
-                    Take control of your Twitch channel with our powerful, feature-rich bot dashboard.<br>
-                    Manage commands, configure alerts, track analytics, and so much more!
+                    Take control of your Twitch channel with our powerful, feature-rich bot and dashboard.<br>
+                    Manage commands, configure your alerts, track analytics, and so much more, get started today!
                 </p>
             </div>
         </div>
@@ -237,7 +237,7 @@ if ($isLoggedIn) {
                             <i class="fas fa-sign-in-alt"></i> Access Your Dashboard
                         </h3>
                         <p class="has-text-grey-light mb-5">
-                            Connect your Twitch account to access your personalized bot dashboard and start managing your channel like a pro.
+                            Join the rest of the streamers who use BotOfTheSpecter to enhance and manage their Twitch channel.
                         </p>
                         <a href="login.php" class="button is-large twitch-purple has-text-white">
                             <span class="icon">
@@ -246,7 +246,7 @@ if ($isLoggedIn) {
                             <span>Login with Twitch</span>
                         </a>
                         <p class="is-size-7 has-text-grey mt-4">
-                            <i class="fas fa-shield-alt"></i> Your data is secure and protected
+                            <i class="fas fa-shield-alt"></i> Your data is secure and protected using SHA-384 encryption.
                         </p>
                     </div>
                 </div>
@@ -256,9 +256,12 @@ if ($isLoggedIn) {
     <!-- Features Section -->
     <section class="section">
         <div class="container">
-            <h2 class="title is-2 has-text-centered has-text-white mb-6">
+            <h2 class="title is-2 has-text-centered has-text-white mb-1">
                 Dashboard Features
             </h2>
+            <p class="has-text-centered has-text-grey-light mb-4">
+                Explore the powerful features that make BotOfTheSpecter the ultimate Twitch bot management solution, with many more features that aren't listed below.
+            </p>
             <div class="columns is-multiline">
                 <!-- Bot Control -->
                 <div class="column is-4">
@@ -408,11 +411,14 @@ if ($isLoggedIn) {
         </div>
     </section>
     <!-- Premium Plans Section -->
-    <section class="section">
+    <section class="section mb-6">
         <div class="container">
-            <h2 class="title is-2 has-text-centered has-text-white mb-6">
+            <h2 class="title is-2 has-text-centered has-text-white mb-1">
                 Premium Plans
             </h2>
+            <p class="has-text-centered has-text-grey-light mb-4">
+                Unlock additional features and support the development of BotOfTheSpecter by subscribing to one of our premium plans via Twitch.
+            </p>
             <div class="columns is-multiline is-variable is-5">
                 <!-- Free Plan -->
                 <div class="column is-12-mobile is-6-tablet is-3-desktop">
@@ -542,23 +548,6 @@ if ($isLoggedIn) {
                 </div>
                 <?php endforeach; ?>
             </div>
-        </div>
-    </section>
-    <!-- CTA Section -->
-    <section class="section has-background-black-bis">
-        <div class="container has-text-centered">
-            <h2 class="title is-2 has-text-white mb-4">
-                Ready to Get Started?
-            </h2>
-            <p class="subtitle is-4 has-text-grey-light mb-5">
-                Join thousands of streamers who trust BotOfTheSpecter to enhance their Twitch experience.
-            </p>
-            <a href="login.php" class="button is-large twitch-purple has-text-white">
-                <span class="icon">
-                    <i class="fab fa-twitch"></i>
-                </span>
-                <span>Login with Twitch Now</span>
-            </a>
         </div>
     </section>
     <script>
