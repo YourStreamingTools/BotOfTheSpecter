@@ -6394,15 +6394,21 @@ class ServerManagement(commands.Cog, name='Server Management'):
             if not channel:
                 self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
                 return
-            # Fetch Twitch username from channel mapping to create Twitch schedule link
+            # Fetch Twitch username from channel code to create Twitch schedule link
             twitch_username = None
+            channel_code = data.get('channel_code')
             try:
-                # Query the channel_mappings table to get the username for this guild
-                query = "SELECT channel_code FROM channel_mappings WHERE guild_id = %s LIMIT 1"
-                mapping = await self.mysql.fetchone(query, params=(str(server_id),), database_name='specterdiscordbot', dict_cursor=True)
-                if mapping:
-                    twitch_username = mapping['channel_code']
-                    self.logger.info(f"Found Twitch username: {twitch_username} for guild {server_id}")
+                if channel_code:
+                    self.logger.info(f"Using channel_code from data: {channel_code}")
+                    # Use the channel_code (API key) to get the actual username from the users table
+                    user_row = await self.mysql.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
+                    if user_row:
+                        twitch_username = user_row['username']
+                        self.logger.info(f"Found Twitch username: {twitch_username} for guild {server_id}")
+                    else:
+                        self.logger.warning(f"No user found with api_key: {channel_code}")
+                else:
+                    self.logger.warning("No channel_code provided in data for fetching Twitch username")
             except Exception as e:
                 self.logger.warning(f"Could not fetch Twitch username for schedule link: {e}")
             # Check for existing stream schedule message and delete it
