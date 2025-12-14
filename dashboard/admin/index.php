@@ -405,6 +405,22 @@ if (isset($_GET['ajax'])) {
         }
         echo json_encode(['channels' => $channels]);
         exit;
+    } elseif ($ajax === 'bot_message_counts') {
+        // Fetch bot message counts and last updated times
+        $botMessageStats = [];
+        if ($conn) {
+            $result = $conn->query("SELECT bot_system, messages_sent, last_updated FROM bot_messages WHERE bot_system IN ('discordbot', 'twitch_stable', 'twitch_beta', 'twitch_custom')");
+            if ($result) {
+                while ($row = $result->fetch_assoc()) {
+                    $botMessageStats[$row['bot_system']] = [
+                        'messages_sent' => $row['messages_sent'],
+                        'last_updated' => $row['last_updated']
+                    ];
+                }
+            }
+        }
+        echo json_encode(['botMessageStats' => $botMessageStats]);
+        exit;
     }
 }
 
@@ -519,6 +535,26 @@ if ($conn) {
     $regular_count = $total_users - $admin_count - $beta_count - $premium_count;
     // Ensure regular count doesn't go negative if users have multiple roles
     if ($regular_count < 0) $regular_count = 0;
+}
+
+// Fetch bot message counts and last updated times
+$botMessageStats = [];
+$messageSystemNames = [
+    'discordbot' => 'Discord Bot',
+    'twitch_stable' => 'Chat Bot Stable',
+    'twitch_beta' => 'Chat Bot Beta',
+    'twitch_custom' => 'Chat Bot Custom'
+];
+if ($conn) {
+    $result = $conn->query("SELECT bot_system, messages_sent, last_updated FROM bot_messages WHERE bot_system IN ('discordbot', 'twitch_stable', 'twitch_beta', 'twitch_custom')");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $botMessageStats[$row['bot_system']] = [
+                'messages_sent' => $row['messages_sent'],
+                'last_updated' => $row['last_updated']
+            ];
+        }
+    }
 }
 
 // Defer bot status fetching until the AJAX request
@@ -713,6 +749,36 @@ ob_start();
                 </button>
             </div>
         </div>
+    </div>
+</div>
+<div class="box">
+    <h2 class="title is-4"><span class="icon"><i class="fas fa-comments"></i></span> Bot Message Counts</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; grid-auto-rows: 1fr;">
+        <?php foreach ($messageSystemNames as $key => $label): ?>
+        <div class="box hover-box bot-message-box" data-bot-system="<?php echo $key; ?>">
+            <h3 class="title is-5"><?php echo $label; ?></h3>
+            <div class="bot-message-count-display">
+                <div class="bot-message-count-number">
+                    <?php 
+                    if (isset($botMessageStats[$key]) && $botMessageStats[$key]['messages_sent'] > 0) {
+                        echo number_format($botMessageStats[$key]['messages_sent']);
+                    } else {
+                        echo 'Not Counting Yet';
+                    }
+                    ?>
+                </div>
+                <div class="bot-message-count-timestamp">
+                    <?php 
+                    if (isset($botMessageStats[$key]['last_updated'])) {
+                        echo 'Last Updated: ' . date('M d, Y H:i:s', strtotime($botMessageStats[$key]['last_updated']));
+                    } else {
+                        echo 'No data yet';
+                    }
+                    ?>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
     </div>
 </div>
 <div class="box" id="bot-overview-container">
@@ -1351,6 +1417,51 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(loadBotOverview, 200);
     // Update bot overview every 60 seconds
     setInterval(loadBotOverview, 60000);
+    
+    // Function to update bot message counts
+    function updateBotMessageCounts() {
+        fetch('?ajax=bot_message_counts')
+            .then(res => res.json())
+            .then(data => {
+                if (data.botMessageStats) {
+                    const messageSystemNames = {
+                        'discordbot': 'Discord Bot',
+                        'twitch_stable': 'Chat Bot Stable',
+                        'twitch_beta': 'Chat Bot Beta',
+                        'twitch_custom': 'Chat Bot Custom'
+                    };
+                    
+                    for (const [key, label] of Object.entries(messageSystemNames)) {
+                        const stats = data.botMessageStats[key];
+                        if (stats) {
+                            // Update message count
+                            const countElement = document.querySelector(`[data-bot-system="${key}"] .bot-message-count-number`);
+                            if (countElement) {
+                                if (stats.messages_sent > 0) {
+                                    countElement.textContent = new Intl.NumberFormat().format(stats.messages_sent);
+                                } else {
+                                    countElement.textContent = 'Not Counting Yet';
+                                }
+                            }
+                            
+                            // Update timestamp
+                            const timestampElement = document.querySelector(`[data-bot-system="${key}"] .bot-message-count-timestamp`);
+                            if (timestampElement && stats.last_updated) {
+                                const date = new Date(stats.last_updated);
+                                const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                timestampElement.textContent = 'Last Updated: ' + formattedDate;
+                            }
+                        }
+                    }
+                }
+            })
+            .catch(err => console.error('Error updating bot message counts:', err));
+    }
+    
+    // Update bot message counts immediately and every 60 seconds
+    updateBotMessageCounts();
+    setInterval(updateBotMessageCounts, 60000);
+    
     // Populate online channels asynchronously and enable send button only when both a channel is selected and a message is entered.
     const messageTextarea = document.getElementById('message');
     const sendButton = document.getElementById('send');

@@ -223,3 +223,49 @@
     color: #ffffff;
     font-weight: 600;
 }
+
+/* Bot Message Counts boxes - ensure uniform sizing */
+.box > div[style*="grid-template-columns"] {
+    grid-auto-rows: 1fr;
+}
+
+.bot-message-box {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100px;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem 0.75rem;
+}
+
+.bot-message-box h3 {
+    margin-bottom: 0.5rem;
+    text-align: center;
+    font-size: 0.95rem;
+}
+
+.bot-message-count-display {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+.bot-message-count-number {
+    font-size: 1.75em;
+    font-weight: bold;
+    color: #3273dc;
+    margin-bottom: 0.5rem;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.bot-message-count-timestamp {
+    font-size: 0.75em;
+    color: #7a7a7a;
+    text-align: center;
+    white-space: nowrap;
+}
