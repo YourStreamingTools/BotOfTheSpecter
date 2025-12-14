@@ -185,3 +185,41 @@
 @media (max-width: 640px) {
     .search-count { display: none; }
 }
+
+/* Discord configuration page card styles */
+.config-card .card-content {
+    background-color: inherit;
+}
+
+.config-card .card-content .content p {
+    color: #f5f5f5;
+    margin-bottom: 0.75rem;
+}
+
+.config-card .card-content .content strong {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.config-card .card-content .content em {
+    color: #b5bdc1;
+    font-style: italic;
+}
+
+.config-card .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.config-card .tag.is-light {
+    background-color: rgba(79, 153, 216, 0.2);
+    color: #4f99d8;
+    border: 1px solid rgba(79, 153, 216, 0.4);
+}
+
+.config-card .tag.is-info {
+    background-color: rgba(79, 153, 216, 0.3);
+    color: #ffffff;
+    font-weight: 600;
+}
