@@ -1168,6 +1168,35 @@ async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
 
+# Get allowed users for Discord voice calling
+@app.get(
+    "/discord/allowed_callers",
+    summary="Get list of allowed Discord voice callers",
+    description="Retrieve a list of Discord user IDs that are allowed to use the voice calling feature. Requires admin authentication.",
+    operation_id="get_allowed_discord_callers",
+    include_in_schema=False
+)
+async def get_allowed_callers(admin_key: str = Query(...)):
+    # Verify admin key
+    valid = await verify_admin_key(admin_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid admin key")
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                "SELECT discord_id FROM discord_users WHERE discord_allowed_callers = 1"
+            )
+            results = await cursor.fetchall()
+            allowed_users = [row['discord_id'] for row in results]
+            logging.info(f"Fetched {len(allowed_users)} allowed Discord callers")
+            return {"allowed_users": allowed_users}
+    except Exception as e:
+        logging.error(f"Error fetching allowed callers: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch allowed callers")
+    finally:
+        conn.close()
+
 # Hidden Endpoints
 # Function to verify the location of the user for weather
 @app.get(
