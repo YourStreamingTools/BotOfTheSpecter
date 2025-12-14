@@ -1,59 +1,108 @@
 <?php
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+ini_set('html_errors', '1');
+error_reporting(E_ALL);
+
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
-$pageTitle = 'Discord Stream Tracking Overview';
+$pageTitle = 'Discord Bot Configuration Overview';
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/database.php';
 
+// Connect to Discord bot database
+$discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
+if ($discord_conn->connect_error) {
+    die('Discord Database Connection failed: ' . $discord_conn->connect_error);
+}
+
 // Fetch all users
 $users = [];
-$result = $conn->query("SELECT username FROM users ORDER BY username ASC");
+$result = $conn->query("SELECT id as user_id, username FROM users ORDER BY username ASC");
 while ($row = $result->fetch_assoc()) {
-    $users[] = $row['username'];
+    $users[] = $row;
 }
 
 // Initialize data array
-$trackingData = [];
+$discordConfigData = [];
 
-foreach ($users as $username) {
+foreach ($users as $userRow) {
+    $user_id = $userRow['user_id'];
+    $username = $userRow['username'];
     $userDbName = $username;
-    try {
-        $userConn = new mysqli($db_servername, $db_username, $db_password, $userDbName);
-        if ($userConn->connect_error) {
-            // Skip if database doesn't exist
-            continue;
-        }
-        // Check if member_streams table exists
-        $tableCheck = $userConn->query("SHOW TABLES LIKE 'member_streams'");
-        if ($tableCheck->num_rows == 0) {
-            $userConn->close();
-            continue;
-        }
-        // Fetch tracked streams
-        $streams = [];
-        $stmt = $userConn->prepare("SELECT username, stream_url FROM member_streams ORDER BY username ASC");
-        if ($stmt) {
-            $stmt->execute();
-            $resultStreams = $stmt->get_result();
-            while ($row = $resultStreams->fetch_assoc()) {
-                $streams[] = $row;
+    // Fetch Discord configuration from discord_users table
+    $discordStmt = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
+    $discordStmt->bind_param("i", $user_id);
+    $discordStmt->execute();
+    $discordResult = $discordStmt->get_result();
+    if ($discordResult->num_rows > 0) {
+        $discordData = $discordResult->fetch_assoc();
+        // Initialize configuration array
+        $userConfig = [
+            'user_id' => $user_id,
+            'username' => $username,
+            'is_linked' => !empty($discordData['access_token']),
+            'discord_username' => $discordData['discord_username'] ?? '',
+            'guild_id' => $discordData['guild_id'] ?? '',
+            'live_channel_id' => $discordData['live_channel_id'] ?? '',
+            'online_text' => $discordData['online_text'] ?? '',
+            'offline_text' => $discordData['offline_text'] ?? '',
+            'stream_alert_channel_id' => $discordData['stream_alert_channel_id'] ?? '',
+            'stream_alert_everyone' => $discordData['stream_alert_everyone'] ?? 0,
+            'stream_alert_custom_role' => $discordData['stream_alert_custom_role'] ?? '',
+            'moderation_channel_id' => $discordData['moderation_channel_id'] ?? '',
+            'alert_channel_id' => $discordData['alert_channel_id'] ?? '',
+            'member_streams_id' => $discordData['member_streams_id'] ?? '',
+            'manual_ids' => $discordData['manual_ids'] ?? 0,
+            'tracked_streams' => [],
+            'server_management_settings' => []
+        ];
+        // Fetch tracked streams from user's database if exists
+        try {
+            $userConn = new mysqli($db_servername, $db_username, $db_password, $userDbName);
+            if (!$userConn->connect_error) {
+                // Check if member_streams table exists
+                $tableCheck = $userConn->query("SHOW TABLES LIKE 'member_streams'");
+                if ($tableCheck->num_rows > 0) {
+                    $streams = [];
+                    $stmt = $userConn->prepare("SELECT username, stream_url FROM member_streams ORDER BY username ASC");
+                    if ($stmt) {
+                        $stmt->execute();
+                        $resultStreams = $stmt->get_result();
+                        while ($row = $resultStreams->fetch_assoc()) {
+                            $streams[] = $row;
+                        }
+                        $stmt->close();
+                    }
+                    if (!empty($streams)) {
+                        // Remove duplicates based on username
+                        $uniqueStreams = [];
+                        foreach ($streams as $stream) {
+                            $uniqueStreams[$stream['username']] = $stream;
+                        }
+                        $userConfig['tracked_streams'] = array_values($uniqueStreams);
+                    }
+                }
+                $userConn->close();
             }
-            $stmt->close();
+        } catch (mysqli_sql_exception $e) {
+            // User database doesn't exist, skip streams
         }
-        if (!empty($streams)) {
-            // Remove duplicates based on username
-            $uniqueStreams = [];
-            foreach ($streams as $stream) {
-                $uniqueStreams[$stream['username']] = $stream;
+        // Fetch server management settings if guild_id is set
+        if (!empty($userConfig['guild_id'])) {
+            $mgmtStmt = $discord_conn->prepare("SELECT * FROM server_management WHERE server_id = ?");
+            $mgmtStmt->bind_param("s", $userConfig['guild_id']);
+            $mgmtStmt->execute();
+            $mgmtResult = $mgmtStmt->get_result();
+            if ($mgmtResult->num_rows > 0) {
+                $userConfig['server_management_settings'] = $mgmtResult->fetch_assoc();
             }
-            $trackingData[$username] = array_values($uniqueStreams);
+            $mgmtStmt->close();
         }
-        $userConn->close();
-    } catch (mysqli_sql_exception $e) {
-        // Skip users whose database doesn't exist
-        continue;
+        $discordConfigData[$username] = $userConfig;
     }
+    $discordStmt->close();
 }
 
 ob_start();
@@ -61,28 +110,28 @@ ob_start();
 <div class="box">
     <div class="level">
         <div class="level-left">
-            <h1 class="title is-4"><span class="icon"><i class="fab fa-discord"></i></span> Discord Stream Tracking</h1>
+            <h1 class="title is-4"><span class="icon"><i class="fab fa-discord"></i></span> Discord Bot Configuration Overview</h1>
         </div>
-        <!-- Modal used to show user's tracked streams -->
-        <div id="user-details-modal" class="modal">
+        <!-- Modal for detailed user configuration -->
+        <div id="user-config-modal" class="modal">
             <div class="modal-background"></div>
             <div class="modal-card">
                 <header class="modal-card-head">
-                    <p id="modal-title" class="modal-card-title">Tracked Streams</p>
-                    <button class="delete" aria-label="close" id="modal-close"></button>
+                    <p id="config-modal-title" class="modal-card-title">Discord Configuration Details</p>
+                    <button class="delete" aria-label="close" id="config-modal-close"></button>
                 </header>
-                <section class="modal-card-body" id="modal-body">
+                <section class="modal-card-body" id="config-modal-body" style="max-height: 70vh; overflow-y: auto;">
                     <!-- populated by JS -->
                 </section>
                 <footer class="modal-card-foot">
-                    <button class="button" id="modal-close-btn">Close</button>
+                    <button class="button" id="config-modal-close-btn">Close</button>
                 </footer>
             </div>
         </div>
         <div class="level-right">
             <div class="field has-addons">
                 <div class="control">
-                    <input id="user-search" class="input" type="text" placeholder="Search users or streamers...">
+                    <input id="user-search" class="input" type="text" placeholder="Search users...">
                 </div>
                 <div class="control">
                     <a id="clear-search" class="button is-light" title="Clear search">Clear</a>
@@ -90,66 +139,89 @@ ob_start();
             </div>
         </div>
     </div>
-    <p class="mb-4">Overview of users with Discord stream tracking. Click a user to expand tracked streams.</p>
-    <?php if (empty($trackingData)): ?>
+    <p class="mb-4">Overview of all users with Discord bot configuration. Click a user card to view full details.</p>
+    <?php if (empty($discordConfigData)): ?>
         <div class="notification is-info">
-            <p>No users currently have Discord stream tracking configured.</p>
+            <p>No users currently have Discord bot configuration set up.</p>
         </div>
     <?php else: ?>
-        <div class="columns is-multiline" id="tracking-cards">
-            <?php foreach ($trackingData as $username => $streams): ?>
-                <?php $safeUser = htmlspecialchars($username); $count = count($streams); ?>
-                <div class="column is-6-tablet is-4-desktop tracking-card" data-username="<?php echo strtolower($safeUser); ?>">
-                        <div class="card">
-                            <header class="card-header user-details-open" role="button" aria-expanded="false" tabindex="0">
-                                <p class="card-header-title">
-                                    <span class="has-text-weight-semibold"><?php echo $safeUser; ?></span>
-                                    <span class="ml-3 has-text-grey">&middot; <?php echo $count; ?> tracked</span>
-                                </p>
-                                <a href="#" class="card-header-icon" aria-label="view details">
-                                    <span class="icon"><i class="fas fa-external-link-alt" aria-hidden="true"></i></span>
-                                </a>
-                            </header>
-                            <!-- Store the details markup hidden so JS can move into modal -->
-                            <div class="card-content details-template" style="display:none;">
-                                <?php if ($count === 0): ?>
-                                    <div class="content"><em>No streams tracked.</em></div>
-                                <?php else: ?>
-                                    <div class="content stream-list">
-                                        <?php foreach ($streams as $stream): ?>
-                                            <div class="stream-item" data-streamer="<?php echo strtolower(htmlspecialchars($stream['username'])); ?>">
-                                                <div class="columns is-vcentered is-mobile">
-                                                    <div class="column is-5">
-                                                        <strong><?php echo htmlspecialchars($stream['username']); ?></strong>
-                                                    </div>
-                                                    <div class="column is-7">
-                                                        <?php if (!empty($stream['stream_url'])): ?>
-                                                            <a href="<?php echo htmlspecialchars($stream['stream_url']); ?>" target="_blank" rel="noopener noreferrer">
-                                                                <?php echo htmlspecialchars($stream['stream_url']); ?>
-                                                            </a>
-                                                        <?php else: ?>
-                                                            <em>No URL</em>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
+        <div class="columns is-multiline" id="config-cards">
+            <?php foreach ($discordConfigData as $username => $config): ?>
+                <?php 
+                    $safeUser = htmlspecialchars($username);
+                    $isLinked = $config['is_linked'];
+                    $hasGuild = !empty($config['guild_id']);
+                    $trackedCount = count($config['tracked_streams']);
+                    $statusClass = $isLinked ? 'is-success' : 'is-warning';
+                    $statusText = $isLinked ? 'Linked' : 'Not Linked';
+                ?>
+                <div class="column is-6-tablet is-4-desktop config-card" data-username="<?php echo strtolower($safeUser); ?>" data-linked="<?php echo $isLinked ? '1' : '0'; ?>">
+                    <div class="card">
+                        <header class="card-header">
+                            <p class="card-header-title">
+                                <span class="has-text-weight-semibold"><?php echo $safeUser; ?></span>
+                            </p>
+                            <div class="card-header-icon">
+                                <span class="tag <?php echo $statusClass; ?>"><?php echo $statusText; ?></span>
+                            </div>
+                        </header>
+                        <div class="card-content">
+                            <div class="content">
+                                <?php if ($isLinked): ?>
+                                    <p><strong>Discord User:</strong> <?php echo htmlspecialchars($config['discord_username']); ?></p>
+                                <?php endif; ?>
+                                <p><strong>Guild ID:</strong> <?php echo !empty($config['guild_id']) ? htmlspecialchars($config['guild_id']) : '<em>Not set</em>'; ?></p>
+                                <p><strong>Live Channel:</strong> <?php echo !empty($config['live_channel_id']) ? htmlspecialchars($config['live_channel_id']) : '<em>Not set</em>'; ?></p>
+                                <?php if ($trackedCount > 0): ?>
+                                    <p><strong>Tracked Streams:</strong> <span class="tag is-info"><?php echo $trackedCount; ?></span></p>
+                                <?php endif; ?>
+                                <?php 
+                                    $enabledFeatures = [];
+                                    if (!empty($config['stream_alert_channel_id'])) $enabledFeatures[] = 'Stream Alerts';
+                                    if (!empty($config['moderation_channel_id'])) $enabledFeatures[] = 'Moderation';
+                                    if (!empty($config['alert_channel_id'])) $enabledFeatures[] = 'Alerts';
+                                    if (!empty($config['member_streams_id'])) $enabledFeatures[] = 'Stream Monitoring';
+                                    if (!empty($config['server_management_settings'])): 
+                                        $mgmt = $config['server_management_settings'];
+                                        if (!empty($mgmt['welcome_message_channel_id'])) $enabledFeatures[] = 'Welcome';
+                                        if (!empty($mgmt['auto_role_assignment_configuration_role_id'])) $enabledFeatures[] = 'Auto Role';
+                                        if (!empty($mgmt['message_tracking_configuration'])) $enabledFeatures[] = 'Message Tracking';
+                                    endif;
+                                ?>
+                                <?php if (!empty($enabledFeatures)): ?>
+                                    <div class="mt-3">
+                                        <p><strong>Enabled Features:</strong></p>
+                                        <div class="tags">
+                                            <?php foreach ($enabledFeatures as $feature): ?>
+                                                <span class="tag is-light"><?php echo htmlspecialchars($feature); ?></span>
+                                            <?php endforeach; ?>
+                                        </div>
                                     </div>
                                 <?php endif; ?>
                             </div>
                         </div>
+                        <footer class="card-footer">
+                            <a href="#" class="card-footer-item view-config-btn" data-username="<?php echo htmlspecialchars($username); ?>">View Full Config</a>
+                        </footer>
+                    </div>
                 </div>
             <?php endforeach; ?>
         </div>
         <div class="level mt-4">
             <div class="level-left">
                 <div class="level-item">
-                    <p><strong>Total Users with Tracking:</strong> <?php echo count($trackingData); ?></p>
+                    <p><strong>Total Users:</strong> <?php echo count($discordConfigData); ?></p>
+                </div>
+                <div class="level-item">
+                    <p><strong>Linked Users:</strong> <?php echo count(array_filter($discordConfigData, fn($c) => $c['is_linked'])); ?></p>
+                </div>
+                <div class="level-item">
+                    <p><strong>With Guild:</strong> <?php echo count(array_filter($discordConfigData, fn($c) => !empty($c['guild_id']))); ?></p>
                 </div>
             </div>
             <div class="level-right">
                 <div class="level-item">
-                    <p><strong>Total Tracked Streams:</strong> <?php echo array_sum(array_map('count', $trackingData)); ?></p>
+                    <p><strong>Total Tracked Streams:</strong> <?php echo array_sum(array_map(fn($c) => count($c['tracked_streams']), $discordConfigData)); ?></p>
                 </div>
             </div>
         </div>
@@ -163,7 +235,14 @@ ob_start();
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('user-search');
     const clearBtn = document.getElementById('clear-search');
-    const cardsContainer = document.getElementById('tracking-cards');
+    const cardsContainer = document.getElementById('config-cards');
+    const configModal = document.getElementById('user-config-modal');
+    const configModalTitle = document.getElementById('config-modal-title');
+    const configModalBody = document.getElementById('config-modal-body');
+    const configModalClose = document.getElementById('config-modal-close');
+    const configModalCloseBtn = document.getElementById('config-modal-close-btn');
+    // Config data embedded from PHP
+    const allConfigData = <?php echo json_encode($discordConfigData); ?>;
     // Debounce helper
     function debounce(fn, delay) {
         let t;
@@ -174,77 +253,119 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     function filterCards() {
         const q = (searchInput.value || '').trim().toLowerCase();
-        const cards = cardsContainer.querySelectorAll('.tracking-card');
+        const cards = cardsContainer.querySelectorAll('.config-card');
         if (!q) {
             cards.forEach(c => c.style.display = '');
             return;
         }
         cards.forEach(card => {
             const user = card.getAttribute('data-username') || '';
-            let matched = user.includes(q);
-            // If not matched by username, check streams inside
-            if (!matched) {
-                const rows = card.querySelectorAll('tbody tr');
-                rows.forEach(r => {
-                    const streamer = r.getAttribute('data-streamer') || '';
-                    const urlCell = r.querySelector('td:nth-child(2)');
-                    const urlText = urlCell ? (urlCell.textContent || '').toLowerCase() : '';
-                    if (streamer.includes(q) || urlText.includes(q)) matched = true;
-                });
-            }
-            card.style.display = matched ? '' : 'none';
+            card.style.display = user.includes(q) ? '' : 'none';
         });
     }
     const debouncedFilter = debounce(filterCards, 220);
     searchInput.addEventListener('input', debouncedFilter);
     clearBtn.addEventListener('click', function(e) { e.preventDefault(); searchInput.value = ''; debouncedFilter(); });
-    // Open modal with user details when header clicked
-    const modal = document.getElementById('user-details-modal');
-    const modalTitle = document.getElementById('modal-title');
-    const modalBody = document.getElementById('modal-body');
-    const modalClose = document.getElementById('modal-close');
-    const modalCloseBtn = document.getElementById('modal-close-btn');
-    function openModal(title, contentNode) {
-        modalTitle.textContent = title;
-        // Clear previous
-        modalBody.innerHTML = '';
-        // Append a clone so we don't remove from the card
-        const clone = contentNode.cloneNode(true);
-        // details-template was initially hidden via inline style; ensure cloned content is visible in modal
-        clone.style.display = '';
-        clone.classList.remove('details-template');
-        // If the clone contains a table, ensure it's visible
-        const hiddenEls = clone.querySelectorAll('[style*="display:none"]');
-        hiddenEls.forEach(el => el.style.display = '');
-    modalBody.appendChild(clone);
-        modal.classList.add('is-active');
-        // focus close for accessibility
-        modalCloseBtn.focus();
+    // Open config modal
+    function openConfigModal(username) {
+        const config = allConfigData[username];
+        if (!config) return;
+        configModalTitle.textContent = username + ' — Discord Configuration';
+        configModalBody.innerHTML = '';
+        // Build detailed config HTML
+        let html = '<div class="content">';
+        // Basic Info
+        html += '<h4 class="title is-5">Basic Information</h4>';
+        html += '<table class="table is-fullwidth is-striped"><tbody>';
+        html += `<tr><td><strong>Twitch Username</strong></td><td>${escapeHtml(config.username)}</td></tr>`;
+        html += `<tr><td><strong>Discord Linked</strong></td><td><span class="tag ${config.is_linked ? 'is-success' : 'is-warning'}">${config.is_linked ? 'Yes' : 'No'}</span></td></tr>`;
+        if (config.discord_username) {
+            html += `<tr><td><strong>Discord Username</strong></td><td>${escapeHtml(config.discord_username)}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        // Server Configuration
+        html += '<h4 class="title is-5 mt-4">Server Configuration</h4>';
+        html += '<table class="table is-fullwidth is-striped"><tbody>';
+        html += `<tr><td><strong>Guild ID</strong></td><td>${config.guild_id ? escapeHtml(config.guild_id) : '<em>Not set</em>'}</td></tr>`;
+        html += `<tr><td><strong>Manual IDs Mode</strong></td><td>${config.manual_ids ? 'Enabled' : 'Disabled'}</td></tr>`;
+        html += '</tbody></table>';
+        // Stream Configuration
+        html += '<h4 class="title is-5 mt-4">Stream Configuration</h4>';
+        html += '<table class="table is-fullwidth is-striped"><tbody>';
+        html += `<tr><td><strong>Live Channel ID</strong></td><td>${config.live_channel_id ? escapeHtml(config.live_channel_id) : '<em>Not set</em>'}</td></tr>`;
+        html += `<tr><td><strong>Online Text</strong></td><td>${config.online_text ? escapeHtml(config.online_text) : '<em>Not set</em>'}</td></tr>`;
+        html += `<tr><td><strong>Offline Text</strong></td><td>${config.offline_text ? escapeHtml(config.offline_text) : '<em>Not set</em>'}</td></tr>`;
+        html += '<tr><td colspan="2"><hr></td></tr>';
+        html += `<tr><td><strong>Stream Alert Channel</strong></td><td>${config.stream_alert_channel_id ? escapeHtml(config.stream_alert_channel_id) : '<em>Not set</em>'}</td></tr>`;
+        html += `<tr><td><strong>Alert Everyone</strong></td><td>${config.stream_alert_everyone ? 'Yes' : 'No'}</td></tr>`;
+        html += `<tr><td><strong>Custom Role for Alerts</strong></td><td>${config.stream_alert_custom_role ? escapeHtml(config.stream_alert_custom_role) : '<em>Not set</em>'}</td></tr>`;
+        html += '</tbody></table>';
+        // Other Channels
+        html += '<h4 class="title is-5 mt-4">Other Channels</h4>';
+        html += '<table class="table is-fullwidth is-striped"><tbody>';
+        html += `<tr><td><strong>Moderation Channel</strong></td><td>${config.moderation_channel_id ? escapeHtml(config.moderation_channel_id) : '<em>Not set</em>'}</td></tr>`;
+        html += `<tr><td><strong>Alert Channel</strong></td><td>${config.alert_channel_id ? escapeHtml(config.alert_channel_id) : '<em>Not set</em>'}</td></tr>`;
+        html += `<tr><td><strong>Stream Monitoring Channel</strong></td><td>${config.member_streams_id ? escapeHtml(config.member_streams_id) : '<em>Not set</em>'}</td></tr>`;
+        html += '</tbody></table>';
+        // Tracked Streams
+        if (config.tracked_streams && config.tracked_streams.length > 0) {
+            html += '<h4 class="title is-5 mt-4">Tracked Streams</h4>';
+            html += '<table class="table is-fullwidth is-striped is-hoverable"><thead><tr><th>Username</th><th>Stream URL</th></tr></thead><tbody>';
+            config.tracked_streams.forEach(stream => {
+                html += `<tr><td>${escapeHtml(stream.username)}</td><td>`;
+                if (stream.stream_url) {
+                    html += `<a href="${escapeHtml(stream.stream_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(stream.stream_url)}</a>`;
+                } else {
+                    html += '<em>No URL</em>';
+                }
+                html += '</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        // Server Management Settings
+        if (config.server_management_settings && Object.keys(config.server_management_settings).length > 0) {
+            const mgmt = config.server_management_settings;
+            html += '<h4 class="title is-5 mt-4">Server Management Settings</h4>';
+            html += '<table class="table is-fullwidth is-striped"><tbody>';
+            html += `<tr><td><strong>Welcome Channel</strong></td><td>${mgmt.welcome_message_channel_id ? escapeHtml(mgmt.welcome_message_channel_id) : '<em>Not set</em>'}</td></tr>`;
+            html += `<tr><td><strong>Auto Role</strong></td><td>${mgmt.auto_role_assignment_configuration_role_id ? escapeHtml(mgmt.auto_role_assignment_configuration_role_id) : '<em>Not set</em>'}</td></tr>`;
+            html += `<tr><td><strong>Message Tracking</strong></td><td>${mgmt.message_tracking_configuration ? 'Enabled' : 'Not set'}</td></tr>`;
+            html += `<tr><td><strong>Role Tracking</strong></td><td>${mgmt.role_tracking_configuration ? 'Enabled' : 'Not set'}</td></tr>`;
+            html += `<tr><td><strong>User Tracking</strong></td><td>${mgmt.user_tracking_configuration ? 'Enabled' : 'Not set'}</td></tr>`;
+            html += `<tr><td><strong>Reaction Roles</strong></td><td>${mgmt.reaction_roles_configuration ? 'Enabled' : 'Not set'}</td></tr>`;
+            html += `<tr><td><strong>Rules Channel</strong></td><td>${mgmt.rules_configuration_channel_id ? escapeHtml(mgmt.rules_configuration_channel_id) : '<em>Not set</em>'}</td></tr>`;
+            html += `<tr><td><strong>Stream Schedule Channel</strong></td><td>${mgmt.stream_schedule_configuration_channel_id ? escapeHtml(mgmt.stream_schedule_configuration_channel_id) : '<em>Not set</em>'}</td></tr>`;
+            html += '</tbody></table>';
+        }
+        html += '</div>';
+        configModalBody.innerHTML = html;
+        configModal.classList.add('is-active');
+        configModalCloseBtn.focus();
     }
-    function closeModal() {
-        modal.classList.remove('is-active');
-        modalBody.innerHTML = '';
+    function closeConfigModal() {
+        configModal.classList.remove('is-active');
+        configModalBody.innerHTML = '';
     }
-    // Click handlers on headers
-    document.querySelectorAll('.user-details-open').forEach(header => {
-        header.addEventListener('click', function(e) {
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    // View config buttons
+    document.querySelectorAll('.view-config-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
             e.preventDefault();
-            const card = this.closest('.tracking-card');
-            if (!card) return;
-            const username = card.getAttribute('data-username') || '';
-            const template = card.querySelector('.details-template');
-            if (!template) return;
-            // Set title nicely
-            const pretty = username.replace(/-/g, ' ');
-            openModal(pretty + ' — Tracked Streams', template);
+            const username = this.getAttribute('data-username');
+            openConfigModal(username);
         });
-        header.addEventListener('keypress', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } });
     });
-    // modal close events
-    modalClose.addEventListener('click', closeModal);
-    modalCloseBtn.addEventListener('click', closeModal);
-    modal.querySelector('.modal-background').addEventListener('click', closeModal);
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+    // Modal close events
+    configModalClose.addEventListener('click', closeConfigModal);
+    configModalCloseBtn.addEventListener('click', closeConfigModal);
+    configModal.querySelector('.modal-background').addEventListener('click', closeConfigModal);
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeConfigModal();
+    });
 });
 </script>
 <?php
