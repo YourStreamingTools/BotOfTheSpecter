@@ -6,6 +6,33 @@
     display: none;
 }
 
+/* Collapsible sections styling */
+.collapsible-header {
+    user-select: none;
+}
+
+.collapsible-header:hover {
+    opacity: 0.8;
+}
+
+.collapse-icon {
+    display: inline-block;
+    transition: transform 0.3s ease;
+}
+
+.collapse-icon.open {
+    transform: rotate(90deg);
+}
+
+.collapsible-content {
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    overflow: visible;
+}
+
+.collapsible-content.open {
+    display: block !important;
+}
+
 .tracking-card .card {
     height: 100%;
     display: flex;
@@ -40,14 +67,17 @@
     border: 1px solid rgba(2,6,23,0.10);
     background-clip: padding-box;
     transition: box-shadow 160ms ease;
+    margin-bottom: 2rem;
 }
 
 .hover-box {
+    box-shadow: 0 20px 40px rgba(2,6,23,0.20), 0 8px 18px rgba(2,6,23,0.10);
     transition: transform 160ms ease, box-shadow 160ms ease;
+    margin: 0;
 }
 
 .hover-box:hover {
-    transform: translateY(-6px);
+    transform: translateY(-6px) scale(1.02);
     box-shadow: 0 30px 70px rgba(2,6,23,0.26), 0 12px 28px rgba(2,6,23,0.12);
 }
 
@@ -227,6 +257,7 @@
 /* Bot Message Counts boxes - ensure uniform sizing */
 .box > div[style*="grid-template-columns"] {
     grid-auto-rows: 1fr;
+    overflow: visible;
 }
 
 .bot-message-box {
