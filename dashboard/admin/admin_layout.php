@@ -117,7 +117,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
     $active_menu = 'feedback';
 } elseif ($current_file == 'twitch_tokens.php') {
     $active_menu = 'twitch';
-} elseif ($current_file == 'discord_tracking.php') {
+} elseif ($current_file == 'discordbot_overview.php') {
     $active_menu = 'discord';
 } elseif ($current_file == 'websocket_clients.php') {
     $active_menu = 'websocket';
