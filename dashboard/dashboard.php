@@ -139,7 +139,7 @@ if ($isLoggedIn) {
                                 </span>
                             </div>
                             <h4 class="title is-5">OBSConnector</h4>
-                            <p class="subtitle is-6">Connect your OBS Studio to the Specter System</p>
+                            <p class="subtitle is-6">Connect OBS to the Specter System</p>
                             <a href="obsconnector.php" class="button is-link is-fullwidth">
                                 <span class="icon"><i class="fas fa-cogs"></i></span>
                                 <span>OBS Connector</span>
