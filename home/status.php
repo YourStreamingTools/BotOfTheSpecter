@@ -137,6 +137,21 @@ while ($row = $result->fetch_assoc()) {
     $usersByYear[] = $row;
 }
 
+// Fetch chat message counts by bot system
+$botMessageCounts = [];
+$messageSystemNames = [
+    'discordbot' => 'Discord Bot',
+    'twitch_stable' => 'Chat Bot Stable',
+    'twitch_beta' => 'Chat Bot Beta',
+    'twitch_custom' => 'Chat Bot Custom'
+];
+$result = $conn->query("SELECT bot_system, messages_sent FROM bot_messages WHERE bot_system IN ('discordbot', 'twitch_stable', 'twitch_beta', 'twitch_custom')");
+if ($result) {
+    while ($row = $result->fetch_assoc()) {
+        $botMessageCounts[$row['bot_system']] = $row['messages_sent'];
+    }
+}
+
 // AJAX endpoint for JS polling
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
@@ -159,6 +174,15 @@ if (isset($_GET['ajax'])) {
         $metricsAjax[] = $row;
     }
     $data['metrics'] = $metricsAjax;
+    // Fetch bot message counts for AJAX
+    $botMessageCountsAjax = [];
+    $result = $conn->query("SELECT bot_system, messages_sent FROM bot_messages WHERE bot_system IN ('discordbot', 'twitch_stable', 'twitch_beta', 'twitch_custom')");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $botMessageCountsAjax[$row['bot_system']] = $row['messages_sent'];
+        }
+    }
+    $data['botMessageCounts'] = $botMessageCountsAjax;
     $betaUsersAjax = [];
     $result = $conn->query("SELECT twitch_display_name FROM users WHERE beta_access = '1' AND twitch_display_name NOT IN ('BotOfTheSpecter', 'GamingForAustralia') ORDER BY id");
     while ($row = $result->fetch_assoc()) {
@@ -304,11 +328,14 @@ function checkServiceStatus($serviceName, $serviceData) {
             </div>
         </div>
         <div class="column is-one-quarter">
-            <!-- Extra Column 2 -->
+            <!-- Messages Sent Section -->
             <div class="section">
-                <!--<h2></h2>-->
-                <div>
-                    <div class="info-item"></div>
+                <h2>Messages Sent</h2>
+                <div id="message-counts">
+                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-messages"><?= ($botMessageCounts['discordbot'] ?? 0) == 0 ? 'Not Counting Yet' : $botMessageCounts['discordbot']; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-messages"><?= ($botMessageCounts['twitch_stable'] ?? 0) == 0 ? 'Not Counting Yet' : $botMessageCounts['twitch_stable']; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-messages"><?= ($botMessageCounts['twitch_beta'] ?? 0) == 0 ? 'Not Counting Yet' : $botMessageCounts['twitch_beta']; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Custom:</span> <span id="custom-messages"><?= ($botMessageCounts['twitch_custom'] ?? 0) == 0 ? 'Not Counting Yet' : $botMessageCounts['twitch_custom']; ?></span></div>
                 </div>
             </div>
         </div>
@@ -423,6 +450,13 @@ function fetchAndUpdateStatus() {
             document.getElementById('exchange-requests').textContent = data.exchangeRateRequestsRemaining ?? 'N/A';
             // Update weather info
             document.getElementById('weather-requests').textContent = data.weatherRequestsRemaining ?? 'N/A';
+            // Update message counts if present
+            if (data.botMessageCounts) {
+                document.getElementById('discord-messages').textContent = (data.botMessageCounts['discordbot'] ?? 0) == 0 ? 'Not Counting Yet' : data.botMessageCounts['discordbot'];
+                document.getElementById('stable-messages').textContent = (data.botMessageCounts['twitch_stable'] ?? 0) == 0 ? 'Not Counting Yet' : data.botMessageCounts['twitch_stable'];
+                document.getElementById('beta-messages').textContent = (data.botMessageCounts['twitch_beta'] ?? 0) == 0 ? 'Not Counting Yet' : data.botMessageCounts['twitch_beta'];
+                document.getElementById('custom-messages').textContent = (data.botMessageCounts['twitch_custom'] ?? 0) == 0 ? 'Not Counting Yet' : data.botMessageCounts['twitch_custom'];
+            }
             // Update metrics if present
             if (data.metrics) {
                 let metricsHtml = '';
