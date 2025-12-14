@@ -297,11 +297,11 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                 <div class="sidebar-tooltip">Twitch Tokens</div>
             </li>
             <li class="sidebar-menu-item">
-                <a href="discord_tracking.php" class="sidebar-menu-link <?php echo $active_menu == 'discord' ? 'active' : ''; ?>">
+                <a href="discordbot_overview.php" class="sidebar-menu-link <?php echo $active_menu == 'discord' ? 'active' : ''; ?>">
                     <span class="icon sidebar-menu-icon"><i class="fab fa-discord"></i></span>
-                    <span class="sidebar-menu-text">Discord Tracking</span>
+                    <span class="sidebar-menu-text">Discord Bot Overview</span>
                 </a>
-                <div class="sidebar-tooltip">Discord Tracking</div>
+                <div class="sidebar-tooltip">Discord Bot Overview</div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="websocket_clients.php" class="sidebar-menu-link <?php echo $active_menu == 'websocket' ? 'active' : ''; ?>">
@@ -472,7 +472,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
         document.querySelectorAll('.sidebar-menu-link.active').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.navbar-item.is-active').forEach(el => el.classList.remove('is-active'));
         // Admin active menu logic
-        if (currentPath.includes('/admin') && !currentPath.includes('users.php') && !currentPath.includes('logs.php') && !currentPath.includes('feedback.php') && !currentPath.includes('twitch_tokens.php') && !currentPath.includes('discord_tracking.php') && !currentPath.includes('websocket_clients.php') && !currentPath.includes('terminal.php')) {
+        if (currentPath.includes('/admin') && !currentPath.includes('users.php') && !currentPath.includes('logs.php') && !currentPath.includes('feedback.php') && !currentPath.includes('twitch_tokens.php') && !currentPath.includes('discordbot_overview.php') && !currentPath.includes('websocket_clients.php') && !currentPath.includes('terminal.php')) {
             // Dashboard
             const dashboardLinks = document.querySelectorAll('a[href="/admin"]');
             dashboardLinks.forEach(link => {
@@ -507,9 +507,9 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
-        } else if (currentPath.includes('discord_tracking.php')) {
-            // Discord Tracking
-            const discordLinks = document.querySelectorAll('a[href*="discord_tracking.php"]');
+        } else if (currentPath.includes('discordbot_overview.php')) {
+            // Discord Bot Overview
+            const discordLinks = document.querySelectorAll('a[href*="discordbot_overview.php"]');
             discordLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
