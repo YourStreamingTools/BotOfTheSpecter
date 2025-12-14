@@ -134,15 +134,15 @@ if ($isLoggedIn) {
                     <div class="card">
                         <div class="card-content has-text-centered">
                             <div class="mb-3">
-                                <span class="icon is-large has-text-primary">
-                                    <i class="fab fa-discord fa-2x"></i>
+                                <span class="icon is-large has-text-link">
+                                    <i class="fas fa-plug fa-2x"></i>
                                 </span>
                             </div>
-                            <h4 class="title is-5">Discord Bot</h4>
-                            <p class="subtitle is-6">Manage your Discord integration</p>
-                            <a href="discordbot.php" class="button is-primary is-fullwidth">
-                                <span class="icon"><i class="fas fa-cog"></i></span>
-                                <span>Manage Discord Bot</span>
+                            <h4 class="title is-5">OBSConnector</h4>
+                            <p class="subtitle is-6">Connect your OBS Studio to the Specter System</p>
+                            <a href="obsconnector.php" class="button is-link is-fullwidth">
+                                <span class="icon"><i class="fas fa-cogs"></i></span>
+                                <span>OBS Connector</span>
                             </a>
                         </div>
                     </div>
