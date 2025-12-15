@@ -304,6 +304,9 @@ async def mysql_connection(db_name=None):
 # Connect to database spam_pattern and fetch patterns
 async def get_spam_patterns():
     connection = await mysql_connection(db_name="spam_pattern")
+    if connection is None:
+        bot_logger.error("Failed to connect to database in get_spam_patterns")
+        return []
     try:
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT spam_pattern FROM spam_patterns")
@@ -311,7 +314,8 @@ async def get_spam_patterns():
         compiled_patterns = [re.compile(re.escape(row["spam_pattern"]), re.IGNORECASE) for row in results if row["spam_pattern"]]
         return compiled_patterns
     finally:
-        await connection.close()
+        if connection:
+            await connection.close()
 
 # Setup Token Refresh
 async def twitch_token_refresh():
@@ -7324,6 +7328,9 @@ async def is_user_subscribed(user_id):
 # Function to add user to the table of known users
 async def user_is_seen(username):
     connection = await mysql_connection()
+    if connection is None:
+        bot_logger.error("Failed to connect to database in user_is_seen")
+        return
     try:
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (username, "True"))
@@ -7331,7 +7338,8 @@ async def user_is_seen(username):
     except Exception as e:
         bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
     finally:
-        await connection.close()
+        if connection:
+            await connection.close()
 
 # Function to fetch custom API responses
 async def fetch_api_response(url, json_flag=False):
@@ -7366,6 +7374,9 @@ def safe_math(expr: str):
 async def update_custom_count(command, count):
     count = int(count)
     connection = await mysql_connection()
+    if connection is None:
+        chat_logger.error("Failed to connect to database in update_custom_count")
+        return
     try:
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
@@ -7383,10 +7394,14 @@ async def update_custom_count(command, count):
         chat_logger.error(f"Error updating count for command '{command}': {e}")
         await connection.rollback()
     finally:
-        await connection.close()
+        if connection:
+            await connection.close()
 
 async def get_custom_count(command):
     connection = await mysql_connection()
+    if connection is None:
+        chat_logger.error("Failed to connect to database in get_custom_count")
+        return 0
     try:
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
@@ -7402,12 +7417,16 @@ async def get_custom_count(command):
         chat_logger.error(f"Error retrieving count for command '{command}': {e}")
         return 0
     finally:
-        await connection.close()
+        if connection:
+            await connection.close()
 
 # Function to update user counts
 async def update_user_count(command, user, count):
     count = int(count)
     connection = await mysql_connection()
+    if connection is None:
+        chat_logger.error("Failed to connect to database in update_user_count")
+        return
     try:
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
@@ -7425,10 +7444,14 @@ async def update_user_count(command, user, count):
         chat_logger.error(f"Error updating user count for command '{command}' and user '{user}': {e}")
         await connection.rollback()
     finally:
-        await connection.close()
+        if connection:
+            await connection.close()
 
 async def get_user_count(command, user):
     connection = await mysql_connection()
+    if connection is None:
+        chat_logger.error("Failed to connect to database in get_user_count")
+        return 0
     try:
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
@@ -7444,11 +7467,15 @@ async def get_user_count(command, user):
         chat_logger.error(f"Error retrieving user count for command '{command}' and user '{user}': {e}")
         return 0
     finally:
-        await connection.close()
+        if connection:
+            await connection.close()
 
 # Functions for weather
 async def get_streamer_weather():
     connection = await mysql_connection()
+    if connection is None:
+        chat_logger.error("Failed to connect to database in get_streamer_weather")
+        return None
     try:
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT weather_location FROM profile")
@@ -7460,7 +7487,8 @@ async def get_streamer_weather():
             else:
                 return None
     finally:
-        await connection.close()
+        if connection:
+            await connection.close()
 
 # Function to udpate the stream title
 async def trigger_twitch_title_update(new_title):
@@ -9042,6 +9070,9 @@ async def websocket_notice(
 async def builtin_commands_creation():
     all_commands = list(mod_commands) + list(builtin_commands)
     connection = await mysql_connection()
+    if connection is None:
+        bot_logger.error("Failed to connect to database in builtin_commands_creation")
+        return
     try:
         async with connection.cursor(DictCursor) as cursor:
             # Create placeholders for the query
@@ -9085,7 +9116,8 @@ async def builtin_commands_creation():
     except MySQLOtherErrors as e:
         bot_logger.error(f"builtin_commands_creation function error: {e}")
     finally:
-        await connection.close()
+        if connection:
+            await connection.close()
 
 # Function to tell the website what version of the bot is currently running
 async def update_version_control():
