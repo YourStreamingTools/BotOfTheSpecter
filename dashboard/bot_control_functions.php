@@ -305,7 +305,8 @@ function performBotAction($action, $botType, $params) {
                     }
                     // Construct proper bot start command with all required parameters - MAKE IT BACKGROUND
                     // Use escapeshellarg for safety on dynamic fields
-                    $startCommand = "nohup python " . escapeshellarg($botScriptPath) .
+                    $pythonCmd = ($botType === 'beta') ? '/home/botofthespecter/beta_env/bin/python' : 'python';
+                    $startCommand = "nohup " . $pythonCmd . " " . escapeshellarg($botScriptPath) .
                                     " -channel " . escapeshellarg($username) .
                                     " -channelid " . escapeshellarg($twitchUserId) .
                                     " -token " . escapeshellarg($authToken) .
