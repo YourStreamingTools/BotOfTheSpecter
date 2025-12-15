@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.6"
+VERSION = "5.7"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -514,24 +514,34 @@ async def connect_to_tipping_services():
                 event_logger.info("StreamElements token retrieved from database")
             else:
                 event_logger.info("No StreamElements token found for this channel")
-            # Fetch StreamLabs token  
-            await cursor.execute("SELECT access_token FROM streamlabs_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
+            # Fetch StreamLabs tokens (prefer socket token for websocket connection)
+            await cursor.execute("SELECT socket_token, access_token FROM streamlabs_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
             sl_result = await cursor.fetchone()
             if sl_result:
-                streamlabs_token = sl_result.get('access_token')
-                event_logger.info("StreamLabs token retrieved from database")
+                socket_tok = sl_result.get('socket_token')
+                access_tok = sl_result.get('access_token')
+                if socket_tok:
+                    streamlabs_token = socket_tok
+                    event_logger.info("StreamLabs socket token retrieved from database and will be used for websocket connection")
+                elif access_tok:
+                    # fallback: use access token if socket token isn't available
+                    streamlabs_token = access_tok
+                    event_logger.info("StreamLabs access token retrieved from database; using it as fallback for websocket connection")
+                else:
+                    event_logger.info("StreamLabs entry found but no usable token (socket_token/access_token) present")
             else:
-                event_logger.info("No StreamLabs token found for this channel")
+                event_logger.info("No StreamLabs token record found for this channel")
             # Start connection tasks
             tasks = []
             if streamelements_token:
                 tasks.append(streamelements_connection_manager())
             if streamlabs_token:
                 tasks.append(connect_to_streamlabs())
-            if tasks:
-                await gather(*tasks)
-            else:
-                event_logger.warning("No valid tokens found for either StreamElements or StreamLabs.")
+            # If no tokens were found for either service, stop early
+            if not tasks:
+                event_logger.warning("No valid tokens found for either StreamElements or StreamLabs. Aborting tipping service connection.")
+                return
+            await gather(*tasks)
     except MySQLError as err:
         event_logger.error(f"Database error while fetching tipping service tokens: {err}")
     finally:
@@ -885,33 +895,114 @@ async def process_twitch_eventsub_message(message):
                 # Moderation Event
                 elif event_type == 'channel.moderate':
                     moderator_user_name = event_data.get("moderator_user_name", "Unknown Moderator")
-                    # Skip logging raid actions
-                    if event_data.get("action") == "raid":
+                    action = event_data.get("action")
+                    # Skip logging raid actions as they are handled separately
+                    if action == "raid":
                         return
-                    # Handle timeout action
-                    if event_data.get("action") == "timeout":
+                    # Log the moderation action
+                    event_logger.info(f"Moderation action '{action}' performed by {moderator_user_name}")
+                    # Handle different moderation actions
+                    if action == "timeout":
                         timeout_info = event_data.get("timeout", {})
                         user_name = timeout_info.get("user_name", "Unknown User")
                         reason = timeout_info.get("reason", "No reason provided")
                         expires_at_str = timeout_info.get("expires_at")
                         if expires_at_str:
                             expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
-                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC")
                         else:
                             expires_at_formatted = "No expiration time provided"
-                    # Handle untimeout action
-                    elif event_data.get("action") == "untimeout":
+                        event_logger.info(f"User {user_name} timed out by {moderator_user_name} for: {reason}. Expires at: {expires_at_formatted}")
+                    elif action == "untimeout":
                         untimeout_info = event_data.get("untimeout", {})
                         user_name = untimeout_info.get("user_name", "Unknown User")
-                    # Handle ban action
-                    elif event_data.get("action") == "ban":
-                        banned_info = event_data.get("ban", {})
-                        banned_user_name = banned_info.get("user_name", "Unknown User")
-                        reason = banned_info.get("reason", "No reason provided")
-                    # Handle unban action
-                    elif event_data.get("action") == "unban":
+                        event_logger.info(f"User {user_name} untimed out by {moderator_user_name}")
+                    elif action == "ban":
+                        ban_info = event_data.get("ban", {})
+                        user_name = ban_info.get("user_name", "Unknown User")
+                        reason = ban_info.get("reason", "No reason provided")
+                        event_logger.info(f"User {user_name} banned by {moderator_user_name} for: {reason}")
+                    elif action == "unban":
                         unban_info = event_data.get("unban", {})
-                        banned_user_name = unban_info.get("user_name", "Unknown User")
+                        user_name = unban_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} unbanned by {moderator_user_name}")
+                    elif action == "warn":
+                        warn_info = event_data.get("warn", {})
+                        user_name = warn_info.get("user_name", "Unknown User")
+                        reason = warn_info.get("reason", "No reason provided")
+                        chat_rules_cited = warn_info.get("chat_rules_cited")
+                        rules_text = f" (Chat rules cited: {chat_rules_cited})" if chat_rules_cited else ""
+                        event_logger.info(f"User {user_name} warned by {moderator_user_name} for: {reason}{rules_text}")
+                    elif action == "mod":
+                        mod_info = event_data.get("mod", {})
+                        user_name = mod_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} added as moderator by {moderator_user_name}")
+                    elif action == "unmod":
+                        unmod_info = event_data.get("unmod", {})
+                        user_name = unmod_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} removed as moderator by {moderator_user_name}")
+                    elif action == "vip":
+                        vip_info = event_data.get("vip", {})
+                        user_name = vip_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} added as VIP by {moderator_user_name}")
+                    elif action == "unvip":
+                        unvip_info = event_data.get("unvip", {})
+                        user_name = unvip_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} removed as VIP by {moderator_user_name}")
+                    elif action == "delete":
+                        delete_info = event_data.get("delete", {})
+                        user_name = delete_info.get("user_name", "Unknown User")
+                        message_id = delete_info.get("message_id", "Unknown")
+                        event_logger.info(f"Message deleted from user {user_name} by {moderator_user_name} (Message ID: {message_id})")
+                    elif action == "automod_terms":
+                        automod_info = event_data.get("automod_terms", {})
+                        terms = automod_info.get("terms", [])
+                        event_logger.info(f"AutoMod terms updated by {moderator_user_name}: {terms}")
+                    elif action == "unban_request":
+                        unban_request_info = event_data.get("unban_request", {})
+                        event_logger.info(f"Unban request handled by {moderator_user_name}")
+                    elif action == "shared_chat_ban":
+                        shared_ban_info = event_data.get("shared_chat_ban", {})
+                        user_name = shared_ban_info.get("user_name", "Unknown User")
+                        reason = shared_ban_info.get("reason", "No reason provided")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} banned in shared chat by {moderator_user_name} from {source_broadcaster} for: {reason}")
+                    elif action == "shared_chat_unban":
+                        shared_unban_info = event_data.get("shared_chat_unban", {})
+                        user_name = shared_unban_info.get("user_name", "Unknown User")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} unbanned in shared chat by {moderator_user_name} from {source_broadcaster}")
+                    elif action == "shared_chat_timeout":
+                        shared_timeout_info = event_data.get("shared_chat_timeout", {})
+                        user_name = shared_timeout_info.get("user_name", "Unknown User")
+                        reason = shared_timeout_info.get("reason", "No reason provided")
+                        expires_at_str = shared_timeout_info.get("expires_at")
+                        if expires_at_str:
+                            expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
+                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+                        else:
+                            expires_at_formatted = "No expiration time provided"
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} timed out in shared chat by {moderator_user_name} from {source_broadcaster} for: {reason}. Expires at: {expires_at_formatted}")
+                    elif action == "shared_chat_untimeout":
+                        shared_untimeout_info = event_data.get("shared_chat_untimeout", {})
+                        user_name = shared_untimeout_info.get("user_name", "Unknown User")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} untimed out in shared chat by {moderator_user_name} from {source_broadcaster}")
+                    elif action == "shared_chat_delete":
+                        shared_delete_info = event_data.get("shared_chat_delete", {})
+                        user_name = shared_delete_info.get("user_name", "Unknown User")
+                        message_id = shared_delete_info.get("message_id", "Unknown")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"Message deleted from user {user_name} in shared chat by {moderator_user_name} from {source_broadcaster} (Message ID: {message_id})")
+                    # Handle mode changes (actions without specific user data)
+                    elif action in ["emoteonly", "emoteonlyoff", "followers", "followersoff", "slow", "slowoff", "subscribers", "subscribersoff", "uniquechat", "uniquechatoff"]:
+                        event_logger.info(f"Chat mode '{action}' activated by {moderator_user_name}")
+                    else:
+                        # Log unknown actions for debugging
+                        event_logger.warning(f"Unknown moderation action '{action}' received: {event_data}")
+                    # Send moderation event to websocket for Discord logging
+                    create_task(websocket_notice(event="MODERATION", additional_data=event_data))
                 # Channel Point Rewards Event
                 elif event_type in [
                     "channel.channel_points_automatic_reward_redemption.add", 
@@ -2853,7 +2944,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        await send_chat_message("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
+                        await send_chat_message("BotOfTheSpecter Roadmap can be found here: https://roadmap.botofthespecter.com/")
                         # Record usage
                         add_usage('roadmap', bucket_key, cooldown_bucket)
                     else:
@@ -10151,6 +10242,26 @@ async def get_ad_settings():
                 ad_settings_cache['ad_snoozed_message'] = "Ads have been snoozed."
             ad_settings_cache_time = current_time
             return ad_settings_cache
+    except Exception as e:
+        # Log full exception and fall back to defaults so ad-notice paths can continue
+        try:
+            api_logger.error(f"Error fetching ad settings from DB: {e}")
+        except Exception:
+            # If api_logger is not available for some reason, fallback to bot_logger
+            try:
+                bot_logger.error(f"Error fetching ad settings from DB: {e}")
+            except Exception:
+                pass
+        # Ensure we still return reasonable defaults so ad notifications continue
+        ad_settings_cache = {
+            'ad_start_message': "Ads are running for (duration). We'll be right back after these ads.",
+            'ad_end_message': "Thanks for sticking with us through the ads! Welcome back, everyone!",
+            'ad_upcoming_message': "Heads up! An ad break is coming up in (minutes) minutes and will last (duration).",
+            'ad_snoozed_message': "Ads have been snoozed.",
+            'enable_ad_notice': True
+        }
+        ad_settings_cache_time = current_time
+        return ad_settings_cache
     finally:
         await connection.ensure_closed()
 
@@ -10161,16 +10272,34 @@ async def handle_ad_break_start(duration_seconds):
         return
     formatted_duration = format_duration(duration_seconds)
     ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
-    await send_chat_message(ad_start_message)
+    try:
+        # Try to send the start message and log if it fails
+        sent_ok = await send_chat_message(ad_start_message)
+        if not sent_ok:
+            api_logger.warning(f"Ad start message failed to send: {ad_start_message}")
+    except Exception as e:
+        api_logger.error(f"Exception while sending ad start message: {e}")
+
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
     async def handle_ad_break_end():
-        await send_chat_message(settings['ad_end_message'])
+        try:
+            sent_ok = await send_chat_message(settings['ad_end_message'])
+            if not sent_ok:
+                api_logger.warning(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+        except Exception as e:
+            api_logger.error(f"Exception while sending ad end message: {e}")
         # Check for the next ad after this one completes
-        global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-        ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
-        headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
-        create_task(check_next_ad_after_completion(ads_api_url, headers))
-    handle_ad_break_end.start()
+        try:
+            global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+            ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+            headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
+            create_task(check_next_ad_after_completion(ads_api_url, headers))
+        except Exception as e:
+            api_logger.error(f"Exception scheduling next-ad check after ad end: {e}")
+    try:
+        handle_ad_break_end.start()
+    except Exception as e:
+        api_logger.error(f"Failed to start ad-end routine: {e}")
 
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
@@ -10200,7 +10329,12 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
         async with httpClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
                 if response.status != 200:
-                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}")
+                    # Capture body for debugging
+                    try:
+                        body = await response.text()
+                    except Exception:
+                        body = '<could not read response body>'
+                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}, body: {body}")
                     return last_notification_time, last_ad_time, last_snooze_count
                 data = await response.json()
                 ads_data = data.get("data", [])
@@ -10218,8 +10352,14 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                 if last_snooze_count is not None and snooze_count < last_snooze_count:
                     settings = await get_ad_settings()
                     snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
-                    await send_chat_message(snooze_message)
-                    api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
+                    try:
+                        sent_ok = await send_chat_message(snooze_message)
+                        if not sent_ok:
+                            api_logger.warning(f"Failed to send snooze message: {snooze_message}")
+                        else:
+                            api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
+                    except Exception as e:
+                        api_logger.error(f"Exception sending snooze message: {e}")
                     last_snooze_count = snooze_count
                     skip_upcoming_check = True
                     return last_notification_time, last_ad_time, last_snooze_count
@@ -10245,8 +10385,14 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                                     message = message.replace("(duration)", duration_text)
                                 else:
                                     message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
-                                await send_chat_message(message)
-                                api_logger.info(f"Sent 5-minute ad notification: {message}")
+                                try:
+                                    sent_ok = await send_chat_message(message)
+                                    if not sent_ok:
+                                        api_logger.warning(f"Failed to send 5-minute ad notification: {message}")
+                                    else:
+                                        api_logger.info(f"Sent 5-minute ad notification: {message}")
+                                except Exception as e:
+                                    api_logger.error(f"Exception while sending 5-minute ad notification: {e}")
                                 last_notification_time = next_ad_at
                                 ad_upcoming_notified = True
                     except Exception as e:
@@ -10274,9 +10420,18 @@ async def check_next_ad_after_completion(ads_api_url, headers):
         async with httpClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
                 if response.status != 200:
-                    api_logger.warning(f"Failed to fetch next ad data after completion. Status: {response.status}")
+                    try:
+                        body = await response.text()
+                    except Exception:
+                        body = '<could not read response body>'
+                    api_logger.warning(f"Failed to fetch next ad data after completion. Status: {response.status}, body: {body}")
                     return
-                data = await response.json()
+                try:
+                    data = await response.json()
+                except Exception as e:
+                    # Log and bail out if the JSON cannot be parsed
+                    api_logger.error(f"Failed to parse JSON from next-ad response: {e}")
+                    return
                 ads_data = data.get("data", [])
                 if not ads_data:
                     api_logger.debug("No next ad data available after completion")
@@ -10303,14 +10458,69 @@ async def check_next_ad_after_completion(ads_api_url, headers):
                                     message = message.replace("(duration)", duration_text)
                                 else:
                                     message = f"Heads up! Another ad break is coming up in {minutes_until} minute{'s' if minutes_until != 1 else ''} and will last {duration_text}."
-                                await send_chat_message(message)
-                                api_logger.info(f"Sent immediate next-ad notification: {message}")
+                                try:
+                                    sent_ok = await send_chat_message(message)
+                                    if not sent_ok:
+                                        api_logger.warning(f"Failed to send immediate next-ad notification: {message}")
+                                    else:
+                                        api_logger.info(f"Sent immediate next-ad notification: {message}")
+                                except Exception as e:
+                                    api_logger.error(f"Exception while sending immediate next-ad notification: {e}")
                                 ad_upcoming_notified = True
                     except Exception as e:
                         api_logger.error(f"Error parsing next ad time after completion: {e}")
     except Exception as e:
         api_logger.error(f"Error checking next ad after completion: {e}")
 
+# Function to track chat messages for the bot counter
+async def track_chat_message():
+    # Construct bot_system identifier using SYSTEM variable (e.g., 'twitch_beta', 'twitch_stable')
+    bot_system = f"twitch_{SYSTEM.lower()}"
+    connection = await mysql_connection('website')
+    if connection is None:
+        chat_logger.error("Failed to get connection for website database to track message")
+        return
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            # Get current record
+            await cursor.execute(
+                "SELECT messages_sent, counted_since FROM bot_messages WHERE bot_system = %s",
+                (bot_system,)
+            )
+            record = await cursor.fetchone()
+            if record is None:
+                # First entry for this bot system
+                await cursor.execute(
+                    """INSERT INTO bot_messages (bot_system, counted_since, messages_sent, last_updated)
+                       VALUES (%s, NOW(), 1, NOW())""",
+                    (bot_system,)
+                )
+                chat_logger.info(f"Created initial tracking record for {bot_system}")
+            elif record['messages_sent'] == 0 or record['counted_since'] is None:
+                # First message being counted
+                await cursor.execute(
+                    """UPDATE bot_messages 
+                       SET counted_since = NOW(), messages_sent = 1, last_updated = NOW()
+                       WHERE bot_system = %s""",
+                    (bot_system,)
+                )
+                chat_logger.debug(f"Initialized message counting for {bot_system}")
+            else:
+                # Subsequent messages
+                await cursor.execute(
+                    """UPDATE bot_messages 
+                       SET messages_sent = messages_sent + 1, last_updated = NOW()
+                       WHERE bot_system = %s""",
+                    (bot_system,)
+                )
+            await connection.commit()
+    except Exception as e:
+        chat_logger.error(f"Error tracking message for {bot_system}: {e}")
+    finally:
+        if connection:
+            await connection.ensure_closed()
+
+# Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     if len(message) > 255:
         chat_logger.error(f"Message too long: {len(message)} characters (max 255)")
@@ -10340,6 +10550,8 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
                         drop_reason = msg_data.get("drop_reason")
                         if is_sent:
                             chat_logger.info(f"Successfully sent chat message: {message} (ID: {message_id})")
+                            # Track message for chat counter
+                            await track_chat_message()
                             return True
                         else:
                             chat_logger.error(f"Message not sent. Drop reason: {drop_reason}")
