@@ -895,33 +895,114 @@ async def process_twitch_eventsub_message(message):
                 # Moderation Event
                 elif event_type == 'channel.moderate':
                     moderator_user_name = event_data.get("moderator_user_name", "Unknown Moderator")
-                    # Skip logging raid actions
-                    if event_data.get("action") == "raid":
+                    action = event_data.get("action")
+                    # Skip logging raid actions as they are handled separately
+                    if action == "raid":
                         return
-                    # Handle timeout action
-                    if event_data.get("action") == "timeout":
+                    # Log the moderation action
+                    event_logger.info(f"Moderation action '{action}' performed by {moderator_user_name}")
+                    # Handle different moderation actions
+                    if action == "timeout":
                         timeout_info = event_data.get("timeout", {})
                         user_name = timeout_info.get("user_name", "Unknown User")
                         reason = timeout_info.get("reason", "No reason provided")
                         expires_at_str = timeout_info.get("expires_at")
                         if expires_at_str:
                             expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
-                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC")
                         else:
                             expires_at_formatted = "No expiration time provided"
-                    # Handle untimeout action
-                    elif event_data.get("action") == "untimeout":
+                        event_logger.info(f"User {user_name} timed out by {moderator_user_name} for: {reason}. Expires at: {expires_at_formatted}")
+                    elif action == "untimeout":
                         untimeout_info = event_data.get("untimeout", {})
                         user_name = untimeout_info.get("user_name", "Unknown User")
-                    # Handle ban action
-                    elif event_data.get("action") == "ban":
-                        banned_info = event_data.get("ban", {})
-                        banned_user_name = banned_info.get("user_name", "Unknown User")
-                        reason = banned_info.get("reason", "No reason provided")
-                    # Handle unban action
-                    elif event_data.get("action") == "unban":
+                        event_logger.info(f"User {user_name} untimed out by {moderator_user_name}")
+                    elif action == "ban":
+                        ban_info = event_data.get("ban", {})
+                        user_name = ban_info.get("user_name", "Unknown User")
+                        reason = ban_info.get("reason", "No reason provided")
+                        event_logger.info(f"User {user_name} banned by {moderator_user_name} for: {reason}")
+                    elif action == "unban":
                         unban_info = event_data.get("unban", {})
-                        banned_user_name = unban_info.get("user_name", "Unknown User")
+                        user_name = unban_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} unbanned by {moderator_user_name}")
+                    elif action == "warn":
+                        warn_info = event_data.get("warn", {})
+                        user_name = warn_info.get("user_name", "Unknown User")
+                        reason = warn_info.get("reason", "No reason provided")
+                        chat_rules_cited = warn_info.get("chat_rules_cited")
+                        rules_text = f" (Chat rules cited: {chat_rules_cited})" if chat_rules_cited else ""
+                        event_logger.info(f"User {user_name} warned by {moderator_user_name} for: {reason}{rules_text}")
+                    elif action == "mod":
+                        mod_info = event_data.get("mod", {})
+                        user_name = mod_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} added as moderator by {moderator_user_name}")
+                    elif action == "unmod":
+                        unmod_info = event_data.get("unmod", {})
+                        user_name = unmod_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} removed as moderator by {moderator_user_name}")
+                    elif action == "vip":
+                        vip_info = event_data.get("vip", {})
+                        user_name = vip_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} added as VIP by {moderator_user_name}")
+                    elif action == "unvip":
+                        unvip_info = event_data.get("unvip", {})
+                        user_name = unvip_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} removed as VIP by {moderator_user_name}")
+                    elif action == "delete":
+                        delete_info = event_data.get("delete", {})
+                        user_name = delete_info.get("user_name", "Unknown User")
+                        message_id = delete_info.get("message_id", "Unknown")
+                        event_logger.info(f"Message deleted from user {user_name} by {moderator_user_name} (Message ID: {message_id})")
+                    elif action == "automod_terms":
+                        automod_info = event_data.get("automod_terms", {})
+                        terms = automod_info.get("terms", [])
+                        event_logger.info(f"AutoMod terms updated by {moderator_user_name}: {terms}")
+                    elif action == "unban_request":
+                        unban_request_info = event_data.get("unban_request", {})
+                        event_logger.info(f"Unban request handled by {moderator_user_name}")
+                    elif action == "shared_chat_ban":
+                        shared_ban_info = event_data.get("shared_chat_ban", {})
+                        user_name = shared_ban_info.get("user_name", "Unknown User")
+                        reason = shared_ban_info.get("reason", "No reason provided")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} banned in shared chat by {moderator_user_name} from {source_broadcaster} for: {reason}")
+                    elif action == "shared_chat_unban":
+                        shared_unban_info = event_data.get("shared_chat_unban", {})
+                        user_name = shared_unban_info.get("user_name", "Unknown User")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} unbanned in shared chat by {moderator_user_name} from {source_broadcaster}")
+                    elif action == "shared_chat_timeout":
+                        shared_timeout_info = event_data.get("shared_chat_timeout", {})
+                        user_name = shared_timeout_info.get("user_name", "Unknown User")
+                        reason = shared_timeout_info.get("reason", "No reason provided")
+                        expires_at_str = shared_timeout_info.get("expires_at")
+                        if expires_at_str:
+                            expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
+                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+                        else:
+                            expires_at_formatted = "No expiration time provided"
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} timed out in shared chat by {moderator_user_name} from {source_broadcaster} for: {reason}. Expires at: {expires_at_formatted}")
+                    elif action == "shared_chat_untimeout":
+                        shared_untimeout_info = event_data.get("shared_chat_untimeout", {})
+                        user_name = shared_untimeout_info.get("user_name", "Unknown User")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} untimed out in shared chat by {moderator_user_name} from {source_broadcaster}")
+                    elif action == "shared_chat_delete":
+                        shared_delete_info = event_data.get("shared_chat_delete", {})
+                        user_name = shared_delete_info.get("user_name", "Unknown User")
+                        message_id = shared_delete_info.get("message_id", "Unknown")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"Message deleted from user {user_name} in shared chat by {moderator_user_name} from {source_broadcaster} (Message ID: {message_id})")
+                    # Handle mode changes (actions without specific user data)
+                    elif action in ["emoteonly", "emoteonlyoff", "followers", "followersoff", "slow", "slowoff", "subscribers", "subscribersoff", "uniquechat", "uniquechatoff"]:
+                        event_logger.info(f"Chat mode '{action}' activated by {moderator_user_name}")
+                    else:
+                        # Log unknown actions for debugging
+                        event_logger.warning(f"Unknown moderation action '{action}' received: {event_data}")
+                    # Send moderation event to websocket for Discord logging
+                    create_task(websocket_notice(event="MODERATION", additional_data=event_data))
                 # Channel Point Rewards Event
                 elif event_type in [
                     "channel.channel_points_automatic_reward_redemption.add", 
