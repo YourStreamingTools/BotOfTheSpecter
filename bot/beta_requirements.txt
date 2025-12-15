@@ -1,0 +1,39 @@
+# Async Twitch API client
+twitchio==3.1.0
+twitchio[starlette]==3.1.0
+# Async HTTP client for Python
+aiohttp
+# WebSocket libraries
+websockets
+python-socketio
+# For streaming video/audio
+streamlink
+# Timezones
+pytz
+# Load environment variables from .env
+python-dotenv
+# Async MySQL client
+aiomysql
+# Geo-location tools
+geopy
+# Unit conversions
+pint
+# Discord API
+discord.py
+# Joke API
+jokeapi
+simplejson
+# Translation
+deep_translator
+# For system monitoring
+psutil
+# For text-to-speech conversion
+pyttsx3
+# For cryptographic operations
+PyNaCl
+# For SSH connections
+paramiko
+# YouTube video downloader
+yt_dlp
+# OpenAI API client
+openai
