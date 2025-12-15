@@ -2388,7 +2388,7 @@ For Stable Bot:
 python /home/botofthespecter/bot.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
 
 For Beta Bot:
-python /home/botofthespecter/beta.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
+/home/botofthespecter/beta_env/bin/python /home/botofthespecter/beta.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
 
 -->
 <?php
