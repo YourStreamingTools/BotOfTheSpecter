@@ -1,0 +1,33 @@
+# Discord Bot Requirements
+# BotOfTheSpecter Discord Bot (specterdiscord.py)
+
+# Core Discord library
+discord.py>=2.3.0
+discord-ext-voice-recv
+
+# Async HTTP client
+aiohttp>=3.9.0
+
+# MySQL async driver
+aiomysql>=0.2.0
+
+# WebSocket client for internal communication
+python-socketio[asyncio_client]>=5.10.0
+
+# YouTube downloader for music functionality
+yt-dlp>=2023.12.0
+
+# Timezone support
+pytz>=2023.3
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# OpenAI API client for AI features
+openai>=1.0.0
+
+# WebRTC support for OpenAI Realtime API
+aiortc>=1.6.0
+
+# Audio/Video processing
+av>=11.0.0
