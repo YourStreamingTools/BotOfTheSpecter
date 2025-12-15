@@ -2,8 +2,8 @@
 # BotOfTheSpecter Discord Bot (specterdiscord.py)
 
 # Core Discord library
-discord.py>=2.3.0
-discord-ext-voice-recv
+discord.py>=2.6.0
+# discord-ext-voice-recv   # Temp removed
 
 # Async HTTP client
 aiohttp>=3.9.0
