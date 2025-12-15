@@ -616,6 +616,9 @@ ob_start();
           <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
             <?php echo t('bot_beta_description'); ?>
           </p>
+          <div class="notification is-danger has-text-black has-text-weight-bold has-text-centered mb-4">
+            A complete rewrite has been started for version 6 and is not recommended to be running at this stage. A notice will be put out on Discord when version 6 is ready for testing.
+          </div>
         <?php elseif ($selectedBot === 'custom'): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             Custom Bot (Experimental)
