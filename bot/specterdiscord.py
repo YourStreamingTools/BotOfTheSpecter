@@ -2643,6 +2643,64 @@ class BotOfTheSpecter(commands.Bot):
                 color=discord.Color.green()
             )
             embed.set_thumbnail(url=(f"{thumbnail_url}/raid.png"))
+        elif event_type == "MODERATION":
+            action = data.get("action", "unknown")
+            moderator_name = data.get("moderator_user_name", "Unknown Moderator")
+            title = f"Moderation Action: {action.title()}"
+            description = f"**Moderator:** {moderator_name}\n"
+            # Handle different actions
+            if action == "timeout":
+                user_name = data.get("timeout", {}).get("user_name", "Unknown User")
+                reason = data.get("timeout", {}).get("reason", "No reason provided")
+                description += f"**User:** {user_name}\n**Action:** Timed out\n**Reason:** {reason}"
+                color = discord.Color.orange()
+            elif action == "untimeout":
+                user_name = data.get("untimeout", {}).get("user_name", "Unknown User")
+                description += f"**User:** {user_name}\n**Action:** Untimed out"
+                color = discord.Color.blue()
+            elif action == "ban":
+                user_name = data.get("ban", {}).get("user_name", "Unknown User")
+                reason = data.get("ban", {}).get("reason", "No reason provided")
+                description += f"**User:** {user_name}\n**Action:** Banned\n**Reason:** {reason}"
+                color = discord.Color.red()
+            elif action == "unban":
+                user_name = data.get("unban", {}).get("user_name", "Unknown User")
+                description += f"**User:** {user_name}\n**Action:** Unbanned"
+                color = discord.Color.green()
+            elif action == "warn":
+                user_name = data.get("warn", {}).get("user_name", "Unknown User")
+                reason = data.get("warn", {}).get("reason", "No reason provided")
+                description += f"**User:** {user_name}\n**Action:** Warned\n**Reason:** {reason}"
+                color = discord.Color.yellow()
+            elif action == "mod":
+                user_name = data.get("mod", {}).get("user_name", "Unknown User")
+                description += f"**User:** {user_name}\n**Action:** Added as Moderator"
+                color = discord.Color.blue()
+            elif action == "unmod":
+                user_name = data.get("unmod", {}).get("user_name", "Unknown User")
+                description += f"**User:** {user_name}\n**Action:** Removed as Moderator"
+                color = discord.Color.grey()
+            elif action == "vip":
+                user_name = data.get("vip", {}).get("user_name", "Unknown User")
+                description += f"**User:** {user_name}\n**Action:** Added as VIP"
+                color = discord.Color.purple()
+            elif action == "unvip":
+                user_name = data.get("unvip", {}).get("user_name", "Unknown User")
+                description += f"**User:** {user_name}\n**Action:** Removed as VIP"
+                color = discord.Color.grey()
+            elif action == "delete":
+                user_name = data.get("delete", {}).get("user_name", "Unknown User")
+                description += f"**User:** {user_name}\n**Action:** Message Deleted"
+                color = discord.Color.dark_grey()
+            else:
+                description += f"**Action:** {action.title()}"
+                color = discord.Color.grey()
+            embed = discord.Embed(
+                title=title,
+                description=description,
+                color=color
+            )
+            embed.set_thumbnail(url=(f"{thumbnail_url}/mod.png"))
         if message_text:
             embed.insert_field_at(index=1, name="Message", value=message_text, inline=False)
         timestamp = await self.format_discord_embed_timestamp(channel_code)
