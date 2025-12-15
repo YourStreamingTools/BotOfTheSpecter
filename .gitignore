@@ -77,7 +77,7 @@ help/search_index.json
 *.exe
 
 # Ignoring the next update changelog file
-docs/5.7.md
+docs/5.8.md
 
 # Ignoring entire directories
 /app
