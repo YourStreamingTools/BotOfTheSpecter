@@ -1439,6 +1439,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(ServerRoleManagementCog(self, self.logger))
         await self.add_cog(MessageTrackingCog(self, self.logger))
         await self.add_cog(AdminCog(self, self.logger))
+        await self.add_cog(UserTrackingCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         # Start websocket listener in the background
         self.websocket_listener = WebsocketListener(self, self.logger)
@@ -1932,6 +1933,12 @@ class BotOfTheSpecter(commands.Bot):
             return
         # Process the message if it's in a DM channel
         if isinstance(message.channel, discord.DMChannel):
+            # Check if this is a command first
+            if message.content.startswith("!"):
+                # Process as a command
+                await self.process_commands(message)
+                return
+            # Not a command, process as AI chat
             # Determine the "channel_name" based on the source of the message
             channel = message.channel
             channel_name = str(message.author.id)  # Use user ID for DMs
@@ -2856,9 +2863,35 @@ class BotOfTheSpecter(commands.Bot):
                         try:
                             posted_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
                             started_at = posted_at
-                            await mysql_helper.insert_live_notification(guild.id, account_username, None, started_at, posted_at)
+                            # Fetch stream_id from Twitch API
+                            stream_id = None
+                            try:
+                                user_row = await mysql_helper.fetchone(
+                                    "SELECT twitch_user_id FROM users WHERE LOWER(username) = %s",
+                                    (str(account_username).lower(),), database_name='website', dict_cursor=True
+                                )
+                                if user_row and user_row.get('twitch_user_id'):
+                                    twitch_user_id = user_row['twitch_user_id']
+                                    auth_token_row = await mysql_helper.fetchone(
+                                        "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
+                                        (twitch_user_id,), database_name='website', dict_cursor=True
+                                    )
+                                    if auth_token_row:
+                                        auth_token = auth_token_row['twitch_access_token']
+                                        async with aiohttp.ClientSession() as session:
+                                            headers = {"Client-ID": config.twitch_client_id, "Authorization": f"Bearer {auth_token}"}
+                                            async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
+                                                if resp.status == 200:
+                                                    data = await resp.json()
+                                                    stream_data = data.get("data", [{}])[0]
+                                                    stream_id = stream_data.get("id")
+                            except Exception as e:
+                                self.logger.debug(f"Error fetching stream_id from Twitch API for {account_username}: {e}")
+                            # Use stream_id or empty string as fallback (database may require non-null)
+                            stream_id = stream_id or ""
+                            await mysql_helper.insert_live_notification(guild.id, account_username, stream_id, started_at, posted_at)
                             if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
-                                await self.live_channel_manager.mark_online(code, username=account_username, twitch_user_id=None, stream_id=None, started_at=started_at, details=None)
+                                await self.live_channel_manager.mark_online(code, username=account_username, twitch_user_id=None, stream_id=stream_id or None, started_at=started_at, details=None)
                         except Exception as e:
                             self.logger.debug(f"Error persisting live notification or marking online for {code}: {e}")
                 else:
