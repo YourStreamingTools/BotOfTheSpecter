@@ -304,7 +304,8 @@ function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refresh
     try {
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key &";
+        $pythonCmd = (strpos($botScriptPath, 'beta') !== false) ? '/home/botofthespecter/beta_env/bin/python' : 'python';
+        $command = "$pythonCmd $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key &";
     $output = SSHConnectionManager::executeCommand($connection, $command);
     if ($output === false || $output === null) { throw new Exception('SSH command execution failed'); }
     if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
