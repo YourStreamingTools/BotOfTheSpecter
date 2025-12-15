@@ -8,7 +8,6 @@ from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
-from contextlib import asynccontextmanager
 from logging import getLogger
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
@@ -291,30 +290,28 @@ signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C as well
 
 # Function to handle MySQL connections
-@asynccontextmanager
 async def mysql_connection(db_name=None):
     global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
     if db_name is None:
         db_name = CHANNEL_NAME
-    conn = await sql_connect(
+    return await sql_connect(
         host=SQL_HOST,
         user=SQL_USER,
         password=SQL_PASSWORD,
         db=db_name
     )
-    try:
-        yield conn
-    finally:
-        await conn.close()
 
 # Connect to database spam_pattern and fetch patterns
 async def get_spam_patterns():
-    async with mysql_connection(db_name="spam_pattern") as connection:
+    connection = await mysql_connection(db_name="spam_pattern")
+    try:
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT spam_pattern FROM spam_patterns")
             results = await cursor.fetchall()
         compiled_patterns = [re.compile(re.escape(row["spam_pattern"]), re.IGNORECASE) for row in results if row["spam_pattern"]]
         return compiled_patterns
+    finally:
+        await connection.close()
 
 # Setup Token Refresh
 async def twitch_token_refresh():
@@ -7326,13 +7323,15 @@ async def is_user_subscribed(user_id):
 
 # Function to add user to the table of known users
 async def user_is_seen(username):
-    async with mysql_connection() as connection:
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (username, "True"))
-                await connection.commit()
-        except Exception as e:
-            bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
+    connection = await mysql_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (username, "True"))
+            await connection.commit()
+    except Exception as e:
+        bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
+    finally:
+        await connection.close()
 
 # Function to fetch custom API responses
 async def fetch_api_response(url, json_flag=False):
@@ -7366,82 +7365,91 @@ def safe_math(expr: str):
 # Function to update custom counts
 async def update_custom_count(command, count):
     count = int(count)
-    async with mysql_connection() as connection:
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
-                result = await cursor.fetchone()
-                if result:
-                    current_count = result.get("count")
-                    new_count = current_count + count
-                    await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
-                    chat_logger.info(f"Updated count for command '{command}' to {new_count}.")
-                else:
-                    await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (command, count))
-                    chat_logger.info(f"Inserted new command '{command}' with count {count}.")
-            await connection.commit()
-        except Exception as e:
-            chat_logger.error(f"Error updating count for command '{command}': {e}")
-            await connection.rollback()
+    connection = await mysql_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
+            result = await cursor.fetchone()
+            if result:
+                current_count = result.get("count")
+                new_count = current_count + count
+                await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
+                chat_logger.info(f"Updated count for command '{command}' to {new_count}.")
+            else:
+                await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (command, count))
+                chat_logger.info(f"Inserted new command '{command}' with count {count}.")
+        await connection.commit()
+    except Exception as e:
+        chat_logger.error(f"Error updating count for command '{command}': {e}")
+        await connection.rollback()
+    finally:
+        await connection.close()
 
 async def get_custom_count(command):
-    async with mysql_connection() as connection:
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
-                result = await cursor.fetchone()
-                if result:
-                    count = result.get("count")
-                    chat_logger.info(f"Retrieved count for command '{command}': {count}")
-                    return count
-                else:
-                    chat_logger.info(f"No count found for command '{command}', returning 0.")
-                    return 0
-        except Exception as e:
-            chat_logger.error(f"Error retrieving count for command '{command}': {e}")
-            return 0
+    connection = await mysql_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
+            result = await cursor.fetchone()
+            if result:
+                count = result.get("count")
+                chat_logger.info(f"Retrieved count for command '{command}': {count}")
+                return count
+            else:
+                chat_logger.info(f"No count found for command '{command}', returning 0.")
+                return 0
+    except Exception as e:
+        chat_logger.error(f"Error retrieving count for command '{command}': {e}")
+        return 0
+    finally:
+        await connection.close()
 
 # Function to update user counts
 async def update_user_count(command, user, count):
     count = int(count)
-    async with mysql_connection() as connection:
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
-                result = await cursor.fetchone()
-                if result:
-                    current_count = result.get("count")
-                    new_count = current_count + count
-                    await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (new_count, command, user))
-                    chat_logger.info(f"Updated user count for command '{command}' and user '{user}' to {new_count}.")
-                else:
-                    await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user, count))
-                    chat_logger.info(f"Inserted new user count for command '{command}' and user '{user}' with count {count}.")
-            await connection.commit()
-        except Exception as e:
-            chat_logger.error(f"Error updating user count for command '{command}' and user '{user}': {e}")
-            await connection.rollback()
+    connection = await mysql_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
+            result = await cursor.fetchone()
+            if result:
+                current_count = result.get("count")
+                new_count = current_count + count
+                await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (new_count, command, user))
+                chat_logger.info(f"Updated user count for command '{command}' and user '{user}' to {new_count}.")
+            else:
+                await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user, count))
+                chat_logger.info(f"Inserted new user count for command '{command}' and user '{user}' with count {count}.")
+        await connection.commit()
+    except Exception as e:
+        chat_logger.error(f"Error updating user count for command '{command}' and user '{user}': {e}")
+        await connection.rollback()
+    finally:
+        await connection.close()
 
 async def get_user_count(command, user):
-    async with mysql_connection() as connection:
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
-                result = await cursor.fetchone()
-                if result:
-                    count = result.get("count")
-                    chat_logger.info(f"Retrieved user count for command '{command}' and user '{user}': {count}")
-                    return count
-                else:
-                    chat_logger.info(f"No user count found for command '{command}' and user '{user}', returning 0.")
-                    return 0
-        except Exception as e:
-            chat_logger.error(f"Error retrieving user count for command '{command}' and user '{user}': {e}")
-            return 0
+    connection = await mysql_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
+            result = await cursor.fetchone()
+            if result:
+                count = result.get("count")
+                chat_logger.info(f"Retrieved user count for command '{command}' and user '{user}': {count}")
+                return count
+            else:
+                chat_logger.info(f"No user count found for command '{command}' and user '{user}', returning 0.")
+                return 0
+    except Exception as e:
+        chat_logger.error(f"Error retrieving user count for command '{command}' and user '{user}': {e}")
+        return 0
+    finally:
+        await connection.close()
 
 # Functions for weather
 async def get_streamer_weather():
-    async with mysql_connection() as connection:
+    connection = await mysql_connection()
+    try:
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT weather_location FROM profile")
             info = await cursor.fetchone()
@@ -7451,6 +7459,8 @@ async def get_streamer_weather():
                 return location
             else:
                 return None
+    finally:
+        await connection.close()
 
 # Function to udpate the stream title
 async def trigger_twitch_title_update(new_title):
@@ -9031,9 +9041,8 @@ async def websocket_notice(
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():
     all_commands = list(mod_commands) + list(builtin_commands)
-    connection = None
+    connection = await mysql_connection()
     try:
-        connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             # Create placeholders for the query
             placeholders = ', '.join(['%s'] * len(all_commands))
@@ -9076,7 +9085,7 @@ async def builtin_commands_creation():
     except MySQLOtherErrors as e:
         bot_logger.error(f"builtin_commands_creation function error: {e}")
     finally:
-        await connection.ensure_closed()
+        await connection.close()
 
 # Function to tell the website what version of the bot is currently running
 async def update_version_control():
