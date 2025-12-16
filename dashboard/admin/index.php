@@ -329,8 +329,8 @@ if (isset($_GET['ajax'])) {
                 $section = 'beta';
             } elseif (strpos($line, 'Custom bots running:') === 0) {
                 $section = 'custom';
-            } elseif (preg_match('/- Channel: (\S+), PID: (\d+)/', $line, $matches)) {
-                $bot = ['channel' => $matches[1], 'pid' => $matches[2]];
+            } elseif (preg_match('/- Channel: (\S+), PID: (\d+), Version: (.+)/', $line, $matches)) {
+                $bot = ['channel' => $matches[1], 'pid' => $matches[2], 'version' => $matches[3]];
                 if ($section == 'stable') {
                     $stable_bots[] = $bot;
                 } elseif ($section == 'beta') {
@@ -798,7 +798,7 @@ ob_start();
     </div>
     <div class="collapsible-content" id="bot-overview" style="display: block;">
         <div id="bot-overview-container">
-            <p>Loading bot overview...</p>
+            <p class="mb-5">Loading bot overview...</p>
         </div>
     </div>
 </div>
@@ -1366,6 +1366,9 @@ document.addEventListener('DOMContentLoaded', function() {
         html += '<div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">';
         html += '<span class="tag bot-type-tag ' + tagClass + '">' + typeLabel + '</span>';
         html += '<span class="tag is-light has-text-black bot-pid">PID: ' + bot.pid + '</span>';
+        if (bot.version) {
+            html += '<span class="tag is-info bot-version">v' + bot.version + '</span>';
+        }
         html += '<button type="button" class="button is-danger is-small bot-stop-button" data-pid="' + bot.pid + '">';
         html += '<span class="icon"><i class="fas fa-stop"></i></span>';
         html += '</button>';
@@ -1457,7 +1460,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         const tagEl = existingEl.querySelector('.bot-type-tag');
                         if (tagEl) {
                             tagEl.textContent = bot.type.charAt(0).toUpperCase() + bot.type.slice(1);
-                            tagEl.className = 'tag bot-type-tag ' + (bot.type === 'beta' ? 'is-warning' : 'is-primary');
+                            tagEl.className = 'tag bot-type-tag ' + (bot.type === 'beta' ? 'is-warning' : (bot.type === 'custom' ? 'is-dark' : 'is-primary'));
+                        }
+                        // update version tag
+                        const versionEl = existingEl.querySelector('.bot-version');
+                        if (versionEl) {
+                            versionEl.textContent = 'v' + bot.version;
+                        } else if (bot.version) {
+                            // Add version tag if it doesn't exist
+                            const pidEl = existingEl.querySelector('.bot-pid');
+                            if (pidEl) {
+                                const versionTag = document.createElement('span');
+                                versionTag.className = 'tag is-info bot-version';
+                                versionTag.textContent = 'v' + bot.version;
+                                pidEl.insertAdjacentElement('afterend', versionTag);
+                            }
                         }
                         // update stop button pid data attribute
                         const stopBtn = existingEl.querySelector('.bot-stop-button');

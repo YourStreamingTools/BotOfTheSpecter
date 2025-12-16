@@ -6,6 +6,22 @@ stable_script = "bot.py"
 beta_script = "beta.py"
 custom_script = "custom.py"
 
+# Function to get version from version control files
+def get_version(script_type, channel):
+    if script_type == 'stable':
+        file_path = f"/home/botofthespecter/logs/version/{channel}_version_control.txt"
+    elif script_type == 'beta':
+        file_path = f"/home/botofthespecter/logs/version/beta/{channel}_beta_version_control.txt"
+    elif script_type == 'custom':
+        file_path = f"/home/botofthespecter/logs/version/custom/{channel}_custom_version_control.txt"
+    else:
+        return 'Unknown'
+    try:
+        with open(file_path, 'r') as f:
+            return f.read().strip()
+    except:
+        return 'Unknown'
+
 # Dictionaries to hold running bots
 stable_bots = []
 beta_bots = []
@@ -39,7 +55,8 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
             channel_index = cmdline.index("-channel")
         if channel_index >= 0 and channel_index + 1 < len(cmdline):
             channel = cmdline[channel_index + 1]
-            stable_bots.append((channel, process.info['pid']))
+            version = get_version('stable', channel)
+            stable_bots.append((channel, process.info['pid'], version))
     # If it's a beta bot, find the channel
     if script_match_beta:
         channel_index = -1
@@ -47,7 +64,8 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
             channel_index = cmdline.index("-channel")
         if channel_index >= 0 and channel_index + 1 < len(cmdline):
             channel = cmdline[channel_index + 1]
-            beta_bots.append((channel, process.info['pid']))
+            version = get_version('beta', channel)
+            beta_bots.append((channel, process.info['pid'], version))
     # If it's a custom bot, find the channel (custom.py)
     if custom_script:
         script_match_custom = False
@@ -63,29 +81,30 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
                 channel_index = cmdline.index("-channel")
             if channel_index >= 0 and channel_index + 1 < len(cmdline):
                 channel = cmdline[channel_index + 1]
-                custom_bots.append((channel, process.info['pid']))
+                version = get_version('custom', channel)
+                custom_bots.append((channel, process.info['pid'], version))
 
 # Print results
 print("Stable bots running:")
 if stable_bots:
-    for channel, pid in stable_bots:
-        print(f"- Channel: {channel}, PID: {pid}")
+    for channel, pid, version in stable_bots:
+        print(f"- Channel: {channel}, PID: {pid}, Version: {version}")
     print(f"Total: {len(stable_bots)}")
 else:
     print("None")
 
 print("\nBeta bots running:")
 if beta_bots:
-    for channel, pid in beta_bots:
-        print(f"- Channel: {channel}, PID: {pid}")
+    for channel, pid, version in beta_bots:
+        print(f"- Channel: {channel}, PID: {pid}, Version: {version}")
     print(f"Total: {len(beta_bots)}")
 else:
     print("None")
 
 print("\nCustom bots running:")
 if custom_bots:
-    for channel, pid in custom_bots:
-        print(f"- Channel: {channel}, PID: {pid}")
+    for channel, pid, version in custom_bots:
+        print(f"- Channel: {channel}, PID: {pid}, Version: {version}")
     print(f"Total: {len(custom_bots)}")
 else:
     print("None")
