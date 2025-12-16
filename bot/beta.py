@@ -379,6 +379,47 @@ async def refresh_twitch_token(current_refresh_token):
         twitch_logger.error(f"Twitch token refresh error: {e}")
     return time.time() + 3600  # Default retry time of 1 hour
 
+# Get or create Twitch EventSub Conduit
+async def get_or_create_conduit():
+    global CONDUIT_ID, CHANNEL_AUTH, CLIENT_ID
+    url = "https://api.twitch.tv/helix/eventsub/conduits"
+    headers = {
+        "Client-Id": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Content-Type": "application/json"
+    }
+    try:
+        async with httpClientSession() as session:
+            # Try to get existing conduits
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    conduits = data.get('data', [])
+                    if conduits:
+                        # Use the first available conduit
+                        CONDUIT_ID = conduits[0]['id']
+                        event_logger.info(f"Using existing conduit: {CONDUIT_ID}")
+                        return CONDUIT_ID
+                    # No conduits exist, create a new one
+                    event_logger.info("No existing conduits found. Creating new conduit...")
+                    async with session.post(url, headers=headers, json={"shard_count": 1}) as create_response:
+                        if create_response.status in (200, 201):
+                            create_data = await create_response.json()
+                            CONDUIT_ID = create_data['data'][0]['id']
+                            event_logger.info(f"Created new conduit: {CONDUIT_ID}")
+                            return CONDUIT_ID
+                        else:
+                            error_text = await create_response.text()
+                            event_logger.error(f"Failed to create conduit: HTTP {create_response.status} - {error_text}")
+                            return None
+                else:
+                    error_text = await response.text()
+                    event_logger.error(f"Failed to get conduits: HTTP {response.status} - {error_text}")
+                    return None
+    except Exception as e:
+        event_logger.error(f"Error getting or creating conduit: {e}")
+        return None
+
 # Setup Twitch EventSub
 async def twitch_eventsub():
     twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
@@ -1761,7 +1802,7 @@ class SSHConnectionManager:
                 self._cleanup_connection(server_name)
             self.logger.info("All SSH connections closed")
 
-class TwitchBot(commands.Bot):
+class TwitchBot(commands.AutoBot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name, client_id, client_secret, bot_id):
         super().__init__(token=token, prefix=prefix, initial_channels=[channel_name], case_insensitive=True, client_id=client_id, client_secret=client_secret, bot_id=bot_id)
@@ -1772,6 +1813,8 @@ class TwitchBot(commands.Bot):
         bot_logger.info(f'Logged in as "{self.user.name}"')
         await update_version_control()
         await builtin_commands_creation()
+        # Get or create EventSub conduit before starting EventSub
+        await get_or_create_conduit()
         looped_tasks["check_stream_online"] = create_task(check_stream_online())
         create_task(known_users())
         create_task(channel_point_rewards())
