@@ -5,25 +5,25 @@ import logging
 import os
 import re
 import signal
-import tempfile
-import random
-import time
-from datetime import datetime, timezone, timedelta
 import subprocess
+import tempfile
+import time
+import traceback
+import urllib.parse
+from datetime import datetime, timezone, timedelta, timezone as dt_timezone
+from pathlib import Path
+import random
 
 # Third-party libraries
 import aiohttp
+import aiomysql
 import discord
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
-import aiomysql
+import pytz
 import socketio
 import yt_dlp
-import pytz
-import urllib.parse
-from pathlib import Path
-import json
 from openai import AsyncOpenAI
 
 # Bot version
@@ -2937,7 +2937,6 @@ class BotOfTheSpecter(commands.Bot):
                     except Exception as e:
                         self.logger.error(f"❌ Unexpected error sending live notification to #{stream_channel.name}: {type(e).__name__}")
                         self.logger.error(f"   Details: {e}")
-                        import traceback
                         self.logger.error(f"   Traceback: {traceback.format_exc()}")
                     # After send attempt, if successful persist the live notification and mark online
                     if sent_success:
@@ -2980,7 +2979,6 @@ class BotOfTheSpecter(commands.Bot):
             except Exception as e:
                 self.logger.error(f"❌ CRITICAL ERROR in stream notification block for {code}: {type(e).__name__}")
                 self.logger.error(f"   Details: {e}")
-                import traceback
                 self.logger.error(f"   Full traceback: {traceback.format_exc()}")
                 self.logger.error(f"   This error prevented the notification from being sent, but channel rename will still be attempted.")
         else:
@@ -3114,8 +3112,6 @@ class UtilityCog(commands.Cog, name='Utility'):
     @commands.command(name="timestamp", aliases=["ts", "discordtime"])
     async def convert_to_timestamp(self, ctx, *, time_input: str):
         try:
-            import time
-            from datetime import datetime
             timestamp = None
             # Try to parse as Unix timestamp (integer)
             try:
@@ -3188,8 +3184,6 @@ class UtilityCog(commands.Cog, name='Utility'):
     @commands.command(name="epochnow", aliases=["now", "currenttime"])
     async def current_epoch(self, ctx):
         try:
-            import time
-            from datetime import datetime
             current_timestamp = int(time.time())
             current_time = datetime.now()
             embed = discord.Embed(
@@ -5816,7 +5810,6 @@ class RoleButton(discord.ui.Button):
                     self.logger.error(f"[ROLE_BUTTON] Missing permissions to remove role '{self.role.name}' from {member.name}#{member.discriminator}")
                 except Exception as e:
                     self.logger.error(f"[ROLE_BUTTON] Exception when removing role: {type(e).__name__} - {e}")
-                    import traceback
                     self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
                     await interaction.followup.send("❌ An error occurred while removing the role. Please try again or contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Error removing role '{self.role.name}' from {member.name}#{member.discriminator}: {e}")
@@ -5833,13 +5826,11 @@ class RoleButton(discord.ui.Button):
                     self.logger.error(f"[ROLE_BUTTON] Missing permissions to assign role '{self.role.name}' to {member.name}#{member.discriminator}")
                 except Exception as e:
                     self.logger.error(f"[ROLE_BUTTON] Exception when adding role: {type(e).__name__} - {e}")
-                    import traceback
                     self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
                     await interaction.followup.send("❌ An error occurred while assigning the role. Please try again or contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Error assigning role '{self.role.name}' to {member.name}#{member.discriminator}: {e}")
         except Exception as e:
             self.logger.error(f"[ROLE_BUTTON] Unexpected error in RoleButton callback for user {interaction.user.name}#{interaction.user.discriminator}: {type(e).__name__} - {e}")
-            import traceback
             self.logger.error(f"[ROLE_BUTTON] Full traceback: {traceback.format_exc()}")
             try:
                 if not interaction.response.is_done():
@@ -5906,7 +5897,6 @@ class RulesAcceptButton(discord.ui.Button):
                 self.logger.error(f"[RULES_ACCEPT] Missing permissions to assign rules role '{self.role.name}' to {user.name}#{user.discriminator}")
             except Exception as e:
                 self.logger.error(f"[RULES_ACCEPT] Exception when assigning role: {type(e).__name__} - {e}")
-                import traceback
                 self.logger.error(f"[RULES_ACCEPT] Traceback: {traceback.format_exc()}")
                 await interaction.followup.send(
                     "❌ An error occurred while assigning your role. Please contact a server administrator.",
@@ -5915,7 +5905,6 @@ class RulesAcceptButton(discord.ui.Button):
                 self.logger.error(f"[RULES_ACCEPT] Error assigning rules role '{self.role.name}' to {user.name}#{user.discriminator}: {e}")
         except Exception as e:
             self.logger.error(f"[RULES_ACCEPT] Unexpected error in RulesAcceptButton callback for user {interaction.user.name}#{interaction.user.discriminator}: {type(e).__name__} - {e}")
-            import traceback
             self.logger.error(f"[RULES_ACCEPT] Full traceback: {traceback.format_exc()}")
             try:
                 if not interaction.response.is_done():
@@ -5988,7 +5977,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     self.logger.error(f"Error resuming stream schedule for server {server_id}: {e}")
         except Exception as e:
             self.logger.error(f"Error in _resume_stream_schedule_updates: {e}")
-            import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 
     async def _refresh_reaction_roles_cache(self):
@@ -6223,7 +6211,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     self.logger.info(f"Saved role selection message (ID: {message_id}) to database for server {server_id}")
                 except Exception as e:
                     self.logger.error(f"Error saving role selection message to database: {e}")
-                    import traceback
                     self.logger.error(f"Traceback: {traceback.format_exc()}")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
@@ -6335,7 +6322,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         sent_message = await channel.send(embed=embed)
                     except Exception as e:
                         self.logger.error(f"[POST_RULES] Error creating rules button: {type(e).__name__} - {e}")
-                        import traceback
                         self.logger.error(f"[POST_RULES] Traceback: {traceback.format_exc()}")
                         # Send without button as fallback
                         sent_message = await channel.send(embed=embed)
@@ -6379,7 +6365,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     self.logger.info(f"Successfully saved rules message (ID: {message_id}) to database for server {server_id}, affected rows: {result}")
                 except Exception as e:
                     self.logger.error(f"Error saving rules message to database: {e}")
-                    import traceback
                     self.logger.error(f"Traceback: {traceback.format_exc()}")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
@@ -6389,13 +6374,10 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.error(f"Unexpected error sending rules message: {e}")
         except Exception as e:
             self.logger.error(f"Error in post_rules_message: {e}")
-            import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 
     def _generate_timezone_conversions(self, base_timezone: str) -> str:
         try:
-            import pytz
-            from datetime import datetime
             # Common timezone mappings
             common_zones = {
                 'UTC': 'UTC',
@@ -6425,8 +6407,10 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 base_tz_name = 'UTC'
                 base_tz = pytz.UTC
                 base_tz_display = 'UTC'
-            # Get current time in base timezone (user's main timezone)
-            now_base = datetime.now(base_tz)
+            # Get current UTC time first, then convert to target timezone
+            now_utc = datetime.now(pytz.UTC)
+            # Convert UTC time to base timezone
+            now_base = now_utc.astimezone(base_tz)
             base_time_str = now_base.strftime("%H:%M %Z")
             # Build conversion string with base timezone first, then main timezones
             conversion_lines = [f"**{base_tz_display}**: {base_time_str}"]
@@ -6445,9 +6429,24 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 if tz_name != base_tz_name:
                     try:
                         tz = pytz.timezone(tz_name)
-                        now_tz = datetime.now(tz)
+                        now_tz = now_utc.astimezone(tz)
                         time_str = now_tz.strftime("%H:%M")
-                        conversion_lines.append(f"**{tz_display}**: {time_str}")
+                        # Calculate time difference between base timezone and this timezone
+                        base_offset = now_base.utcoffset().total_seconds()
+                        tz_offset = now_tz.utcoffset().total_seconds()
+                        diff_seconds = tz_offset - base_offset
+                        diff_hours = int(diff_seconds / 3600)
+                        diff_minutes = abs(int((diff_seconds % 3600) / 60))
+                        # Format the time difference
+                        if diff_hours == 0 and diff_minutes == 0:
+                            diff_str = "(Same)"
+                        elif diff_minutes == 0:
+                            sign = "+" if diff_hours > 0 else ""
+                            diff_str = f"({sign}{diff_hours}h)"
+                        else:
+                            sign = "+" if diff_hours >= 0 else ""
+                            diff_str = f"({sign}{diff_hours}h {diff_minutes}m)" if diff_hours >= 0 else f"({diff_hours}h {diff_minutes}m)"
+                        conversion_lines.append(f"**{tz_display}**: {time_str} {diff_str}")
                     except Exception as e:
                         self.logger.warning(f"Could not convert to {tz_name}: {e}")
             return "\n".join(conversion_lines)
@@ -6460,8 +6459,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
 
     def _get_base_timezone_time(self, base_timezone: str) -> str:
         try:
-            import pytz
-            from datetime import datetime
             # Common timezone mappings
             common_zones = {
                 'UTC': 'UTC',
@@ -6490,8 +6487,10 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.warning(f"Unknown timezone: {base_timezone}, defaulting to UTC")
                 base_tz = pytz.UTC
                 base_tz_display = 'UTC'
-            # Get current time in base timezone
-            now_base = datetime.now(base_tz)
+            # Get current UTC time first, then convert to target timezone
+            now_utc = datetime.now(pytz.UTC)
+            # Convert UTC time to base timezone
+            now_base = now_utc.astimezone(base_tz)
             base_time_str = now_base.strftime("%H:%M %Z")
             return f"**{base_tz_display}**: {base_time_str}"
         except ImportError:
@@ -6550,15 +6549,14 @@ class ServerManagement(commands.Cog, name='Server Management'):
             update_count = 0
             while True:
                 try:
-                    # Sleep for 60 seconds before updating (skip on first iteration)
-                    if update_count > 0:
-                        await asyncio.sleep(60)
                     update_count += 1
                     # Fetch and update the message
                     try:
                         message = await channel.fetch_message(int(timezone_message_id))
                         new_embed = self._create_timezone_embed(base_timezone, guild_name)
                         await message.edit(embed=new_embed)
+                        now_utc = datetime.now(pytz.UTC)
+                        self.logger.debug(f"Updated timezone message at {now_utc.strftime('%H:%M:%S UTC')} for server {server_id}")
                     except discord.NotFound:
                         self.logger.warning(f"Timezone message (ID: {timezone_message_id}) not found, stopping updates for server {server_id}")
                         break
@@ -6570,20 +6568,24 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         # Continue trying despite error
                     except Exception as e:
                         self.logger.error(f"Error updating timezone message: {e}")
-                        import traceback
                         self.logger.error(f"Traceback: {traceback.format_exc()}")
                         # Continue trying despite error
+                    
+                    # Calculate time until the next minute boundary for more accurate updates
+                    now_utc = datetime.now(pytz.UTC)
+                    seconds_in_current_minute = now_utc.second + (now_utc.microsecond / 1_000_000)
+                    sleep_time = 60 - seconds_in_current_minute + 0.1  # Small buffer to ensure we're past the minute boundary
+                    sleep_time = max(1, sleep_time)  # Ensure at least 1 second sleep
+                    await asyncio.sleep(sleep_time)
                 except asyncio.CancelledError:
                     self.logger.info(f"Timezone update task cancelled for server {server_id}")
                     break
                 except Exception as e:
                     self.logger.error(f"Unexpected error in timezone update loop: {e}")
-                    import traceback
                     self.logger.error(f"Traceback: {traceback.format_exc()}")
                     break
         except Exception as e:
             self.logger.error(f"Error in timezone update loop initialization: {e}")
-            import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 
     async def post_stream_schedule_message(self, data):
@@ -6751,7 +6753,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     self.logger.info(f"Successfully saved stream schedule message (ID: {message_id}) and timezone message (ID: {timezone_message_id}) to database for server {server_id}, affected rows: {result}")
                 except Exception as e:
                     self.logger.error(f"Error saving stream schedule message to database: {e}")
-                    import traceback
                     self.logger.error(f"Traceback: {traceback.format_exc()}")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
@@ -6761,7 +6762,6 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.error(f"Unexpected error sending stream schedule message: {e}")
         except Exception as e:
             self.logger.error(f"Error in post_stream_schedule_message: {e}")
-            import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 
     @commands.Cog.listener()
