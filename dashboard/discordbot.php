@@ -3312,6 +3312,7 @@ function removeStreamer(username) {
     const channelId = $('#stream_schedule_channel_id').val();
     const title = $('#stream_schedule_title').val().trim();
     const content = $('#stream_schedule_content').val().trim();
+    const timezone = $('#stream_schedule_timezone').val().trim();
     let hasChannel = false;
     if ($('#stream_schedule_channel_id').is('select')) {
       hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
@@ -3320,8 +3321,9 @@ function removeStreamer(username) {
     }
     const hasTitle = title !== '';
     const hasContent = content !== '';
+    const hasTimezone = timezone !== '';
     const sendButton = $('#send_stream_schedule_message');
-    if (hasChannel && hasTitle && hasContent) {
+    if (hasChannel && hasTitle && hasContent && hasTimezone) {
       sendButton.prop('disabled', false);
     } else {
       sendButton.prop('disabled', true);
@@ -3329,7 +3331,7 @@ function removeStreamer(username) {
   }
   // Check validation on page load and when inputs change
   validateSendStreamScheduleButton();
-  $('#stream_schedule_channel_id, #stream_schedule_title, #stream_schedule_content').on('change input', validateSendStreamScheduleButton);
+  $('#stream_schedule_channel_id, #stream_schedule_title, #stream_schedule_content, #stream_schedule_timezone').on('change input', validateSendStreamScheduleButton);
 });
 </script>
 <?php if (!$is_linked) { ?>
