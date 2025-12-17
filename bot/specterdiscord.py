@@ -958,19 +958,47 @@ class LiveChannelManager:
             else:
                 # Keep this quiet unless debugging is enabled
                 self.logger.debug(f"No online state to mark offline for {uname_log}")
-            # Also attempt to remove any live_notifications entries tied to this channel_code
-            try:
-                # Resolve guild id and username via channel_mappings
-                row = await self.mysql.fetchone("SELECT guild_id, username FROM channel_mappings WHERE channel_code = %s", (channel_code,), database_name='specterdiscordbot', dict_cursor=True)
-                if row:
-                    guild_id = row.get('guild_id')
-                    username = row.get('username')
-                    if guild_id and username:
-                        await self.mysql.execute("DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s", (guild_id, str(username).lower()), database_name='specterdiscordbot')
-            except Exception:
-                pass
         except Exception as e:
             self.logger.error(f"Error marking offline for {channel_code}: {e}")
+
+    async def clear_live_notifications_for_channel(self, channel_code, username=None):
+        try:
+            if not username:
+                # Try to resolve username from channel_code
+                try:
+                    row = await self.mysql.fetchone("SELECT username FROM channel_mappings WHERE channel_code = %s", (channel_code,), database_name='specterdiscordbot', dict_cursor=True)
+                    if row and row.get('username'):
+                        username = row.get('username')
+                except Exception:
+                    pass
+                if not username:
+                    try:
+                        user_row = await self.mysql.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
+                        if user_row and user_row.get('username'):
+                            username = user_row.get('username')
+                    except Exception:
+                        pass
+            if username:
+                try:
+                    # Get all guilds where this user has a live_notification
+                    all_notifications = await self.mysql.fetchall(
+                        "SELECT guild_id FROM live_notifications WHERE LOWER(username) = %s",
+                        (str(username).lower(),),
+                        database_name='specterdiscordbot',
+                        dict_cursor=True
+                    )
+                    if all_notifications:
+                        # Delete all live_notifications for this username across all guilds
+                        await self.mysql.execute(
+                            "DELETE FROM live_notifications WHERE LOWER(username) = %s",
+                            (str(username).lower(),),
+                            database_name='specterdiscordbot'
+                        )
+                        self.logger.info(f"Cleared {len(all_notifications)} live_notifications for {username} on OFFLINE event")
+                except Exception as e:
+                    self.logger.debug(f"Error clearing live_notifications for {username}: {e}")
+        except Exception as e:
+            self.logger.error(f"Error in clear_live_notifications_for_channel for {channel_code}: {e}")
 
     async def get_online_stream(self, channel_code):
         try:
@@ -1039,14 +1067,6 @@ class LiveChannelManager:
                 (str(username).lower(),),
                 database_name='specterdiscordbot'
             )
-            # Also attempt to remove any live_notifications entries tied to this username
-            try:
-                row = await self.mysql.fetchone("SELECT guild_id FROM channel_mappings WHERE LOWER(username) = %s", (str(username).lower(),), database_name='specterdiscordbot', dict_cursor=True)
-                if row and row.get('guild_id'):
-                    guild_id = row.get('guild_id')
-                    await self.mysql.execute("DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s", (guild_id, str(username).lower()), database_name='specterdiscordbot')
-            except Exception:
-                pass
         except Exception as e:
             self.logger.error(f"Error marking offline by username {username}: {e}")
 
@@ -1258,23 +1278,45 @@ class LiveChannelManager:
                                             try:
                                                 existing = await self.get_online_stream_by_username(uname)
                                                 if not existing:
-                                                    # Build event data and trigger posting via bot
-                                                    event_data = {
-                                                        'channel_code': code,
-                                                        'twitch-username': s.get('user_login'),
-                                                        'twitch_user_id': s.get('user_id'),
-                                                        'twitch-stream-id': s.get('id'),
-                                                        'started_at': s.get('started_at'),
-                                                        'details': s
-                                                    }
-                                                    self.logger.info(f"Periodic fallback: detected live for mapping {code} ({uname}) — calling handle_stream_event")
-                                                    try:
-                                                        if self.bot:
-                                                            await self.bot.handle_stream_event('ONLINE', event_data)
-                                                    except Exception as inner_e:
-                                                        self.logger.debug(f"Error triggering periodic fallback announcement for {code}: {inner_e}")
-                                                    # Mark online (persist) after posting
-                                                    await self.mark_online(code, username=s.get('user_login'), twitch_user_id=s.get('user_id'), stream_id=s.get('id'), started_at=s.get('started_at'), details=s)
+                                                    # Get guild_id from the mapping to check live_notifications
+                                                    mapping = mappings.get(code, {})
+                                                    guild_id = mapping.get('guild_id')
+                                                    # Check if we've already posted a notification for this user in this guild
+                                                    should_post = True
+                                                    if guild_id:
+                                                        try:
+                                                            existing_notification = await self.mysql.fetchone(
+                                                                "SELECT * FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
+                                                                (guild_id, str(uname).lower()),
+                                                                database_name='specterdiscordbot',
+                                                                dict_cursor=True
+                                                            )
+                                                            if existing_notification:
+                                                                self.logger.debug(f"Live notification already posted for {uname} in guild {guild_id}, skipping duplicate in periodic fallback")
+                                                                should_post = False
+                                                        except Exception as e:
+                                                            self.logger.debug(f"Error checking live_notifications for periodic fallback {code}: {e}")
+                                                    if should_post:
+                                                        # Build event data and trigger posting via bot
+                                                        event_data = {
+                                                            'channel_code': code,
+                                                            'twitch-username': s.get('user_login'),
+                                                            'twitch_user_id': s.get('user_id'),
+                                                            'twitch-stream-id': s.get('id'),
+                                                            'started_at': s.get('started_at'),
+                                                            'details': s
+                                                        }
+                                                        self.logger.info(f"Periodic fallback: detected live for mapping {code} ({uname}) — calling handle_stream_event")
+                                                        try:
+                                                            if self.bot:
+                                                                await self.bot.handle_stream_event('ONLINE', event_data)
+                                                        except Exception as inner_e:
+                                                            self.logger.debug(f"Error triggering periodic fallback announcement for {code}: {inner_e}")
+                                                        # Mark online (persist) after posting
+                                                        await self.mark_online(code, username=s.get('user_login'), twitch_user_id=s.get('user_id'), stream_id=s.get('id'), started_at=s.get('started_at'), details=s)
+                                                    else:
+                                                        # Still mark online even if we skipped posting
+                                                        await self.mark_online(code, username=s.get('user_login'), twitch_user_id=s.get('user_id'), stream_id=s.get('id'), started_at=s.get('started_at'), details=s)
                                             except Exception as inner_e:
                                                 self.logger.debug(f"Error checking existing online stream for periodic fallback {code}: {inner_e}")
                             except Exception as e:
@@ -2576,6 +2618,8 @@ class BotOfTheSpecter(commands.Bot):
                 try:
                     if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
                         await self.live_channel_manager.mark_offline(channel_code)
+                        # Also clear live_notifications specifically for offline events
+                        await self.live_channel_manager.clear_live_notifications_for_channel(channel_code)
                     # Also remove any live notification entry in website DB
                     try:
                         mysql_helper = MySQLHelper(self.logger)
@@ -2884,15 +2928,31 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         self.logger.info("No discord_info found for guild")
                     self.logger.info(f"Final mention text for {account_username}: '{mention_text}'")
-                    # Decide if we should skip this posting due to existing online mark
+                    # Decide if we should skip this posting due to existing notification already sent
                     skip_post = False
                     try:
-                        if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
-                            existing = await self.live_channel_manager.get_online_stream(code)
-                            if existing:
-                                skip_post = True
+                        # Check if we've already posted a live notification for this user in this guild
+                        existing_notification = await mysql_helper.fetchone(
+                            "SELECT * FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
+                            (guild.id, str(account_username).lower()),
+                            database_name='specterdiscordbot',
+                            dict_cursor=True
+                        )
+                        if existing_notification:
+                            self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {existing_notification.get('posted_at')}")
+                            skip_post = True
                     except Exception as e:
-                        self.logger.debug(f"Error checking live_channel_manager for {code}: {e}")
+                        self.logger.debug(f"Error checking existing live notifications for {account_username}: {e}")
+                    # Also check online_streams as fallback
+                    if not skip_post:
+                        try:
+                            if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
+                                existing = await self.live_channel_manager.get_online_stream(code)
+                                if existing:
+                                    skip_post = True
+                                    self.logger.info(f"Stream already marked online for {code}, skipping duplicate notification")
+                        except Exception as e:
+                            self.logger.debug(f"Error checking live_channel_manager for {code}: {e}")
                     # Get user profile image and stream info
                     if skip_post:
                         self.logger.info(f"Skipping fetching additional user info for {account_username} due to skip_post flag")
