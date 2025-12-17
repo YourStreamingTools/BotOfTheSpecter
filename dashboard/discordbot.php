@@ -949,48 +949,6 @@ if ($is_linked && $hasGuildId) {
           $existingUserStatusTracking = isset($userTrackingConfig['track_status']) ? (int)$userTrackingConfig['track_status'] : 1;
         }
       }
-      
-      // Auto-disable features if enabled but have no data
-      // Welcome Message: Check if enabled but missing required channel data
-      if ($serverManagementSettings['welcomeMessage'] && empty($serverMgmtData['welcome_message_configuration_channel'])) {
-        $serverManagementSettings['welcomeMessage'] = false;
-      }
-      // Auto Role: Check if enabled but missing role ID
-      if ($serverManagementSettings['autoRole'] && empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
-        $serverManagementSettings['autoRole'] = false;
-      }
-      // Role History: Check if enabled but missing configuration
-      if ($serverManagementSettings['roleHistory'] && empty($serverMgmtData['role_history_configuration'])) {
-        $serverManagementSettings['roleHistory'] = false;
-      }
-      // Message Tracking: Check if enabled but missing configuration
-      if ($serverManagementSettings['messageTracking'] && empty($serverMgmtData['message_tracking_configuration'])) {
-        $serverManagementSettings['messageTracking'] = false;
-      }
-      // Role Tracking: Check if enabled but missing configuration
-      if ($serverManagementSettings['roleTracking'] && empty($serverMgmtData['role_tracking_configuration'])) {
-        $serverManagementSettings['roleTracking'] = false;
-      }
-      // Server Role Management: Check if enabled but missing configuration
-      if ($serverManagementSettings['serverRoleManagement'] && empty($serverMgmtData['server_role_management_configuration'])) {
-        $serverManagementSettings['serverRoleManagement'] = false;
-      }
-      // User Tracking: Check if enabled but missing configuration
-      if ($serverManagementSettings['userTracking'] && empty($serverMgmtData['user_tracking_configuration'])) {
-        $serverManagementSettings['userTracking'] = false;
-      }
-      // Reaction Roles: Check if enabled but missing configuration
-      if ($serverManagementSettings['reactionRoles'] && empty($serverMgmtData['reaction_roles_configuration'])) {
-        $serverManagementSettings['reactionRoles'] = false;
-      }
-      // Rules Configuration: Check if enabled but missing configuration
-      if ($serverManagementSettings['rulesConfiguration'] && empty($serverMgmtData['rules_configuration'])) {
-        $serverManagementSettings['rulesConfiguration'] = false;
-      }
-      // Stream Schedule: Check if enabled but missing configuration
-      if ($serverManagementSettings['streamSchedule'] && empty($serverMgmtData['stream_schedule_configuration'])) {
-        $serverManagementSettings['streamSchedule'] = false;
-      }
       if (!empty($serverMgmtData['role_tracking_configuration_channel'])) {
         $existingRoleLogChannelID = $serverMgmtData['role_tracking_configuration_channel'];
       }
@@ -2474,7 +2432,7 @@ ob_start();
     <?php if ($hasEnabledFeatures && $is_linked && !$needs_relink && $hasGuildId): ?>
     <div class="columns is-multiline">
       <?php if ($serverManagementSettings['welcomeMessage']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-welcomeMessage">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2552,7 +2510,7 @@ ob_start();
       </div>
       <?php endif; ?>
       <?php if ($serverManagementSettings['autoRole']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-autoRole">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2604,7 +2562,7 @@ ob_start();
       </div>
       <?php endif; ?>
       <?php if ($serverManagementSettings['roleHistory']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-roleHistory">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2658,7 +2616,7 @@ ob_start();
       </div>
       <?php endif; ?>
       <?php if ($serverManagementSettings['messageTracking']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-messageTracking">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2714,7 +2672,7 @@ ob_start();
       </div>
       <?php endif; ?>
       <?php if ($serverManagementSettings['roleTracking']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-roleTracking">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2770,7 +2728,7 @@ ob_start();
       </div>
       <?php endif; ?>
       <?php if ($serverManagementSettings['serverRoleManagement']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-serverRoleManagement">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2830,7 +2788,7 @@ ob_start();
       </div>
       <?php endif; ?>
       <?php if ($serverManagementSettings['userTracking']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-userTracking">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2902,7 +2860,7 @@ ob_start();
       </div>
       <?php endif; ?>
       <?php if ($serverManagementSettings['reactionRoles']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-reactionRoles">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2978,7 +2936,7 @@ ob_start();
       </div>
       <?php endif; ?>
       <?php if ($serverManagementSettings['rulesConfiguration']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-rulesConfiguration">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -3067,7 +3025,7 @@ ob_start();
       </div>
       <?php endif; ?>
       <?php if ($serverManagementSettings['streamSchedule']): ?>
-      <div class="column is-6 is-flex">
+      <div class="column is-6 is-flex" id="feature-box-streamSchedule">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -3548,10 +3506,18 @@ function removeStreamer(username) {
           timer: 2000,
           timerProgressBar: true
         });
-        // Refresh the page after a short delay to show/hide management feature cards
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+        // Dynamically show/hide feature box based on toggle state
+        const featureBoxId = 'feature-box-' + settingName;
+        const featureBox = document.getElementById(featureBoxId);
+        if (featureBox) {
+          if (value) {
+            // Feature enabled - show the box with fade in animation
+            $(featureBox).fadeIn(300);
+          } else {
+            // Feature disabled - hide the box with fade out animation
+            $(featureBox).fadeOut(300);
+          }
+        }
       } else {
         // Show error and revert toggle
         Swal.fire({
