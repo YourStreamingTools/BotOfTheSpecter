@@ -2189,9 +2189,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
-            <p class="has-text-grey-light mb-4">
-              Configure Discord channels for stream online alerts and voice status.
-            </p>
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>Stream Online Alerts:</strong> Configure Discord channels for stream online alerts and voice status updates when you go live on Twitch.</p>
+            </div>
             <!-- Stream Online / Live Status Form -->
             <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 1rem;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
@@ -2325,6 +2325,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>Stream Monitoring:</strong> Add Twitch streamers to monitor and receive notifications in your Discord server when they go live.</p>
+            </div>
             <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
               <div class="field">
                 <label class="label has-text-white" for="option" style="font-weight: 500;">Twitch Username</label>
@@ -2387,6 +2390,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content" style="display: flex; flex-direction: column;">
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>Audit Logging:</strong> Track all Twitch moderation actions and events with automatic Discord channel logging for full transparency and record-keeping.</p>
+            </div>
             <form action="" method="post" style="display: flex; flex-direction: column; width: 100%;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
               <div class="field">
@@ -2441,10 +2447,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-info is-light mb-1">
-              <p class="has-text-dark"><strong>Welcome Message:</strong> Send automated welcome messages when new members join your Discord server.</p>
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>Welcome Messages:</strong> Greet new members with personalized welcome messages when they join your Discord server.</p>
             </div>
-            <p class="has-text-white-ter mb-1">Configure automated welcome messages for new members joining your Discord server.</p>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Welcome Channel <span class="has-text-danger">*</span></label>
@@ -2517,10 +2522,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-info is-light mb-1">
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
               <p class="has-text-dark"><strong>Auto Role Assignment:</strong> Automatically assign a role to new members when they join your Discord server.</p>
             </div>
-            <p class="has-text-white-ter mb-1">Configure automatic role assignment for new members joining your Discord server.</p>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Auto Role</label>
@@ -2567,7 +2571,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <p class="has-text-white-ter mb-3">Automatically restore roles to members when they rejoin your server. Roles are kept on record for a configurable period after they leave.</p>
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>Role History:</strong> Automatically restore roles to members when they rejoin your server, with configurable retention period for role records.</p>
+            </div>
             <form id="roleHistoryForm" method="POST">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Enable Role Restoration</label>
@@ -2616,7 +2622,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <p class="has-text-white-ter mb-1">Configure message tracking for edited and deleted messages in your Discord server.</p>
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>Message Tracking:</strong> Track and log edited and deleted messages in your Discord server for moderation and transparency purposes.</p>
+            </div>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Message Log Channel ID</label>
@@ -2667,7 +2675,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <p class="has-text-white-ter mb-3">Configure role change tracking for audit purposes in your Discord server.</p>
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>Role Tracking:</strong> Monitor and log role assignments and removals for audit and transparency purposes in your Discord server.</p>
+            </div>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Role Log Channel</label>
@@ -2718,7 +2728,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <p class="has-text-white-ter mb-1">Configure tracking for role creation and deletion within your Discord server.</p>
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>Server Role Management:</strong> Track role creation, deletion, and edits within your Discord server for full server management audit logs.</p>
+            </div>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Server Management Log Channel ID</label>
@@ -2773,7 +2785,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <p class="has-text-white-ter mb-1">Configure tracking for user activity and profile changes in your Discord server.</p>
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>User Tracking:</strong> Track and log user activity including joins, leaves, nickname changes, avatar updates, and status changes in your Discord server.</p>
+            </div>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">User Tracking Log Channel ID</label>
@@ -2840,10 +2854,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-info is-light mb-1">
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
               <p class="has-text-dark"><strong>Reaction Roles:</strong> Configure self-assignable roles via reactions in your Discord server.</p>
             </div>
-            <p class="has-text-white-ter mb-1">Configure self-assignable roles via reactions in your Discord server.</p>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Channel ID</label>
@@ -2914,10 +2927,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-info is-light mb-1">
-              <p class="has-text-dark"><strong>Rules:</strong> Post an embed with your server rules to keep your community informed.</p>
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p class="has-text-dark"><strong>Server Rules:</strong> Post an embed with your server rules to keep your community informed and set clear expectations for all members.</p>
             </div>
-            <p class="has-text-white-ter mb-1">Configure and post an embed message with your server rules.</p>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Rules Channel <span class="has-text-danger">*</span></label>
@@ -3001,10 +3013,9 @@ ob_start();
             </div>
           </header>
           <div class="card-content">
-            <div class="notification is-info is-light mb-1">
+            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
               <p class="has-text-dark"><strong>Stream Schedule:</strong> Post an embed with your streaming schedule to keep your community informed about when you stream.</p>
             </div>
-            <p class="has-text-white-ter mb-1">Configure and post an embed message with your stream schedule.</p>
             <form action="" method="post">
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Schedule Channel <span class="has-text-danger">*</span></label>
