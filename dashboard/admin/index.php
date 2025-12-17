@@ -329,8 +329,16 @@ if (isset($_GET['ajax'])) {
                 $section = 'beta';
             } elseif (strpos($line, 'Custom bots running:') === 0) {
                 $section = 'custom';
-            } elseif (preg_match('/- Channel: (\S+), PID: (\d+), Version: (.+)/', $line, $matches)) {
-                $bot = ['channel' => $matches[1], 'pid' => $matches[2], 'version' => $matches[3]];
+            } elseif (preg_match('/- Channel: (\S+), PID: (\d+), Version: (.+?)\s*\|(.+)/', $line, $matches)) {
+                $version = $matches[3];
+                $status_text = trim($matches[4]);
+                $is_outdated = strpos($status_text, 'OUTDATED') !== false;
+                $bot = [
+                    'channel' => $matches[1],
+                    'pid' => $matches[2],
+                    'version' => $version,
+                    'is_outdated' => $is_outdated
+                ];
                 if ($section == 'stable') {
                     $stable_bots[] = $bot;
                 } elseif ($section == 'beta') {
@@ -1369,6 +1377,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bot.version) {
             html += '<span class="tag is-info bot-version">v' + bot.version + '</span>';
         }
+        if (bot.is_outdated) {
+            html += '<span class="tag is-danger">OUTDATED</span>';
+        }
         html += '<button type="button" class="button is-danger is-small bot-stop-button" data-pid="' + bot.pid + '">';
         html += '<span class="icon"><i class="fas fa-stop"></i></span>';
         html += '</button>';
@@ -1474,6 +1485,25 @@ document.addEventListener('DOMContentLoaded', function() {
                                 versionTag.className = 'tag is-info bot-version';
                                 versionTag.textContent = 'v' + bot.version;
                                 pidEl.insertAdjacentElement('afterend', versionTag);
+                            }
+                        }
+                        // update outdated tag
+                        let outdatedEl = existingEl.querySelector('.tag.is-danger:not(.is-small)');
+                        if (bot.is_outdated) {
+                            if (!outdatedEl) {
+                                // Add outdated tag if it doesn't exist
+                                const versionEl = existingEl.querySelector('.bot-version');
+                                if (versionEl) {
+                                    const outdatedTag = document.createElement('span');
+                                    outdatedTag.className = 'tag is-danger';
+                                    outdatedTag.textContent = 'OUTDATED';
+                                    versionEl.insertAdjacentElement('afterend', outdatedTag);
+                                }
+                            }
+                        } else {
+                            // Remove outdated tag if no longer outdated
+                            if (outdatedEl && outdatedEl.textContent === 'OUTDATED') {
+                                outdatedEl.remove();
                             }
                         }
                         // update stop button pid data attribute
