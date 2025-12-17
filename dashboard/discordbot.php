@@ -2440,6 +2440,9 @@ ob_start();
               Welcome Message Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearFeature('welcomeMessage')" style="margin-right: 10px;" title="Clear all welcome message data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -2515,6 +2518,9 @@ ob_start();
               Auto Role Assignment Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearFeature('autoRole')" style="margin-right: 10px;" title="Clear all auto role data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -2564,6 +2570,9 @@ ob_start();
               Role History Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearFeature('roleHistory')" style="margin-right: 10px;" title="Clear all role history data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -2615,6 +2624,9 @@ ob_start();
               Message Tracking Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearFeature('messageTracking')" style="margin-right: 10px;" title="Clear all message tracking data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -2668,6 +2680,9 @@ ob_start();
               Role Tracking Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearFeature('roleTracking')" style="margin-right: 10px;" title="Clear all role tracking data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -2721,6 +2736,9 @@ ob_start();
               Server Role Management Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearFeature('serverRoleManagement')" style="margin-right: 10px;" title="Clear all server role management data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -2778,6 +2796,9 @@ ob_start();
               User Tracking Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearFeature('userTracking')" style="margin-right: 10px;" title="Clear all user tracking data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -2847,6 +2868,9 @@ ob_start();
               Reaction Roles Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearReactionRoles()" style="margin-right: 10px;" title="Clear all reaction roles data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -2891,7 +2915,7 @@ ob_start();
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Save Reaction Roles Settings</span>
                   </button>
@@ -2899,7 +2923,7 @@ ob_start();
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-success is-fullwidth" type="button" onclick="sendReactionRolesMessage()" id="send_reaction_roles_message" name="send_reaction_roles_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-success is-fullwidth" type="button" onclick="sendReactionRolesMessage()" id="send_reaction_roles_message" name="send_reaction_roles_message" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-paper-plane"></i></span>
                     <span>Send Message to Channel</span>
                   </button>
@@ -2920,6 +2944,9 @@ ob_start();
               Rules Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearRules()" style="margin-right: 10px;" title="Clear all rules data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -2977,7 +3004,7 @@ ob_start();
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveRules()" name="save_rules" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveRules()" name="save_rules" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Save Rules Configuration</span>
                   </button>
@@ -2985,7 +3012,7 @@ ob_start();
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-success is-fullwidth" type="button" onclick="sendRulesMessage()" id="send_rules_message" name="send_rules_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-success is-fullwidth" type="button" onclick="sendRulesMessage()" id="send_rules_message" name="send_rules_message" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-paper-plane"></i></span>
                     <span>Send Rules to Channel</span>
                   </button>
@@ -3006,6 +3033,9 @@ ob_start();
               Stream Schedule Configuration
             </p>
             <div class="card-header-icon">
+              <button class="button is-ghost" onclick="clearStreamSchedule()" style="margin-right: 10px;" title="Clear all schedule data and disable this feature">
+                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+              </button>
               <span class="tag is-success is-light">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
@@ -3054,7 +3084,7 @@ ob_start();
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveStreamSchedule()" name="save_stream_schedule" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-primary is-fullwidth" type="button" onclick="saveStreamSchedule()" name="save_stream_schedule" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Save Schedule Configuration</span>
                   </button>
@@ -3062,7 +3092,7 @@ ob_start();
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-success is-fullwidth" type="button" onclick="sendStreamScheduleMessage()" id="send_stream_schedule_message" name="send_stream_schedule_message" style="border-radius: 6px; font-weight: 600;" disabled>
+                  <button class="button is-success is-fullwidth" type="button" onclick="sendStreamScheduleMessage()" id="send_stream_schedule_message" name="send_stream_schedule_message" style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-paper-plane"></i></span>
                     <span>Send Schedule to Channel</span>
                   </button>
@@ -3600,6 +3630,28 @@ function removeStreamer(username) {
           timer: 2000,
           timerProgressBar: true
         });
+        
+        // Handle clearing data - disable the appropriate toggle
+        if (action === 'clear_reaction_roles') {
+          const toggle = document.getElementById('reactionRoles');
+          if (toggle) {
+            toggle.checked = false;
+            toggle.dispatchEvent(new Event('change'));
+          }
+        } else if (action === 'clear_rules') {
+          const toggle = document.getElementById('rulesConfiguration');
+          if (toggle) {
+            toggle.checked = false;
+            toggle.dispatchEvent(new Event('change'));
+          }
+        } else if (action === 'clear_stream_schedule') {
+          const toggle = document.getElementById('streamSchedule');
+          if (toggle) {
+            toggle.checked = false;
+            toggle.dispatchEvent(new Event('change'));
+          }
+        }
+        
         // Update the form fields with the saved values (if returned in response)
         if (data.channel_id) {
           const channelInput = document.getElementById('reaction_roles_channel_id');
@@ -4244,6 +4296,98 @@ function removeStreamer(username) {
       }
     });
   }
+  
+  // Generic Clear Feature Function
+  function clearFeature(featureName) {
+    // Map feature names to display titles and action keys
+    const featureMap = {
+      'reactionRoles': {
+        title: 'Clear Reaction Roles?',
+        text: 'This will permanently delete all reaction roles configuration and settings. This action cannot be undone.',
+        action: 'clear_reaction_roles'
+      },
+      'rulesConfiguration': {
+        title: 'Clear Rules Configuration?',
+        text: 'This will permanently delete all rules configuration and settings. This action cannot be undone.',
+        action: 'clear_rules'
+      },
+      'streamSchedule': {
+        title: 'Clear Stream Schedule?',
+        text: 'This will permanently delete all stream schedule configuration and settings. This action cannot be undone.',
+        action: 'clear_stream_schedule'
+      },
+      'welcomeMessage': {
+        title: 'Clear Welcome Message?',
+        text: 'This will permanently delete all welcome message configuration and settings. This action cannot be undone.',
+        action: 'clear_welcome_message'
+      },
+      'autoRole': {
+        title: 'Clear Auto Role Configuration?',
+        text: 'This will permanently delete all auto role configuration and settings. This action cannot be undone.',
+        action: 'clear_auto_role'
+      },
+      'roleHistory': {
+        title: 'Clear Role History?',
+        text: 'This will permanently delete all role history data and configuration. This action cannot be undone.',
+        action: 'clear_role_history'
+      },
+      'messageTracking': {
+        title: 'Clear Message Tracking?',
+        text: 'This will permanently delete all message tracking configuration and settings. This action cannot be undone.',
+        action: 'clear_message_tracking'
+      },
+      'roleTracking': {
+        title: 'Clear Role Tracking?',
+        text: 'This will permanently delete all role tracking configuration and settings. This action cannot be undone.',
+        action: 'clear_role_tracking'
+      },
+      'serverRoleManagement': {
+        title: 'Clear Server Role Management?',
+        text: 'This will permanently delete all server role management configuration and settings. This action cannot be undone.',
+        action: 'clear_server_role_management'
+      },
+      'userTracking': {
+        title: 'Clear User Tracking?',
+        text: 'This will permanently delete all user tracking configuration and settings. This action cannot be undone.',
+        action: 'clear_user_tracking'
+      }
+    };
+    
+    const feature = featureMap[featureName];
+    if (!feature) {
+      console.error('Unknown feature:', featureName);
+      return;
+    }
+    
+    Swal.fire({
+      title: feature.title,
+      text: feature.text,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Clear All Data',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#e74c3c',
+      cancelButtonColor: '#6c757d'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        saveChannelConfig(feature.action, {});
+      }
+    });
+  }
+  
+  // Deprecated individual clear functions (kept for backward compatibility)
+  function clearReactionRoles() {
+    clearFeature('reactionRoles');
+  }
+  
+  function clearRules() {
+    clearFeature('rulesConfiguration');
+  }
+  
+  function clearStreamSchedule() {
+    clearFeature('streamSchedule');
+  }
+  
   // Add event listeners to all Discord setting toggles
   document.addEventListener('DOMContentLoaded', function() {
     // Initialize server management settings from PHP
