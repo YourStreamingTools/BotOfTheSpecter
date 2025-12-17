@@ -3007,23 +3007,23 @@ ob_start();
             <p class="has-text-white-ter mb-1">Configure and post an embed message with your stream schedule.</p>
             <form action="" method="post">
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Schedule Channel</label>
+                <label class="label has-text-white" style="font-weight: 500;">Schedule Channel <span class="has-text-danger">*</span></label>
                 <div class="control has-icons-left">
                   <?php echo generateChannelInput('stream_schedule_channel_id', 'stream_schedule_channel_id', $existingStreamScheduleChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
                 <p class="help has-text-grey-light">Channel where the stream schedule message will be posted</p>
               </div>
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Schedule Title</label>
+                <label class="label has-text-white" style="font-weight: 500;">Schedule Title <span class="has-text-danger">*</span></label>
                 <div class="control">
-                  <input class="input" type="text" id="stream_schedule_title" name="stream_schedule_title" value="<?php echo htmlspecialchars($existingStreamScheduleTitle ?? ''); ?>" placeholder="e.g. Weekly Stream Schedule" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                  <input class="input" type="text" id="stream_schedule_title" name="stream_schedule_title" value="<?php echo htmlspecialchars($existingStreamScheduleTitle ?? ''); ?>" placeholder="e.g. Weekly Stream Schedule" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required>
                 </div>
                 <p class="help has-text-grey-light">Title for the stream schedule embed (appears at the top)</p>
               </div>
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Stream Schedule Content</label>
+                <label class="label has-text-white" style="font-weight: 500;">Stream Schedule Content <span class="has-text-danger">*</span></label>
                 <div class="control">
-                  <textarea class="textarea" id="stream_schedule_content" name="stream_schedule_content" rows="10" placeholder="Enter your stream schedule (one per line or formatted as you prefer)&#10;&#10;Example:&#10;🎮 Monday: 7:00 PM - 10:00 PM EST - Variety Gaming&#10;🎮 Wednesday: 8:00 PM - 11:00 PM EST - Just Chatting&#10;🎮 Friday: 7:00 PM - 12:00 AM EST - Game Night&#10;🎮 Saturday: 3:00 PM - 7:00 PM EST - Community Games&#10;&#10;Or use Discord markdown:&#10;**Monday** - 7:00 PM EST&#10;**Wednesday** - 8:00 PM EST" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingStreamScheduleContent ?? ''); ?></textarea>
+                  <textarea class="textarea" id="stream_schedule_content" name="stream_schedule_content" rows="10" placeholder="Enter your stream schedule (one per line or formatted as you prefer)&#10;&#10;Example:&#10;🎮 Monday: 7:00 PM - 10:00 PM EST - Variety Gaming&#10;🎮 Wednesday: 8:00 PM - 11:00 PM EST - Just Chatting&#10;🎮 Friday: 7:00 PM - 12:00 AM EST - Game Night&#10;🎮 Saturday: 3:00 PM - 7:00 PM EST - Community Games&#10;&#10;Or use Discord markdown:&#10;**Monday** - 7:00 PM EST&#10;**Wednesday** - 8:00 PM EST" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required><?php echo htmlspecialchars($existingStreamScheduleContent ?? ''); ?></textarea>
                 </div>
                 <p class="help has-text-grey-light">Enter your stream schedule. You can use emojis, bullet points, or any format you prefer. Discord markdown is supported.</p>
               </div>
