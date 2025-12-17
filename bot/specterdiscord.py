@@ -1092,13 +1092,12 @@ class LiveChannelManager:
                 # If still missing, perform API check by username if known
             # If we have a username and bot, verify via bot.get_stream_info
             if username and self.bot:
-                # use bot.get_stream_info which returns (thumbnail_url, game_name) or (None, 'Unknown Game')
+                # use bot.get_stream_info which returns (game_name, stream_title) or ('Unknown Game', 'No Title')
                 try:
-                    thumb, game = await self.bot.get_stream_info(username)
-                    if thumb is not None:
-                        details = {'game': game, 'thumbnail': thumb}
-                        await self.mark_online(channel_code, username=username, twitch_user_id=twitch_user_id, stream_id=stream_id, started_at=started_at, details=details)
-                        return
+                    game, stream_title = await self.bot.get_stream_info(username)
+                    details = {'game': game}
+                    await self.mark_online(channel_code, username=username, twitch_user_id=twitch_user_id, stream_id=stream_id, started_at=started_at, details=details)
+                    return
                 except Exception:
                     # If get_stream_info fails, fallback to persisting websocket data
                     pass
@@ -1170,10 +1169,9 @@ class LiveChannelManager:
             except Exception as e:
                 # fallback to old get_stream_info if Helix call fails
                 self.logger.debug(f"Helix call failed in fallback_check_and_mark: {e}")
-                thumb, game = await self.bot.get_stream_info(username)
-                if thumb is not None:
-                    details = {'game': game, 'thumbnail': thumb}
-                    await self.mark_online(channel_code, username=username, twitch_user_id=None, stream_id=None, started_at=None, details=details)
+                game, stream_title = await self.bot.get_stream_info(username)
+                details = {'game': game}
+                await self.mark_online(channel_code, username=username, twitch_user_id=None, stream_id=None, started_at=None, details=details)
             else:
                 # Not live, remove any existing record
                 await self.mark_offline(channel_code)
@@ -2748,14 +2746,12 @@ class BotOfTheSpecter(commands.Bot):
                 if resp.status == 200:
                     data = await resp.json()
                     stream_data = data.get("data", [{}])[0]
-                    thumbnail_url = stream_data.get("thumbnail_url")
-                    if thumbnail_url:
-                        thumbnail_url = thumbnail_url.replace("{width}x{height}", "1280x720")
                     game_name = stream_data.get("game_name", "Unknown Game")
-                    return thumbnail_url, game_name
+                    stream_title = stream_data.get("title", "No Title")
+                    return game_name, stream_title
                 else:
                     self.logger.error(f"Failed to fetch stream info: {resp.status}")
-                    return None, "Unknown Game"
+                    return "Unknown Game", "No Title"
 
     async def get_user_profile_image(self, username):
         try:
@@ -2897,13 +2893,15 @@ class BotOfTheSpecter(commands.Bot):
                                 skip_post = True
                     except Exception as e:
                         self.logger.debug(f"Error checking live_channel_manager for {code}: {e}")
-                    # Get stream info (thumbnail and game)
+                    # Get user profile image and stream info
                     if skip_post:
-                        self.logger.info(f"Skipping fetching additional stream info for {account_username} due to skip_post flag")
+                        self.logger.info(f"Skipping fetching additional user info for {account_username} due to skip_post flag")
                     else:
-                        self.logger.info(f"Fetching stream info for {account_username}")
-                        thumbnail_url, game_name = await self.get_stream_info(account_username)
-                        self.logger.info(f"Stream info - Game: {game_name}, Thumbnail: {thumbnail_url}")
+                        self.logger.info(f"Fetching user profile image and stream info for {account_username}")
+                        profile_image_url = await self.get_user_profile_image(account_username)
+                        self.logger.info(f"User profile image - {profile_image_url}")
+                        game_name, stream_title = await self.get_stream_info(account_username)
+                        self.logger.info(f"Stream info - Game: {game_name}, Title: {stream_title}")
                     # Get current date for footer
                         self.logger.info(f"Getting timestamp for embed footer...")
                         current_date = await self.format_discord_embed_timestamp(code)
@@ -2912,13 +2910,13 @@ class BotOfTheSpecter(commands.Bot):
                         embed = discord.Embed(
                         title=f"{account_username} is now live on Twitch!",
                         url=f"https://twitch.tv/{account_username}",
-                        description=f"Stream is now online! Streaming: {game_name}",
+                        description=f"Stream is now online!\nStreaming: {game_name}\nStream Title: {stream_title}",
                         color=discord.Color.from_rgb(145, 70, 255)
                     )
-                    # Set thumbnail if available
-                        thumbnail_to_use = thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
-                        embed.set_thumbnail(url=thumbnail_to_use)
-                        self.logger.info(f"Using thumbnail: {thumbnail_to_use}")
+                    # Set thumbnail to user profile image
+                        profile_image_to_use = profile_image_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
+                        embed.set_thumbnail(url=profile_image_to_use)
+                        self.logger.info(f"Using profile image: {profile_image_to_use}")
                         # Set footer
                         embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {current_date}")
                         self.logger.info(f"Attempting to send live notification to #{stream_channel.name} (ID: {stream_channel.id}) with mention: '{mention_text.strip() or 'none'}'")
@@ -3033,7 +3031,7 @@ class BotOfTheSpecter(commands.Bot):
                     except (ValueError, TypeError):
                         self.logger.warning(f"Invalid custom role ID: {discord_info['stream_alert_custom_role']}")
             # Get stream info
-            thumbnail_url, game_name = await self.get_stream_info(account_username)
+            game_name, stream_title = await self.get_stream_info(account_username)
             current_date = await self.format_discord_embed_timestamp(code)
             # Create embed
             embed = discord.Embed(
@@ -3042,8 +3040,9 @@ class BotOfTheSpecter(commands.Bot):
                 description=f"Stream is now online! Streaming: {game_name}",
                 color=discord.Color.from_rgb(145, 70, 255)
             )
-            thumbnail_to_use = thumbnail_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
-            embed.set_thumbnail(url=thumbnail_to_use)
+            profile_image_url = await self.get_user_profile_image(account_username)
+            profile_image_to_use = profile_image_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
+            embed.set_thumbnail(url=profile_image_to_use)
             embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {current_date}")
             # Send notification
             await stream_channel.send(content=mention_text, embed=embed)
