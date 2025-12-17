@@ -949,6 +949,48 @@ if ($is_linked && $hasGuildId) {
           $existingUserStatusTracking = isset($userTrackingConfig['track_status']) ? (int)$userTrackingConfig['track_status'] : 1;
         }
       }
+      
+      // Auto-disable features if enabled but have no data
+      // Welcome Message: Check if enabled but missing required channel data
+      if ($serverManagementSettings['welcomeMessage'] && empty($serverMgmtData['welcome_message_configuration_channel'])) {
+        $serverManagementSettings['welcomeMessage'] = false;
+      }
+      // Auto Role: Check if enabled but missing role ID
+      if ($serverManagementSettings['autoRole'] && empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
+        $serverManagementSettings['autoRole'] = false;
+      }
+      // Role History: Check if enabled but missing configuration
+      if ($serverManagementSettings['roleHistory'] && empty($serverMgmtData['role_history_configuration'])) {
+        $serverManagementSettings['roleHistory'] = false;
+      }
+      // Message Tracking: Check if enabled but missing configuration
+      if ($serverManagementSettings['messageTracking'] && empty($serverMgmtData['message_tracking_configuration'])) {
+        $serverManagementSettings['messageTracking'] = false;
+      }
+      // Role Tracking: Check if enabled but missing configuration
+      if ($serverManagementSettings['roleTracking'] && empty($serverMgmtData['role_tracking_configuration'])) {
+        $serverManagementSettings['roleTracking'] = false;
+      }
+      // Server Role Management: Check if enabled but missing configuration
+      if ($serverManagementSettings['serverRoleManagement'] && empty($serverMgmtData['server_role_management_configuration'])) {
+        $serverManagementSettings['serverRoleManagement'] = false;
+      }
+      // User Tracking: Check if enabled but missing configuration
+      if ($serverManagementSettings['userTracking'] && empty($serverMgmtData['user_tracking_configuration'])) {
+        $serverManagementSettings['userTracking'] = false;
+      }
+      // Reaction Roles: Check if enabled but missing configuration
+      if ($serverManagementSettings['reactionRoles'] && empty($serverMgmtData['reaction_roles_configuration'])) {
+        $serverManagementSettings['reactionRoles'] = false;
+      }
+      // Rules Configuration: Check if enabled but missing configuration
+      if ($serverManagementSettings['rulesConfiguration'] && empty($serverMgmtData['rules_configuration'])) {
+        $serverManagementSettings['rulesConfiguration'] = false;
+      }
+      // Stream Schedule: Check if enabled but missing configuration
+      if ($serverManagementSettings['streamSchedule'] && empty($serverMgmtData['stream_schedule_configuration'])) {
+        $serverManagementSettings['streamSchedule'] = false;
+      }
       if (!empty($serverMgmtData['role_tracking_configuration_channel'])) {
         $existingRoleLogChannelID = $serverMgmtData['role_tracking_configuration_channel'];
       }

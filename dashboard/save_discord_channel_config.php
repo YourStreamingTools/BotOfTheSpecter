@@ -901,6 +901,216 @@ try {
                         exit();
                     }
                     break;
+                case 'clear_reaction_roles':
+                    debug_log('Processing clear_reaction_roles for server_id: ' . $server_id);
+                    // Clear reaction roles data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET reaction_roles_configuration = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('Reaction roles data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Reaction roles data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear reaction roles data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear reaction roles data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
+                case 'clear_rules':
+                    debug_log('Processing clear_rules for server_id: ' . $server_id);
+                    // Clear rules data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET rules_configuration = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('Rules data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Rules data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear rules data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear rules data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
+                case 'clear_stream_schedule':
+                    debug_log('Processing clear_stream_schedule for server_id: ' . $server_id);
+                    // Clear stream schedule data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET stream_schedule_configuration = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('Stream schedule data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Stream schedule data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear stream schedule data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear stream schedule data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
+                case 'clear_welcome_message':
+                    debug_log('Processing clear_welcome_message for server_id: ' . $server_id);
+                    // Clear welcome message data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET welcome_message_configuration_channel = NULL, welcome_message_configuration_message = NULL, welcome_message_configuration_default = NULL, welcome_message_configuration_embed = NULL, welcome_message_configuration_colour = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('Welcome message data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Welcome message data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear welcome message data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear welcome message data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
+                case 'clear_auto_role':
+                    debug_log('Processing clear_auto_role for server_id: ' . $server_id);
+                    // Clear auto role data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET auto_role_assignment_configuration_role_id = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('Auto role data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Auto role data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear auto role data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear auto role data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
+                case 'clear_role_history':
+                    debug_log('Processing clear_role_history for server_id: ' . $server_id);
+                    // Clear role history data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET role_history_configuration = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('Role history data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Role history data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear role history data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear role history data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
+                case 'clear_message_tracking':
+                    debug_log('Processing clear_message_tracking for server_id: ' . $server_id);
+                    // Clear message tracking data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET message_tracking_configuration = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('Message tracking data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Message tracking data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear message tracking data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear message tracking data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
+                case 'clear_role_tracking':
+                    debug_log('Processing clear_role_tracking for server_id: ' . $server_id);
+                    // Clear role tracking data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET role_tracking_configuration = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('Role tracking data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Role tracking data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear role tracking data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear role tracking data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
+                case 'clear_server_role_management':
+                    debug_log('Processing clear_server_role_management for server_id: ' . $server_id);
+                    // Clear server role management data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET server_role_management_configuration = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('Server role management data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Server role management data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear server role management data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear server role management data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
+                case 'clear_user_tracking':
+                    debug_log('Processing clear_user_tracking for server_id: ' . $server_id);
+                    // Clear user tracking data from server_management table
+                    $clearStmt = $discord_conn->prepare("UPDATE server_management SET user_tracking_configuration = NULL WHERE server_id = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param("s", $server_id);
+                        if ($clearStmt->execute()) {
+                            debug_log('User tracking data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'User tracking data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear user tracking data: ' . $clearStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear user tracking data', 'debug_logs' => $debug_logs]);
+                        }
+                        $clearStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
             }
             $discord_conn->close();
             break;
@@ -945,216 +1155,6 @@ try {
                 echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $conn->error]);
             }
             $updateStmt->close();
-            break;
-        case 'clear_reaction_roles':
-            debug_log('Processing clear_reaction_roles for server_id: ' . $server_id);
-            // Clear reaction roles data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET reaction_roles_channel_id = NULL, reaction_roles_message = NULL, reaction_roles_mappings = NULL, allow_multiple_reactions = 0 WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('Reaction roles data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'Reaction roles data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear reaction roles data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear reaction roles data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
-            break;
-        case 'clear_rules':
-            debug_log('Processing clear_rules for server_id: ' . $server_id);
-            // Clear rules data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET rules_channel_id = NULL, rules_title = NULL, rules_content = NULL, rules_color = NULL, rules_accept_role_id = NULL WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('Rules data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'Rules data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear rules data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear rules data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
-            break;
-        case 'clear_stream_schedule':
-            debug_log('Processing clear_stream_schedule for server_id: ' . $server_id);
-            // Clear stream schedule data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET stream_schedule_channel_id = NULL, stream_schedule_title = NULL, stream_schedule_content = NULL, stream_schedule_color = NULL, stream_schedule_timezone = NULL WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('Stream schedule data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'Stream schedule data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear stream schedule data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear stream schedule data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
-            break;
-        case 'clear_welcome_message':
-            debug_log('Processing clear_welcome_message for server_id: ' . $server_id);
-            // Clear welcome message data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET welcome_message_configuration_channel = NULL, welcome_message_configuration_message = NULL, welcome_message_configuration_default = 0, welcome_message_configuration_embed = 0, welcome_message_configuration_colour = NULL WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('Welcome message data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'Welcome message data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear welcome message data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear welcome message data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
-            break;
-        case 'clear_auto_role':
-            debug_log('Processing clear_auto_role for server_id: ' . $server_id);
-            // Clear auto role data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET auto_role_id = NULL WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('Auto role data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'Auto role data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear auto role data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear auto role data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
-            break;
-        case 'clear_role_history':
-            debug_log('Processing clear_role_history for server_id: ' . $server_id);
-            // Clear role history data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET role_history_enabled = 0, role_history_retention = NULL WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('Role history data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'Role history data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear role history data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear role history data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
-            break;
-        case 'clear_message_tracking':
-            debug_log('Processing clear_message_tracking for server_id: ' . $server_id);
-            // Clear message tracking data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET message_tracking_log_channel_id = NULL, message_tracking_edits = 0, message_tracking_deletes = 0 WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('Message tracking data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'Message tracking data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear message tracking data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear message tracking data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
-            break;
-        case 'clear_role_tracking':
-            debug_log('Processing clear_role_tracking for server_id: ' . $server_id);
-            // Clear role tracking data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET role_tracking_log_channel_id = NULL, role_tracking_additions = 0, role_tracking_removals = 0 WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('Role tracking data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'Role tracking data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear role tracking data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear role tracking data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
-            break;
-        case 'clear_server_role_management':
-            debug_log('Processing clear_server_role_management for server_id: ' . $server_id);
-            // Clear server role management data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET server_mgmt_log_channel_id = NULL, role_creation_tracking = 0, role_deletion_tracking = 0, role_edit_tracking = 0 WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('Server role management data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'Server role management data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear server role management data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear server role management data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
-            break;
-        case 'clear_user_tracking':
-            debug_log('Processing clear_user_tracking for server_id: ' . $server_id);
-            // Clear user tracking data from server_management table
-            $clearStmt = $discord_conn->prepare("UPDATE server_management SET user_tracking_log_channel_id = NULL, user_join_tracking = 0, user_leave_tracking = 0, user_nickname_tracking = 0, user_username_tracking = 0, user_avatar_tracking = 0, user_status_tracking = 0 WHERE server_id = ?");
-            if ($clearStmt) {
-                $clearStmt->bind_param("s", $server_id);
-                if ($clearStmt->execute()) {
-                    debug_log('User tracking data cleared successfully');
-                    echo json_encode(['success' => true, 'message' => 'User tracking data cleared successfully', 'debug_logs' => $debug_logs]);
-                } else {
-                    debug_log('Failed to clear user tracking data: ' . $clearStmt->error);
-                    http_response_code(500);
-                    echo json_encode(['success' => false, 'message' => 'Failed to clear user tracking data', 'debug_logs' => $debug_logs]);
-                }
-                $clearStmt->close();
-            } else {
-                debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
-            }
             break;
         default:
             http_response_code(400);
