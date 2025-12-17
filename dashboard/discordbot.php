@@ -3028,9 +3028,9 @@ ob_start();
                 <p class="help has-text-grey-light">Enter your stream schedule. You can use emojis, bullet points, or any format you prefer. Discord markdown is supported.</p>
               </div>
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Timezone (Optional)</label>
+                <label class="label has-text-white" style="font-weight: 500;">Timezone <span class="has-text-danger">*</span></label>
                 <div class="control">
-                  <input class="input" type="text" id="stream_schedule_timezone" name="stream_schedule_timezone" value="<?php echo htmlspecialchars($existingStreamScheduleTimezone ?? ''); ?>" placeholder="e.g. EST, PST, UTC, etc." style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                  <input class="input" type="text" id="stream_schedule_timezone" name="stream_schedule_timezone" value="<?php echo htmlspecialchars($existingStreamScheduleTimezone ?? ''); ?>" placeholder="e.g. EST, PST, UTC, etc." style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required>
                 </div>
                 <p class="help has-text-grey-light">Specify your timezone for clarity (will be shown in the footer)</p>
               </div>
@@ -4095,6 +4095,18 @@ function removeStreamer(username) {
         position: 'top-end',
         icon: 'warning',
         title: 'Please enter your stream schedule',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+      return;
+    }
+    if (!scheduleTimezone || scheduleTimezone === '') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please enter a timezone',
         showConfirmButton: false,
         timer: 3000,
         timerProgressBar: true
