@@ -67,6 +67,89 @@ class Config:
 # Initialize the configuration
 config = Config()
 
+# Rate limit tracking
+class RateLimitTracker:
+    def __init__(self):
+        self.buckets = {}
+        self.global_reset_at = 0
+        self.logger = logging.getLogger('RateLimitTracker')
+    
+    def is_rate_limited(self, bucket=None):
+        now = time.time()
+        # Check global rate limit
+        if now < self.global_reset_at:
+            return True, self.global_reset_at - now
+        # Check bucket-specific rate limit
+        if bucket and bucket in self.buckets:
+            reset_at = self.buckets[bucket]
+            if now < reset_at:
+                return True, reset_at - now
+        return False, 0
+    
+    def record_rate_limit(self, retry_after, is_global=False, bucket=None):
+        reset_at = time.time() + retry_after
+        if is_global:
+            self.global_reset_at = reset_at
+            self.logger.warning(f"Global rate limit hit, reset in {retry_after}s")
+        elif bucket:
+            self.buckets[bucket] = reset_at
+            self.logger.warning(f"Bucket {bucket} rate limited, reset in {retry_after}s")
+
+# Global rate limit tracker
+rate_limit_tracker = RateLimitTracker()
+
+# Rate limit handler decorator
+def handle_rate_limit(max_retries=3):
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            retries = 0
+            backoff = 1
+            while retries < max_retries:
+                try:
+                    return await func(*args, **kwargs)
+                except discord.RateLimited as e:
+                    retry_after = e.retry_after
+                    rate_limit_tracker.record_rate_limit(retry_after, is_global=False)
+                    if retries < max_retries - 1:
+                        logging.warning(f"Rate limited in {func.__name__}, waiting {retry_after}s (attempt {retries + 1}/{max_retries})")
+                        await asyncio.sleep(retry_after)
+                        retries += 1
+                        backoff *= 2
+                    else:
+                        logging.error(f"Max retries exceeded in {func.__name__} due to rate limiting")
+                        raise
+                except discord.HTTPException as e:
+                    if e.status == 429:  # Rate limit
+                        retry_after = e.response.headers.get('Retry-After', backoff)
+                        try:
+                            retry_after = float(retry_after)
+                        except (ValueError, TypeError):
+                            retry_after = backoff
+                        # Check if global rate limit
+                        is_global = e.response.headers.get('X-RateLimit-Global', 'false').lower() == 'true'
+                        bucket = e.response.headers.get('X-RateLimit-Bucket')
+                        rate_limit_tracker.record_rate_limit(retry_after, is_global, bucket)
+                        
+                        if retries < max_retries - 1:
+                            logging.warning(f"HTTP 429 in {func.__name__}, waiting {retry_after}s (attempt {retries + 1}/{max_retries})")
+                            await asyncio.sleep(retry_after)
+                            retries += 1
+                            backoff = min(backoff * 2, 60)  # Cap at 60 seconds
+                        else:
+                            logging.error(f"Max retries exceeded in {func.__name__} due to HTTP 429")
+                            raise
+                    else:
+                        raise
+                except discord.Forbidden as e:
+                    logging.error(f"Permission denied in {func.__name__}: {e}")
+                    raise
+                except Exception as e:
+                    logging.error(f"Unexpected error in {func.__name__}: {e}")
+                    raise
+            return None
+        return wrapper
+    return decorator
+
 # OpenAI / AI system configuration
 OPENAI_API_KEY = os.getenv("OPENAI_KEY")
 OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
@@ -2504,38 +2587,70 @@ class BotOfTheSpecter(commands.Bot):
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
 
     async def _send_message_with_fallback(self, channel, embed=None, fallback_text="", content=None, logger_context=""):
-        try:
-            if embed:
-                # If both content and embed provided, include both
-                if content:
-                    await channel.send(content=content, embed=embed)
+        max_retries = 3
+        retry_count = 0
+        backoff = 1
+        while retry_count < max_retries:
+            try:
+                if embed:
+                    # If both content and embed provided, include both
+                    if content:
+                        await channel.send(content=content, embed=embed)
+                    else:
+                        await channel.send(embed=embed)
                 else:
-                    await channel.send(embed=embed)
-            else:
-                # Prefer explicit content over fallback_text
-                await channel.send(content if content is not None else fallback_text)
-            # Track the message
-            await self.mysql_helper.track_message('discordbot')
-            return True
-        except discord.Forbidden:
-            self.logger.error(f"Missing permissions to send {logger_context} message in #{channel.name} (ID: {channel.id})")
-            # Try sending as plain text if embed failed
-            fallback = content if content is not None else fallback_text
-            if fallback:
-                try:
-                    await channel.send(fallback)
-                    self.logger.info(f"Sent {logger_context} as plain text fallback in #{channel.name}")
-                    # Track the fallback message
-                    await self.mysql_helper.track_message('discordbot')
-                    return True
-                except Exception as fallback_error:
-                    self.logger.error(f"Fallback text message also failed in #{channel.name}: {fallback_error}")
-            return False
-        except Exception as e:
-            # Channel.name may not exist for DMChannel etc; guard log formatting
-            chan_name = getattr(channel, 'name', str(channel))
-            self.logger.error(f"Failed to send {logger_context} message to #{chan_name}: {type(e).__name__}: {e}")
-            return False
+                    # Prefer explicit content over fallback_text
+                    await channel.send(content if content is not None else fallback_text)
+                # Track the message
+                await self.mysql_helper.track_message('discordbot')
+                return True
+            except discord.RateLimited as e:
+                retry_after = e.retry_after
+                rate_limit_tracker.record_rate_limit(retry_after, is_global=False)
+                if retry_count < max_retries - 1:
+                    self.logger.warning(f"Rate limited sending {logger_context}, waiting {retry_after}s (attempt {retry_count + 1}/{max_retries})")
+                    await asyncio.sleep(retry_after)
+                    retry_count += 1
+                else:
+                    self.logger.error(f"Max retries exceeded for {logger_context} due to rate limiting")
+                    return False
+            except discord.HTTPException as e:
+                if e.status == 429:  # Rate limit
+                    retry_after = float(e.response.headers.get('Retry-After', backoff))
+                    is_global = e.response.headers.get('X-RateLimit-Global', 'false').lower() == 'true'
+                    bucket = e.response.headers.get('X-RateLimit-Bucket')
+                    rate_limit_tracker.record_rate_limit(retry_after, is_global, bucket)
+                    if retry_count < max_retries - 1:
+                        self.logger.warning(f"HTTP 429 sending {logger_context}, waiting {retry_after}s (attempt {retry_count + 1}/{max_retries})")
+                        await asyncio.sleep(retry_after)
+                        retry_count += 1
+                        backoff = min(backoff * 2, 60)
+                    else:
+                        self.logger.error(f"Max retries exceeded for {logger_context} due to HTTP 429")
+                        return False
+                else:
+                    # Other HTTP errors, fall through to error handling
+                    chan_name = getattr(channel, 'name', str(channel))
+                    self.logger.error(f"HTTP error sending {logger_context} to #{chan_name}: {e.status} - {e.text}")
+                    return False
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to send {logger_context} message in #{channel.name} (ID: {channel.id})")
+                # Try sending as plain text if embed failed
+                fallback = content if content is not None else fallback_text
+                if fallback and embed:  # Only try fallback if we were trying to send an embed
+                    try:
+                        await channel.send(fallback)
+                        self.logger.info(f"Sent {logger_context} as plain text fallback in #{channel.name}")
+                        await self.mysql_helper.track_message('discordbot')
+                        return True
+                    except Exception as fallback_error:
+                        self.logger.error(f"Fallback text message also failed in #{channel.name}: {fallback_error}")
+                return False
+            except Exception as e:
+                chan_name = getattr(channel, 'name', str(channel))
+                self.logger.error(f"Failed to send {logger_context} message to #{chan_name}: {type(e).__name__}: {e}")
+                return False
+        return False
 
     async def send_interaction_response(self, interaction: discord.Interaction, content: str = None, embed: discord.Embed = None, ephemeral: bool = False):
         try:
@@ -3061,15 +3176,47 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f"Channel rename check: current='{channel.name}' vs target='{channel_update}'")
         if channel.name != channel_update:
             self.logger.info(f"Names differ, attempting to rename channel #{channel.name} to '{channel_update}'")
-            try:
-                await channel.edit(name=channel_update, reason="Stream status update")
-                self.logger.info(f"✅ SUCCESS: Updated channel name to '{channel_update}' for stream {event_type}")
-            except discord.Forbidden:
-                self.logger.error(f"❌ PERMISSION DENIED: Cannot rename channel #{channel.name} (ID: {channel.id}). Check 'Manage Channels' permission!")
-            except discord.HTTPException as e:
-                self.logger.error(f"❌ Discord HTTP error renaming channel: {e.status} - {e.text}")
-            except Exception as e:
-                self.logger.error(f"❌ Failed to update channel name: {type(e).__name__}: {e}")
+            max_retries = 3
+            retry_count = 0
+            backoff = 1
+            while retry_count < max_retries:
+                try:
+                    await channel.edit(name=channel_update, reason="Stream status update")
+                    self.logger.info(f"✅ SUCCESS: Updated channel name to '{channel_update}' for stream {event_type}")
+                    break
+                except discord.RateLimited as e:
+                    retry_after = e.retry_after
+                    rate_limit_tracker.record_rate_limit(retry_after, is_global=False)
+                    if retry_count < max_retries - 1:
+                        self.logger.warning(f"Rate limited renaming channel, waiting {retry_after}s (attempt {retry_count + 1}/{max_retries})")
+                        await asyncio.sleep(retry_after)
+                        retry_count += 1
+                    else:
+                        self.logger.error(f"Max retries exceeded renaming channel due to rate limiting")
+                        break
+                except discord.HTTPException as e:
+                    if e.status == 429:
+                        retry_after = float(e.response.headers.get('Retry-After', backoff))
+                        is_global = e.response.headers.get('X-RateLimit-Global', 'false').lower() == 'true'
+                        bucket = e.response.headers.get('X-RateLimit-Bucket')
+                        rate_limit_tracker.record_rate_limit(retry_after, is_global, bucket)
+                        if retry_count < max_retries - 1:
+                            self.logger.warning(f"HTTP 429 renaming channel, waiting {retry_after}s (attempt {retry_count + 1}/{max_retries})")
+                            await asyncio.sleep(retry_after)
+                            retry_count += 1
+                            backoff = min(backoff * 2, 60)
+                        else:
+                            self.logger.error(f"Max retries exceeded renaming channel due to HTTP 429")
+                            break
+                    else:
+                        self.logger.error(f"❌ Discord HTTP error renaming channel: {e.status} - {e.text}")
+                        break
+                except discord.Forbidden:
+                    self.logger.error(f"❌ PERMISSION DENIED: Cannot rename channel #{channel.name} (ID: {channel.id}). Check 'Manage Channels' permission!")
+                    break
+                except Exception as e:
+                    self.logger.error(f"❌ Failed to update channel name: {type(e).__name__}: {e}")
+                    break
         else:
             self.logger.info(f"Channel name already matches target '{channel_update}' - skipping rename")
         self.logger.info(f"Completed processing {event_type} event for channel_code: {code}")
@@ -8142,23 +8289,58 @@ class ModerationCog(commands.Cog, name='Moderation'):
         if amount > 100:
             await ctx.send("❌ You can only delete up to 100 messages at a time.", delete_after=5)
             return
-        try:
-            # Delete the command message first
-            await ctx.message.delete()
-            # Delete the specified number of messages
-            deleted = await ctx.channel.purge(limit=amount)
-            # Send confirmation message that auto-deletes after 5 seconds
-            confirmation = await ctx.send(f"✅ Successfully deleted {len(deleted)} message(s).", delete_after=5)
-            self.logger.info(f"User {ctx.author} ({ctx.author.id}) purged {len(deleted)} messages in #{ctx.channel.name} ({ctx.channel.id}) in guild {ctx.guild.name} ({ctx.guild.id})")
-        except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to delete messages in this channel.", delete_after=5)
-            self.logger.error(f"Missing permissions to purge messages in #{ctx.channel.name} ({ctx.channel.id})")
-        except discord.HTTPException as e:
-            await ctx.send(f"❌ An error occurred while deleting messages: {e}", delete_after=5)
-            self.logger.error(f"HTTP error while purging messages: {e}")
-        except Exception as e:
-            await ctx.send(f"❌ An unexpected error occurred: {e}", delete_after=5)
-            self.logger.error(f"Error in purge command: {e}")
+        max_retries = 3
+        retry_count = 0
+        backoff = 1
+        deleted = []
+        while retry_count < max_retries:
+            try:
+                # Delete the command message first
+                await ctx.message.delete()
+                # Delete the specified number of messages
+                deleted = await ctx.channel.purge(limit=amount)
+                # Send confirmation message that auto-deletes after 5 seconds
+                confirmation = await ctx.send(f"✅ Successfully deleted {len(deleted)} message(s).", delete_after=5)
+                self.logger.info(f"User {ctx.author} ({ctx.author.id}) purged {len(deleted)} messages in #{ctx.channel.name} ({ctx.channel.id}) in guild {ctx.guild.name} ({ctx.guild.id})")
+                break
+            except discord.RateLimited as e:
+                retry_after = e.retry_after
+                rate_limit_tracker.record_rate_limit(retry_after, is_global=False)
+                if retry_count < max_retries - 1:
+                    self.logger.warning(f"Rate limited purging messages, waiting {retry_after}s (attempt {retry_count + 1}/{max_retries})")
+                    await asyncio.sleep(retry_after)
+                    retry_count += 1
+                else:
+                    await ctx.send("❌ Rate limited. Please try again later.", delete_after=5)
+                    self.logger.error(f"Max retries exceeded for purge due to rate limiting")
+                    break
+            except discord.HTTPException as e:
+                if e.status == 429:
+                    retry_after = float(e.response.headers.get('Retry-After', backoff))
+                    is_global = e.response.headers.get('X-RateLimit-Global', 'false').lower() == 'true'
+                    bucket = e.response.headers.get('X-RateLimit-Bucket')
+                    rate_limit_tracker.record_rate_limit(retry_after, is_global, bucket)
+                    if retry_count < max_retries - 1:
+                        self.logger.warning(f"HTTP 429 purging messages, waiting {retry_after}s (attempt {retry_count + 1}/{max_retries})")
+                        await asyncio.sleep(retry_after)
+                        retry_count += 1
+                        backoff = min(backoff * 2, 60)
+                    else:
+                        await ctx.send("❌ Rate limited. Please try again later.", delete_after=5)
+                        self.logger.error(f"Max retries exceeded for purge due to HTTP 429")
+                        break
+                else:
+                    await ctx.send(f"❌ An error occurred while deleting messages: {e}", delete_after=5)
+                    self.logger.error(f"HTTP error while purging messages: {e}")
+                    break
+            except discord.Forbidden:
+                await ctx.send("❌ I don't have permission to delete messages in this channel.", delete_after=5)
+                self.logger.error(f"Missing permissions to purge messages in #{ctx.channel.name} ({ctx.channel.id})")
+                break
+            except Exception as e:
+                await ctx.send(f"❌ An unexpected error occurred: {e}", delete_after=5)
+                self.logger.error(f"Error in purge command: {e}")
+                break
 
     @purge_messages.error
     async def purge_error(self, ctx, error):
