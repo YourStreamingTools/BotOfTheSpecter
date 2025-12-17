@@ -2759,26 +2759,49 @@ class BotOfTheSpecter(commands.Bot):
 
     async def get_user_profile_image(self, username):
         try:
-            mysql_helper = MySQLHelper(self.logger)
-            user_row = await mysql_helper.fetchone(
-                "SELECT profile_image FROM users WHERE LOWER(username) = %s", 
-                (str(username).lower(),), 
-                database_name='website', 
-                dict_cursor=True
-            )
-            if user_row and user_row.get('profile_image'):
-                profile_image_url = user_row['profile_image']
-                # Validate it's a proper URL
-                if profile_image_url and (profile_image_url.startswith('http://') or profile_image_url.startswith('https://')):
-                    self.logger.info(f"Found profile image for {username}: {profile_image_url}")
-                    return profile_image_url
-                else:
-                    self.logger.debug(f"Profile image field for {username} exists but doesn't contain valid URL: {profile_image_url}")
-            self.logger.info(f"No profile image found for {username}")
+            profile_image_url = await self.get_user_profile_image_from_twitch(username)
+            if profile_image_url:
+                self.logger.info(f"Found profile image from Twitch API for {username}: {profile_image_url}")
+                return profile_image_url
+            self.logger.info(f"No profile image found for {username} from Twitch API")
             return None
         except Exception as e:
             self.logger.error(f"Exception getting profile image for {username}: {e}")
             return None
+
+    async def get_user_profile_image_from_twitch(self, username):
+        try:
+            client_id = config.twitch_client_id
+            bearer = config.twitch_bearer_token
+            if not client_id or not bearer:
+                self.logger.debug(f"Missing Twitch API credentials, cannot fetch profile for {username}")
+                return None
+            url = f"https://api.twitch.tv/helix/users?login={urllib.parse.quote_plus(str(username).strip().lower())}"
+            headers = {
+                'Client-ID': client_id,
+                'Authorization': f"Bearer {bearer}"
+            }
+            async with aiohttp.ClientSession() as session:
+                try:
+                    async with session.get(url, headers=headers, timeout=10) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            users = data.get('data', [])
+                            if users:
+                                profile_image_url = users[0].get('profile_image_url')
+                                if profile_image_url:
+                                    return profile_image_url
+                        elif resp.status == 401:
+                            self.logger.debug(f"Twitch API authentication failed for profile image request")
+                        else:
+                            self.logger.debug(f"Twitch API request failed for {username}: {resp.status} - {await resp.text()}")
+                except asyncio.TimeoutError:
+                    self.logger.debug(f"Twitch API request timeout for profile image of {username}")
+                except Exception as e:
+                    self.logger.debug(f"Exception fetching profile image from Twitch API for {username}: {e}")
+        except Exception as e:
+            self.logger.error(f"Error in get_user_profile_image_from_twitch for {username}: {e}")
+        return None
 
     async def handle_stream_event(self, event_type, data):
         code = data.get("channel_code", "unknown")
