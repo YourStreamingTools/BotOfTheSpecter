@@ -44,7 +44,10 @@ foreach ($users as $userRow) {
             'username' => $username,
             'is_linked' => !empty($discordData['access_token']),
             'discord_username' => $discordData['discord_username'] ?? '',
+            'discord_avatar' => $discordData['discord_avatar'] ?? '',
+            'expires_at' => $discordData['expires_at'] ?? '',
             'guild_id' => $discordData['guild_id'] ?? '',
+            'manual_ids' => $discordData['manual_ids'] ?? 0,
             'live_channel_id' => $discordData['live_channel_id'] ?? '',
             'online_text' => $discordData['online_text'] ?? '',
             'offline_text' => $discordData['offline_text'] ?? '',
@@ -54,7 +57,6 @@ foreach ($users as $userRow) {
             'moderation_channel_id' => $discordData['moderation_channel_id'] ?? '',
             'alert_channel_id' => $discordData['alert_channel_id'] ?? '',
             'member_streams_id' => $discordData['member_streams_id'] ?? '',
-            'manual_ids' => $discordData['manual_ids'] ?? 0,
             'tracked_streams' => [],
             'server_management_settings' => []
         ];
@@ -183,9 +185,16 @@ ob_start();
                                     if (!empty($config['member_streams_id'])) $enabledFeatures[] = 'Stream Monitoring';
                                     if (!empty($config['server_management_settings'])): 
                                         $mgmt = $config['server_management_settings'];
-                                        if (!empty($mgmt['welcome_message_channel_id'])) $enabledFeatures[] = 'Welcome';
+                                        if (!empty($mgmt['welcome_message_channel_id'])) $enabledFeatures[] = 'Welcome Message';
                                         if (!empty($mgmt['auto_role_assignment_configuration_role_id'])) $enabledFeatures[] = 'Auto Role';
                                         if (!empty($mgmt['message_tracking_configuration'])) $enabledFeatures[] = 'Message Tracking';
+                                        if (!empty($mgmt['role_tracking_configuration'])) $enabledFeatures[] = 'Role Tracking';
+                                        if (!empty($mgmt['role_history_configuration'])) $enabledFeatures[] = 'Role History';
+                                        if (!empty($mgmt['user_tracking_configuration'])) $enabledFeatures[] = 'User Tracking';
+                                        if (!empty($mgmt['server_role_management_configuration'])) $enabledFeatures[] = 'Server Role Mgmt';
+                                        if (!empty($mgmt['reaction_roles_configuration'])) $enabledFeatures[] = 'Reaction Roles';
+                                        if (!empty($mgmt['rules_configuration_channel_id'])) $enabledFeatures[] = 'Rules';
+                                        if (!empty($mgmt['stream_schedule_configuration_channel_id'])) $enabledFeatures[] = 'Stream Schedule';
                                     endif;
                                 ?>
                                 <?php if (!empty($enabledFeatures)): ?>
@@ -327,14 +336,132 @@ document.addEventListener('DOMContentLoaded', function() {
             const mgmt = config.server_management_settings;
             html += '<h4 class="title is-5 mt-4">Server Management Settings</h4>';
             html += '<table class="table is-fullwidth is-striped"><tbody>';
-            html += `<tr><td><strong>Welcome Channel</strong></td><td>${mgmt.welcome_message_channel_id ? escapeHtml(mgmt.welcome_message_channel_id) : '<em>Not set</em>'}</td></tr>`;
-            html += `<tr><td><strong>Auto Role</strong></td><td>${mgmt.auto_role_assignment_configuration_role_id ? escapeHtml(mgmt.auto_role_assignment_configuration_role_id) : '<em>Not set</em>'}</td></tr>`;
-            html += `<tr><td><strong>Message Tracking</strong></td><td>${mgmt.message_tracking_configuration ? 'Enabled' : 'Not set'}</td></tr>`;
-            html += `<tr><td><strong>Role Tracking</strong></td><td>${mgmt.role_tracking_configuration ? 'Enabled' : 'Not set'}</td></tr>`;
-            html += `<tr><td><strong>User Tracking</strong></td><td>${mgmt.user_tracking_configuration ? 'Enabled' : 'Not set'}</td></tr>`;
-            html += `<tr><td><strong>Reaction Roles</strong></td><td>${mgmt.reaction_roles_configuration ? 'Enabled' : 'Not set'}</td></tr>`;
-            html += `<tr><td><strong>Rules Channel</strong></td><td>${mgmt.rules_configuration_channel_id ? escapeHtml(mgmt.rules_configuration_channel_id) : '<em>Not set</em>'}</td></tr>`;
-            html += `<tr><td><strong>Stream Schedule Channel</strong></td><td>${mgmt.stream_schedule_configuration_channel_id ? escapeHtml(mgmt.stream_schedule_configuration_channel_id) : '<em>Not set</em>'}</td></tr>`;
+            // Welcome Message Settings
+            html += `<tr><td colspan="2"><strong class="has-text-primary">Welcome Message</strong></td></tr>`;
+            html += `<tr><td><strong>Channel</strong></td><td>${mgmt.welcome_message_configuration_channel ? escapeHtml(mgmt.welcome_message_configuration_channel) : '<em>Not set</em>'}</td></tr>`;
+            if (mgmt.welcome_message_configuration_message || mgmt.welcome_message_configuration_default || mgmt.welcome_message_configuration_embed) {
+                html += `<tr><td><strong>Use Default</strong></td><td>${mgmt.welcome_message_configuration_default ? 'Yes' : 'No'}</td></tr>`;
+                html += `<tr><td><strong>Use Embed</strong></td><td>${mgmt.welcome_message_configuration_embed ? 'Yes' : 'No'}</td></tr>`;
+                html += `<tr><td><strong>Custom Message</strong></td><td>${mgmt.welcome_message_configuration_message ? '<em>Configured</em>' : 'Not set'}</td></tr>`;
+                html += `<tr><td><strong>Color</strong></td><td>${mgmt.welcome_message_configuration_colour ? escapeHtml(mgmt.welcome_message_configuration_colour) : 'Default'}</td></tr>`;
+            }
+            // Auto Role Assignment
+            html += `<tr><td colspan="2"><strong class="has-text-primary">Auto Role Assignment</strong></td></tr>`;
+            html += `<tr><td><strong>Role ID</strong></td><td>${mgmt.auto_role_assignment_configuration_role_id ? escapeHtml(mgmt.auto_role_assignment_configuration_role_id) : '<em>Not set</em>'}</td></tr>`;
+            // Message Tracking
+            html += `<tr><td colspan="2"><strong class="has-text-primary">Message Tracking</strong></td></tr>`;
+            if (mgmt.message_tracking_configuration) {
+                try {
+                    const msgConfig = typeof mgmt.message_tracking_configuration === 'string' ? JSON.parse(mgmt.message_tracking_configuration) : mgmt.message_tracking_configuration;
+                    html += `<tr><td><strong>Enabled</strong></td><td>${msgConfig.enabled ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Log Channel</strong></td><td>${msgConfig.log_channel_id ? escapeHtml(msgConfig.log_channel_id) : '<em>Not set</em>'}</td></tr>`;
+                    html += `<tr><td><strong>Track Edits</strong></td><td>${msgConfig.track_edits ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Track Deletes</strong></td><td>${msgConfig.track_deletes ? 'Yes' : 'No'}</td></tr>`;
+                } catch (e) {
+                    html += `<tr><td><strong>Status</strong></td><td>Enabled</td></tr>`;
+                }
+            } else {
+                html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+            }
+            // Role Tracking
+            html += `<tr><td colspan="2"><strong class="has-text-primary">Role Tracking</strong></td></tr>`;
+            if (mgmt.role_tracking_configuration) {
+                try {
+                    const roleConfig = typeof mgmt.role_tracking_configuration === 'string' ? JSON.parse(mgmt.role_tracking_configuration) : mgmt.role_tracking_configuration;
+                    html += `<tr><td><strong>Enabled</strong></td><td>${roleConfig.enabled ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Log Channel</strong></td><td>${roleConfig.log_channel_id ? escapeHtml(roleConfig.log_channel_id) : '<em>Not set</em>'}</td></tr>`;
+                    html += `<tr><td><strong>Track Additions</strong></td><td>${roleConfig.track_additions ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Track Removals</strong></td><td>${roleConfig.track_removals ? 'Yes' : 'No'}</td></tr>`;
+                } catch (e) {
+                    html += `<tr><td><strong>Status</strong></td><td>Enabled</td></tr>`;
+                }
+            } else {
+                html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+            }
+            // Role History
+            html += `<tr><td colspan="2"><strong class="has-text-primary">Role History</strong></td></tr>`;
+            if (mgmt.role_history_configuration) {
+                try {
+                    const histConfig = typeof mgmt.role_history_configuration === 'string' ? JSON.parse(mgmt.role_history_configuration) : mgmt.role_history_configuration;
+                    html += `<tr><td><strong>Enabled</strong></td><td>${histConfig.enabled ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Retention Days</strong></td><td>${histConfig.retention_days ? histConfig.retention_days : '30'}</td></tr>`;
+                } catch (e) {
+                    html += `<tr><td><strong>Status</strong></td><td>Configured</td></tr>`;
+                }
+            } else {
+                html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+            }
+            // Server Role Management
+            html += `<tr><td colspan="2"><strong class="has-text-primary">Server Role Management</strong></td></tr>`;
+            if (mgmt.server_role_management_configuration) {
+                try {
+                    const srvRoleConfig = typeof mgmt.server_role_management_configuration === 'string' ? JSON.parse(mgmt.server_role_management_configuration) : mgmt.server_role_management_configuration;
+                    html += `<tr><td><strong>Enabled</strong></td><td>${srvRoleConfig.enabled ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Log Channel</strong></td><td>${srvRoleConfig.log_channel_id ? escapeHtml(srvRoleConfig.log_channel_id) : '<em>Not set</em>'}</td></tr>`;
+                    html += `<tr><td><strong>Track Creation</strong></td><td>${srvRoleConfig.track_creation ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Track Deletion</strong></td><td>${srvRoleConfig.track_deletion ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Track Edits</strong></td><td>${srvRoleConfig.track_edits ? 'Yes' : 'No'}</td></tr>`;
+                } catch (e) {
+                    html += `<tr><td><strong>Status</strong></td><td>Configured</td></tr>`;
+                }
+            } else {
+                html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+            }
+            // User Tracking
+            html += `<tr><td colspan="2"><strong class="has-text-primary">User Tracking</strong></td></tr>`;
+            if (mgmt.user_tracking_configuration) {
+                try {
+                    const userConfig = typeof mgmt.user_tracking_configuration === 'string' ? JSON.parse(mgmt.user_tracking_configuration) : mgmt.user_tracking_configuration;
+                    html += `<tr><td><strong>Enabled</strong></td><td>${userConfig.enabled ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Log Channel</strong></td><td>${userConfig.log_channel_id ? escapeHtml(userConfig.log_channel_id) : '<em>Not set</em>'}</td></tr>`;
+                    html += `<tr><td><strong>Track Joins</strong></td><td>${userConfig.track_joins ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Track Leaves</strong></td><td>${userConfig.track_leaves ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Track Nickname Changes</strong></td><td>${userConfig.track_nickname_changes ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Track Username Changes</strong></td><td>${userConfig.track_username_changes ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Track Avatar Changes</strong></td><td>${userConfig.track_avatar_changes ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Track Status Changes</strong></td><td>${userConfig.track_status_changes ? 'Yes' : 'No'}</td></tr>`;
+                } catch (e) {
+                    html += `<tr><td><strong>Status</strong></td><td>Configured</td></tr>`;
+                }
+            } else {
+                html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+            }
+            // Reaction Roles
+            html += `<tr><td colspan="2"><strong class="has-text-primary">Reaction Roles</strong></td></tr>`;
+            if (mgmt.reaction_roles_configuration) {
+                try {
+                    const reactionConfig = typeof mgmt.reaction_roles_configuration === 'string' ? JSON.parse(mgmt.reaction_roles_configuration) : mgmt.reaction_roles_configuration;
+                    html += `<tr><td><strong>Enabled</strong></td><td>${reactionConfig.enabled ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Channel ID</strong></td><td>${reactionConfig.channel_id ? escapeHtml(reactionConfig.channel_id) : '<em>Not set</em>'}</td></tr>`;
+                    html += `<tr><td><strong>Message ID</strong></td><td>${reactionConfig.message_id ? escapeHtml(reactionConfig.message_id) : '<em>Not set</em>'}</td></tr>`;
+                    html += `<tr><td><strong>Allow Multiple</strong></td><td>${reactionConfig.allow_multiple ? 'Yes' : 'No'}</td></tr>`;
+                    html += `<tr><td><strong>Mappings Configured</strong></td><td>${reactionConfig.mappings ? 'Yes' : 'No'}</td></tr>`;
+                } catch (e) {
+                    html += `<tr><td><strong>Status</strong></td><td>Configured</td></tr>`;
+                }
+            } else {
+                html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+            }
+            // Rules Configuration
+            html += `<tr><td colspan="2"><strong class="has-text-primary">Rules Configuration</strong></td></tr>`;
+            if (mgmt.rules_configuration_channel_id) {
+                html += `<tr><td><strong>Channel</strong></td><td>${escapeHtml(mgmt.rules_configuration_channel_id)}</td></tr>`;
+                html += `<tr><td><strong>Title</strong></td><td>${mgmt.rules_configuration_title ? escapeHtml(mgmt.rules_configuration_title) : '<em>Not set</em>'}</td></tr>`;
+                html += `<tr><td><strong>Color</strong></td><td>${mgmt.rules_configuration_colour ? escapeHtml(mgmt.rules_configuration_colour) : 'Default'}</td></tr>`;
+                html += `<tr><td><strong>Accept Role</strong></td><td>${mgmt.rules_configuration_accept_role_id ? escapeHtml(mgmt.rules_configuration_accept_role_id) : '<em>Not set</em>'}</td></tr>`;
+            } else {
+                html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+            }
+            // Stream Schedule
+            html += `<tr><td colspan="2"><strong class="has-text-primary">Stream Schedule</strong></td></tr>`;
+            if (mgmt.stream_schedule_configuration_channel_id) {
+                html += `<tr><td><strong>Channel</strong></td><td>${escapeHtml(mgmt.stream_schedule_configuration_channel_id)}</td></tr>`;
+                html += `<tr><td><strong>Title</strong></td><td>${mgmt.stream_schedule_configuration_title ? escapeHtml(mgmt.stream_schedule_configuration_title) : '<em>Not set</em>'}</td></tr>`;
+                html += `<tr><td><strong>Color</strong></td><td>${mgmt.stream_schedule_configuration_colour ? escapeHtml(mgmt.stream_schedule_configuration_colour) : 'Default'}</td></tr>`;
+                html += `<tr><td><strong>Timezone</strong></td><td>${mgmt.stream_schedule_configuration_timezone ? escapeHtml(mgmt.stream_schedule_configuration_timezone) : 'UTC'}</td></tr>`;
+            } else {
+                html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+            }
             html += '</tbody></table>';
         }
         html += '</div>';
