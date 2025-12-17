@@ -3025,7 +3025,7 @@ ob_start();
                 <div class="control">
                   <textarea class="textarea" id="stream_schedule_content" name="stream_schedule_content" rows="10" placeholder="Enter your stream schedule (one per line or formatted as you prefer)&#10;&#10;Example:&#10;🎮 Monday: 7:00 PM - 10:00 PM EST - Variety Gaming&#10;🎮 Wednesday: 8:00 PM - 11:00 PM EST - Just Chatting&#10;🎮 Friday: 7:00 PM - 12:00 AM EST - Game Night&#10;🎮 Saturday: 3:00 PM - 7:00 PM EST - Community Games&#10;&#10;Or use Discord markdown:&#10;**Monday** - 7:00 PM EST&#10;**Wednesday** - 8:00 PM EST" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required><?php echo htmlspecialchars($existingStreamScheduleContent ?? ''); ?></textarea>
                 </div>
-                <p class="help has-text-grey-light">Enter your stream schedule. You can use emojis, bullet points, or any format you prefer. Discord markdown is supported.</p>
+                <p class="help has-text-grey-light">Enter your stream schedule. You can use emojis, bullet points, or any format you prefer. Discord markdown is supported. <a href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">View markdown guide</a></p>
               </div>
               <div class="field">
                 <label class="label has-text-white" style="font-weight: 500;">Timezone <span class="has-text-danger">*</span></label>
@@ -3309,28 +3309,53 @@ function removeStreamer(username) {
   });
   // Validation for send stream schedule message button
   function validateSendStreamScheduleButton() {
-    const channelId = $('#stream_schedule_channel_id').val();
-    const title = $('#stream_schedule_title').val().trim();
-    const content = $('#stream_schedule_content').val().trim();
-    const timezone = $('#stream_schedule_timezone').val().trim();
-    let hasChannel = false;
-    if ($('#stream_schedule_channel_id').is('select')) {
-      hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
-    } else {
-      hasChannel = channelId && channelId.trim() !== '';
-    }
-    const hasTitle = title !== '';
-    const hasContent = content !== '';
-    const hasTimezone = timezone !== '';
-    const sendButton = $('#send_stream_schedule_message');
-    if (hasChannel && hasTitle && hasContent && hasTimezone) {
-      sendButton.prop('disabled', false);
-    } else {
-      sendButton.prop('disabled', true);
+    try {
+      const channelElement = $('#stream_schedule_channel_id');
+      const titleElement = $('#stream_schedule_title');
+      const contentElement = $('#stream_schedule_content');
+      const timezoneElement = $('#stream_schedule_timezone');
+      // Check if elements exist before trying to get values
+      if (channelElement.length === 0 || titleElement.length === 0 || contentElement.length === 0 || timezoneElement.length === 0) {
+        console.log('Stream Schedule form elements not found, skipping validation');
+        return;
+      }
+      const channelId = channelElement.val() || '';
+      const title = (titleElement.val() || '').trim();
+      const content = (contentElement.val() || '').trim();
+      const timezone = (timezoneElement.val() || '').trim();
+      let hasChannel = false;
+      if (channelElement.is('select')) {
+        hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
+      } else {
+        hasChannel = channelId && channelId.trim() !== '';
+      }
+      const hasTitle = title !== '';
+      const hasContent = content !== '';
+      const hasTimezone = timezone !== '';
+      const sendButton = $('#send_stream_schedule_message');
+      const allValid = hasChannel && hasTitle && hasContent && hasTimezone;
+      console.log('%c=== STREAM SCHEDULE VALIDATION ===', 'background: #3273dc; color: white; padding: 5px; border-radius: 3px;');
+      console.log('Channel ID:', channelId, '| Has Channel:', hasChannel);
+      console.log('Title:', title, '| Has Title:', hasTitle);
+      console.log('Content length:', content.length, '| Has Content:', hasContent);
+      console.log('Timezone:', timezone, '| Has Timezone:', hasTimezone);
+      console.log('ALL VALID:', allValid);
+      console.log('Send Button Current State - Disabled:', sendButton.prop('disabled'));
+      console.log('Setting Send Button - Disabled:', !allValid);
+      console.log('%c=== END VALIDATION ===', 'background: #3273dc; color: white; padding: 5px; border-radius: 3px;');
+      if (sendButton.length > 0) {
+        if (allValid) {
+          sendButton.prop('disabled', false);
+        } else {
+          sendButton.prop('disabled', true);
+        }
+      }
+    } catch (error) {
+      console.error('Error in validateSendStreamScheduleButton:', error);
     }
   }
-  // Check validation on page load and when inputs change
-  validateSendStreamScheduleButton();
+  // Check validation on page load and when inputs change - use longer delay
+  setTimeout(validateSendStreamScheduleButton, 500);
   $('#stream_schedule_channel_id, #stream_schedule_title, #stream_schedule_content, #stream_schedule_timezone').on('change input', validateSendStreamScheduleButton);
 });
 </script>
@@ -3570,6 +3595,10 @@ function removeStreamer(username) {
           if (channelInput && channelInput.value !== data.channel_id) {
             channelInput.value = data.channel_id;
           }
+        }
+        // Re-validate the stream schedule button after successful save
+        if (typeof validateSendStreamScheduleButton === 'function') {
+          setTimeout(validateSendStreamScheduleButton, 100);
         }
         // Note: No page reload - data is already saved and displayed in the form
       } else {
