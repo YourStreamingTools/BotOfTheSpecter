@@ -93,8 +93,8 @@ foreach ($users as $userRow) {
         }
         // Fetch server management settings if guild_id is set
         if (!empty($userConfig['guild_id'])) {
-            $mgmtStmt = $discord_conn->prepare("SELECT * FROM server_management WHERE server_id = ?");
-            $mgmtStmt->bind_param("s", $userConfig['guild_id']);
+            $mgmtStmt = $discord_conn->prepare("SELECT * FROM server_management WHERE server_id = ? OR id = ?");
+            $mgmtStmt->bind_param("ss", $userConfig['guild_id'], $userConfig['guild_id']);
             $mgmtStmt->execute();
             $mgmtResult = $mgmtStmt->get_result();
             if ($mgmtResult->num_rows > 0) {
@@ -185,7 +185,7 @@ ob_start();
                                     if (!empty($config['member_streams_id'])) $enabledFeatures[] = 'Stream Monitoring';
                                     if (!empty($config['server_management_settings'])): 
                                         $mgmt = $config['server_management_settings'];
-                                        if (!empty($mgmt['welcome_message_channel_id'])) $enabledFeatures[] = 'Welcome Message';
+                                        if (!empty($mgmt['welcome_message_configuration_channel'])) $enabledFeatures[] = 'Welcome Message';
                                         if (!empty($mgmt['auto_role_assignment_configuration_role_id'])) $enabledFeatures[] = 'Auto Role';
                                         if (!empty($mgmt['message_tracking_configuration'])) $enabledFeatures[] = 'Message Tracking';
                                         if (!empty($mgmt['role_tracking_configuration'])) $enabledFeatures[] = 'Role Tracking';
@@ -193,8 +193,8 @@ ob_start();
                                         if (!empty($mgmt['user_tracking_configuration'])) $enabledFeatures[] = 'User Tracking';
                                         if (!empty($mgmt['server_role_management_configuration'])) $enabledFeatures[] = 'Server Role Mgmt';
                                         if (!empty($mgmt['reaction_roles_configuration'])) $enabledFeatures[] = 'Reaction Roles';
-                                        if (!empty($mgmt['rules_configuration_channel_id'])) $enabledFeatures[] = 'Rules';
-                                        if (!empty($mgmt['stream_schedule_configuration_channel_id'])) $enabledFeatures[] = 'Stream Schedule';
+                                        if (!empty($mgmt['rules_configuration'])) $enabledFeatures[] = 'Rules';
+                                        if (!empty($mgmt['stream_schedule_configuration'])) $enabledFeatures[] = 'Stream Schedule';
                                     endif;
                                 ?>
                                 <?php if (!empty($enabledFeatures)): ?>
@@ -444,7 +444,21 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             // Rules Configuration
             html += `<tr><td colspan="2"><strong class="has-text-primary">Rules Configuration</strong></td></tr>`;
-            if (mgmt.rules_configuration_channel_id) {
+            if (mgmt.rules_configuration) {
+                try {
+                    const rulesConfig = typeof mgmt.rules_configuration === 'string' ? JSON.parse(mgmt.rules_configuration) : mgmt.rules_configuration;
+                    if (rulesConfig.channel_id) {
+                        html += `<tr><td><strong>Channel</strong></td><td>${escapeHtml(rulesConfig.channel_id)}</td></tr>`;
+                        html += `<tr><td><strong>Title</strong></td><td>${rulesConfig.title ? escapeHtml(rulesConfig.title) : '<em>Not set</em>'}</td></tr>`;
+                        html += `<tr><td><strong>Color</strong></td><td>${rulesConfig.color ? escapeHtml(rulesConfig.color) : 'Default'}</td></tr>`;
+                        html += `<tr><td><strong>Accept Role</strong></td><td>${rulesConfig.accept_role_id ? escapeHtml(rulesConfig.accept_role_id) : '<em>Not set</em>'}</td></tr>`;
+                    } else {
+                        html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+                    }
+                } catch (e) {
+                    html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+                }
+            } else if (mgmt.rules_configuration_channel_id) {
                 html += `<tr><td><strong>Channel</strong></td><td>${escapeHtml(mgmt.rules_configuration_channel_id)}</td></tr>`;
                 html += `<tr><td><strong>Title</strong></td><td>${mgmt.rules_configuration_title ? escapeHtml(mgmt.rules_configuration_title) : '<em>Not set</em>'}</td></tr>`;
                 html += `<tr><td><strong>Color</strong></td><td>${mgmt.rules_configuration_colour ? escapeHtml(mgmt.rules_configuration_colour) : 'Default'}</td></tr>`;
@@ -454,7 +468,21 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             // Stream Schedule
             html += `<tr><td colspan="2"><strong class="has-text-primary">Stream Schedule</strong></td></tr>`;
-            if (mgmt.stream_schedule_configuration_channel_id) {
+            if (mgmt.stream_schedule_configuration) {
+                try {
+                    const scheduleConfig = typeof mgmt.stream_schedule_configuration === 'string' ? JSON.parse(mgmt.stream_schedule_configuration) : mgmt.stream_schedule_configuration;
+                    if (scheduleConfig.channel_id) {
+                        html += `<tr><td><strong>Channel</strong></td><td>${escapeHtml(scheduleConfig.channel_id)}</td></tr>`;
+                        html += `<tr><td><strong>Title</strong></td><td>${scheduleConfig.title ? escapeHtml(scheduleConfig.title) : '<em>Not set</em>'}</td></tr>`;
+                        html += `<tr><td><strong>Color</strong></td><td>${scheduleConfig.color ? escapeHtml(scheduleConfig.color) : 'Default'}</td></tr>`;
+                        html += `<tr><td><strong>Timezone</strong></td><td>${scheduleConfig.timezone ? escapeHtml(scheduleConfig.timezone) : 'UTC'}</td></tr>`;
+                    } else {
+                        html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+                    }
+                } catch (e) {
+                    html += `<tr><td><strong>Status</strong></td><td><em>Not configured</em></td></tr>`;
+                }
+            } else if (mgmt.stream_schedule_configuration_channel_id) {
                 html += `<tr><td><strong>Channel</strong></td><td>${escapeHtml(mgmt.stream_schedule_configuration_channel_id)}</td></tr>`;
                 html += `<tr><td><strong>Title</strong></td><td>${mgmt.stream_schedule_configuration_title ? escapeHtml(mgmt.stream_schedule_configuration_title) : '<em>Not set</em>'}</td></tr>`;
                 html += `<tr><td><strong>Color</strong></td><td>${mgmt.stream_schedule_configuration_colour ? escapeHtml(mgmt.stream_schedule_configuration_colour) : 'Default'}</td></tr>`;
