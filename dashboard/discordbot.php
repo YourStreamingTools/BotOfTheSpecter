@@ -2198,7 +2198,7 @@ ob_start();
               <div class="field">
                 <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
                   <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>
-                  Stream Online Alerts Channel
+                  Stream Online Alerts Channel <span class="has-text-danger">*</span>
                 </label>
                 <p class="help has-text-grey-light mb-2">For stream online notifications of your channel</p>
                 <div class="control has-icons-left">
@@ -2238,7 +2238,7 @@ ob_start();
               <div class="field">
                 <label class="label has-text-white" for="live_channel_id" style="font-weight: 500;">
                   <span class="icon mr-1 has-text-info"><i class="fa-solid fa-volume-high"></i></span>
-                  Live Status Channel
+                  Live Status Channel <span class="has-text-danger">*</span>
                 </label>
                 <p class="help has-text-grey-light mb-2">The voice channel to update with live status</p>
                 <div class="control has-icons-left">
@@ -2392,7 +2392,7 @@ ob_start();
               <div class="field">
                 <label class="label has-text-white" for="mod_channel_id" style="font-weight: 500;">
                   <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
-                  Twitch Moderation Actions Channel
+                  Twitch Moderation Actions Channel <span class="has-text-danger">*</span>
                 </label>
                 <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g. bans, timeouts, message deletions</p>
                 <div class="control has-icons-left">
@@ -2402,7 +2402,7 @@ ob_start();
               <div class="field">
                 <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
                   <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
-                  Twitch Event Alerts Channel
+                  Twitch Event Alerts Channel <span class="has-text-danger">*</span>
                 </label>
                 <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g. Followers, Subscriptions, Bits</p>
                 <div class="control has-icons-left">
@@ -2447,7 +2447,7 @@ ob_start();
             <p class="has-text-white-ter mb-1">Configure automated welcome messages for new members joining your Discord server.</p>
             <form action="" method="post">
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Welcome Channel</label>
+                <label class="label has-text-white" style="font-weight: 500;">Welcome Channel <span class="has-text-danger">*</span></label>
                 <div class="control has-icons-left">
                   <?php echo generateChannelInput('welcome_channel_id', 'welcome_channel_id', $existingWelcomeChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
@@ -2920,23 +2920,23 @@ ob_start();
             <p class="has-text-white-ter mb-1">Configure and post an embed message with your server rules.</p>
             <form action="" method="post">
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Rules Channel</label>
+                <label class="label has-text-white" style="font-weight: 500;">Rules Channel <span class="has-text-danger">*</span></label>
                 <div class="control has-icons-left">
                   <?php echo generateChannelInput('rules_channel_id', 'rules_channel_id', $existingRulesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
                 <p class="help has-text-grey-light">Channel where the rules message will be posted</p>
               </div>
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Rules Title</label>
+                <label class="label has-text-white" style="font-weight: 500;">Rules Title <span class="has-text-danger">*</span></label>
                 <div class="control">
-                  <input class="input" type="text" id="rules_title" name="rules_title" value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="e.g. Server Rules" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                  <input class="input" type="text" id="rules_title" name="rules_title" value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="e.g. Server Rules" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required>
                 </div>
                 <p class="help has-text-grey-light">Title for the rules embed (appears at the top)</p>
               </div>
               <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Rules Content</label>
+                <label class="label has-text-white" style="font-weight: 500;">Rules Content <span class="has-text-danger">*</span></label>
                 <div class="control">
-                  <textarea class="textarea" id="rules_content" name="rules_content" rows="8" placeholder="Enter your server rules (one per line or formatted as you prefer)&#10;&#10;Example:&#10;1. Be respectful to all members&#10;2. No spamming or advertising&#10;3. Keep content appropriate&#10;4. Follow Discord's Terms of Service" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingRulesContent ?? ''); ?></textarea>
+                  <textarea class="textarea" id="rules_content" name="rules_content" rows="8" placeholder="Enter your server rules (one per line or formatted as you prefer)&#10;&#10;Example:&#10;1. Be respectful to all members&#10;2. No spamming or advertising&#10;3. Keep content appropriate&#10;4. Follow Discord's Terms of Service" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required><?php echo htmlspecialchars($existingRulesContent ?? ''); ?></textarea>
                 </div>
                 <p class="help has-text-grey-light">Enter your server rules. You can use numbered lists, bullet points, or any format you prefer. Discord markdown is supported.</p>
               </div>
