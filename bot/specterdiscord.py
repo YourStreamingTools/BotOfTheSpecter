@@ -1491,6 +1491,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(RoleTrackingCog(self, self.logger))
         await self.add_cog(ServerRoleManagementCog(self, self.logger))
         await self.add_cog(MessageTrackingCog(self, self.logger))
+        await self.add_cog(ModerationCog(self, self.logger))
         await self.add_cog(AdminCog(self, self.logger))
         await self.add_cog(UserTrackingCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
@@ -8121,6 +8122,58 @@ class UserTrackingCog(commands.Cog, name='User Tracking'):
 
     def cog_unload(self):
         self.logger.info("UserTrackingCog cog unloaded")
+
+# Moderation cog - commands for server moderators
+class ModerationCog(commands.Cog, name='Moderation'):
+    def __init__(self, bot: BotOfTheSpecter, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+
+    @commands.command(name="purge", aliases=["clear", "delete"])
+    @commands.has_permissions(manage_messages=True)
+    @commands.bot_has_permissions(manage_messages=True)
+    async def purge_messages(self, ctx, amount: int = None):
+        if amount is None:
+            await ctx.send("❌ Please specify the number of messages to delete. Usage: `!purge <number>`", delete_after=5)
+            return
+        if amount < 1:
+            await ctx.send("❌ Please specify a number greater than 0.", delete_after=5)
+            return
+        if amount > 100:
+            await ctx.send("❌ You can only delete up to 100 messages at a time.", delete_after=5)
+            return
+        try:
+            # Delete the command message first
+            await ctx.message.delete()
+            # Delete the specified number of messages
+            deleted = await ctx.channel.purge(limit=amount)
+            # Send confirmation message that auto-deletes after 5 seconds
+            confirmation = await ctx.send(f"✅ Successfully deleted {len(deleted)} message(s).", delete_after=5)
+            self.logger.info(f"User {ctx.author} ({ctx.author.id}) purged {len(deleted)} messages in #{ctx.channel.name} ({ctx.channel.id}) in guild {ctx.guild.name} ({ctx.guild.id})")
+        except discord.Forbidden:
+            await ctx.send("❌ I don't have permission to delete messages in this channel.", delete_after=5)
+            self.logger.error(f"Missing permissions to purge messages in #{ctx.channel.name} ({ctx.channel.id})")
+        except discord.HTTPException as e:
+            await ctx.send(f"❌ An error occurred while deleting messages: {e}", delete_after=5)
+            self.logger.error(f"HTTP error while purging messages: {e}")
+        except Exception as e:
+            await ctx.send(f"❌ An unexpected error occurred: {e}", delete_after=5)
+            self.logger.error(f"Error in purge command: {e}")
+
+    @purge_messages.error
+    async def purge_error(self, ctx, error):
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("❌ You need the 'Manage Messages' permission to use this command.", delete_after=5)
+        elif isinstance(error, commands.BotMissingPermissions):
+            await ctx.send("❌ I need the 'Manage Messages' permission to delete messages.", delete_after=5)
+        elif isinstance(error, commands.BadArgument):
+            await ctx.send("❌ Please provide a valid number. Usage: `!purge <number>`", delete_after=5)
+        else:
+            await ctx.send(f"❌ An error occurred: {error}", delete_after=5)
+            self.logger.error(f"Error in purge command: {error}")
+
+    def cog_unload(self):
+        self.logger.info("ModerationCog cog unloaded")
 
 # Admin commands cog - restricted to bot owner
 class AdminCog(commands.Cog, name='Admin'):
