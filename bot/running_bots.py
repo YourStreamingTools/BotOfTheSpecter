@@ -1,10 +1,13 @@
 import psutil
 import os
+import asyncio
+import aiohttp
 
 # Define the script names for stable and beta
 stable_script = "bot.py"
 beta_script = "beta.py"
 custom_script = "custom.py"
+API_VERSIONS_URL = "https://api.botofthespecter.com/versions"
 
 # Function to get version from version control files
 def get_version(script_type, channel):
@@ -22,10 +25,52 @@ def get_version(script_type, channel):
     except:
         return 'Unknown'
 
+# Function to fetch latest versions from API
+async def get_api_versions():
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(API_VERSIONS_URL, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                if response.status == 200:
+                    return await response.json()
+    except Exception as e:
+        print(f"Warning: Could not fetch API versions: {e}")
+    return None
+
+# Function to compare versions and check if outdated
+def is_version_outdated(local_version, api_versions, script_type):
+    if not api_versions or local_version == 'Unknown':
+        return False, None, "Could not determine version status"
+    try:
+        local_v = float(local_version)
+    except ValueError:
+        return False, None, f"Invalid local version format: {local_version}"
+    if script_type == 'stable':
+        current_version = api_versions.get('stable_version')
+    elif script_type == 'beta':
+        current_version = api_versions.get('beta_version')
+    elif script_type == 'custom':
+        # Custom might use stable version
+        current_version = api_versions.get('stable_version')
+    else:
+        return False, None, "Unknown script type"
+    if not current_version:
+        return False, None, "Current version not available in API"
+    try:
+        current_v = float(current_version)
+    except ValueError:
+        return False, None, f"Invalid API version format: {current_version}"
+    is_outdated = local_v < current_v
+    message = f"Running v{local_version} (Latest: v{current_version})"
+    if is_outdated:
+        message += " - OUTDATED"
+    return is_outdated, current_version, message
+
 # Dictionaries to hold running bots
 stable_bots = []
 beta_bots = []
 custom_bots = []
+# Fetch API versions
+api_versions = asyncio.run(get_api_versions())
 
 # Iterate through all processes
 for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
@@ -88,7 +133,8 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
 print("Stable bots running:")
 if stable_bots:
     for channel, pid, version in stable_bots:
-        print(f"- Channel: {channel}, PID: {pid}, Version: {version}")
+        is_outdated, current, status = is_version_outdated(version, api_versions, 'stable')
+        print(f"- Channel: {channel}, PID: {pid}, Version: {version} | {status}")
     print(f"Total: {len(stable_bots)}")
 else:
     print("None")
@@ -96,7 +142,8 @@ else:
 print("\nBeta bots running:")
 if beta_bots:
     for channel, pid, version in beta_bots:
-        print(f"- Channel: {channel}, PID: {pid}, Version: {version}")
+        is_outdated, current, status = is_version_outdated(version, api_versions, 'beta')
+        print(f"- Channel: {channel}, PID: {pid}, Version: {version} | {status}")
     print(f"Total: {len(beta_bots)}")
 else:
     print("None")
@@ -104,7 +151,8 @@ else:
 print("\nCustom bots running:")
 if custom_bots:
     for channel, pid, version in custom_bots:
-        print(f"- Channel: {channel}, PID: {pid}, Version: {version}")
+        is_outdated, current, status = is_version_outdated(version, api_versions, 'custom')
+        print(f"- Channel: {channel}, PID: {pid}, Version: {version} | {status}")
     print(f"Total: {len(custom_bots)}")
 else:
     print("None")
