@@ -745,9 +745,20 @@ async def connect_to_streamlabs():
             # Listen for messages
             while True:
                 message = await streamlabs_websocket.recv()
-                sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
+                # Attempt to extract JSON payload from socket.io frame (e.g. '42["event",{...}]')
+                idx_brace = message.find('{')
+                idx_brack = message.find('[')
+                start_idx = -1
+                candidates = [i for i in (idx_brace, idx_brack) if i != -1]
+                if candidates:
+                    start_idx = min(candidates)
+                if start_idx == -1:
+                    event_logger.debug("StreamLabs non-JSON frame received; skipping")
+                    continue
+                json_payload = message[start_idx:]
+                sanitized_message = json_payload.replace(streamlabs_token, "[REDACTED]")
                 event_logger.info(f"StreamLabs Message: {sanitized_message}")
-                await process_message(message, "StreamLabs")
+                await process_message(json_payload, "StreamLabs")
     except WebSocketConnectionClosed as e:
         event_logger.error(f"StreamLabs WebSocket connection closed: {e}")
     except Exception as e:
@@ -811,13 +822,17 @@ async def process_tipping_message(data, source):
             message_part = f" Message: {tip_message}" if tip_message else ""
             send_message = f"{user} just tipped {amount_text}!{message_part}"
             event_logger.info(f"StreamElements Tip: {send_message} (ID: {tip_id})")
-        elif source == "StreamLabs" and 'event' in data and data['event'] == 'donation':
-            for donation in data['data']['donations']:
-                user = donation['name']
-                amount = donation['amount']
-                tip_message = donation['message']
-                send_message = f"{user} just tipped {amount}! Message: {tip_message}"
-                event_logger.info(f"StreamLabs Tip: {send_message}")
+        elif source == "StreamLabs" and isinstance(data, dict) and data.get('event') == 'donation':
+            donations = data.get('data', {}).get('donations', [])
+            if isinstance(donations, list):
+                for donation in donations:
+                    if not isinstance(donation, dict):
+                        continue
+                    user = donation.get('name')
+                    amount = donation.get('amount')
+                    tip_message = donation.get('message')
+                    send_message = f"{user} just tipped {amount}! Message: {tip_message}"
+                    event_logger.info(f"StreamLabs Tip: {send_message}")
         if send_message and user and amount is not None:
             await send_chat_message(send_message)
             # Save tipping data to database
@@ -9185,6 +9200,8 @@ async def update_version_control():
         elif SYSTEM == "CUSTOM":
             file_name = f"{CHANNEL_NAME}_custom_version_control.txt"
             directory = "/home/botofthespecter/logs/version/custom/"
+            # Define the full file path for CUSTOM as well
+            file_path = os.path.join(directory, file_name)
         else:
             raise ValueError("Invalid SYSTEM value. Expected STABLE, BETA, or CUSTOM.")
         # Delete the file if it exists
@@ -10657,8 +10674,12 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
         chat_logger.error(f"Error sending chat message: {e}")
         return False
 
-# Fetch OAUTH_TOKEN from database for custom bot
-OAUTH_TOKEN = asyncio.run(fetch_custom_bot_token())
+# Create and set a dedicated asyncio event loop for the process and use it
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
+# Fetch OAUTH_TOKEN from database for custom bot using the persistent loop
+OAUTH_TOKEN = loop.run_until_complete(fetch_custom_bot_token())
 
 if not OAUTH_TOKEN:
     bot_logger.error("Failed to fetch OAUTH_TOKEN from database. Cannot start bot.")
