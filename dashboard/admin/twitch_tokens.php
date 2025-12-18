@@ -778,7 +778,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Display cached validation data on page load
     function displayCachedValidation() {
         // Display cached data for regular tokens
-        const rows = document.querySelectorAll('#tokens-table-body tr[data-token]');
+        const rows = document.querySelectorAll('#tokens-table-body tr[data-user-id]');
         rows.forEach(row => {
             const tokenId = row.id.replace('row-', '');
             if (tokenCache[tokenId]) {
