@@ -247,28 +247,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_token_cache'])) 
         $tokenType = isset($_POST['token_type']) ? trim($_POST['token_type']) : ''; // 'regular' or 'custom'
         $expiresIn = isset($_POST['expires_in']) ? intval($_POST['expires_in']) : 0;
         $isValid = isset($_POST['is_valid']) ? filter_var($_POST['is_valid'], FILTER_VALIDATE_BOOLEAN) : false;
-        
         if (empty($tokenId) || empty($tokenType)) {
             echo json_encode(['success' => false, 'error' => 'token_id and token_type are required']);
             exit;
         }
-        
         // Define cache file location (outside web root or in a secure directory)
         $cacheDir = '/var/www/cache/tokens';
         $cacheFile = $cacheDir . '/token_validation_cache.json';
-        
         // Create cache directory if it doesn't exist
         if (!is_dir($cacheDir)) {
             mkdir($cacheDir, 0755, true);
         }
-        
         // Load existing cache
         $cache = [];
         if (file_exists($cacheFile)) {
             $cacheContent = file_get_contents($cacheFile);
             $cache = json_decode($cacheContent, true) ?? [];
         }
-        
         // Update or add token entry
         $cache[$tokenId] = [
             'token_type' => $tokenType,
@@ -278,13 +273,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_token_cache'])) 
             'last_validated' => date('Y-m-d H:i:s'),
             'timestamp' => time()
         ];
-        
         // Save cache
         if (file_put_contents($cacheFile, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX)) {
             echo json_encode(['success' => true, 'message' => 'Token validation cached']);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to save cache file']);
         }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
+// Handle AJAX request to fetch current user token from database
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_user_token'])) {
+    header('Content-Type: application/json');
+    try {
+        $userId = isset($_POST['twitch_user_id']) ? trim($_POST['twitch_user_id']) : '';
+        if (empty($userId)) {
+            echo json_encode(['success' => false, 'error' => 'User ID is required.']);
+            exit;
+        }
+        // Validate database connection
+        if (!isset($conn) || !$conn) {
+            echo json_encode(['success' => false, 'error' => 'Database connection failed.']);
+            exit;
+        }
+        // Fetch current token from twitch_bot_access table
+        $stmt = $conn->prepare("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = ? LIMIT 1");
+        if (!$stmt) {
+            echo json_encode(['success' => false, 'error' => 'Database query preparation failed.']);
+            exit;
+        }
+        $stmt->bind_param('s', $userId);
+        if (!$stmt->execute()) {
+            echo json_encode(['success' => false, 'error' => 'Database query execution failed.']);
+            $stmt->close();
+            exit;
+        }
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if (!$row) {
+            echo json_encode(['success' => false, 'error' => 'User token not found in twitch_bot_access table.']);
+            exit;
+        }
+        echo json_encode([
+            'success' => true,
+            'access_token' => $row['twitch_access_token'] ?? ''
+        ]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
     }
@@ -636,19 +673,23 @@ ob_start();
         </thead>
         <tbody id="tokens-table-body">
             <?php
-            $sql = "SELECT twitch_user_id, access_token, username FROM users WHERE access_token IS NOT NULL AND access_token != '' ORDER BY username ASC";
+            $sql = "SELECT u.twitch_user_id, tba.twitch_access_token, u.username 
+                    FROM users u 
+                    LEFT JOIN twitch_bot_access tba ON u.twitch_user_id = tba.twitch_user_id 
+                    WHERE tba.twitch_access_token IS NOT NULL AND tba.twitch_access_token != '' 
+                    ORDER BY u.username ASC";
             $result = $conn->query($sql);
             if ($result && $result->num_rows > 0) {
                 while ($row = $result->fetch_assoc()) {
                     $userId = $row['twitch_user_id'];
-                    $token = $row['access_token'];
+                    $token = $row['twitch_access_token'];
                     $username = htmlspecialchars($row['username']);
-                    $tokenId = md5($token); // Use hash for unique ID
-                    echo "<tr id='row-$tokenId' data-token='$token' data-user-id='$userId'>";
+                    $tokenId = md5($userId . $token); // Use hash for unique ID
+                    echo "<tr id='row-$tokenId' data-user-id='$userId'>";
                     echo "<td>$username</td>";
                     echo "<td id='status-$tokenId'>Not Validated</td>";
                     echo "<td id='expiry-$tokenId'>-</td>";
-                    echo "<td><button class='button is-small is-info' onclick='validateToken(\"$token\", \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewToken(\"$userId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "<td><button class='button is-small is-info' onclick='validateToken(null, \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewToken(\"$userId\", \"$tokenId\")'>Renew</button></td>";
                     echo "</tr>";
                 }
             } else {
@@ -1106,17 +1147,35 @@ function validateChatToken(token) {
 function validateToken(token, tokenId) {
     const statusCell = document.getElementById(`status-${tokenId}`);
     const expiryCell = document.getElementById(`expiry-${tokenId}`);
+    const row = document.getElementById(`row-${tokenId}`);
+    const userId = row.getAttribute('data-user-id');
     const button = document.querySelector(`#row-${tokenId} button:first-child`);
-    statusCell.textContent = 'Validating...';
+    statusCell.textContent = 'Fetching current token...';
     button.disabled = true;
     button.classList.add('is-loading');
-    const formData = new FormData();
-    formData.append('validate_token', '1');
-    formData.append('access_token', token);
-    return fetch('', {
-        method: 'POST',
-        body: formData
-    })
+    // First fetch the current token from database
+    const fetchFormData = new FormData();
+    fetchFormData.append('fetch_user_token', '1');
+    fetchFormData.append('twitch_user_id', userId);
+    return fetch('', { method: 'POST', body: fetchFormData })
+        .then(response => response.json())
+        .then(fetchData => {
+            if (!fetchData.success) {
+                statusCell.textContent = 'Error fetching token';
+                statusCell.className = 'has-text-danger';
+                expiryCell.textContent = '-';
+                button.disabled = false;
+                button.classList.remove('is-loading');
+                return { success: false };
+            }
+            // Now validate the freshly fetched token
+            const currentToken = fetchData.access_token;
+            statusCell.textContent = 'Validating...';
+            const formData = new FormData();
+            formData.append('validate_token', '1');
+            formData.append('access_token', currentToken);
+            return fetch('', { method: 'POST', body: formData });
+        })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
