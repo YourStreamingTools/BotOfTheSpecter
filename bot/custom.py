@@ -10632,6 +10632,8 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
     if not access_token or not bot_channel_id:
         chat_logger.error("Failed to get custom bot credentials for sending message")
         return False
+    if access_token.startswith('oauth:'):
+        access_token = access_token.split(':', 1)[1]
     url = "https://api.twitch.tv/helix/chat/messages"
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -10641,6 +10643,7 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
     data = {
         "broadcaster_id": CHANNEL_ID,
         "sender_id": bot_channel_id,
+        "moderator_id": bot_channel_id,
         "message": message
     }
     if reply_parent_message_id:
