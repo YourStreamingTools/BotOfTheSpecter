@@ -66,17 +66,9 @@ SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 ADMIN_API_KEY = os.getenv('ADMIN_KEY')
-USE_BACKUP_SYSTEM = os.getenv('USE_BACKUP_SYSTEM', 'False').lower() == 'true'
-if USE_BACKUP_SYSTEM:
-    BACKUP_SYSTEM = True
-    OAUTH_TOKEN = f"oauth:{CHANNEL_AUTH}"
-    CLIENT_ID = os.getenv('BACKUP_CLIENT_ID')
-    CLIENT_SECRET = os.getenv('BACKUP_SECRET_KEY')
-else:
-    BACKUP_SYSTEM = False
-    OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
-    CLIENT_ID = os.getenv('CLIENT_ID')
-    CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 BOT_ID = os.getenv('BOT_ID')
 TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
 TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
@@ -86,7 +78,6 @@ STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_KEY')
-OPENAI_VECTOR_ID = os.getenv("OPENAI_VECTOR_ID")
 OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
 _cached_instructions = None
 _cached_instructions_time = 0
@@ -353,8 +344,6 @@ async def refresh_twitch_token(current_refresh_token):
                     if new_access_token:
                         # Update the global access token
                         CHANNEL_AUTH = new_access_token
-                        if BACKUP_SYSTEM:
-                            OAUTH_TOKEN = f"oauth:{CHANNEL_AUTH}"
                         twitch_logger.info(f"Refreshed token. New Access Token: {CHANNEL_AUTH}.")
                         connection = await mysql_connection(db_name="website")
                         try:
@@ -1113,7 +1102,7 @@ async def process_twitch_eventsub_message(message):
                             try:
                                 # Determine which user ID to use for the API request
                                 use_streamer = False  # Use bot token to make it appear as bot denied
-                                api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+                                api_user_id = CHANNEL_ID if use_streamer else "971436498"
                                 # Fetch settings from the twitch_bot_access table
                                 await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
                                 result = await cursor.fetchone()
@@ -1145,7 +1134,7 @@ async def process_twitch_eventsub_message(message):
                             try:
                                 # Determine which user ID to use for the API request
                                 use_streamer = False  # Use bot token to make it appear as bot denied
-                                api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+                                api_user_id = CHANNEL_ID if use_streamer else "971436498"
                                 # Fetch settings from the twitch_bot_access table
                                 await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
                                 result = await cursor.fetchone()
@@ -2551,7 +2540,6 @@ class TwitchBot(commands.AutoBot):
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global INSTRUCTIONS_CACHE_TTL, OPENAI_INSTRUCTIONS_ENDPOINT, bot_owner
-        global OPENAI_VECTOR_ID
         # Ensure history directory exists
         try:
             Path(HISTORY_DIR).mkdir(parents=True, exist_ok=True)
@@ -8189,8 +8177,6 @@ async def handle_chat_message(messageAuthor, messageContent=""):
     # Don't count bot messages
     if messageAuthor.lower() == BOT_USERNAME.lower():
         return
-    if BACKUP_SYSTEM and messageAuthor.lower() == CHANNEL_NAME.lower():
-        return
     # Don't count command messages (starting with !)
     if messageContent and messageContent.strip().startswith('!'):
         return
@@ -8916,7 +8902,7 @@ async def ban_user(username, user_id, use_streamer=False):
         connection = await mysql_connection(db_name="website")
         async with connection.cursor(DictCursor) as cursor:
             # Determine which user ID to use for the API request
-            api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+            api_user_id = CHANNEL_ID if use_streamer else "971436498"
             # Fetch settings from the twitch_bot_access table
             await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
             result = await cursor.fetchone()
@@ -9895,27 +9881,22 @@ async def midnight():
 
 async def reload_env_vars():
     # Load in all the globals
-    global SQL_HOST, SQL_USER, SQL_PASSWORD, ADMIN_API_KEY, USE_BACKUP_SYSTEM
-    global BACKUP_SYSTEM, OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET, TWITCH_GQL
+    global SQL_HOST, SQL_USER, SQL_PASSWORD, ADMIN_API_KEY
+    global OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET, BOT_ID, TWITCH_GQL
     global SHAZAM_API, STEAM_API, EXCHANGE_RATE_API_KEY, HYPERATE_API_KEY, CHANNEL_AUTH
     global TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
+    global OPENAI_API_KEY
+    global SSH_USERNAME, SSH_PASSWORD, SSH_HOSTS
     # Reload the .env file
     load_dotenv()
     SQL_HOST = os.getenv('SQL_HOST')
     SQL_USER = os.getenv('SQL_USER')
     SQL_PASSWORD = os.getenv('SQL_PASSWORD')
     ADMIN_API_KEY = os.getenv('ADMIN_KEY')
-    USE_BACKUP_SYSTEM = os.getenv('USE_BACKUP_SYSTEM', 'False').lower() == 'true'
-    if USE_BACKUP_SYSTEM:
-        BACKUP_SYSTEM = True
-        OAUTH_TOKEN = f"oauth:{CHANNEL_AUTH}"
-        CLIENT_ID = os.getenv('BACKUP_CLIENT_ID')
-        CLIENT_SECRET = os.getenv('BACKUP_SECRET_KEY')
-    else:
-        BACKUP_SYSTEM = False
-        OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
-        CLIENT_ID = os.getenv('CLIENT_ID')
-        CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+    OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
+    CLIENT_ID = os.getenv('CLIENT_ID')
+    CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+    BOT_ID = os.getenv('BOT_ID')
     TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
     TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
     TWITCH_GQL = os.getenv('TWITCH_GQL')
@@ -9923,6 +9904,20 @@ async def reload_env_vars():
     STEAM_API = os.getenv('STEAM_API')
     EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
     HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
+    OPENAI_API_KEY = os.getenv('OPENAI_KEY')
+    SSH_USERNAME = os.getenv('SSH_USERNAME')
+    SSH_PASSWORD = os.getenv('SSH_PASSWORD')
+    SSH_HOSTS = {
+        'API': os.getenv('API-HOST'),
+        'WEBSOCKET': os.getenv('WEBSOCKET-HOST'),
+        'BOT-SRV': os.getenv('BOT-SRV-HOST'),
+        'SQL': os.getenv('SQL-HOST'),
+        'STREAM-US-EAST-1': os.getenv('STREAM-US-EAST-1-HOST'),
+        'STREAM-US-WEST-1': os.getenv('STREAM-US-WEST-1-HOST'),
+        'STREAM-AU-EAST-1': os.getenv('STREAM-AU-EAST-1-HOST'),
+        'WEB': os.getenv('WEB-HOST'),
+        'BILLING': os.getenv('BILLING-HOST')
+    }
     # Log or handle any environment variable updates
     bot_logger.info("Reloaded environment variables")
 
