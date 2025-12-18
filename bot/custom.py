@@ -1,6 +1,7 @@
 # Standard library imports
 import os, re, sys, ast, signal, argparse, traceback, math
 import json, time, random, base64, operator, threading
+import asyncio
 from asyncio import Queue, subprocess
 from asyncio import CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
@@ -292,17 +293,17 @@ async def fetch_custom_bot_token():
         )
         async with connection.cursor() as cursor:
             # Get user id from users table
-            await cursor.execute("SELECT id FROM users WHERE twitch_id = %s", (CHANNEL_ID,))
+            await cursor.execute("SELECT id FROM users WHERE twitch_user_id = %s", (CHANNEL_ID,))
             user_result = await cursor.fetchone()
             if not user_result:
                 bot_logger.error(f"User not found in database for CHANNEL_ID: {CHANNEL_ID}")
                 return None
             user_id = user_result['id']
             # Get access_token from custom_bots table
-            await cursor.execute("SELECT access_token FROM custom_bots WHERE user_id = %s", (user_id,))
+            await cursor.execute("SELECT access_token FROM custom_bots WHERE channel_id = %s", (user_id,))
             bot_result = await cursor.fetchone()
             if not bot_result or not bot_result['access_token']:
-                bot_logger.error(f"Custom bot token not found for user_id: {user_id}")
+                bot_logger.error(f"Custom bot token not found for channel_id: {user_id}")
                 return None
             access_token = bot_result['access_token']
             bot_logger.info(f"Successfully fetched custom bot token for {CHANNEL_NAME}")
@@ -327,7 +328,7 @@ async def get_custom_bot_credentials():
         )
         async with connection.cursor() as cursor:
             # Get user id from users table
-            await cursor.execute("SELECT id FROM users WHERE twitch_id = %s", (CHANNEL_ID,))
+            await cursor.execute("SELECT id FROM users WHERE twitch_user_id = %s", (CHANNEL_ID,))
             user_result = await cursor.fetchone()
             if not user_result:
                 return None, None
