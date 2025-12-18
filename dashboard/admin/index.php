@@ -187,6 +187,88 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($
     exit;
 }
 
+// Handle bot restart action
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
+    require_once '../bot_control_functions.php';
+    $username = trim($_POST['username'] ?? '');
+    $originalBotType = trim($_POST['bot_type'] ?? 'stable');
+    $pid = intval($_POST['pid'] ?? 0);
+    // ALWAYS restart users as stable, regardless of what they were running
+    $botType = 'stable';
+    // Log the restart attempt
+    error_log("Bot restart request - Username: {$username}, Original Type: {$originalBotType}, Restarting as: {$botType}, PID: {$pid}");
+    $success = false;
+    $message = '';
+    if (empty($username)) {
+        $message = 'Username is required';
+    } else {
+        try {
+            // Get user data including refresh_token and api_key from users table
+            $stmt = $conn->prepare("SELECT twitch_user_id, refresh_token, api_key FROM users WHERE username = ?");
+            $stmt->bind_param("s", $username);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                $userData = $result->fetch_assoc();
+                $twitchUserId = $userData['twitch_user_id'];
+                $refreshToken = $userData['refresh_token'];
+                $apiKey = $userData['api_key'];
+                // Get bot access token from twitch_bot_access table
+                $stmt2 = $conn->prepare("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = ?");
+                $stmt2->bind_param("s", $twitchUserId);
+                $stmt2->execute();
+                $tokenResult = $stmt2->get_result();
+                if ($tokenResult->num_rows > 0) {
+                    $tokenData = $tokenResult->fetch_assoc();
+                    $botAccessToken = $tokenData['twitch_access_token'];
+                    error_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
+                    // Step 1: Stop the bot if it's running
+                    if ($pid > 0) {
+                        error_log("RESTART DEBUG - Stopping PID {$pid} (should be {$botType} bot)");
+                        try {
+                            $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+                            if ($connection) {
+                                SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
+                                error_log("RESTART DEBUG - Kill command sent for PID {$pid}");
+                                // Give it a moment to stop
+                                sleep(1);
+                            }
+                        } catch (Exception $e) {
+                            error_log("Error stopping bot during restart: " . $e->getMessage());
+                        }
+                    }
+                    // Step 2: Start the bot with correct tokens
+                    $params = [
+                        'username' => $username,
+                        'twitch_user_id' => $twitchUserId,
+                        'auth_token' => $botAccessToken,  // Bot token from twitch_bot_access
+                        'refresh_token' => $refreshToken,  // Refresh token from users table
+                        'api_key' => $apiKey
+                    ];
+                    error_log("RESTART DEBUG - Calling performBotAction('run', '{$botType}', ...) for {$username}");
+                    $result = performBotAction('run', $botType, $params);
+                    error_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
+                    $success = $result['success'];
+                    // Always clarify that stable was started
+                    $message = $result['message'] . " (Stable version)";
+                } else {
+                    $message = 'Bot access token not found for user';
+                }
+                $stmt2->close();
+            } else {
+                $message = 'User not found';
+            }
+            $stmt->close();
+        } catch (Exception $e) {
+            $message = 'Error restarting bot: ' . $e->getMessage();
+            error_log("Bot restart error: " . $e->getMessage());
+        }
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['success' => $success, 'message' => $message]);
+    exit;
+}
+
 // Handle send message action
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
     $message = trim($_POST['message']);
@@ -1155,6 +1237,85 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     };
+    
+    // Function to restart bot
+    window.restartBot = function(username, botType, pid, element) {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'Do you want to restart this bot? It will be stopped and started again.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#aaa',
+            confirmButtonText: 'Yes, restart it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Log the restart details for debugging
+                console.log('Restarting bot:', {username: username, botType: botType, pid: pid});
+                
+                // Show loading toast
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: 'Restarting ' + botType + ' bot...',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+                const formData = new FormData();
+                formData.append('restart_bot', '1');
+                formData.append('username', username);
+                formData.append('bot_type', botType);
+                formData.append('pid', pid);
+                // Log what we're sending
+                console.log('FormData contents:', {
+                    restart_bot: '1',
+                    username: username,
+                    bot_type: botType,
+                    pid: pid
+                });
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: data.message || 'Bot restarted successfully',
+                            showConfirmButton: false,
+                            timer: 3000
+                        });
+                        // Reload page after short delay
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'error',
+                            title: data.message || 'Failed to restart bot',
+                            showConfirmButton: false,
+                            timer: 3000
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error restarting bot:', error);
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'error',
+                        title: 'Network error restarting bot',
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                });
+            }
+        });
+    };
     // Function to refresh Spotify tokens
     window.refreshSpotifyTokens = function() {
         const button = document.querySelector('button[onclick="refreshSpotifyTokens()"]');
@@ -1394,8 +1555,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bot.is_outdated) {
             html += '<span class="tag is-danger">OUTDATED</span>';
         }
-        html += '<button type="button" class="button is-danger is-small bot-stop-button" data-pid="' + bot.pid + '">';
+        html += '</div>';
+        html += '<div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">';
+        html += '<button type="button" class="button is-danger is-small bot-stop-button" data-pid="' + bot.pid + '" title="Stop Bot">';
         html += '<span class="icon"><i class="fas fa-stop"></i></span>';
+        html += '</button>';
+        html += '<button type="button" class="button is-info is-small bot-restart-button" data-username="' + bot.channel + '" data-bot-type="' + bot.type + '" data-pid="' + bot.pid + '" title="Restart Bot">';
+        html += '<span class="icon"><i class="fas fa-sync-alt"></i></span>';
         html += '</button>';
         html += '</div>';
         html += '</div>';
@@ -1533,6 +1699,23 @@ document.addEventListener('DOMContentLoaded', function() {
                                 stopBot(pid, element);
                             });
                         }
+                        // update restart button attributes
+                        const restartBtn = existingEl.querySelector('.bot-restart-button');
+                        if (restartBtn) {
+                            restartBtn.setAttribute('data-pid', bot.pid);
+                            restartBtn.setAttribute('data-username', bot.channel);
+                            restartBtn.setAttribute('data-bot-type', bot.type);
+                            // Remove existing listeners to prevent duplicates
+                            const newRestartBtn = restartBtn.cloneNode(true);
+                            restartBtn.parentNode.replaceChild(newRestartBtn, restartBtn);
+                            newRestartBtn.addEventListener('click', function() {
+                                const pid = this.getAttribute('data-pid');
+                                const username = this.getAttribute('data-username');
+                                const botType = this.getAttribute('data-bot-type');
+                                const element = this.closest('.column');
+                                restartBot(username, botType, pid, element);
+                            });
+                        }
                     } else {
                         // create new element for new bots
                         const insertFunc = () => {
@@ -1547,6 +1730,16 @@ document.addEventListener('DOMContentLoaded', function() {
                                         const pid = this.getAttribute('data-pid');
                                         const element = this.closest('.column');
                                         stopBot(pid, element);
+                                    });
+                                }
+                                const restartButton = newEl.querySelector('.bot-restart-button');
+                                if (restartButton) {
+                                    restartButton.addEventListener('click', function() {
+                                        const pid = this.getAttribute('data-pid');
+                                        const username = this.getAttribute('data-username');
+                                        const botType = this.getAttribute('data-bot-type');
+                                        const element = this.closest('.column');
+                                        restartBot(username, botType, pid, element);
                                     });
                                 }
                             }
@@ -1568,10 +1761,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 columns.innerHTML = '<div class="column"><p>Error loading bot overview.</p></div>';
             });
     };
-    
     // Smart refresh for bot overview - only refresh if section is open
     let botOverviewRefreshInterval = null;
-    
     function startBotOverviewRefresh() {
         if (botOverviewRefreshInterval === null) {
             loadBotOverview();
@@ -1580,20 +1771,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 200);
         }
     }
-    
     function stopBotOverviewRefresh() {
         if (botOverviewRefreshInterval !== null) {
             clearInterval(botOverviewRefreshInterval);
             botOverviewRefreshInterval = null;
         }
     }
-    
     // Initial load and setup refresh based on open/closed state
     const botOverviewSection = document.getElementById('bot-overview');
     if (botOverviewSection && botOverviewSection.classList.contains('open')) {
         startBotOverviewRefresh();
     }
-    
     // Override toggle function to handle bot overview refresh
     const originalToggleCollapsible = window.toggleCollapsible;
     window.toggleCollapsible = function(sectionId, event) {
@@ -1609,7 +1797,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     };
-    
     // Function to update bot message counts
     function updateBotMessageCounts() {
         fetch('?ajax=bot_message_counts')
@@ -1622,7 +1809,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         'twitch_beta': 'Chat Bot Beta',
                         'twitch_custom': 'Chat Bot Custom'
                     };
-                    
                     for (const [key, label] of Object.entries(messageSystemNames)) {
                         const stats = data.botMessageStats[key];
                         if (stats) {
@@ -1635,7 +1821,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                     countElement.textContent = 'Not Counting Yet';
                                 }
                             }
-                            
                             // Update timestamp
                             const timestampElement = document.querySelector(`[data-bot-system="${key}"] .bot-message-count-timestamp`);
                             if (timestampElement && stats.last_updated) {
@@ -1649,11 +1834,9 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(err => console.error('Error updating bot message counts:', err));
     }
-    
     // Update bot message counts immediately and every 60 seconds
     updateBotMessageCounts();
     setInterval(updateBotMessageCounts, 60000);
-    
     // Populate online channels asynchronously and enable send button only when both a channel is selected and a message is entered.
     const messageTextarea = document.getElementById('message');
     const sendButton = document.getElementById('send');
