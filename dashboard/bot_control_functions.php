@@ -266,11 +266,11 @@ function performBotAction($action, $botType, $params) {
                         try {
                                 // Prefer using pre-fetched custom bot info if provided in params
                                 $botUsernameParam = $params['custom_bot_username'] ?? null;
-                                $botTokenParam = $params['auth_token'] ?? null; // bot_action.php may have set auth_token to the custom bot token
                                 $botChannelIdParam = $params['custom_bot_channel_id'] ?? null;
-                                if (!empty($botUsernameParam) && !empty($botTokenParam) && !empty($botChannelIdParam)) {
+                                if (!empty($botUsernameParam) && !empty($botChannelIdParam)) {
                                     // We have everything we need from the caller
-                                    $extraBotArgs = ' -botusername ' . escapeshellarg($botUsernameParam) . ' -bottoken ' . escapeshellarg($botTokenParam);
+                                    // Custom bot fetches access_token from database, so no -bottoken needed
+                                    $extraBotArgs = ' -botusername ' . escapeshellarg($botUsernameParam);
                                 } else {
                                     // Fallback: strict lookup by site owner id (channel_id) as required
                                         $searchOwnerId = $params['channel_owner_id'] ?? $params['user_id'] ?? ($_SESSION['user_id'] ?? null);
@@ -278,19 +278,19 @@ function performBotAction($action, $botType, $params) {
                                             $result['message'] = 'Missing channel owner id for custom bot lookup.';
                                             break;
                                         }
-                                        $stmt = $conn->prepare("SELECT bot_username, access_token FROM custom_bots WHERE channel_id = ? LIMIT 1");
+                                        $stmt = $conn->prepare("SELECT bot_username FROM custom_bots WHERE channel_id = ? LIMIT 1");
                                         if ($stmt) {
                                             $stmt->bind_param('s', $searchOwnerId);
                                             $stmt->execute();
                                             $res = $stmt->get_result();
                                             $crow = $res ? $res->fetch_assoc() : null;
                                             $stmt->close();
-                                            if ($crow && !empty($crow['bot_username']) && !empty($crow['access_token'])) {
+                                            if ($crow && !empty($crow['bot_username'])) {
                                                 $botUsernameParam = $crow['bot_username'];
-                                                $botTokenParam = $crow['access_token'];
-                                                $extraBotArgs = ' -botusername ' . escapeshellarg($botUsernameParam) . ' -bottoken ' . escapeshellarg($botTokenParam);
+                                                // Custom bot fetches access_token from database, so no -bottoken needed
+                                                $extraBotArgs = ' -botusername ' . escapeshellarg($botUsernameParam);
                                             } else {
-                                                $result['message'] = 'Custom bot configuration missing (bot username or token). Please verify the custom bot first.';
+                                                $result['message'] = 'Custom bot configuration missing (bot username). Please verify the custom bot first.';
                                                 break;
                                             }
                                         } else {
