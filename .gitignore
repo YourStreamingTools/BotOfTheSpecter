@@ -94,6 +94,8 @@ docs/5.8.md
 /bot/ai/chat-history
 /deploy
 /wiki
+# This will be added later to the commits, for now, we're ignoring it.
+/ghostbot
 
 # Python Cache files
 bot/__pycache__/
