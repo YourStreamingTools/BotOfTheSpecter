@@ -1289,8 +1289,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             showConfirmButton: false,
                             timer: 3000
                         });
-                        // Reload page after short delay
-                        setTimeout(() => location.reload(), 2000);
                     } else {
                         Swal.fire({
                             toast: true,
