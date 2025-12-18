@@ -761,7 +761,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let invalidTokens = [];
     let tokenCache = {};
     let chatToken = "<?php echo addslashes($oauth); ?>";
-    
     // Load token validation cache on page load
     function loadTokenCache() {
         fetch('?load_token_cache=1', {
@@ -776,7 +775,6 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(err => console.warn('Failed to load token cache:', err));
     }
-    
     // Display cached validation data on page load
     function displayCachedValidation() {
         // Display cached data for regular tokens
@@ -787,7 +785,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const cached = tokenCache[tokenId];
                 const statusCell = document.getElementById(`status-${tokenId}`);
                 const expiryCell = document.getElementById(`expiry-${tokenId}`);
-                
                 if (cached.is_valid) {
                     statusCell.textContent = 'Valid';
                     statusCell.className = 'has-text-success';
@@ -795,7 +792,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusCell.textContent = 'Invalid';
                     statusCell.className = 'has-text-danger';
                 }
-                
                 if (cached.expires_in && cached.timestamp) {
                     // Recalculate remaining time based on cache timestamp + original expires_in
                     const cachedTime = cached.timestamp * 1000; // Convert to milliseconds
@@ -811,7 +807,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
-        
         // Display cached data for custom tokens
         const customRows = document.querySelectorAll('#custom-tokens-table-body tr[data-bot-channel-id]');
         customRows.forEach(row => {
@@ -820,7 +815,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const cached = tokenCache[tokenId];
                 const statusCell = document.getElementById(`status-custom-${tokenId}`);
                 const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
-                
                 if (cached.is_valid) {
                     statusCell.textContent = 'Valid';
                     statusCell.className = 'has-text-success';
@@ -834,7 +828,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     const expiryTime = cachedTime + (cached.expires_in * 1000); // Add expires_in seconds
                     const now = new Date().getTime();
                     const remaining = Math.floor((expiryTime - now) / 1000);
-                    
                     if (remaining > 0) {
                         expiryCell.textContent = formatTimeRemaining(remaining);
                     } else {
@@ -845,7 +838,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
     // Helper function to format time remaining
     function formatTimeRemaining(seconds) {
         let remaining = seconds;
@@ -857,17 +849,14 @@ document.addEventListener('DOMContentLoaded', function() {
         remaining %= 3600;
         const minutes = Math.floor(remaining / 60);
         const secs = remaining % 60;
-        
         let timeParts = [];
         if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
         if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
         if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
         if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
         if (secs > 0) timeParts.push(`${secs} second${secs > 1 ? 's' : ''}`);
-        
         return timeParts.join(', ') || '0 seconds';
     }
-    
     // Load cache on page load
     loadTokenCache();
     // Modal functionality
@@ -1160,8 +1149,8 @@ function validateToken(token, tokenId) {
         .then(response => response.json())
         .then(fetchData => {
             if (!fetchData.success) {
-                statusCell.textContent = 'Error fetching token';
-                statusCell.className = 'has-text-danger';
+                statusCell.textContent = 'No Token';
+                statusCell.className = 'has-text-warning';
                 expiryCell.textContent = '-';
                 button.disabled = false;
                 button.classList.remove('is-loading');
@@ -1350,8 +1339,8 @@ function validateCustomToken(token, tokenId) {
         .then(response => response.json())
         .then(fetchData => {
             if (!fetchData.success) {
-                statusCell.textContent = 'Error fetching token';
-                statusCell.className = 'has-text-danger';
+                statusCell.textContent = 'No Token';
+                statusCell.className = 'has-text-warning';
                 expiryCell.textContent = '-';
                 if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
                 return;
@@ -1388,14 +1377,12 @@ function validateCustomToken(token, tokenId) {
                 statusCell.textContent = 'Valid';
                 statusCell.className = 'has-text-success';
                 expiryCell.textContent = timeString;
-                
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', expiresIn, true);
             } else {
                 statusCell.textContent = 'Invalid';
                 statusCell.className = 'has-text-danger';
                 expiryCell.textContent = '-';
-                
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', 0, false);
             }
