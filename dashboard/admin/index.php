@@ -761,6 +761,15 @@ ob_start();
                 </button>
             </div>
         </div>
+        <div style="flex: 1; min-width: 250px;">
+            <div class="box hover-box">
+                <h3 class="title is-5"><span class="icon"><i class="fas fa-robot"></i></span> Custom Bots</h3>
+                <button type="button" class="button is-warning is-fullwidth" onclick="refreshCustomBotTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
+                    <span class="icon"><i class="fas fa-sync"></i></span>
+                    <span>Refresh Custom Bot Tokens</span>
+                </button>
+            </div>
+        </div>
     </div>
     </div>
 </div>
@@ -1233,6 +1242,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         // reset button label based on selector
                         if (buttonSelector.includes('Spotify')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Spotify Tokens</span>';
                         else if (buttonSelector.includes('StreamElements')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh StreamElements Tokens</span>';
+                        else if (buttonSelector.includes('CustomBot')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Custom Bot Tokens</span>';
                         else button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Discord Tokens</span>';
                     }
                 });
@@ -1253,6 +1263,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to refresh Spotify tokens (streams output)
     window.refreshSpotifyTokens = function() {
         streamCommand('spotify', 'Spotify', 'button[onclick="refreshSpotifyTokens()"]');
+    };
+    // Function to refresh Custom Bot tokens (streams output)
+    window.refreshCustomBotTokens = function() {
+        streamCommand('custom_bot', 'Custom Bot', 'button[onclick="refreshCustomBotTokens()"]');
     };
     // Function to update service status
     function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
