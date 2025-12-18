@@ -888,14 +888,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     // Validate all tokens
     validateAllBtn.addEventListener('click', function() {
-        const rows = document.querySelectorAll('#tokens-table-body tr[data-token]');
+        const rows = document.querySelectorAll('#tokens-table-body tr[data-user-id]');
         invalidTokens = [];
         renewInvalidBtn.disabled = true;
         renewInvalidBtn.classList.add('is-disabled');
         const promises = Array.from(rows).map(row => {
-            const token = row.getAttribute('data-token');
             const tokenId = row.id.replace('row-', '');
-            return validateToken(token, tokenId);
+            return validateToken(null, tokenId);
         });
         Promise.all(promises).then(() => {
             rows.forEach(row => {
