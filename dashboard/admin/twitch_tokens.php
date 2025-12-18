@@ -291,6 +291,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_token_cache'])) 
     exit;
 }
 
+// Handle AJAX request to fetch current custom bot token from database
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])) {
+    header('Content-Type: application/json');
+    try {
+        $botChannelId = isset($_POST['bot_channel_id']) ? trim($_POST['bot_channel_id']) : '';
+        if (empty($botChannelId)) {
+            echo json_encode(['success' => false, 'error' => 'Bot channel ID is required.']);
+            exit;
+        }
+        // Validate database connection
+        if (!isset($conn) || !$conn) {
+            echo json_encode(['success' => false, 'error' => 'Database connection failed.']);
+            exit;
+        }
+        // Fetch current token from database
+        $stmt = $conn->prepare("SELECT access_token, token_expires FROM custom_bots WHERE bot_channel_id = ? LIMIT 1");
+        if (!$stmt) {
+            echo json_encode(['success' => false, 'error' => 'Database query preparation failed.']);
+            exit;
+        }
+        $stmt->bind_param('s', $botChannelId);
+        if (!$stmt->execute()) {
+            echo json_encode(['success' => false, 'error' => 'Database query execution failed.']);
+            $stmt->close();
+            exit;
+        }
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if (!$row) {
+            echo json_encode(['success' => false, 'error' => 'Custom bot not found.']);
+            exit;
+        }
+        echo json_encode([
+            'success' => true,
+            'access_token' => $row['access_token'] ?? '',
+            'token_expires' => $row['token_expires'] ?? '-'
+        ]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
 // Handle AJAX request to load token validation cache
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['load_token_cache'])) {
     header('Content-Type: application/json');
@@ -643,7 +687,7 @@ ob_start();
                     echo "<td>$botChannelId</td>";
                     echo "<td id='status-custom-$tokenId'>Not Validated</td>";
                     echo "<td id='expiry-custom-$tokenId'>" . htmlspecialchars($expiresAt) . "</td>";
-                    echo "<td><button class='button is-small is-info' onclick='validateCustomToken(" . json_encode($accessToken) . ", \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewCustomToken(\"$botChannelId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "<td><button class='button is-small is-info' onclick='validateCustomToken(null, \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewCustomToken(\"$botChannelId\", \"$tokenId\")'>Renew</button></td>";
                     echo "</tr>";
                 }
             } else {
@@ -1235,14 +1279,33 @@ function validateCustomToken(token, tokenId) {
     const statusCell = document.getElementById(`status-custom-${tokenId}`);
     const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
     const row = document.getElementById(`custom-row-${tokenId}`);
-    statusCell.textContent = 'Validating...';
+    const botChannelId = row.getAttribute('data-bot-channel-id');
+    statusCell.textContent = 'Fetching current token...';
     // Disable the validate button in this row
     const btn = row.querySelector('button');
     if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
-    const formData = new FormData();
-    formData.append('validate_token', '1');
-    formData.append('access_token', token);
-    fetch('', { method: 'POST', body: formData })
+    // First fetch the current token from database
+    const fetchFormData = new FormData();
+    fetchFormData.append('fetch_custom_token', '1');
+    fetchFormData.append('bot_channel_id', botChannelId);
+    fetch('', { method: 'POST', body: fetchFormData })
+        .then(response => response.json())
+        .then(fetchData => {
+            if (!fetchData.success) {
+                statusCell.textContent = 'Error fetching token';
+                statusCell.className = 'has-text-danger';
+                expiryCell.textContent = '-';
+                if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
+                return;
+            }
+            // Now validate the freshly fetched token
+            const currentToken = fetchData.access_token;
+            statusCell.textContent = 'Validating...';
+            const formData = new FormData();
+            formData.append('validate_token', '1');
+            formData.append('access_token', currentToken);
+            return fetch('', { method: 'POST', body: formData });
+        })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
