@@ -142,6 +142,7 @@ async def update_bot_token(token_data):
             return True
     except Exception as e:
         logger.error(f"Error updating token in database: {e}")
+        await connection.rollback()
         return False
     finally:
         connection.close()
@@ -172,13 +173,13 @@ async def refresh_all_custom_bot_tokens():
             # Update database
             if await update_bot_token(token_data):
                 success_count += 1
-                logger.info(f"✓ Successfully updated token for {bot_username} (channel: {channel_username})")
+                logger.info(f"✓ Successfully refreshed and saved token for {bot_username} (channel: {channel_username})")
             else:
                 fail_count += 1
-                logger.error(f"✗ Failed to save token for {bot_username} (channel: {channel_username})")
+                logger.error(f"✗ Token refresh succeeded but database save failed for {bot_username} (channel: {channel_username})")
         else:
             fail_count += 1
-            logger.error(f"✗ Failed to refresh token for {bot_username} (channel: {channel_username})")
+            logger.error(f"✗ Failed to refresh token from Twitch for {bot_username} (channel: {channel_username})")
         # Small delay between requests to avoid rate limiting
         await asyncio.sleep(1)
     logger.info(f"Token refresh cycle complete. Success: {success_count}, Failed: {fail_count}")
