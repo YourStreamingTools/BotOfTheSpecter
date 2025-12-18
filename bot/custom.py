@@ -52,7 +52,6 @@ parser.add_argument("-token", dest="channel_auth_token", required=True, help="Au
 parser.add_argument("-refresh", dest="refresh_token", required=True, help="Refresh Token for authentication")
 parser.add_argument("-apitoken", dest="api_token", required=False, help="API Token for Websocket Server")
 parser.add_argument("-botusername", dest="bot_username", required=False, help="Bot's Twitch username")
-parser.add_argument("-bottoken", dest="bot_auth_token", required=False, help="Bot's OAuth Token for Twitch")
 args = parser.parse_args()
 
 # Twitch bot settings
@@ -60,10 +59,9 @@ CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
-OAUTH_TOKEN = f"oauth:{args.bot_auth_token}"
 API_TOKEN = args.api_token
 BOT_USERNAME = args.bot_username
-VERSION = "5.6"
+VERSION = "5.7.1"
 SYSTEM = "CUSTOM"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -79,7 +77,6 @@ STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_KEY')
-OPENAI_VECTOR_ID = os.getenv("OPENAI_VECTOR_ID")
 OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
 _cached_instructions = None
 _cached_instructions_time = 0
@@ -282,6 +279,89 @@ async def async_signal_cleanup():
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C as well
 
+# Function to fetch OAUTH_TOKEN from database for custom bot
+async def fetch_custom_bot_token():
+    try:
+        # Connect to website database to get user id from CHANNEL_ID
+        connection = await sql_connect(
+            host=SQL_HOST,
+            user=SQL_USER,
+            password=SQL_PASSWORD,
+            db='website',
+            cursorclass=DictCursor
+        )
+        async with connection.cursor() as cursor:
+            # Get user id from users table
+            await cursor.execute("SELECT id FROM users WHERE twitch_id = %s", (CHANNEL_ID,))
+            user_result = await cursor.fetchone()
+            if not user_result:
+                bot_logger.error(f"User not found in database for CHANNEL_ID: {CHANNEL_ID}")
+                return None
+            user_id = user_result['id']
+            # Get access_token from custom_bots table
+            await cursor.execute("SELECT access_token FROM custom_bots WHERE user_id = %s", (user_id,))
+            bot_result = await cursor.fetchone()
+            if not bot_result or not bot_result['access_token']:
+                bot_logger.error(f"Custom bot token not found for user_id: {user_id}")
+                return None
+            access_token = bot_result['access_token']
+            bot_logger.info(f"Successfully fetched custom bot token for {CHANNEL_NAME}")
+            return f"oauth:{access_token}"
+    except Exception as e:
+        bot_logger.error(f"Error fetching custom bot token: {e}")
+        return None
+    finally:
+        if connection:
+            connection.close()
+
+# Function to get custom bot user ID and client ID from database
+async def get_custom_bot_credentials():
+    connection = None
+    try:
+        connection = await sql_connect(
+            host=SQL_HOST,
+            user=SQL_USER,
+            password=SQL_PASSWORD,
+            db='website',
+            cursorclass=DictCursor
+        )
+        async with connection.cursor() as cursor:
+            # Get user id from users table
+            await cursor.execute("SELECT id FROM users WHERE twitch_id = %s", (CHANNEL_ID,))
+            user_result = await cursor.fetchone()
+            if not user_result:
+                return None, None
+            user_id = user_result['id']
+            # Get bot credentials from custom_bots table using channel_id
+            await cursor.execute(
+                "SELECT access_token, bot_channel_id FROM custom_bots WHERE channel_id = %s", 
+                (user_id,)
+            )
+            bot_result = await cursor.fetchone()
+            if not bot_result:
+                return None, None
+            # Return access token (without oauth: prefix) and bot_channel_id (sender_id)
+            access_token = bot_result.get('access_token', '')
+            bot_channel_id = bot_result.get('bot_channel_id', '')
+            return access_token, bot_channel_id
+    except Exception as e:
+        bot_logger.error(f"Error fetching custom bot credentials: {e}")
+        return None, None
+    finally:
+        if connection:
+            connection.close()
+
+# Periodic task to refresh custom bot token every 3.5 hours (before 4 hour expiry)
+async def periodic_token_refresh():
+    while True:
+        try:
+            # Wait 3.5 hours (12600 seconds) before refreshing
+            await sleep(12600)
+            bot_logger.info("Starting periodic custom bot token refresh...")
+            await reload_env_vars()
+        except Exception as e:
+            bot_logger.error(f"Error in periodic token refresh: {e}")
+
 # Function to handle MySQL connections
 async def mysql_connection(db_name=None):
     global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
@@ -309,58 +389,25 @@ async def twitch_token_refresh():
     global REFRESH_TOKEN
     # Wait for 5 minutes before the first token refresh
     await sleep(300)
-    # Get initial next-refresh times for both the main token and the chat token
-    try:
-        next_refresh_time = await refresh_twitch_token(REFRESH_TOKEN)
-    except Exception as e:
-        twitch_logger.error(f"Initial main token refresh failed: {e}")
-        next_refresh_time = time.time() + 3600
-    try:
-        next_chat_refresh_time = await refresh_custom_bot_chat_token()
-    except Exception as e:
-        twitch_logger.error(f"Initial custom chat token refresh failed: {e}")
-        next_chat_refresh_time = None
-    # Normalize None to an infinite future so min() works correctly
-    if not next_chat_refresh_time:
-        next_chat_refresh_time = float('inf')
-    # Single loop that schedules both refreshes by waiting until the nearest next-refresh time
+    next_refresh_time = await refresh_twitch_token(REFRESH_TOKEN)
     while True:
         current_time = time.time()
-        # Determine the next scheduled refresh among the two tokens
-        next_event = min(next_refresh_time or float('inf'), next_chat_refresh_time or float('inf'))
-        time_until_event = next_event - current_time
-        if time_until_event <= 0:
-            # One or both refreshes are due now
-            if current_time >= (next_refresh_time or 0):
-                try:
-                    next_refresh_time = await refresh_twitch_token(REFRESH_TOKEN)
-                except Exception as e:
-                    twitch_logger.error(f"Main token refresh failed: {e}")
-                    # Retry after 1 hour on failure
-                    next_refresh_time = time.time() + 3600
-            if current_time >= (next_chat_refresh_time or 0):
-                try:
-                    tmp = await refresh_custom_bot_chat_token()
-                    next_chat_refresh_time = tmp if tmp else float('inf')
-                except Exception as e:
-                    twitch_logger.error(f"Failed to refresh custom bot chat token: {e}")
-                    # Defer chat refresh until main token rotates or manual intervention
-                    next_chat_refresh_time = float('inf')
-            # Loop again to compute the next event
-            continue
-        # Sleep in sensible increments to avoid long blocking while still responsive
-        if time_until_event > 3600:
-            sleep_time = 3600  # Sleep for 1 hour
-        elif time_until_event > 300:
-            sleep_time = 300  # Sleep for 5 minutes
+        time_until_expiration = next_refresh_time - current_time
+        if current_time >= next_refresh_time:
+            next_refresh_time = await refresh_twitch_token(REFRESH_TOKEN)
         else:
-            # When the event is within 5 minutes, wake up exactly at the event time
-            sleep_time = max(1, time_until_event)
-        await sleep(sleep_time)
+            # Adjust sleep intervals based on time remaining until next refresh
+            if time_until_expiration > 3600:
+                sleep_time = 3600  # Sleep for 1 hour
+            elif time_until_expiration > 300:
+                sleep_time = 300  # Sleep for 5 minutes
+            else:
+                sleep_time = 60  # Sleep for 1 minute
+            await sleep(sleep_time)
 
 # Function to refresh Twitch token
 async def refresh_twitch_token(current_refresh_token):
-    global CHANNEL_AUTH, CLIENT_ID, CLIENT_SECRET, OAUTH_TOKEN, REFRESH_TOKEN, BOT_USERNAME, CHANNEL_ID
+    global CHANNEL_AUTH, OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET
     url = 'https://id.twitch.tv/oauth2/token'
     body = {
         'grant_type': 'refresh_token',
@@ -377,41 +424,15 @@ async def refresh_twitch_token(current_refresh_token):
                     expires_in = response_json.get('expires_in', 14400)  # Default to 4 hours if not provided
                     next_refresh_time = time.time() + expires_in - 300  # Refresh 5 minutes before expiration
                     if new_access_token:
-                        # Normalize token (ensure we store/operate without the 'oauth:' prefix)
-                        bare_token = new_access_token
-                        if isinstance(bare_token, str) and bare_token.startswith('oauth:'):
-                            bare_token = bare_token.split('oauth:', 1)[1]
-                        # Update globals used across the bot
-                        CHANNEL_AUTH = bare_token
-                        # Bot chat OAUTH_TOKEN expects the 'oauth:' prefix
-                        OAUTH_TOKEN = f"oauth:{bare_token}"
-                        # Update REFRESH_TOKEN if rotated
-                        new_refresh = response_json.get('refresh_token')
-                        if new_refresh:
-                            REFRESH_TOKEN = new_refresh
-                        twitch_logger.info(f"Refreshed token. New Access Token set (redacted): [REDACTED].")
-                        # Persist token(s) into website DB: twitch_bot_access (compat) + custom_bots (custom)
+                        # Update the global access token
+                        CHANNEL_AUTH = new_access_token
+                        twitch_logger.info(f"Refreshed token. New Access Token: {CHANNEL_AUTH}.")
                         connection = await mysql_connection(db_name="website")
                         try:
                             async with connection.cursor(DictCursor) as cursor:
-                                # Keep twitch_bot_access updated for backward compatibility
-                                try:
-                                    query = "INSERT INTO twitch_bot_access (twitch_user_id, twitch_access_token) VALUES (%s, %s) ON DUPLICATE KEY UPDATE twitch_access_token = %s;"
-                                    await cursor.execute(query, (CHANNEL_ID, bare_token, bare_token))
-                                except Exception:
-                                    # Non-fatal: continue to custom_bots update
-                                    pass
-                                # Update custom_bots table for this custom bot if present
-                                try:
-                                    # Compute DATETIME for token_expires
-                                    expires_dt = (datetime.utcfromtimestamp(time.time() + expires_in)).strftime('%Y-%m-%d %H:%M:%S')
-                                    update_query = (
-                                        "UPDATE custom_bots SET access_token = %s, refresh_token = %s, token_expires = %s "
-                                        "WHERE channel_id = %s AND bot_username = %s"
-                                    )
-                                    await cursor.execute(update_query, (bare_token, REFRESH_TOKEN, expires_dt, CHANNEL_ID, BOT_USERNAME))
-                                except Exception as e:
-                                    twitch_logger.error(f"Failed to update custom_bots table: {e}")
+                                # Insert or update the access token for the given twitch_user_id
+                                query = "INSERT INTO twitch_bot_access (twitch_user_id, twitch_access_token) VALUES (%s, %s) ON DUPLICATE KEY UPDATE twitch_access_token = %s;"
+                                await cursor.execute(query, (CHANNEL_ID, CHANNEL_AUTH, CHANNEL_AUTH))
                                 await connection.commit()
                         except Exception as e:
                             twitch_logger.error(f"Database update failed: {e}")
@@ -428,81 +449,6 @@ async def refresh_twitch_token(current_refresh_token):
     except Exception as e:
         twitch_logger.error(f"Twitch token refresh error: {e}")
     return time.time() + 3600  # Default retry time of 1 hour
-
-async def refresh_custom_bot_chat_token():
-    global BOT_USERNAME, CHANNEL_ID, CLIENT_ID, CLIENT_SECRET, OAUTH_TOKEN
-    try:
-        connection = await mysql_connection(db_name="website")
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute(
-                "SELECT refresh_token FROM custom_bots WHERE channel_id = %s AND bot_username = %s LIMIT 1",
-                (CHANNEL_ID, BOT_USERNAME)
-            )
-            row = await cursor.fetchone()
-            if not row or not row.get('refresh_token'):
-                twitch_logger.info("No refresh token found for custom bot; skipping chat token refresh.")
-                return None
-            bot_refresh = row.get('refresh_token')
-    except Exception as e:
-        twitch_logger.error(f"Error reading custom_bots refresh_token: {e}")
-        try:
-            await connection.ensure_closed()
-        except Exception:
-            pass
-        return None
-    # Call Twitch token endpoint to rotate the bot's chat token
-    url = 'https://id.twitch.tv/oauth2/token'
-    body = {
-        'grant_type': 'refresh_token',
-        'refresh_token': bot_refresh,
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET,
-    }
-    try:
-        async with httpClientSession() as session:
-            async with session.post(url, data=body) as response:
-                if response.status == 200:
-                    response_json = await response.json()
-                    new_access_token = response_json.get('access_token')
-                    new_refresh = response_json.get('refresh_token')
-                    expires_in = response_json.get('expires_in', 14400)
-                    if new_access_token:
-                        bare_token = new_access_token
-                        if bare_token.startswith('oauth:'):
-                            bare_token = bare_token.split('oauth:', 1)[1]
-                        # Update global OAUTH_TOKEN used by the chat client
-                        OAUTH_TOKEN = f"oauth:{bare_token}"
-                        # Persist rotated values to custom_bots
-                        expires_dt = (datetime.utcfromtimestamp(time.time() + expires_in)).strftime('%Y-%m-%d %H:%M:%S')
-                        conn2 = await mysql_connection(db_name="website")
-                        try:
-                            async with conn2.cursor(DictCursor) as cur2:
-                                update_query = (
-                                    "UPDATE custom_bots SET access_token = %s, refresh_token = %s, token_expires = %s "
-                                    "WHERE channel_id = %s AND bot_username = %s"
-                                )
-                                await cur2.execute(update_query, (bare_token, new_refresh or bot_refresh, expires_dt, CHANNEL_ID, BOT_USERNAME))
-                                await conn2.commit()
-                                twitch_logger.info("Custom bot chat token refreshed and persisted (expiry updated).")
-                        except Exception as e:
-                            twitch_logger.error(f"Failed to persist refreshed custom bot token: {e}")
-                        finally:
-                            try:
-                                await conn2.ensure_closed()
-                            except Exception:
-                                pass
-                        return time.time() + expires_in - 300
-                    else:
-                        twitch_logger.error("Custom bot token refresh failed: 'access_token' missing in response.")
-                else:
-                    try:
-                        err = await response.json()
-                    except Exception:
-                        err = await response.text()
-                    twitch_logger.error(f"Custom bot token refresh HTTP {response.status}: {err}")
-    except Exception as e:
-        twitch_logger.error(f"Exception during custom bot token refresh: {e}")
-    return None
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
@@ -640,24 +586,34 @@ async def connect_to_tipping_services():
                 event_logger.info("StreamElements token retrieved from database")
             else:
                 event_logger.info("No StreamElements token found for this channel")
-            # Fetch StreamLabs token  
-            await cursor.execute("SELECT access_token FROM streamlabs_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
+            # Fetch StreamLabs tokens (prefer socket token for websocket connection)
+            await cursor.execute("SELECT socket_token, access_token FROM streamlabs_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
             sl_result = await cursor.fetchone()
             if sl_result:
-                streamlabs_token = sl_result.get('access_token')
-                event_logger.info("StreamLabs token retrieved from database")
+                socket_tok = sl_result.get('socket_token')
+                access_tok = sl_result.get('access_token')
+                if socket_tok:
+                    streamlabs_token = socket_tok
+                    event_logger.info("StreamLabs socket token retrieved from database and will be used for websocket connection")
+                elif access_tok:
+                    # fallback: use access token if socket token isn't available
+                    streamlabs_token = access_tok
+                    event_logger.info("StreamLabs access token retrieved from database; using it as fallback for websocket connection")
+                else:
+                    event_logger.info("StreamLabs entry found but no usable token (socket_token/access_token) present")
             else:
-                event_logger.info("No StreamLabs token found for this channel")
+                event_logger.info("No StreamLabs token record found for this channel")
             # Start connection tasks
             tasks = []
             if streamelements_token:
                 tasks.append(streamelements_connection_manager())
             if streamlabs_token:
                 tasks.append(connect_to_streamlabs())
-            if tasks:
-                await gather(*tasks)
-            else:
-                event_logger.warning("No valid tokens found for either StreamElements or StreamLabs.")
+            # If no tokens were found for either service, stop early
+            if not tasks:
+                event_logger.warning("No valid tokens found for either StreamElements or StreamLabs. Aborting tipping service connection.")
+                return
+            await gather(*tasks)
     except MySQLError as err:
         event_logger.error(f"Database error while fetching tipping service tokens: {err}")
     finally:
@@ -1011,33 +967,114 @@ async def process_twitch_eventsub_message(message):
                 # Moderation Event
                 elif event_type == 'channel.moderate':
                     moderator_user_name = event_data.get("moderator_user_name", "Unknown Moderator")
-                    # Skip logging raid actions
-                    if event_data.get("action") == "raid":
+                    action = event_data.get("action")
+                    # Skip logging raid actions as they are handled separately
+                    if action == "raid":
                         return
-                    # Handle timeout action
-                    if event_data.get("action") == "timeout":
+                    # Log the moderation action
+                    event_logger.info(f"Moderation action '{action}' performed by {moderator_user_name}")
+                    # Handle different moderation actions
+                    if action == "timeout":
                         timeout_info = event_data.get("timeout", {})
                         user_name = timeout_info.get("user_name", "Unknown User")
                         reason = timeout_info.get("reason", "No reason provided")
                         expires_at_str = timeout_info.get("expires_at")
                         if expires_at_str:
                             expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
-                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC")
                         else:
                             expires_at_formatted = "No expiration time provided"
-                    # Handle untimeout action
-                    elif event_data.get("action") == "untimeout":
+                        event_logger.info(f"User {user_name} timed out by {moderator_user_name} for: {reason}. Expires at: {expires_at_formatted}")
+                    elif action == "untimeout":
                         untimeout_info = event_data.get("untimeout", {})
                         user_name = untimeout_info.get("user_name", "Unknown User")
-                    # Handle ban action
-                    elif event_data.get("action") == "ban":
-                        banned_info = event_data.get("ban", {})
-                        banned_user_name = banned_info.get("user_name", "Unknown User")
-                        reason = banned_info.get("reason", "No reason provided")
-                    # Handle unban action
-                    elif event_data.get("action") == "unban":
+                        event_logger.info(f"User {user_name} untimed out by {moderator_user_name}")
+                    elif action == "ban":
+                        ban_info = event_data.get("ban", {})
+                        user_name = ban_info.get("user_name", "Unknown User")
+                        reason = ban_info.get("reason", "No reason provided")
+                        event_logger.info(f"User {user_name} banned by {moderator_user_name} for: {reason}")
+                    elif action == "unban":
                         unban_info = event_data.get("unban", {})
-                        banned_user_name = unban_info.get("user_name", "Unknown User")
+                        user_name = unban_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} unbanned by {moderator_user_name}")
+                    elif action == "warn":
+                        warn_info = event_data.get("warn", {})
+                        user_name = warn_info.get("user_name", "Unknown User")
+                        reason = warn_info.get("reason", "No reason provided")
+                        chat_rules_cited = warn_info.get("chat_rules_cited")
+                        rules_text = f" (Chat rules cited: {chat_rules_cited})" if chat_rules_cited else ""
+                        event_logger.info(f"User {user_name} warned by {moderator_user_name} for: {reason}{rules_text}")
+                    elif action == "mod":
+                        mod_info = event_data.get("mod", {})
+                        user_name = mod_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} added as moderator by {moderator_user_name}")
+                    elif action == "unmod":
+                        unmod_info = event_data.get("unmod", {})
+                        user_name = unmod_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} removed as moderator by {moderator_user_name}")
+                    elif action == "vip":
+                        vip_info = event_data.get("vip", {})
+                        user_name = vip_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} added as VIP by {moderator_user_name}")
+                    elif action == "unvip":
+                        unvip_info = event_data.get("unvip", {})
+                        user_name = unvip_info.get("user_name", "Unknown User")
+                        event_logger.info(f"User {user_name} removed as VIP by {moderator_user_name}")
+                    elif action == "delete":
+                        delete_info = event_data.get("delete", {})
+                        user_name = delete_info.get("user_name", "Unknown User")
+                        message_id = delete_info.get("message_id", "Unknown")
+                        event_logger.info(f"Message deleted from user {user_name} by {moderator_user_name} (Message ID: {message_id})")
+                    elif action == "automod_terms":
+                        automod_info = event_data.get("automod_terms", {})
+                        terms = automod_info.get("terms", [])
+                        event_logger.info(f"AutoMod terms updated by {moderator_user_name}: {terms}")
+                    elif action == "unban_request":
+                        unban_request_info = event_data.get("unban_request", {})
+                        event_logger.info(f"Unban request handled by {moderator_user_name}")
+                    elif action == "shared_chat_ban":
+                        shared_ban_info = event_data.get("shared_chat_ban", {})
+                        user_name = shared_ban_info.get("user_name", "Unknown User")
+                        reason = shared_ban_info.get("reason", "No reason provided")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} banned in shared chat by {moderator_user_name} from {source_broadcaster} for: {reason}")
+                    elif action == "shared_chat_unban":
+                        shared_unban_info = event_data.get("shared_chat_unban", {})
+                        user_name = shared_unban_info.get("user_name", "Unknown User")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} unbanned in shared chat by {moderator_user_name} from {source_broadcaster}")
+                    elif action == "shared_chat_timeout":
+                        shared_timeout_info = event_data.get("shared_chat_timeout", {})
+                        user_name = shared_timeout_info.get("user_name", "Unknown User")
+                        reason = shared_timeout_info.get("reason", "No reason provided")
+                        expires_at_str = shared_timeout_info.get("expires_at")
+                        if expires_at_str:
+                            expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
+                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+                        else:
+                            expires_at_formatted = "No expiration time provided"
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} timed out in shared chat by {moderator_user_name} from {source_broadcaster} for: {reason}. Expires at: {expires_at_formatted}")
+                    elif action == "shared_chat_untimeout":
+                        shared_untimeout_info = event_data.get("shared_chat_untimeout", {})
+                        user_name = shared_untimeout_info.get("user_name", "Unknown User")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"User {user_name} untimed out in shared chat by {moderator_user_name} from {source_broadcaster}")
+                    elif action == "shared_chat_delete":
+                        shared_delete_info = event_data.get("shared_chat_delete", {})
+                        user_name = shared_delete_info.get("user_name", "Unknown User")
+                        message_id = shared_delete_info.get("message_id", "Unknown")
+                        source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
+                        event_logger.info(f"Message deleted from user {user_name} in shared chat by {moderator_user_name} from {source_broadcaster} (Message ID: {message_id})")
+                    # Handle mode changes (actions without specific user data)
+                    elif action in ["emoteonly", "emoteonlyoff", "followers", "followersoff", "slow", "slowoff", "subscribers", "subscribersoff", "uniquechat", "uniquechatoff"]:
+                        event_logger.info(f"Chat mode '{action}' activated by {moderator_user_name}")
+                    else:
+                        # Log unknown actions for debugging
+                        event_logger.warning(f"Unknown moderation action '{action}' received: {event_data}")
+                    # Send moderation event to websocket for Discord logging
+                    create_task(websocket_notice(event="MODERATION", additional_data=event_data))
                 # Channel Point Rewards Event
                 elif event_type in [
                     "channel.channel_points_automatic_reward_redemption.add", 
@@ -1818,6 +1855,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["shoutout_worker"] = create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = create_task(periodic_watch_time_update())
         looped_tasks["check_song_requests"] = create_task(check_song_requests())
+        looped_tasks["periodic_token_refresh"] = create_task(periodic_token_refresh())
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -2542,7 +2580,6 @@ class TwitchBot(commands.Bot):
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global INSTRUCTIONS_CACHE_TTL, OPENAI_INSTRUCTIONS_ENDPOINT, bot_owner
-        global OPENAI_VECTOR_ID
         # Ensure history directory exists
         try:
             Path(HISTORY_DIR).mkdir(parents=True, exist_ok=True)
@@ -2979,7 +3016,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        await send_chat_message("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
+                        await send_chat_message("BotOfTheSpecter Roadmap can be found here: https://roadmap.botofthespecter.com/")
                         # Record usage
                         add_usage('roadmap', bucket_key, cooldown_bucket)
                     else:
@@ -9885,15 +9922,24 @@ async def midnight():
 async def reload_env_vars():
     # Load in all the globals
     global SQL_HOST, SQL_USER, SQL_PASSWORD, ADMIN_API_KEY
-    global CLIENT_ID, CLIENT_SECRET, TWITCH_GQL, SHAZAM_API, STEAM_API
-    global EXCHANGE_RATE_API_KEY, HYPERATE_API_KEY, CHANNEL_AUTH
+    global OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET, TWITCH_GQL
+    global SHAZAM_API, STEAM_API, EXCHANGE_RATE_API_KEY, HYPERATE_API_KEY, CHANNEL_AUTH
     global TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
+    global OPENAI_API_KEY
+    global SSH_USERNAME, SSH_PASSWORD, SSH_HOSTS
     # Reload the .env file
     load_dotenv()
     SQL_HOST = os.getenv('SQL_HOST')
     SQL_USER = os.getenv('SQL_USER')
     SQL_PASSWORD = os.getenv('SQL_PASSWORD')
     ADMIN_API_KEY = os.getenv('ADMIN_KEY')
+    # Fetch custom bot token from database (tokens expire every 4 hours)
+    new_token = await fetch_custom_bot_token()
+    if new_token:
+        OAUTH_TOKEN = new_token
+        bot_logger.info("Custom bot OAUTH_TOKEN refreshed from database")
+    else:
+        bot_logger.warning("Failed to refresh custom bot OAUTH_TOKEN from database")
     CLIENT_ID = os.getenv('CLIENT_ID')
     CLIENT_SECRET = os.getenv('CLIENT_SECRET')
     TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
@@ -9903,6 +9949,20 @@ async def reload_env_vars():
     STEAM_API = os.getenv('STEAM_API')
     EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
     HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
+    OPENAI_API_KEY = os.getenv('OPENAI_KEY')
+    SSH_USERNAME = os.getenv('SSH_USERNAME')
+    SSH_PASSWORD = os.getenv('SSH_PASSWORD')
+    SSH_HOSTS = {
+        'API': os.getenv('API-HOST'),
+        'WEBSOCKET': os.getenv('WEBSOCKET-HOST'),
+        'BOT-SRV': os.getenv('BOT-SRV-HOST'),
+        'SQL': os.getenv('SQL-HOST'),
+        'STREAM-US-EAST-1': os.getenv('STREAM-US-EAST-1-HOST'),
+        'STREAM-US-WEST-1': os.getenv('STREAM-US-WEST-1-HOST'),
+        'STREAM-AU-EAST-1': os.getenv('STREAM-AU-EAST-1-HOST'),
+        'WEB': os.getenv('WEB-HOST'),
+        'BILLING': os.getenv('BILLING-HOST')
+    }
     # Log or handle any environment variable updates
     bot_logger.info("Reloaded environment variables")
 
@@ -10266,6 +10326,26 @@ async def get_ad_settings():
                 ad_settings_cache['ad_snoozed_message'] = "Ads have been snoozed."
             ad_settings_cache_time = current_time
             return ad_settings_cache
+    except Exception as e:
+        # Log full exception and fall back to defaults so ad-notice paths can continue
+        try:
+            api_logger.error(f"Error fetching ad settings from DB: {e}")
+        except Exception:
+            # If api_logger is not available for some reason, fallback to bot_logger
+            try:
+                bot_logger.error(f"Error fetching ad settings from DB: {e}")
+            except Exception:
+                pass
+        # Ensure we still return reasonable defaults so ad notifications continue
+        ad_settings_cache = {
+            'ad_start_message': "Ads are running for (duration). We'll be right back after these ads.",
+            'ad_end_message': "Thanks for sticking with us through the ads! Welcome back, everyone!",
+            'ad_upcoming_message': "Heads up! An ad break is coming up in (minutes) minutes and will last (duration).",
+            'ad_snoozed_message': "Ads have been snoozed.",
+            'enable_ad_notice': True
+        }
+        ad_settings_cache_time = current_time
+        return ad_settings_cache
     finally:
         await connection.ensure_closed()
 
@@ -10276,16 +10356,34 @@ async def handle_ad_break_start(duration_seconds):
         return
     formatted_duration = format_duration(duration_seconds)
     ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
-    await send_chat_message(ad_start_message)
+    try:
+        # Try to send the start message and log if it fails
+        sent_ok = await send_chat_message(ad_start_message)
+        if not sent_ok:
+            api_logger.warning(f"Ad start message failed to send: {ad_start_message}")
+    except Exception as e:
+        api_logger.error(f"Exception while sending ad start message: {e}")
+
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
     async def handle_ad_break_end():
-        await send_chat_message(settings['ad_end_message'])
+        try:
+            sent_ok = await send_chat_message(settings['ad_end_message'])
+            if not sent_ok:
+                api_logger.warning(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+        except Exception as e:
+            api_logger.error(f"Exception while sending ad end message: {e}")
         # Check for the next ad after this one completes
-        global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-        ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
-        headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
-        create_task(check_next_ad_after_completion(ads_api_url, headers))
-    handle_ad_break_end.start()
+        try:
+            global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+            ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+            headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
+            create_task(check_next_ad_after_completion(ads_api_url, headers))
+        except Exception as e:
+            api_logger.error(f"Exception scheduling next-ad check after ad end: {e}")
+    try:
+        handle_ad_break_end.start()
+    except Exception as e:
+        api_logger.error(f"Failed to start ad-end routine: {e}")
 
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
@@ -10315,7 +10413,12 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
         async with httpClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
                 if response.status != 200:
-                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}")
+                    # Capture body for debugging
+                    try:
+                        body = await response.text()
+                    except Exception:
+                        body = '<could not read response body>'
+                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}, body: {body}")
                     return last_notification_time, last_ad_time, last_snooze_count
                 data = await response.json()
                 ads_data = data.get("data", [])
@@ -10333,8 +10436,14 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                 if last_snooze_count is not None and snooze_count < last_snooze_count:
                     settings = await get_ad_settings()
                     snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
-                    await send_chat_message(snooze_message)
-                    api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
+                    try:
+                        sent_ok = await send_chat_message(snooze_message)
+                        if not sent_ok:
+                            api_logger.warning(f"Failed to send snooze message: {snooze_message}")
+                        else:
+                            api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
+                    except Exception as e:
+                        api_logger.error(f"Exception sending snooze message: {e}")
                     last_snooze_count = snooze_count
                     skip_upcoming_check = True
                     return last_notification_time, last_ad_time, last_snooze_count
@@ -10360,8 +10469,14 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                                     message = message.replace("(duration)", duration_text)
                                 else:
                                     message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
-                                await send_chat_message(message)
-                                api_logger.info(f"Sent 5-minute ad notification: {message}")
+                                try:
+                                    sent_ok = await send_chat_message(message)
+                                    if not sent_ok:
+                                        api_logger.warning(f"Failed to send 5-minute ad notification: {message}")
+                                    else:
+                                        api_logger.info(f"Sent 5-minute ad notification: {message}")
+                                except Exception as e:
+                                    api_logger.error(f"Exception while sending 5-minute ad notification: {e}")
                                 last_notification_time = next_ad_at
                                 ad_upcoming_notified = True
                     except Exception as e:
@@ -10389,9 +10504,18 @@ async def check_next_ad_after_completion(ads_api_url, headers):
         async with httpClientSession() as session:
             async with session.get(ads_api_url, headers=headers) as response:
                 if response.status != 200:
-                    api_logger.warning(f"Failed to fetch next ad data after completion. Status: {response.status}")
+                    try:
+                        body = await response.text()
+                    except Exception:
+                        body = '<could not read response body>'
+                    api_logger.warning(f"Failed to fetch next ad data after completion. Status: {response.status}, body: {body}")
                     return
-                data = await response.json()
+                try:
+                    data = await response.json()
+                except Exception as e:
+                    # Log and bail out if the JSON cannot be parsed
+                    api_logger.error(f"Failed to parse JSON from next-ad response: {e}")
+                    return
                 ads_data = data.get("data", [])
                 if not ads_data:
                     api_logger.debug("No next ad data available after completion")
@@ -10418,27 +10542,87 @@ async def check_next_ad_after_completion(ads_api_url, headers):
                                     message = message.replace("(duration)", duration_text)
                                 else:
                                     message = f"Heads up! Another ad break is coming up in {minutes_until} minute{'s' if minutes_until != 1 else ''} and will last {duration_text}."
-                                await send_chat_message(message)
-                                api_logger.info(f"Sent immediate next-ad notification: {message}")
+                                try:
+                                    sent_ok = await send_chat_message(message)
+                                    if not sent_ok:
+                                        api_logger.warning(f"Failed to send immediate next-ad notification: {message}")
+                                    else:
+                                        api_logger.info(f"Sent immediate next-ad notification: {message}")
+                                except Exception as e:
+                                    api_logger.error(f"Exception while sending immediate next-ad notification: {e}")
                                 ad_upcoming_notified = True
                     except Exception as e:
                         api_logger.error(f"Error parsing next ad time after completion: {e}")
     except Exception as e:
         api_logger.error(f"Error checking next ad after completion: {e}")
 
+# Function to track chat messages for the bot counter
+async def track_chat_message():
+    # Construct bot_system identifier using SYSTEM variable (e.g., 'twitch_beta', 'twitch_stable')
+    bot_system = f"twitch_{SYSTEM.lower()}"
+    connection = await mysql_connection('website')
+    if connection is None:
+        chat_logger.error("Failed to get connection for website database to track message")
+        return
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            # Get current record
+            await cursor.execute(
+                "SELECT messages_sent, counted_since FROM bot_messages WHERE bot_system = %s",
+                (bot_system,)
+            )
+            record = await cursor.fetchone()
+            if record is None:
+                # First entry for this bot system
+                await cursor.execute(
+                    """INSERT INTO bot_messages (bot_system, counted_since, messages_sent, last_updated)
+                       VALUES (%s, NOW(), 1, NOW())""",
+                    (bot_system,)
+                )
+                chat_logger.info(f"Created initial tracking record for {bot_system}")
+            elif record['messages_sent'] == 0 or record['counted_since'] is None:
+                # First message being counted
+                await cursor.execute(
+                    """UPDATE bot_messages 
+                       SET counted_since = NOW(), messages_sent = 1, last_updated = NOW()
+                       WHERE bot_system = %s""",
+                    (bot_system,)
+                )
+                chat_logger.debug(f"Initialized message counting for {bot_system}")
+            else:
+                # Subsequent messages
+                await cursor.execute(
+                    """UPDATE bot_messages 
+                       SET messages_sent = messages_sent + 1, last_updated = NOW()
+                       WHERE bot_system = %s""",
+                    (bot_system,)
+                )
+            await connection.commit()
+    except Exception as e:
+        chat_logger.error(f"Error tracking message for {bot_system}: {e}")
+    finally:
+        if connection:
+            await connection.ensure_closed()
+
+# Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     if len(message) > 255:
         chat_logger.error(f"Message too long: {len(message)} characters (max 255)")
         return False
+    # Get custom bot credentials from database
+    access_token, bot_channel_id = await get_custom_bot_credentials()
+    if not access_token or not bot_channel_id:
+        chat_logger.error("Failed to get custom bot credentials for sending message")
+        return False
     url = "https://api.twitch.tv/helix/chat/messages"
     headers = {
-        "Authorization": f"Bearer {TWITCH_OAUTH_API_TOKEN}",
-        "Client-Id": TWITCH_OAUTH_API_CLIENT_ID,
+        "Authorization": f"Bearer {access_token}",
+        "Client-Id": CLIENT_ID,
         "Content-Type": "application/json"
     }
     data = {
         "broadcaster_id": CHANNEL_ID,
-        "sender_id": "971436498",
+        "sender_id": bot_channel_id,
         "message": message
     }
     if reply_parent_message_id:
@@ -10455,6 +10639,8 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
                         drop_reason = msg_data.get("drop_reason")
                         if is_sent:
                             chat_logger.info(f"Successfully sent chat message: {message} (ID: {message_id})")
+                            # Track message for chat counter
+                            await track_chat_message()
                             return True
                         else:
                             chat_logger.error(f"Message not sent. Drop reason: {drop_reason}")
@@ -10469,6 +10655,13 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
     except Exception as e:
         chat_logger.error(f"Error sending chat message: {e}")
         return False
+
+# Fetch OAUTH_TOKEN from database for custom bot
+OAUTH_TOKEN = asyncio.run(fetch_custom_bot_token())
+
+if not OAUTH_TOKEN:
+    bot_logger.error("Failed to fetch OAUTH_TOKEN from database. Cannot start bot.")
+    sys.exit(1)
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
