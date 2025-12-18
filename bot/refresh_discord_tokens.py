@@ -3,6 +3,8 @@ import asyncio
 import aiohttp
 import aiomysql
 import base64
+import logging
+from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,6 +17,23 @@ DB_USER = os.getenv('SQL_USER')
 DB_PASS = os.getenv('SQL_PASSWORD')
 DB_NAME = "website"
 TOKEN_URL = "https://discord.com/api/v10/oauth2/token"
+
+# Configure logging with rotation (keep last 5 runs, 50KB each)
+log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, 'refresh_discord_tokens.log')
+logger = logging.getLogger('discord_refresh')
+logger.setLevel(logging.INFO)
+
+# File handler with rotation
+file_handler = RotatingFileHandler(log_file, maxBytes=50*1024, backupCount=5)
+file_handler.setFormatter(logging.Formatter('%(message)s'))
+logger.addHandler(file_handler)
+
+# Console handler for terminal output
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter('%(message)s'))
+logger.addHandler(console_handler)
 
 async def get_username(pool, user_id):
     try:
@@ -31,7 +50,7 @@ async def refresh_discord_token(session, pool, user_id, refresh_token):
     try:
         # Fetch username for display
         username = await get_username(pool, user_id)
-        username_display = f"{username}" if username else ""
+        username_display = f"{username}" if username else f"ID:{user_id}"
         # Prepare the refresh token request
         data = {'grant_type': 'refresh_token','refresh_token': refresh_token}
         # Use HTTP Basic authentication as recommended by Discord
@@ -51,29 +70,29 @@ async def refresh_discord_token(session, pool, user_id, refresh_token):
                             (new_access_token, new_refresh_token, user_id)
                         )
                         await conn.commit()
-                print(f"✅ Successfully refreshed Discord token for user: {username_display}")
-                return True
+                # Only return success status, don't log individual users
+                return {"success": True, "username": username_display}
             else:
                 # Handle errors
                 error_msg = result.get('error', 'Unknown error')
                 error_desc = result.get('error_description', '')
-                print(f"❌ Failed to refresh Discord token for user: {username_display}")
-                print(f"   Error: {error_msg} - {error_desc}")
-                return False
+                logger.error(f"❌ Failed to refresh Discord token for user: {username_display}")
+                logger.error(f"   Error: {error_msg} - {error_desc}")
+                return {"success": False, "username": username_display, "error": f"{error_msg} - {error_desc}"}
     except Exception as e:
-        print(f"🔥 Exception refreshing Discord token for user_id: {user_id} - {str(e)}")
-        return False
+        logger.error(f"🔥 Exception refreshing Discord token for user: {user_id} - {str(e)}")
+        return {"success": False, "username": username, "error": str(e)}
 
 async def main():
-    print("🚀 Starting Discord token refresh process...")
+    logger.info("🚀 Starting Discord token refresh process...")
     # Validate environment variables
     if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
-        print("❌ Missing Discord client credentials in environment variables")
-        print("   Please set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET")
+        logger.error("❌ Missing Discord client credentials in environment variables")
+        logger.error("   Please set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET")
         return
     if not DB_HOST or not DB_USER or not DB_PASS:
-        print("❌ Missing database credentials in environment variables")
-        print("   Please set SQL_HOST, SQL_USER, and SQL_PASSWORD")
+        logger.error("❌ Missing database credentials in environment variables")
+        logger.error("   Please set SQL_HOST, SQL_USER, and SQL_PASSWORD")
         return
     # Create database connection pool
     try:
@@ -85,7 +104,7 @@ async def main():
             autocommit=True
         )
     except Exception as e:
-        print(f"❌ Failed to connect to database: {str(e)}")
+        logger.error(f"❌ Failed to connect to database: {str(e)}")
         return
     try:
         # Fetch all users with Discord refresh tokens
@@ -94,9 +113,9 @@ async def main():
                 await cur.execute("SELECT user_id, refresh_token FROM discord_users WHERE refresh_token IS NOT NULL AND refresh_token != ''")
                 tokens = await cur.fetchall()
         if not tokens:
-            print("ℹ️  No Discord users with refresh tokens found")
+            logger.info("ℹ️  No Discord users with refresh tokens found")
             return
-        print(f"📊 Found {len(tokens)} Discord users with refresh tokens")
+        logger.info(f"📊 Found {len(tokens)} Discord users with refresh tokens")
         # Refresh tokens concurrently
         async with aiohttp.ClientSession() as session:
             tasks = [
@@ -104,20 +123,25 @@ async def main():
                 for user_id, refresh_token in tokens
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
-        # Count successful refreshes
-        successful = sum(1 for result in results if result is True)
+        # Count and report results
+        successful = sum(1 for r in results if isinstance(r, dict) and r.get("success"))
         failed = len(results) - successful
-        print(f"\n📈 Discord token refresh completed:")
-        print(f"   ✅ Successful: {successful}")
-        print(f"   ❌ Failed: {failed}")
-        print(f"   📊 Total: {len(results)}")
+        logger.info(f"\n📈 Discord token refresh completed:")
+        logger.info(f"   ✅ Successful: {successful}")
+        logger.info(f"   ❌ Failed: {failed}")
+        logger.info(f"   📊 Total: {len(results)}")
+        # Log failed users if any
+        if failed > 0:
+            failed_users = [r.get("username", "Unknown") for r in results if isinstance(r, dict) and not r.get("success")]
+            logger.warning(f"   ⚠️  Failed users: {', '.join(failed_users)}")
     except Exception as e:
-        print(f"❌ Error during token refresh process: {str(e)}")
+        logger.error(f"❌ Error during token refresh process: {str(e)}")
     finally:
         # Clean up database pool
         pool.close()
         await pool.wait_closed()
-        print("🔒 Database connection closed")
+        logger.info("🔒 Database connection closed")
+        logger.info("")  # Blank line for separation between runs
 
 if __name__ == "__main__":
     asyncio.run(main())
