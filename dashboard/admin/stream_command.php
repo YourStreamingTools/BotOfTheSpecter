@@ -32,7 +32,8 @@ if (!isset($is_admin) || !$is_admin) {
 $mapping = [
     'spotify' => 'refresh_spotify_tokens.py',
     'streamelements' => 'refresh_streamelements_tokens.py',
-    'discord' => 'refresh_discord_tokens.py'
+    'discord' => 'refresh_discord_tokens.py',
+    'custom_bot' => 'refresh_custom_bot_tokens.py'
 ];
 
 $script_key = isset($_GET['script']) ? $_GET['script'] : '';
