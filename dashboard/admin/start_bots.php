@@ -605,29 +605,38 @@ function refreshBotStatus() {
         .then(data => {
             if (data.success) {
                 runningBots = data.bots;
-                // Hide rows for running bots and validate tokens for non-running users
+                // Process all users and validate tokens
                 const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
                 let validateDelay = 0;
                 rows.forEach(row => {
                     const uname = row.getAttribute('data-username');
                     const twitchId = row.getAttribute('data-twitch-id');
                     const isRunning = runningBots.find(b => b.username === uname);
+                    const botTag = row.querySelector('.bot-status-tag');
+                    const startBtn = row.querySelector('.start-bot-btn');
                     if (isRunning) {
-                        // Hide running users from the table
-                        row.style.display = 'none';
+                        // Show running status
+                        if (botTag) {
+                            botTag.className = 'tag is-success bot-status-tag';
+                            botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running (PID: ' + isRunning.pid + ')</span>';
+                        }
+                        // Disable start button for running bots
+                        if (startBtn) startBtn.disabled = true;
+                        // Validate token to check mod status even for running bots
+                        if (twitchId) {
+                            setTimeout(() => validateUserToken(twitchId), validateDelay);
+                            validateDelay += 200;
+                        }
                     } else {
-                        // Ensure visible
-                        row.style.display = '';
                         // Update bot status tag for not running
-                        const botTag = row.querySelector('.bot-status-tag');
                         if (botTag) {
                             botTag.className = 'tag is-danger bot-status-tag';
                             botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>';
                         }
-                        // Stagger token validation to avoid hammering the server
+                        // Validate token to check mod status
                         if (twitchId) {
                             setTimeout(() => validateUserToken(twitchId), validateDelay);
-                            validateDelay += 200; // 200ms between validations
+                            validateDelay += 200;
                         }
                     }
                 });
@@ -680,14 +689,21 @@ async function validateUserToken(twitchUserId) {
             if (typeof data.is_mod !== 'undefined') {
                 const modTag = row.querySelector('.mod-status-tag');
                 const startBtn = row.querySelector('.start-bot-btn');
+                const username = row.getAttribute('data-username');
+                const isRunning = runningBots.find(bot => bot.username === username);
                 if (data.is_mod) {
                     modTag.className = 'tag is-success mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
-                    if (startBtn) startBtn.disabled = false;
+                    if (startBtn && !isRunning) startBtn.disabled = false;
                 } else {
                     modTag.className = 'tag is-danger mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not a Moderator</span>';
                     if (startBtn) startBtn.disabled = true;
+                    // Show warning if bot is running but not a moderator
+                    if (isRunning) {
+                        modTag.className = 'tag is-warning mod-status-tag';
+                        modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Running Without Mod!</span>';
+                    }
                 }
                 // Disable check mod button since we already have the status
                 const checkModBtn = row.querySelector('.check-mod-btn');
@@ -732,10 +748,8 @@ async function validateUserToken(twitchUserId) {
 async function checkBotModStatus(twitchUserId) {
     const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
     const modTag = row.querySelector('.mod-status-tag');
-    const checkModBtn = row.querySelector('.check-mod-btn');
     const startBtn = row.querySelector('.start-bot-btn');
-    checkModBtn.disabled = true;
-    checkModBtn.classList.add('is-loading');
+    
     modTag.className = 'tag is-info mod-status-tag';
     modTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Checking...</span>';
     try {
@@ -781,17 +795,12 @@ async function checkBotModStatus(twitchUserId) {
             title: 'Error',
             text: 'An error occurred while checking moderator status'
         });
-    } finally {
-        checkModBtn.disabled = false;
-        checkModBtn.classList.remove('is-loading');
     }
 }
 
 async function renewUserToken(twitchUserId, silent = false) {
     const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
     const tokenTag = row.querySelector('.token-status-tag');
-    const renewBtn = row.querySelector('.renew-token-btn');
-    if (renewBtn) { renewBtn.disabled = true; renewBtn.classList.add('is-loading'); }
     tokenTag.className = 'tag is-info token-status-tag';
     tokenTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Renewing...</span>';
     try {
@@ -807,10 +816,6 @@ async function renewUserToken(twitchUserId, silent = false) {
             tokenTag.className = 'tag is-success token-status-tag';
             const hours = Math.floor(data.expires_in / 3600);
             tokenTag.innerHTML = `<span class="icon"><i class="fas fa-check-circle"></i></span><span>Renewed (${hours}h)</span>`;
-            // Enable check mod button after renewal
-            const checkModBtn = row.querySelector('.check-mod-btn');
-            if (checkModBtn) checkModBtn.disabled = false;
-            if (renewBtn) { renewBtn.disabled = true; renewBtn.classList.remove('is-loading'); }
             return true;
         } else {
             tokenTag.className = 'tag is-danger token-status-tag';
@@ -824,7 +829,6 @@ async function renewUserToken(twitchUserId, silent = false) {
             }
             // Dump server error details to browser console for debugging
             try { console.error('Token renew failed details:', data.error_details || data.debug || data.message); } catch (e) {}
-            if (renewBtn) { renewBtn.disabled = false; renewBtn.classList.remove('is-loading'); }
             return false;
         }
     } catch (error) {
@@ -838,7 +842,6 @@ async function renewUserToken(twitchUserId, silent = false) {
                 text: 'An error occurred while renewing the token'
             });
         }
-        if (renewBtn) { renewBtn.disabled = false; renewBtn.classList.remove('is-loading'); }
         return false;
     }
 }
