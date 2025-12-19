@@ -31,6 +31,10 @@ SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER') 
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 SQL_PORT = int(os.getenv('SQL_PORT'))
+# SSH credentials for bot status checking
+BOTS_SSH_HOST = os.getenv('BOTS_SSH_HOST')
+BOTS_SSH_USERNAME = os.getenv('BOTS_SSH_USERNAME')
+BOTS_SSH_PASSWORD = os.getenv('BOTS_SSH_PASSWORD')
 
 # Validate required database environment variables
 if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
@@ -66,6 +70,10 @@ tags_metadata = [
     {
         "name": "Websocket",
         "description": "Endpoints for interacting with the internal WebSocket server.",
+    },
+    {
+        "name": "Bot Management",
+        "description": "Endpoints for checking bot status and managing bot instances.",
     },
 ]
 
@@ -431,6 +439,26 @@ class HeartbeatControlResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "status": "OK",
+            }
+        }
+
+# Define the response model for Bot Status
+class BotStatusResponse(BaseModel):
+    running: bool
+    pid: int = None
+    version: str = None
+    bot_type: str = None
+    outdated: bool = None
+    latest_version: str = None
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "running": True,
+                "pid": 12345,
+                "version": "5.5",
+                "bot_type": "stable",
+                "outdated": True,
+                "latest_version": "5.7.1"
             }
         }
 
@@ -1368,6 +1396,125 @@ async def discord_linked(api_key: str = Query(...), user_id: str = Query(...)):
     except Exception as e:
         logging.error(f"Error checking Discord user link status: {e}")
         raise HTTPException(status_code=500, detail=f"Error checking Discord user link status: {str(e)}")
+
+# Function to check bot status via SSH
+async def get_bot_status_via_ssh(username: str) -> dict:
+    # Load latest versions from versions.json
+    versions_path = "/home/botofthespecter/versions.json"
+    if not os.path.exists(versions_path):
+        versions_path = "/home/fastapi/versions.json"
+    latest_versions = {}
+    try:
+        with open(versions_path, "r") as versions_file:
+            latest_versions = json.load(versions_file)
+    except Exception as e:
+        logging.error(f"Error loading versions.json: {e}")
+    if not all([BOTS_SSH_HOST, BOTS_SSH_USERNAME, BOTS_SSH_PASSWORD]):
+        return {
+            "running": False,
+            "pid": None,
+            "version": None,
+            "bot_type": None,
+            "outdated": None,
+            "latest_version": None
+        }
+    try:
+        # Create SSH client
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        # Connect to SSH server
+        ssh.connect(
+            hostname=BOTS_SSH_HOST,
+            username=BOTS_SSH_USERNAME,
+            password=BOTS_SSH_PASSWORD,
+            timeout=10
+        )
+        # Execute the running_bots.py script
+        stdin, stdout, stderr = ssh.exec_command("python3 /home/botofthespecter/running_bots.py 2>&1")
+        output = stdout.read().decode('utf-8')
+        # Close SSH connection
+        ssh.close()
+        # Parse the output to find the specific user's bot
+        lines = output.split('\n')
+        section = ''
+        for line in lines:
+            line = line.strip()
+            # Identify which section we're in
+            if 'Stable bots running:' in line:
+                section = 'stable'
+            elif 'Beta bots running:' in line:
+                section = 'beta'
+            elif 'Custom bots running:' in line:
+                section = 'custom'
+            # Parse bot information line
+            # Format: - Channel: username, PID: 12345, Version: 3.0 | Status
+            import re
+            match = re.match(r'- Channel: (\S+), PID: (\d+), Version: (.+?)\s*\|(.+)', line)
+            if match:
+                channel = match.group(1)
+                pid = int(match.group(2))
+                version = match.group(3)
+                status_text = match.group(4).strip()
+                is_outdated = 'OUTDATED' in status_text
+                # Check if this is the user we're looking for
+                if channel.lower() == username.lower():
+                    # Determine the latest version based on bot type
+                    latest_version = None
+                    if section == 'stable' and 'stable_version' in latest_versions:
+                        latest_version = latest_versions['stable_version']
+                    elif section == 'beta' and 'beta_version' in latest_versions:
+                        latest_version = latest_versions['beta_version']
+                    elif section == 'custom' and 'stable_version' in latest_versions:
+                        # Custom bots compare against stable version
+                        latest_version = latest_versions['stable_version']
+                    return {
+                        "running": True,
+                        "pid": pid,
+                        "version": version,
+                        "bot_type": section,
+                        "outdated": is_outdated,
+                        "latest_version": latest_version
+                    }
+        # If we get here, the bot is not running
+        return {
+            "running": False,
+            "pid": None,
+            "version": None,
+            "bot_type": None,
+            "outdated": None,
+            "latest_version": None
+        }
+    except Exception as e:
+        logging.error(f"Error checking bot status for {username}: {str(e)}")
+        return {
+            "running": False,
+            "pid": None,
+            "version": None,
+            "bot_type": None,
+            "outdated": None,
+            "latest_version": None
+        }
+
+# Bot Status Endpoint
+@app.get(
+    "/bot/status",
+    response_model=BotStatusResponse,
+    summary="Get chat bot status",
+    description="Check if your chat bot is currently running and retrieve its status information.",
+    tags=["Bot Management"],
+    operation_id="get_bot_status"
+)
+async def bot_status(api_key: str = Query(..., description="Your API key for authentication")):
+    # Verify API key and get username
+    username = await verify_api_key(api_key)
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key"
+        )
+    # Get bot status via SSH
+    bot_status_info = await get_bot_status_via_ssh(username)
+    return BotStatusResponse(**bot_status_info)
 
 # Any root request go to the docs page
 @app.get("/", include_in_schema=False)
