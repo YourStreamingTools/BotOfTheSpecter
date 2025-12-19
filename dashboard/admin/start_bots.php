@@ -64,36 +64,58 @@ function removeTokenCacheEntry($filePath, $twitchId) {
 // This uses the central performBotAction() implementation in dashboard/bot_control_functions.php.
 if (!function_exists('start_bot_for_user')) {
     function start_bot_for_user($username, $botType = 'stable') {
-        global $conn;
+        global $conn, $api_key;
         // Load tokens and api_key for the user
         $stmt = $conn->prepare("SELECT twitch_user_id, access_token, refresh_token, api_key FROM users WHERE username = ? LIMIT 1");
-        if (!$stmt) return 'Database error preparing token lookup';
+        if (!$stmt) return ['success' => false, 'message' => 'Database error preparing token lookup'];
         $stmt->bind_param('s', $username);
         $stmt->execute();
         $res = $stmt->get_result();
         $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
-        if (!$row) return 'User not found';
-        $twitchUserId = $row['twitch_user_id'] ?? '';
-        $accessToken = $row['access_token'] ?? '';
-        $refreshToken = $row['refresh_token'] ?? '';
-        // Prefer the per-user api_key stored in users table, fallback to any global
-        $apiKey = $row['api_key'] ?? ($GLOBALS['bots_api_key'] ?? $GLOBALS['api_key'] ?? $GLOBALS['BOT_API_KEY'] ?? '');
-        // If performBotAction exists, delegate to it
+        if (!$row) return ['success' => false, 'message' => 'User not found'];
+        // Extract all required fields
+        $twitchUserId = trim($row['twitch_user_id'] ?? '');
+        $accessToken = trim($row['access_token'] ?? '');
+        $refreshToken = trim($row['refresh_token'] ?? '');
+        // Get API key - try per-user key first, then global fallback
+        $userApiKey = trim($row['api_key'] ?? '');
+        $globalApiKey = trim($api_key ?? '');
+        $finalApiKey = !empty($userApiKey) ? $userApiKey : $globalApiKey;
+        // Validate all required parameters before proceeding
+        $missingParams = [];
+        if (empty($username)) $missingParams[] = 'username';
+        if (empty($twitchUserId)) $missingParams[] = 'twitch_user_id';
+        if (empty($accessToken)) $missingParams[] = 'access_token';
+        if (empty($refreshToken)) $missingParams[] = 'refresh_token';
+        if (empty($finalApiKey)) $missingParams[] = 'api_key';
+        if (!empty($missingParams)) {
+            return [
+                'success' => false, 
+                'message' => 'Missing required parameters: ' . implode(', ', $missingParams),
+                'debug_info' => [
+                    'username' => $username,
+                    'twitch_user_id' => !empty($twitchUserId) ? 'present' : 'MISSING',
+                    'access_token' => !empty($accessToken) ? 'present' : 'MISSING',
+                    'refresh_token' => !empty($refreshToken) ? 'present' : 'MISSING',
+                    'api_key' => !empty($finalApiKey) ? 'present' : 'MISSING'
+                ]
+            ];
+        }
+        // If performBotAction exists, delegate to it with all required params
         if (function_exists('performBotAction')) {
             $params = [
                 'username' => $username,
                 'twitch_user_id' => $twitchUserId,
                 'auth_token' => $accessToken,
                 'refresh_token' => $refreshToken,
-                'api_key' => $apiKey
+                'api_key' => $finalApiKey
             ];
             $res = performBotAction('run', $botType, $params);
-            // performBotAction returns an array; normalize to true/string expected by caller
-            if (is_array($res)) return $res;
+            // performBotAction returns an array
             return $res;
         }
-        return 'No bot start implementation available';
+        return ['success' => false, 'message' => 'No bot start implementation available'];
     }
 }
 
