@@ -661,6 +661,14 @@ ob_start();
     <h1 class="title is-3"><span class="icon"><i class="fas fa-shield-alt"></i></span> Administrator Dashboard</h1>
     <p class="mb-4">This is the admin dashboard. Use the links below to manage users, view logs, and perform other administrative tasks.</p>
     <div class="buttons">
+        <a href="users.php" class="button is-primary is-light">
+            <span class="icon"><i class="fas fa-users-cog"></i></span>
+            <span>User Management</span>
+        </a>
+        <a href="start_bots.php" class="button is-success is-light">
+            <span class="icon"><i class="fas fa-play-circle"></i></span>
+            <span>Start User Bots</span>
+        </a>
         <a href="logs.php" class="button is-info is-light">
             <span class="icon"><i class="fas fa-clipboard-list"></i></span>
             <span>Log Management</span>
