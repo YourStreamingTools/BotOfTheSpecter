@@ -29,7 +29,7 @@ $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
 ?>
 <!DOCTYPE html>
-<html lang="en" class="theme-dark">
+<html lang="en" class="dark-theme" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

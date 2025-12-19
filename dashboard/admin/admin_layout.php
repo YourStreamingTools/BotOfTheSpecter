@@ -38,7 +38,7 @@ function isAdmin() {
 if (!function_exists('isAdmin') || !isAdmin()) {
     ?>
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" class="dark-theme" data-theme="dark">
     <head>
         <meta charset="UTF-8">
         <title>BotOfTheSpecter - Access Denied</title>
@@ -128,7 +128,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark-theme" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
