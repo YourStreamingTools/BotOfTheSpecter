@@ -111,6 +111,8 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
     $active_menu = 'dashboard';
 } elseif ($current_file == 'users.php') {
     $active_menu = 'users';
+} elseif ($current_file == 'start_bots.php') {
+    $active_menu = 'start_bots';
 } elseif ($current_file == 'logs.php') {
     $active_menu = 'logs';
 } elseif ($current_file == 'feedback.php') {
@@ -198,6 +200,12 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
+                    <a href="start_bots.php" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fas fa-play-circle"></i></span>
+                        <span class="sidebar-menu-text">Start User Bots</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
                     <a href="logs.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fas fa-clipboard-list"></i></span>
                         <span class="sidebar-menu-text">Log Management</span>
@@ -274,6 +282,13 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                     <span class="sidebar-menu-text">User Management</span>
                 </a>
                 <div class="sidebar-tooltip">User Management</div>
+            </li>
+            <li class="sidebar-menu-item">
+                <a href="start_bots.php" class="sidebar-menu-link <?php echo $active_menu == 'start_bots' ? 'active' : ''; ?>">
+                    <span class="icon sidebar-menu-icon"><i class="fas fa-play-circle"></i></span>
+                    <span class="sidebar-menu-text">Start User Bots</span>
+                </a>
+                <div class="sidebar-tooltip">Start User Bots</div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="logs.php" class="sidebar-menu-link <?php echo $active_menu == 'logs' ? 'active' : ''; ?>">
@@ -472,7 +487,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
         document.querySelectorAll('.sidebar-menu-link.active').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.navbar-item.is-active').forEach(el => el.classList.remove('is-active'));
         // Admin active menu logic
-        if (currentPath.includes('/admin') && !currentPath.includes('users.php') && !currentPath.includes('logs.php') && !currentPath.includes('feedback.php') && !currentPath.includes('twitch_tokens.php') && !currentPath.includes('discordbot_overview.php') && !currentPath.includes('websocket_clients.php') && !currentPath.includes('terminal.php')) {
+        if (currentPath.includes('/admin') && !currentPath.includes('users.php') && !currentPath.includes('start_bots.php') && !currentPath.includes('logs.php') && !currentPath.includes('feedback.php') && !currentPath.includes('twitch_tokens.php') && !currentPath.includes('discordbot_overview.php') && !currentPath.includes('websocket_clients.php') && !currentPath.includes('terminal.php')) {
             // Dashboard
             const dashboardLinks = document.querySelectorAll('a[href="/admin"]');
             dashboardLinks.forEach(link => {
@@ -483,6 +498,13 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
             // User Management
             const userLinks = document.querySelectorAll('a[href*="users.php"]');
             userLinks.forEach(link => {
+                if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
+                if (link.classList.contains('navbar-item')) link.classList.add('is-active');
+            });
+        } else if (currentPath.includes('start_bots.php')) {
+            // Start User Bots
+            const startBotsLinks = document.querySelectorAll('a[href*="start_bots.php"]');
+            startBotsLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
