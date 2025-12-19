@@ -14,6 +14,43 @@ require_once "/var/www/config/ssh.php";
 include '/var/www/config/twitch.php';
 $pageTitle = 'Start User Bots';
 
+// Lightweight wrapper to provide a start_bot_for_user() function when missing.
+// This uses the central performBotAction() implementation in dashboard/bot_control_functions.php.
+if (!function_exists('start_bot_for_user')) {
+    function start_bot_for_user($username, $botType = 'stable') {
+        global $conn;
+        // Load tokens for the user
+        $stmt = $conn->prepare("SELECT twitch_user_id, access_token, refresh_token FROM users WHERE username = ? LIMIT 1");
+        if (!$stmt) return 'Database error preparing token lookup';
+        $stmt->bind_param('s', $username);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if (!$row) return 'User not found';
+        $twitchUserId = $row['twitch_user_id'] ?? '';
+        $accessToken = $row['access_token'] ?? '';
+        $refreshToken = $row['refresh_token'] ?? '';
+        // Try common config variables for API key
+        $apiKey = $GLOBALS['bots_api_key'] ?? $GLOBALS['api_key'] ?? $GLOBALS['BOT_API_KEY'] ?? '';
+        // If performBotAction exists, delegate to it
+        if (function_exists('performBotAction')) {
+            $params = [
+                'username' => $username,
+                'twitch_user_id' => $twitchUserId,
+                'auth_token' => $accessToken,
+                'refresh_token' => $refreshToken,
+                'api_key' => $apiKey
+            ];
+            $res = performBotAction('run', $botType, $params);
+            // performBotAction returns an array; normalize to true/string expected by caller
+            if (is_array($res)) return $res;
+            return $res;
+        }
+        return 'No bot start implementation available';
+    }
+}
+
 // Check for AJAX requests IMMEDIATELY - before any other includes
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
     // Clean ALL output buffers
@@ -220,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
     while (ob_get_level()) ob_end_clean();
     ob_start();
     header('Content-Type: application/json');
-    require_once '../bot_control_functions.php';
+    require_once __DIR__ . '/../bot_control_functions.php';
     $username = trim($_POST['username'] ?? '');
     if (empty($username)) {
         echo json_encode(['success' => false, 'message' => 'Username is required']);
@@ -247,7 +284,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
             $debug = '';
             if (ob_get_level()) $debug = ob_get_clean();
             $handledShutdown = true;
-            if ($result === true) {
+            if (is_array($result)) {
+                $ok = $result['success'] ?? false;
+                $msg = $result['message'] ?? '';
+                $pid = $result['pid'] ?? null;
+                echo json_encode(['success' => $ok, 'message' => $msg, 'pid' => $pid, 'debug' => $debug, 'details' => $result]);
+            } elseif ($result === true) {
                 echo json_encode(['success' => true, 'message' => 'Bot started successfully', 'debug' => $debug]);
             } else {
                 echo json_encode(['success' => false, 'message' => $result, 'debug' => $debug]);
@@ -270,7 +312,7 @@ include '../userdata.php';
 
 // Fetch all users from database
 $users = [];
-$stmt = $conn->prepare("SELECT id, username, twitch_user_id, twitch_display_name, profile_image FROM users ORDER BY username");
+$stmt = $conn->prepare("SELECT id, username, twitch_user_id, twitch_display_name, profile_image FROM users ORDER BY id");
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
