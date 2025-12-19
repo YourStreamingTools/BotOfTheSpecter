@@ -213,12 +213,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
                 'expires_in' => $expires_in,
                 'is_mod' => $is_mod,
                 'message' => 'Token is valid (cached)',
-                'debug' => $debug,
-                'cached' => true
+                'debug' => $debug
             ]);
             exit;
         }
-
         // Validate the token with Twitch
         $url = "https://id.twitch.tv/oauth2/validate";
         $headers = ["Authorization: OAuth $access_token"];
@@ -233,7 +231,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
         if ($httpCode === 200) {
             $data = json_decode($response, true);
             $expires = isset($data['expires_in']) ? (int)$data['expires_in'] : 0;
-            
             // Check mod status using the same token
             $bot_user_id = '971436498';
             $mod_url = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$twitch_user_id}&user_id={$bot_user_id}";
@@ -241,7 +238,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
                 "Authorization: Bearer {$access_token}",
                 "Client-Id: {$clientID}"
             ];
-            
             $mod_ch = curl_init();
             curl_setopt($mod_ch, CURLOPT_URL, $mod_url);
             curl_setopt($mod_ch, CURLOPT_RETURNTRANSFER, true);
@@ -249,13 +245,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
             $mod_response = curl_exec($mod_ch);
             $mod_httpCode = curl_getinfo($mod_ch, CURLINFO_HTTP_CODE);
             curl_close($mod_ch);
-            
             $is_mod = false;
             if ($mod_httpCode === 200) {
                 $mod_data = json_decode($mod_response, true);
                 $is_mod = !empty($mod_data['data']);
             }
-            
             // Update cache with expires_at and mod status
             if ($expires > 0) {
                 $entry = [
@@ -265,7 +259,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
                 ];
                 @setTokenCacheEntry($tokenCacheFile, $twitch_user_id, $entry);
             }
-            
             $debug = ob_get_clean();
             echo json_encode([
                 'success' => true,
@@ -769,7 +762,13 @@ async function validateUserToken(twitchUserId) {
                 const makeModBtn = row.querySelector('.make-mod-btn');
                 const username = row.getAttribute('data-username');
                 const isRunning = runningBots.find(bot => bot.username === username);
-                if (data.is_mod) {
+                // Skip mod check for BotOfTheSpecter's own channel
+                if (twitchUserId === '971436498') {
+                    modTag.className = 'tag is-info mod-status-tag';
+                    modTag.innerHTML = '<span class="icon"><i class="fas fa-info-circle"></i></span><span>Skipped</span>';
+                    if (makeModBtn) makeModBtn.style.display = 'none';
+                    if (startBtn && !isRunning) startBtn.disabled = false;
+                } else if (data.is_mod) {
                     modTag.className = 'tag is-success mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
                     if (makeModBtn) makeModBtn.style.display = 'none';
@@ -1018,18 +1017,15 @@ async function startUserBot(username, twitchUserId) {
                 return;
             }
         }
-        
         // Check if bot is a moderator
         const modFormData = new FormData();
         modFormData.append('check_bot_mod_status', '1');
         modFormData.append('twitch_user_id', twitchUserId);
-        
         const modResponse = await fetch('', {
             method: 'POST',
             body: modFormData
         });
         const modData = await modResponse.json();
-        
         if (!modData.success || !modData.is_mod) {
             botTag.className = 'tag is-danger bot-status-tag';
             botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Failed</span>';
@@ -1046,7 +1042,6 @@ async function startUserBot(username, twitchUserId) {
             startBtn.classList.remove('is-loading');
             return;
         }
-        
         // Token is valid and bot is a mod, proceed to start bot
         botTag.className = 'tag is-info bot-status-tag';
         botTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Starting...</span>';
