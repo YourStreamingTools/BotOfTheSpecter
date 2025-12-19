@@ -65,8 +65,8 @@ function removeTokenCacheEntry($filePath, $twitchId) {
 if (!function_exists('start_bot_for_user')) {
     function start_bot_for_user($username, $botType = 'stable') {
         global $conn;
-        // Load tokens for the user
-        $stmt = $conn->prepare("SELECT twitch_user_id, access_token, refresh_token FROM users WHERE username = ? LIMIT 1");
+        // Load tokens and api_key for the user
+        $stmt = $conn->prepare("SELECT twitch_user_id, access_token, refresh_token, api_key FROM users WHERE username = ? LIMIT 1");
         if (!$stmt) return 'Database error preparing token lookup';
         $stmt->bind_param('s', $username);
         $stmt->execute();
@@ -77,8 +77,8 @@ if (!function_exists('start_bot_for_user')) {
         $twitchUserId = $row['twitch_user_id'] ?? '';
         $accessToken = $row['access_token'] ?? '';
         $refreshToken = $row['refresh_token'] ?? '';
-        // Try common config variables for API key
-        $apiKey = $GLOBALS['bots_api_key'] ?? $GLOBALS['api_key'] ?? $GLOBALS['BOT_API_KEY'] ?? '';
+        // Prefer the per-user api_key stored in users table, fallback to any global
+        $apiKey = $row['api_key'] ?? ($GLOBALS['bots_api_key'] ?? $GLOBALS['api_key'] ?? $GLOBALS['BOT_API_KEY'] ?? '');
         // If performBotAction exists, delegate to it
         if (function_exists('performBotAction')) {
             $params = [
