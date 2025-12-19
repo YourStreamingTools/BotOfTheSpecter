@@ -216,8 +216,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_user_token'])) 
 
 // Handle AJAX request to start bot for user
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
-    // Clean any output that may have been generated
-    ob_end_clean();
+    // Clean any output that may have been generated and start a fresh buffer
+    while (ob_get_level()) ob_end_clean();
+    ob_start();
     header('Content-Type: application/json');
     require_once '../bot_control_functions.php';
     $username = trim($_POST['username'] ?? '');
@@ -226,13 +227,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
         exit;
     }
     try {
-        // Start the stable bot for the user
-        $result = start_bot_for_user($username, 'stable');
-           $debug = ob_get_clean();
-        if ($result === true) {
-              echo json_encode(['success' => true, 'message' => 'Bot started successfully', 'debug' => $debug]);
-        } else {
-              echo json_encode(['success' => false, 'message' => $result, 'debug' => $debug]);
+        // Start the stable bot for the user while capturing incidental output
+        $handledShutdown = false;
+        // Ensure a fresh buffer to capture any HTML/error output produced during bot startup
+        while (ob_get_level()) ob_end_clean();
+        ob_start();
+        register_shutdown_function(function() use (&$handledShutdown) {
+            $err = error_get_last();
+            if ($err && !$handledShutdown) {
+                $debug = '';
+                if (ob_get_level()) $debug = ob_get_clean();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Fatal error during bot start', 'debug' => $debug, 'error_details' => ['shutdown_error' => $err]]);
+                exit;
+            }
+        });
+        try {
+            $result = start_bot_for_user($username, 'stable');
+            $debug = '';
+            if (ob_get_level()) $debug = ob_get_clean();
+            $handledShutdown = true;
+            if ($result === true) {
+                echo json_encode(['success' => true, 'message' => 'Bot started successfully', 'debug' => $debug]);
+            } else {
+                echo json_encode(['success' => false, 'message' => $result, 'debug' => $debug]);
+            }
+        } catch (Throwable $e) {
+            $debug = '';
+            if (ob_get_level()) $debug = ob_get_clean();
+            $handledShutdown = true;
+            echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'debug' => $debug, 'error_details' => ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]]);
         }
     } catch (Exception $e) {
            $debug = ob_get_clean();
@@ -334,6 +358,11 @@ ob_start();
 </div>
 <script>
 let runningBots = [];
+// Helper to escape HTML for safe display in alerts
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 document.addEventListener('DOMContentLoaded', function() {
     // Load running bots status on page load
     refreshBotStatus();
@@ -561,7 +590,19 @@ async function startUserBot(username, twitchUserId) {
             method: 'POST',
             body: startFormData
         });
-        const startData = await startResponse.json();
+        const startText = await startResponse.text();
+        let startData;
+        try {
+            startData = JSON.parse(startText);
+        } catch (e) {
+            console.error('Non-JSON start response:', startText);
+            Swal.fire({
+                icon: 'error',
+                title: 'Server Response (non-JSON)',
+                html: '<div style="text-align:left;max-height:400px;overflow:auto"><pre>' + escapeHtml(startText) + '</pre></div>'
+            });
+            return;
+        }
         if (startData.success) {
             Swal.fire({
                 icon: 'success',
