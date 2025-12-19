@@ -205,11 +205,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
         $cacheEntry = getTokenCacheEntry($tokenCacheFile, $twitch_user_id);
         if ($cacheEntry && isset($cacheEntry['expires_at']) && $cacheEntry['expires_at'] > time()) {
             $expires_in = $cacheEntry['expires_at'] - time();
+            $is_mod = $cacheEntry['is_mod'] ?? false;
             $debug = ob_get_clean();
             echo json_encode([
                 'success' => true,
                 'valid' => true,
                 'expires_in' => $expires_in,
+                'is_mod' => $is_mod,
                 'message' => 'Token is valid (cached)',
                 'debug' => $debug,
                 'cached' => true
@@ -230,17 +232,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
         curl_close($ch);
         if ($httpCode === 200) {
             $data = json_decode($response, true);
-            // Update cache with expires_at
             $expires = isset($data['expires_in']) ? (int)$data['expires_in'] : 0;
+            
+            // Check mod status using the same token
+            $bot_user_id = '971436498';
+            $mod_url = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$twitch_user_id}&user_id={$bot_user_id}";
+            $mod_headers = [
+                "Authorization: Bearer {$access_token}",
+                "Client-Id: {$clientID}"
+            ];
+            
+            $mod_ch = curl_init();
+            curl_setopt($mod_ch, CURLOPT_URL, $mod_url);
+            curl_setopt($mod_ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($mod_ch, CURLOPT_HTTPHEADER, $mod_headers);
+            $mod_response = curl_exec($mod_ch);
+            $mod_httpCode = curl_getinfo($mod_ch, CURLINFO_HTTP_CODE);
+            curl_close($mod_ch);
+            
+            $is_mod = false;
+            if ($mod_httpCode === 200) {
+                $mod_data = json_decode($mod_response, true);
+                $is_mod = !empty($mod_data['data']);
+            }
+            
+            // Update cache with expires_at and mod status
             if ($expires > 0) {
-                $entry = ['access_token' => $access_token, 'expires_at' => time() + $expires];
+                $entry = [
+                    'access_token' => $access_token,
+                    'expires_at' => time() + $expires,
+                    'is_mod' => $is_mod
+                ];
                 @setTokenCacheEntry($tokenCacheFile, $twitch_user_id, $entry);
             }
+            
             $debug = ob_get_clean();
             echo json_encode([
                 'success' => true,
                 'valid' => true,
                 'expires_in' => $data['expires_in'] ?? 0,
+                'is_mod' => $is_mod,
                 'message' => 'Token is valid',
                 'debug' => $debug
             ]);
@@ -350,6 +381,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_user_token'])) 
     exit;
 }
 
+// Handle AJAX request to check if bot is a moderator
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_bot_mod_status'])) {
+    // Clean any output that may have been generated
+    while (ob_get_level()) ob_end_clean();
+    ob_start();
+    header('Content-Type: application/json');
+    try {
+        $twitch_user_id = $_POST['twitch_user_id'] ?? '';
+        if (empty($twitch_user_id)) {
+            echo json_encode(['success' => false, 'message' => 'Missing twitch_user_id']);
+            exit;
+        }
+        // Fetch the user's access token from database
+        $stmt = $conn->prepare("SELECT access_token FROM users WHERE twitch_user_id = ?");
+        $stmt->bind_param("s", $twitch_user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result->num_rows === 0) {
+            echo json_encode(['success' => false, 'message' => 'No token found for user']);
+            exit;
+        }
+        $row = $result->fetch_assoc();
+        $access_token = $row['access_token'];
+        $stmt->close();
+        // BotOfTheSpecter's Twitch user ID
+        $bot_user_id = '971436498';
+        // Check if bot is a moderator using Twitch API
+        $url = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$twitch_user_id}&user_id={$bot_user_id}";
+        $headers = [
+            "Authorization: Bearer {$access_token}",
+            "Client-Id: {$clientID}"
+        ];
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr = curl_error($ch);
+        curl_close($ch);
+        if ($httpCode === 200) {
+            $data = json_decode($response, true);
+            $isMod = !empty($data['data']);
+            $debug = ob_get_clean();
+            echo json_encode([
+                'success' => true,
+                'is_mod' => $isMod,
+                'message' => $isMod ? 'Bot is a moderator' : 'Bot is not a moderator',
+                'debug' => $debug
+            ]);
+        } else {
+            $debug = ob_get_clean();
+            echo json_encode([
+                'success' => false,
+                'message' => "Failed to check mod status (HTTP {$httpCode})",
+                'error' => $curlErr,
+                'debug' => $debug
+            ]);
+        }
+    } catch (Exception $e) {
+        $debug = ob_get_clean();
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'debug' => $debug]);
+    }
+    exit;
+}
+
 // Handle AJAX request to start bot for user
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
     // Clean any output that may have been generated and start a fresh buffer
@@ -440,6 +537,7 @@ ob_start();
                     <th>Twitch ID</th>
                     <th>Bot Status</th>
                     <th>Token Status</th>
+                    <th>Mod Status</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -471,25 +569,18 @@ ob_start();
                         </span>
                     </td>
                     <td>
-                        <div class="buttons">
-                            <button class="button is-small is-info validate-token-btn" 
-                                    onclick="validateUserToken('<?php echo htmlspecialchars($user['twitch_user_id']); ?>')">
-                                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                                <span>Validate Token</span>
-                            </button>
-                            <button class="button is-small is-warning renew-token-btn" 
-                                    onclick="renewUserToken('<?php echo htmlspecialchars($user['twitch_user_id']); ?>')"
-                                    title="Attempt to renew this user's Twitch token">
-                                <span class="icon"><i class="fas fa-sync-alt"></i></span>
-                                <span>Renew Token</span>
-                            </button>
-                            <button class="button is-small is-success start-bot-btn" 
-                                    onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>')"
-                                    disabled>
-                                <span class="icon"><i class="fas fa-play"></i></span>
-                                <span>Start Bot</span>
-                            </button>
-                        </div>
+                        <span class="tag mod-status-tag">
+                            <span class="icon"><i class="fas fa-question"></i></span>
+                            <span>Unknown</span>
+                        </span>
+                    </td>
+                    <td>
+                        <button class="button is-small is-success start-bot-btn" 
+                                onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>')"
+                                disabled>
+                            <span class="icon"><i class="fas fa-play"></i></span>
+                            <span>Start Bot</span>
+                        </button>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -585,9 +676,27 @@ async function validateUserToken(twitchUserId) {
             tokenTag.className = 'tag is-success token-status-tag';
             const hours = Math.floor(data.expires_in / 3600);
             tokenTag.innerHTML = `<span class="icon"><i class="fas fa-check-circle"></i></span><span>Valid (${hours}h)</span>`;
-            // Enable start button if token is valid
-            const startBtn = row.querySelector('.start-bot-btn');
-            startBtn.disabled = false;
+            // Update mod status if returned from server
+            if (typeof data.is_mod !== 'undefined') {
+                const modTag = row.querySelector('.mod-status-tag');
+                const startBtn = row.querySelector('.start-bot-btn');
+                if (data.is_mod) {
+                    modTag.className = 'tag is-success mod-status-tag';
+                    modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
+                    if (startBtn) startBtn.disabled = false;
+                } else {
+                    modTag.className = 'tag is-danger mod-status-tag';
+                    modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not a Moderator</span>';
+                    if (startBtn) startBtn.disabled = true;
+                }
+                // Disable check mod button since we already have the status
+                const checkModBtn = row.querySelector('.check-mod-btn');
+                if (checkModBtn) checkModBtn.disabled = true;
+            } else {
+                // Enable check mod button if mod status wasn't returned
+                const checkModBtn = row.querySelector('.check-mod-btn');
+                if (checkModBtn) checkModBtn.disabled = false;
+            }
             // Disable renew button when token is valid
             const renewBtn = row.querySelector('.renew-token-btn');
             if (renewBtn) renewBtn.disabled = true;
@@ -620,6 +729,64 @@ async function validateUserToken(twitchUserId) {
     }
 }
 
+async function checkBotModStatus(twitchUserId) {
+    const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
+    const modTag = row.querySelector('.mod-status-tag');
+    const checkModBtn = row.querySelector('.check-mod-btn');
+    const startBtn = row.querySelector('.start-bot-btn');
+    checkModBtn.disabled = true;
+    checkModBtn.classList.add('is-loading');
+    modTag.className = 'tag is-info mod-status-tag';
+    modTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Checking...</span>';
+    try {
+        const formData = new FormData();
+        formData.append('check_bot_mod_status', '1');
+        formData.append('twitch_user_id', twitchUserId);
+        const response = await fetch('', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.success && data.is_mod) {
+            modTag.className = 'tag is-success mod-status-tag';
+            modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
+            startBtn.disabled = false;
+        } else if (data.success && !data.is_mod) {
+            modTag.className = 'tag is-danger mod-status-tag';
+            modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not a Moderator</span>';
+            startBtn.disabled = true;
+            Swal.fire({
+                icon: 'warning',
+                title: 'Bot Not a Moderator',
+                html: `BotOfTheSpecter is not a moderator in this channel.<br><br>Please make the bot a moderator before starting it.`,
+                confirmButtonText: 'OK'
+            });
+        } else {
+            modTag.className = 'tag is-danger mod-status-tag';
+            modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-circle"></i></span><span>Error</span>';
+            startBtn.disabled = true;
+            Swal.fire({
+                icon: 'error',
+                title: 'Check Failed',
+                text: data.message || 'Failed to check moderator status'
+            });
+        }
+    } catch (error) {
+        modTag.className = 'tag is-danger mod-status-tag';
+        modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Error</span>';
+        startBtn.disabled = true;
+        console.error('Error checking mod status:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'An error occurred while checking moderator status'
+        });
+    } finally {
+        checkModBtn.disabled = false;
+        checkModBtn.classList.remove('is-loading');
+    }
+}
+
 async function renewUserToken(twitchUserId, silent = false) {
     const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
     const tokenTag = row.querySelector('.token-status-tag');
@@ -640,9 +807,9 @@ async function renewUserToken(twitchUserId, silent = false) {
             tokenTag.className = 'tag is-success token-status-tag';
             const hours = Math.floor(data.expires_in / 3600);
             tokenTag.innerHTML = `<span class="icon"><i class="fas fa-check-circle"></i></span><span>Renewed (${hours}h)</span>`;
-            // Enable start button after renewal
-            const startBtn = row.querySelector('.start-bot-btn');
-            startBtn.disabled = false;
+            // Enable check mod button after renewal
+            const checkModBtn = row.querySelector('.check-mod-btn');
+            if (checkModBtn) checkModBtn.disabled = false;
             if (renewBtn) { renewBtn.disabled = true; renewBtn.classList.remove('is-loading'); }
             return true;
         } else {
@@ -721,7 +888,36 @@ async function startUserBot(username, twitchUserId) {
                 return;
             }
         }
-        // Token is valid, proceed to start bot
+        
+        // Check if bot is a moderator
+        const modFormData = new FormData();
+        modFormData.append('check_bot_mod_status', '1');
+        modFormData.append('twitch_user_id', twitchUserId);
+        
+        const modResponse = await fetch('', {
+            method: 'POST',
+            body: modFormData
+        });
+        const modData = await modResponse.json();
+        
+        if (!modData.success || !modData.is_mod) {
+            botTag.className = 'tag is-danger bot-status-tag';
+            botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Failed</span>';
+            const modTag = row.querySelector('.mod-status-tag');
+            modTag.className = 'tag is-danger mod-status-tag';
+            modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not a Moderator</span>';
+            Swal.fire({
+                icon: 'error',
+                title: 'Not a Moderator',
+                html: 'BotOfTheSpecter is not a moderator in this channel.<br><br>Please make the bot a moderator before starting it.',
+                confirmButtonText: 'OK'
+            });
+            startBtn.disabled = false;
+            startBtn.classList.remove('is-loading');
+            return;
+        }
+        
+        // Token is valid and bot is a mod, proceed to start bot
         botTag.className = 'tag is-info bot-status-tag';
         botTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Starting...</span>';
         const startFormData = new FormData();
