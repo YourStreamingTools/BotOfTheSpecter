@@ -14,6 +14,52 @@ require_once "/var/www/config/ssh.php";
 include '/var/www/config/twitch.php';
 $pageTitle = 'Start User Bots';
 
+// Token cache path
+$tokenCacheFile = '/var/www/cache/tokens/start_bot_tokens.json';
+
+function ensureTokenCacheDirExists($filePath) {
+    $dir = dirname($filePath);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+}
+
+function readTokenCacheFile($filePath) {
+    if (!file_exists($filePath)) return [];
+    $contents = @file_get_contents($filePath);
+    if ($contents === false) return [];
+    $data = json_decode($contents, true);
+    return is_array($data) ? $data : [];
+}
+
+function writeTokenCacheFile($filePath, $data) {
+    ensureTokenCacheDirExists($filePath);
+    $tmp = $filePath . '.tmp';
+    $json = json_encode($data, JSON_PRETTY_PRINT);
+    if (@file_put_contents($tmp, $json, LOCK_EX) === false) return false;
+    return @rename($tmp, $filePath);
+}
+
+function getTokenCacheEntry($filePath, $twitchId) {
+    $cache = readTokenCacheFile($filePath);
+    return $cache[$twitchId] ?? null;
+}
+
+function setTokenCacheEntry($filePath, $twitchId, $entry) {
+    $cache = readTokenCacheFile($filePath);
+    $cache[$twitchId] = $entry;
+    return writeTokenCacheFile($filePath, $cache);
+}
+
+function removeTokenCacheEntry($filePath, $twitchId) {
+    $cache = readTokenCacheFile($filePath);
+    if (isset($cache[$twitchId])) {
+        unset($cache[$twitchId]);
+        return writeTokenCacheFile($filePath, $cache);
+    }
+    return true;
+}
+
 // Lightweight wrapper to provide a start_bot_for_user() function when missing.
 // This uses the central performBotAction() implementation in dashboard/bot_control_functions.php.
 if (!function_exists('start_bot_for_user')) {
@@ -133,6 +179,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
         $row = $result->fetch_assoc();
         $access_token = $row['access_token'];
         $stmt->close();
+        // Check cache first
+        $cacheEntry = getTokenCacheEntry($tokenCacheFile, $twitch_user_id);
+        if ($cacheEntry && isset($cacheEntry['expires_at']) && $cacheEntry['expires_at'] > time()) {
+            $expires_in = $cacheEntry['expires_at'] - time();
+            $debug = ob_get_clean();
+            echo json_encode([
+                'success' => true,
+                'valid' => true,
+                'expires_in' => $expires_in,
+                'message' => 'Token is valid (cached)',
+                'debug' => $debug,
+                'cached' => true
+            ]);
+            exit;
+        }
+
         // Validate the token with Twitch
         $url = "https://id.twitch.tv/oauth2/validate";
         $headers = ["Authorization: OAuth $access_token"];
@@ -142,18 +204,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr = curl_error($ch);
         curl_close($ch);
         if ($httpCode === 200) {
             $data = json_decode($response, true);
-                $debug = ob_get_clean();
-                echo json_encode([
-                    'success' => true,
-                    'valid' => true,
-                    'expires_in' => $data['expires_in'] ?? 0,
-                    'message' => 'Token is valid',
-                    'debug' => $debug
-                ]);
+            // Update cache with expires_at
+            $expires = isset($data['expires_in']) ? (int)$data['expires_in'] : 0;
+            if ($expires > 0) {
+                $entry = ['access_token' => $access_token, 'expires_at' => time() + $expires];
+                @setTokenCacheEntry($tokenCacheFile, $twitch_user_id, $entry);
+            }
+            $debug = ob_get_clean();
+            echo json_encode([
+                'success' => true,
+                'valid' => true,
+                'expires_in' => $data['expires_in'] ?? 0,
+                'message' => 'Token is valid',
+                'debug' => $debug
+            ]);
         } else {
+                // Remove potentially stale cache entry
+                @removeTokenCacheEntry($tokenCacheFile, $twitch_user_id);
                 $debug = ob_get_clean();
                 echo json_encode([
                     'success' => true,
@@ -221,6 +292,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_user_token'])) 
             $stmt->bind_param("sss", $new_access_token, $new_refresh_token, $twitch_user_id);
             if ($stmt->execute()) {
                 $stmt->close();
+                    // Update cache with new token expiry
+                    $expires = isset($data['expires_in']) ? (int)$data['expires_in'] : 0;
+                    if ($expires > 0) {
+                        $entry = ['access_token' => $new_access_token, 'expires_at' => time() + $expires];
+                        @setTokenCacheEntry($tokenCacheFile, $twitch_user_id, $entry);
+                    }
                     $debug = ob_get_clean();
                     echo json_encode([
                         'success' => true,
