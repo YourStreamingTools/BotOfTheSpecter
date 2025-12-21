@@ -1052,15 +1052,22 @@ class LiveChannelManager:
                     row = await self.mysql.fetchone("SELECT username FROM channel_mappings WHERE channel_code = %s", (channel_code,), database_name='specterdiscordbot', dict_cursor=True)
                     if row and row.get('username'):
                         username = row.get('username')
-                except Exception:
-                    pass
+                        self.logger.debug(f"Resolved username '{username}' from channel_mappings for channel_code {channel_code}")
+                except Exception as e:
+                    self.logger.debug(f"Error fetching username from channel_mappings: {e}")
                 if not username:
                     try:
                         user_row = await self.mysql.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
                         if user_row and user_row.get('username'):
                             username = user_row.get('username')
-                    except Exception:
-                        pass
+                            self.logger.debug(f"Resolved username '{username}' from users table for channel_code {channel_code}")
+                    except Exception as e:
+                        self.logger.debug(f"Error fetching username from users table: {e}")
+            
+            if not username:
+                self.logger.warning(f"Could not resolve username for channel_code {channel_code} when clearing notifications")
+                return
+                
             if username:
                 try:
                     # Get all guilds where this user has a live_notification
@@ -1071,15 +1078,18 @@ class LiveChannelManager:
                         dict_cursor=True
                     )
                     if all_notifications:
+                        guild_ids = [str(n['guild_id']) for n in all_notifications]
                         # Delete all live_notifications for this username across all guilds
                         await self.mysql.execute(
                             "DELETE FROM live_notifications WHERE LOWER(username) = %s",
                             (str(username).lower(),),
                             database_name='specterdiscordbot'
                         )
-                        self.logger.info(f"Cleared {len(all_notifications)} live_notifications for {username} on OFFLINE event")
+                        self.logger.info(f"Cleared {len(all_notifications)} live_notifications for {username} across guilds: {', '.join(guild_ids)}")
+                    else:
+                        self.logger.debug(f"No live_notifications found for {username} to clear")
                 except Exception as e:
-                    self.logger.debug(f"Error clearing live_notifications for {username}: {e}")
+                    self.logger.error(f"Error clearing live_notifications for {username}: {e}")
         except Exception as e:
             self.logger.error(f"Error in clear_live_notifications_for_channel for {channel_code}: {e}")
 
@@ -2747,16 +2757,10 @@ class BotOfTheSpecter(commands.Bot):
                 try:
                     if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
                         await self.live_channel_manager.mark_offline(channel_code)
-                        # Also clear live_notifications specifically for offline events
+                        # clear_live_notifications_for_channel already clears ALL guilds for this username
+                        # so we don't need the per-guild delete below
                         await self.live_channel_manager.clear_live_notifications_for_channel(channel_code)
-                    # Also remove any live notification entry in website DB
-                    try:
-                        mysql_helper = MySQLHelper(self.logger)
-                        username = mapping.get('username') or (await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)).get('username')
-                        if username:
-                            await mysql_helper.delete_live_notification(guild.id, username)
-                    except Exception as e:
-                        self.logger.debug(f"Error removing live_notifications row for offline event for {channel_code}: {e}")
+                        self.logger.debug(f"Cleared all live notifications for channel_code {channel_code} across all guilds")
                 except Exception as e:
                     self.logger.debug(f"Error clearing online state for {channel_code} during OFFLINE event: {e}")
         else:
@@ -5946,9 +5950,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                                 continue
             except Exception as e:
                 self.logger.debug(f"Error checking stream age for {username}: {e}")
-            # Remove the live notification from the website DB
-            await self.mysql.delete_live_notification(guild_id, username)
-            # Also mark offline in the live_channel_manager
+            # Mark offline in the live_channel_manager and clear ALL live notifications across all guilds
             try:
                 user_row = await self.mysql.fetchone(
                     "SELECT api_key FROM users WHERE LOWER(username) = %s",
@@ -5957,6 +5959,11 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 channel_code = user_row['api_key'] if user_row else None
                 if channel_code and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
                     await self.bot.live_channel_manager.mark_offline(channel_code)
+                    # Clear all notifications for this user across ALL guilds (not just this one)
+                    await self.bot.live_channel_manager.clear_live_notifications_for_channel(channel_code, username=username)
+                else:
+                    # Fallback: delete just this guild's notification if live_channel_manager isn't available
+                    await self.mysql.delete_live_notification(guild_id, username)
             except Exception as e:
                 self.logger.debug(f"Error marking offline via live_channel_manager for {username}: {e}")
             guild = self.bot.get_guild(guild_id)
