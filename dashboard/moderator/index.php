@@ -17,17 +17,39 @@ $pageTitle = t('moderator_dashboard_title');
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'userdata.php';
-include 'bot_control.php';
-include "mod_access.php";
-include 'user_db.php';
-include 'storage_used.php';
-$stmt = $db->prepare("SELECT timezone FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$stmt->close();
+// Include shared dashboard helpers from the parent dashboard folder
+include_once __DIR__ . '/../userdata.php';
+include_once __DIR__ . '/../bot_control.php';
+include_once __DIR__ . '/../mod_access.php';
+// Only include per-channel DB and storage logic if a channel/mod is selected
+$no_mod_selected = false;
+if (!isset($_SESSION['editing_username']) || empty($_SESSION['editing_username'])) {
+  $no_mod_selected = true;
+  // Provide safe defaults so the page can render without a selected channel
+  $_SESSION['editing_display_name'] = $_SESSION['editing_display_name'] ?? 'No Channel Selected';
+  $_SESSION['editing_user'] = $_SESSION['editing_user'] ?? '';
+  $current_storage_used = 0;
+  $max_storage_size = 0;
+  $storage_percentage = 0;
+} else {
+  include 'user_db.php';
+  include 'storage_used.php';
+}
+// Get timezone from per-channel DB if available
+if (!empty($db) && empty($no_mod_selected)) {
+  $stmt = $db->prepare("SELECT timezone FROM profile");
+  if ($stmt) {
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $channelData = $result->fetch_assoc();
+    $timezone = $channelData['timezone'] ?? 'UTC';
+    $stmt->close();
+  } else {
+    $timezone = 'UTC';
+  }
+} else {
+  $timezone = 'UTC';
+}
 date_default_timezone_set($timezone);
 $currentDateTime = new DateTime('now');
 
@@ -103,10 +125,11 @@ function getStreamInfo($userId) {
   return $result;
 }
 
-// Get channel information
-$channelResponse = getChannelStatus($_SESSION['editing_display_name']);
-$channelInfo = $channelResponse['data'];
-if ($channelInfo) {
+// Get channel information (only if a channel is selected)
+if (empty($no_mod_selected)) {
+  $channelResponse = getChannelStatus($_SESSION['editing_display_name']);
+  $channelInfo = $channelResponse['data'];
+  if ($channelInfo) {
   $stream_title = $channelInfo['title'] ?? 'No Title';
   $gameName = $channelInfo['game_name'] ?? 'Not Playing';
   $isLive = $channelInfo['is_live'] ?? false;
@@ -125,56 +148,60 @@ if ($channelInfo) {
         $hours = $interval->h + ($interval->days * 24);
         $streamUptime = $hours . 'h ' . $interval->i . 'm';
       }
+    } else {
+      $channelInfo = null;
     }
   }
 }
+}
 
-// Count custom commands
-$commandCount = 0;
-$res = $db->query("SELECT COUNT(*) as cnt FROM custom_commands");
-if ($res) {
+// If no moderator/channel selected, keep counts at zero and skip DB queries
+if (empty($no_mod_selected) && !empty($db)) {
+  // Count custom commands
+  $commandCount = 0;
+  $res = $db->query("SELECT COUNT(*) as cnt FROM custom_commands");
+  if ($res) {
     $row = $res->fetch_assoc();
     $commandCount = $row['cnt'];
-}
-
-// Count enabled custom commands
-$enabledCommandCount = 0;
-$res = $db->query("SELECT COUNT(*) as cnt FROM custom_commands WHERE status = 'Enabled'");
-if ($res) {
+  }
+  // Count enabled custom commands
+  $enabledCommandCount = 0;
+  $res = $db->query("SELECT COUNT(*) as cnt FROM custom_commands WHERE status = 'Enabled'");
+  if ($res) {
     $row = $res->fetch_assoc();
     $enabledCommandCount = $row['cnt'];
-}
-
-// Count disabled custom commands
-$disabledCommandCount = 0;
-$res = $db->query("SELECT COUNT(*) as cnt FROM custom_commands WHERE status = 'Disabled'");
-if ($res) {
+  }
+  // Count disabled custom commands
+  $disabledCommandCount = 0;
+  $res = $db->query("SELECT COUNT(*) as cnt FROM custom_commands WHERE status = 'Disabled'");
+  if ($res) {
     $row = $res->fetch_assoc();
     $disabledCommandCount = $row['cnt'];
-}
-
-// Count timers
-$timerCount = 0;
-$res = $db->query("SELECT COUNT(*) as cnt FROM timed_messages");
-if ($res) {
+  }
+  // Count timers
+  $timerCount = 0;
+  $res = $db->query("SELECT COUNT(*) as cnt FROM timed_messages");
+  if ($res) {
     $row = $res->fetch_assoc();
     $timerCount = $row['cnt'];
-}
-
-// Count enabled timers
-$enabledTimerCount = 0;
-$res = $db->query("SELECT COUNT(*) as cnt FROM timed_messages WHERE status = 'True'");
-if ($res) {
+  }
+  // Count enabled timers
+  $enabledTimerCount = 0;
+  $res = $db->query("SELECT COUNT(*) as cnt FROM timed_messages WHERE status = 'True'");
+  if ($res) {
     $row = $res->fetch_assoc();
     $enabledTimerCount = $row['cnt'];
-}
-
-// Count disabled timers
-$disabledTimerCount = 0;
-$res = $db->query("SELECT COUNT(*) as cnt FROM timed_messages WHERE status = 'False'");
-if ($res) {
+  }
+  // Count disabled timers
+  $disabledTimerCount = 0;
+  $res = $db->query("SELECT COUNT(*) as cnt FROM timed_messages WHERE status = 'False'");
+  if ($res) {
     $row = $res->fetch_assoc();
     $disabledTimerCount = $row['cnt'];
+  }
+} else {
+  $commandCount = $enabledCommandCount = $disabledCommandCount = 0;
+  $timerCount = $enabledTimerCount = $disabledTimerCount = 0;
 }
 
 function formatBytes($bytes, $precision = 2) {
@@ -193,6 +220,11 @@ ob_start();
 ?>
 <div class="container">
   <br>
+  <?php if (!empty($no_mod_selected)): ?>
+    <div class="notification is-warning">
+      <strong>No moderator/channel selected.</strong> Please select a channel to load moderator data.
+    </div>
+  <?php endif; ?>
   <div class="columns is-desktop">
     <div class="column is-3">
       <div class="box">
