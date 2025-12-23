@@ -201,9 +201,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
         $row = $result->fetch_assoc();
         $access_token = $row['access_token'];
         $stmt->close();
-        // Check cache first
+        // Check cache first. If cache indicates token is valid AND shows is_mod=true, return immediately.
+        // If cache indicates is_mod is false/unknown, continue and perform a fresh validation+mod check
         $cacheEntry = getTokenCacheEntry($tokenCacheFile, $twitch_user_id);
-        if ($cacheEntry && isset($cacheEntry['expires_at']) && $cacheEntry['expires_at'] > time()) {
+        if ($cacheEntry && isset($cacheEntry['expires_at']) && $cacheEntry['expires_at'] > time() && !empty($cacheEntry['is_mod'])) {
             $expires_in = $cacheEntry['expires_at'] - time();
             $is_mod = $cacheEntry['is_mod'] ?? false;
             $debug = ob_get_clean();
@@ -706,6 +707,8 @@ function refreshBotStatus() {
                             botTag.className = 'tag is-danger bot-status-tag';
                             botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>';
                         }
+                        // Ensure start button is enabled for admins to start bots (regardless of mod status)
+                        if (startBtn) startBtn.disabled = false;
                         // Validate token to check mod status
                         if (twitchId) {
                             setTimeout(() => validateUserToken(twitchId), validateDelay);
@@ -774,11 +777,13 @@ async function validateUserToken(twitchUserId) {
                     if (makeModBtn) makeModBtn.style.display = 'none';
                     if (startBtn && !isRunning) startBtn.disabled = false;
                 } else {
-                    modTag.className = 'tag is-danger mod-status-tag';
-                    modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not a Moderator</span>';
+                    // Not a moderator: show a warning state but allow admins to start the bot
+                    modTag.className = 'tag is-warning mod-status-tag';
+                    modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Not a Moderator</span>';
                     if (makeModBtn) makeModBtn.style.display = 'inline-flex';
-                    if (startBtn) startBtn.disabled = true;
-                    // Show warning if bot is running but not a moderator
+                    // Allow start button even if the bot is not a moderator (admins can start regardless)
+                    if (startBtn && !isRunning) startBtn.disabled = false;
+                    // If the bot is running but missing mod, indicate it visually
                     if (isRunning) {
                         modTag.className = 'tag is-warning mod-status-tag';
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Running Without Mod!</span>';
@@ -872,55 +877,10 @@ async function makeBotMod(twitchUserId) {
 }
 
 async function checkBotModStatus(twitchUserId) {
-    const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
-    const modTag = row.querySelector('.mod-status-tag');
-    const startBtn = row.querySelector('.start-bot-btn');
-    
-    modTag.className = 'tag is-info mod-status-tag';
-    modTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Checking...</span>';
     try {
-        const formData = new FormData();
-        formData.append('check_bot_mod_status', '1');
-        formData.append('twitch_user_id', twitchUserId);
-        const response = await fetch('', {
-            method: 'POST',
-            body: formData
-        });
-        const data = await response.json();
-        if (data.success && data.is_mod) {
-            modTag.className = 'tag is-success mod-status-tag';
-            modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
-            startBtn.disabled = false;
-        } else if (data.success && !data.is_mod) {
-            modTag.className = 'tag is-danger mod-status-tag';
-            modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not a Moderator</span>';
-            startBtn.disabled = true;
-            Swal.fire({
-                icon: 'warning',
-                title: 'Bot Not a Moderator',
-                html: `BotOfTheSpecter is not a moderator in this channel.<br><br>Please make the bot a moderator before starting it.`,
-                confirmButtonText: 'OK'
-            });
-        } else {
-            modTag.className = 'tag is-danger mod-status-tag';
-            modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-circle"></i></span><span>Error</span>';
-            startBtn.disabled = true;
-            Swal.fire({
-                icon: 'error',
-                title: 'Check Failed',
-                text: data.message || 'Failed to check moderator status'
-            });
-        }
-    } catch (error) {
-        modTag.className = 'tag is-danger mod-status-tag';
-        modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Error</span>';
-        startBtn.disabled = true;
-        console.error('Error checking mod status:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'An error occurred while checking moderator status'
-        });
+        await validateUserToken(twitchUserId);
+    } catch (e) {
+        console.error('Error delegating mod check to validateUserToken:', e);
     }
 }
 
@@ -980,124 +940,46 @@ async function startUserBot(username, twitchUserId) {
     // Check if bot is already running
     const isRunning = runningBots.find(bot => bot.username === username);
     if (isRunning) {
-        Swal.fire({
-            icon: 'info',
-            title: 'Bot Already Running',
-            text: `Bot for ${username} is already running (PID: ${isRunning.pid})`
-        });
+        // Non-blocking toast for already-running
+        Swal.fire({toast: true, position: 'top-end', icon: 'info', title: `Bot for ${username} is already running`, showConfirmButton: false, timer: 1500});
         return;
     }
-    // First, validate the token
-    startBtn.disabled = true;
-    startBtn.classList.add('is-loading');
+    // Start the bot immediately via AJAX without performing token/mod checks to avoid slowing bulk operations
+    if (startBtn) {
+        startBtn.disabled = true;
+        startBtn.classList.add('is-loading');
+    }
     try {
-        // Validate token
-        const validateFormData = new FormData();
-        validateFormData.append('validate_user_token', '1');
-        validateFormData.append('twitch_user_id', twitchUserId);
-        const validateResponse = await fetch('', {
-            method: 'POST',
-            body: validateFormData
-        });
-        const validateData = await validateResponse.json();
-        // If token is invalid, try to renew it
-        if (!validateData.success || !validateData.valid) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Token Invalid',
-                text: 'Token is invalid. Attempting to renew...',
-                showConfirmButton: false,
-                timer: 2000
-            });
-            const renewed = await renewUserToken(twitchUserId);
-            
-            if (!renewed) {
-                startBtn.disabled = false;
-                startBtn.classList.remove('is-loading');
-                return;
-            }
-        }
-        // Check if bot is a moderator
-        const modFormData = new FormData();
-        modFormData.append('check_bot_mod_status', '1');
-        modFormData.append('twitch_user_id', twitchUserId);
-        const modResponse = await fetch('', {
-            method: 'POST',
-            body: modFormData
-        });
-        const modData = await modResponse.json();
-        if (!modData.success || !modData.is_mod) {
-            botTag.className = 'tag is-danger bot-status-tag';
-            botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Failed</span>';
-            const modTag = row.querySelector('.mod-status-tag');
-            modTag.className = 'tag is-danger mod-status-tag';
-            modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not a Moderator</span>';
-            Swal.fire({
-                icon: 'error',
-                title: 'Not a Moderator',
-                html: 'BotOfTheSpecter is not a moderator in this channel.<br><br>Please make the bot a moderator before starting it.',
-                confirmButtonText: 'OK'
-            });
-            startBtn.disabled = false;
-            startBtn.classList.remove('is-loading');
-            return;
-        }
-        // Token is valid and bot is a mod, proceed to start bot
         botTag.className = 'tag is-info bot-status-tag';
         botTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Starting...</span>';
         const startFormData = new FormData();
         startFormData.append('start_user_bot', '1');
         startFormData.append('username', username);
-        const startResponse = await fetch('', {
-            method: 'POST',
-            body: startFormData
-        });
+        const startResponse = await fetch('', { method: 'POST', body: startFormData });
         const startText = await startResponse.text();
-        let startData;
-        try {
-            startData = JSON.parse(startText);
-        } catch (e) {
-            console.error('Non-JSON start response:', startText);
-            Swal.fire({
-                icon: 'error',
-                title: 'Server Response (non-JSON)',
-                html: '<div style="text-align:left;max-height:400px;overflow:auto"><pre>' + escapeHtml(startText) + '</pre></div>'
-            });
-            return;
-        }
-        if (startData.success) {
-            Swal.fire({
-                icon: 'success',
-                title: 'Bot Started',
-                text: `Bot for ${username} has been started successfully`,
-                timer: 2000,
-                showConfirmButton: false
-            });
-            // Refresh bot status after a short delay
-            setTimeout(() => {
-                refreshBotStatus();
-            }, 2000);
+        let startData = null;
+        try { startData = JSON.parse(startText); } catch (e) { console.warn('Non-JSON start response, raw:', startText); }
+        if (startData && startData.success) {
+            // Non-blocking toast notification only
+            Swal.fire({toast: true, position: 'top-end', icon: 'success', title: `Started bot for ${username}`, showConfirmButton: false, timer: 1500});
+            // Refresh status after small delay to update running list without blocking
+            setTimeout(() => refreshBotStatus(), 1200);
         } else {
             botTag.className = 'tag is-danger bot-status-tag';
             botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Start Failed</span>';
-            Swal.fire({
-                icon: 'error',
-                title: 'Failed to Start Bot',
-                text: startData.message || 'Could not start bot'
-            });
+            const msg = (startData && startData.message) ? startData.message : 'Could not start bot';
+            Swal.fire({toast: true, position: 'top-end', icon: 'error', title: `Start failed: ${msg}`, showConfirmButton: false, timer: 3000});
         }
     } catch (error) {
         botTag.className = 'tag is-danger bot-status-tag';
         botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Error</span>';
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'An error occurred while starting the bot'
-        });
         console.error('Error starting bot:', error);
+        Swal.fire({toast: true, position: 'top-end', icon: 'error', title: 'Error starting bot', showConfirmButton: false, timer: 3000});
     } finally {
-        startBtn.disabled = false;
-        startBtn.classList.remove('is-loading');
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.classList.remove('is-loading');
+        }
     }
 }
 </script>
