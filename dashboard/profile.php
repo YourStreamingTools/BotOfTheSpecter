@@ -472,6 +472,12 @@ ob_start();
                                         <?php echo t('language_help'); ?>
                                     </p>
                                 </form>
+                                <div class="field mt-5">
+                                    <div class="control">
+                                        <button id="export-data-profile-btn" class="button is-warning" type="button" data-user-id="<?php echo $userId; ?>" data-user-email="<?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES); ?>" data-user-username="<?php echo htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES); ?>" onclick="exportProfileData()">Export My Data</button>
+                                    </div>
+                                    <p class="help">Request a copy of your personal data. Exports are queued and emailed when ready.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1398,6 +1404,36 @@ function disconnectStreamelements() {
             document.body.appendChild(form);
             form.submit();
         }
+    });
+}
+
+function exportProfileData() {
+    const btn = document.getElementById('export-data-profile-btn');
+    if (!btn) return;
+    const email = btn.getAttribute('data-user-email') || '';
+    const uname = btn.getAttribute('data-user-username') || '';
+    Swal.fire({
+        title: 'Request data export?',
+        html: '<p>Data exports can take anywhere from <span class="has-text-weight-semibold">5 minutes</span> to <span class="has-text-weight-semibold">several days</span> depending on queue length.</p>' +
+              '<p>Once the request has been completed, all information will be emailed to <span class="has-text-weight-semibold">' + (email || 'the email linked to your Twitch account') + '</span>.</p>' +
+              '<p>You will receive a notification when the export is ready.</p>',
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Request export',
+        cancelButtonText: 'Cancel'
+    }).then((result)=>{
+        if (!result.isConfirmed) return;
+        $.post('admin/export_user_data.php', { username: uname }, function(resp){
+            let data = {};
+            try { data = typeof resp === 'object' ? resp : JSON.parse(resp); } catch(e){}
+            if (data && data.success) {
+                Swal.fire('Queued','Your data export has been queued. You will receive an email when it is complete.','success');
+            } else {
+                Swal.fire('Error', data.msg || 'Could not start export.', 'error');
+            }
+        }).fail(function(){
+            Swal.fire('Error','Could not contact export endpoint.','error');
+        });
     });
 }
 </script>
