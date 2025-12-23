@@ -138,7 +138,7 @@ if ($current_file == 'index.php') {
                     </a>
                 </li>
                 <li class="sidebar-menu-item has-submenu">
-                    <a href="#" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
+                    <a href="#" role="button" aria-expanded="false" class="sidebar-menu-link" onclick="toggleSubmenu(event, this)">
                         <span class="sidebar-menu-icon"><i class="fas fa-calculator"></i></span>
                         <span class="sidebar-menu-text"><?php echo t('navbar_counters'); ?></span>
                         <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
@@ -227,6 +227,7 @@ if ($current_file == 'index.php') {
                 <a href="#" class="sidebar-menu-link <?php echo $active_menu == 'commands' ? 'active' : ''; ?>" onclick="toggleSubmenu(event, this)">
                     <span class="sidebar-menu-icon"><i class="fas fa-terminal"></i></span>
                     <span class="sidebar-menu-text"><?php echo t('navbar_commands'); ?></span>
+                    <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_commands'); ?></div>
                 <ul class="sidebar-submenu">
@@ -253,6 +254,7 @@ if ($current_file == 'index.php') {
                 <a href="#" class="sidebar-menu-link <?php echo $active_menu == 'counters' ? 'active' : ''; ?>" onclick="toggleSubmenu(event, this)">
                     <span class="sidebar-menu-icon"><i class="fas fa-calculator"></i></span>
                     <span class="sidebar-menu-text"><?php echo t('navbar_counters'); ?></span>
+                    <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_counters'); ?></div>
                 <ul class="sidebar-submenu">
@@ -271,6 +273,7 @@ if ($current_file == 'index.php') {
                 <a href="#" class="sidebar-menu-link <?php echo $active_menu == 'alerts' ? 'active' : ''; ?>" onclick="toggleSubmenu(event, this)">
                     <span class="sidebar-menu-icon"><i class="fas fa-bell"></i></span>
                     <span class="sidebar-menu-text"><?php echo t('navbar_alerts'); ?></span>
+                    <span class="sidebar-submenu-toggle"><i class="fas fa-chevron-down"></i></span>
                 </a>
                 <div class="sidebar-tooltip"><?php echo t('navbar_alerts'); ?></div>
                 <ul class="sidebar-submenu">
