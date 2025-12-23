@@ -9,7 +9,6 @@ require_once "/var/www/config/db_connect.php";
 // Bot ID check - always give the bot access to all users
 $botId = "971436498";
 if (isset($twitchUserId) && $twitchUserId === $botId) {
-    $showModDropdown = true;
     $query = "SELECT u.twitch_display_name, u.profile_image, u.twitch_user_id FROM users u";
     $stmt = $conn->prepare($query);
     $stmt->execute();
@@ -28,6 +27,5 @@ if (isset($twitchUserId) && $twitchUserId === $botId) {
     $stmt->execute();
     $result = $stmt->get_result();
     $modChannels = $result->fetch_all(MYSQLI_ASSOC);
-    $showModDropdown = !empty($modChannels);
 }
 ?>

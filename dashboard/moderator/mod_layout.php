@@ -168,12 +168,10 @@ if ($current_file == 'index.php') {
                 </li>
             </ul>
             <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
-                <?php if (!empty($showModDropdown) && !empty($modChannels)): ?>
                 <a href="../mod_channels.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                     <span class="sidebar-user-text"><?php echo t('navbar_mod_for'); ?></span>
                 </a>
-                <?php endif; ?>
                 <a href="../profile.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-user"></i></span>
                     <span class="sidebar-user-text"><?php echo t('navbar_profile'); ?></span>
@@ -189,10 +187,21 @@ if ($current_file == 'index.php') {
         </div>
     </div>
     <!-- Moderator Notice Banner -->
+    <?php
+    $modDisplay = isset($_SESSION['editing_display_name']) ? htmlspecialchars($_SESSION['editing_display_name'], ENT_QUOTES, 'UTF-8') : null;
+    $modUsername = isset($_SESSION['editing_username']) ? htmlspecialchars($_SESSION['editing_username'], ENT_QUOTES, 'UTF-8') : null;
+    ?>
     <div style="background:rgb(0, 123, 255); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;">
-        <span>
-            You are using the <strong>MODERATOR</strong> dashboard. Actions here affect channels you moderate.
-        </span>
+        <?php if ($modDisplay || $modUsername): ?>
+            <span>
+                You are moderating: <strong><?php echo $modDisplay ? $modDisplay : $modUsername; ?></strong><?php echo ($modDisplay && $modUsername) ? ' (@' . $modUsername . ')' : ''; ?>
+            </span>
+        <?php else: ?>
+            <span>
+                You are using the <strong>MODERATOR</strong> dashboard. No channel selected —
+                <a href="../mod_channels.php" style="color:#fff; text-decoration:underline;">select a channel to moderate</a>.
+            </span>
+        <?php endif; ?>
     </div>
     <!-- Sidebar Navigation (Desktop Only - Hidden on Mobile/Tablet) -->
     <aside class="sidebar-nav desktop-only" id="sidebarNav">
@@ -272,12 +281,10 @@ if ($current_file == 'index.php') {
             </li>
         </ul>
         <div class="sidebar-user-section">
-            <?php if (!empty($showModDropdown) && !empty($modChannels)): ?>
             <a href="../mod_channels.php" class="sidebar-user-item">
                 <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                 <span class="sidebar-user-text"><?php echo t('navbar_mod_for'); ?></span>
             </a>
-            <?php endif; ?>
             <a href="mod_return_home.php" class="sidebar-user-item">
                 <span class="sidebar-user-icon"><i class="fas fa-home"></i></span>
                 <span class="sidebar-user-text"><?php echo t('navbar_return_home'); ?></span>
