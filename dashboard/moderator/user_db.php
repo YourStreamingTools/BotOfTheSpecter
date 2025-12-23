@@ -1,7 +1,27 @@
 <?php
 // User Specter Database
 include '/var/www/config/database.php';
-$dbname = $_SESSION['editing_username'];
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+$editing_username = $_SESSION['editing_username'] ?? null;
+if (empty($editing_username)) {
+    // No channel/mod selected. Show a concise notice and stop processing.
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!doctype html><html><head><meta charset="utf-8"><title>No channel selected</title>';
+    echo '<meta name="viewport" content="width=device-width,initial-scale=1">';
+    echo '<style>body{background:#0b0b0b;color:#fff;font-family:Arial,Helvetica,sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh}';
+    echo '.notice{max-width:760px;padding:24px;border-radius:8px;background:linear-gradient(180deg,#121212,#0f0f0f);box-shadow:0 6px 24px rgba(0,0,0,0.6);text-align:center}';
+    echo 'a{color:#78b9ff;text-decoration:underline}</style></head><body><div class="notice">';
+    echo '<h1 style="margin-top:0">No channel selected</h1>';
+    echo '<p style="margin:0 0 16px 0">You have not selected a channel to moderate. Please go to the <a href="../mod_channels.php">Moderator Channels</a> page and pick a channel.</p>';
+    echo '<p style="font-size:90%;opacity:0.8;margin:0">Once a channel is selected you can access its moderator pages.</p>';
+    echo '</div></body></html>';
+    exit;
+}
+
+$dbname = $editing_username;
 
 // Initialize all variables as empty arrays or values
 $commands = [];
