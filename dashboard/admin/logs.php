@@ -528,6 +528,39 @@ if (isset($_GET['admin_system_log_type'])) {
     exit();
 }
 
+// Handle AJAX token log fetch (Token Logs category)
+if (isset($_GET['admin_token_log_type'])) {
+    header('Content-Type: application/json');
+    $logType = $_GET['admin_token_log_type'];
+    $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
+    $map = [
+        'spotify_refresh' => '/home/botofthespecter/logs/spotify_refresh.log',
+        'refresh_streamelements_tokens' => '/home/botofthespecter/logs/refresh_streamelements_tokens.log',
+        'refresh_discord_tokens' => '/home/botofthespecter/logs/refresh_discord_tokens.log',
+        'custom_bot_token_refresh_cron' => '/home/botofthespecter/logs/custom_bot_token_refresh_cron.log',
+        'custom_bot_token_refresh' => '/home/botofthespecter/logs/custom_bot_token_refresh.log',
+    ];
+    if (!isset($map[$logType])) {
+        echo json_encode(['error' => 'invalid_log_type']);
+        exit();
+    }
+    $logPath = $map[$logType];
+    $result = read_bot_log_over_ssh($logPath, 200, $since);
+    if ($result === null || !is_array($result)) { echo json_encode(['error' => 'invalid_log_type']); exit(); }
+    if (isset($result['error'])) {
+        if ($result['error'] === 'not_found') { echo json_encode(['error' => 'not_found']); }
+        else if ($result['error'] === 'permission_denied') { echo json_encode(['error' => 'permission_denied']); }
+        else { echo json_encode(['error' => 'connection_failed']); }
+        exit();
+    }
+    if (isset($result['empty']) && $result['empty']) { echo json_encode(['last_line' => 0, 'data' => '', 'empty' => true]); exit(); }
+    $logContent = isset($result['logContent']) ? $result['logContent'] : '';
+    $linesTotal = isset($result['linesTotal']) ? $result['linesTotal'] : 0;
+    $logContent = highlight_log_dates($logContent);
+    echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
+    exit();
+}
+
 // Define system log types in a single PHP array for both PHP and JS
 $systemLogTypes = [
     [
@@ -600,6 +633,7 @@ ob_start();
                             <option value="">Select Log Category</option>
                             <option value="system">System Logs</option>
                             <option value="user">User Logs</option>
+                            <option value="token">Token Logs</option>
                         </select>
                     </div>
                 </div>                <div class="control">
@@ -642,6 +676,18 @@ ob_start();
                         </select>
                     </div>
                 </div>
+                <div class="control" id="token-log-type-control" style="display: none; margin-left: 8px;">
+                    <div class="select">
+                        <select id="admin-token-log-type-select" disabled>
+                            <option value="">Select Token Log</option>
+                            <option value="spotify_refresh">Spotify Log</option>
+                            <option value="refresh_streamelements_tokens">StreamElements Log</option>
+                            <option value="refresh_discord_tokens">Discord Log</option>
+                            <option value="custom_bot_token_refresh_cron">Custom Bot Logs (cron)</option>
+                            <option value="custom_bot_token_refresh">Custom Bot Logs (manual)</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="control">
                     <button class="button is-link" id="admin-log-reload" disabled>Reload</button>
                 </div>
@@ -681,6 +727,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const loadMoreBtn = document.getElementById('admin-log-load-more');
     const logTextarea = document.getElementById('admin-log-textarea');
     const categorySelect = document.getElementById('admin-log-category-select');
+    const tokenLogTypeControl = document.getElementById('token-log-type-control');
+    const tokenTypeSelect = document.getElementById('admin-token-log-type-select');
     const autoRefreshBtn = document.getElementById('admin-log-auto-refresh');
     const systemLogTypes = <?php echo json_encode($systemLogTypes); ?>;
     let adminLogCategory = '';
@@ -697,7 +745,9 @@ document.addEventListener('DOMContentLoaded', function() {
         adminLogType = '';
         userSelect.value = '';
         typeSelect.value = '';
+        tokenTypeSelect.value = '';
         typeSelect.disabled = true;
+        tokenTypeSelect.disabled = true;
         reloadBtn.disabled = true;
         loadMoreBtn.disabled = true;
         autoRefreshBtn.disabled = true; // Reset auto refresh button
@@ -706,6 +756,7 @@ document.addEventListener('DOMContentLoaded', function() {
             userSelect.disabled = false;
             userLogTypeControl.style.display = 'block';
             systemLogTypeControl.style.display = 'none';
+            tokenLogTypeControl.style.display = 'none';
             systemTypeSelect.disabled = true;
             userSelect.innerHTML = '<option value="">Choose a User</option>';
             <?php foreach ($users as $u): ?>
@@ -715,6 +766,7 @@ document.addEventListener('DOMContentLoaded', function() {
             userSelectControl.style.display = 'none';
             userLogTypeControl.style.display = 'none';
             systemLogTypeControl.style.display = 'block';
+            tokenLogTypeControl.style.display = 'none';
             systemTypeSelect.disabled = false;
             let html = '<option value="">Select System Log Type</option>';
             for (const group of systemLogTypes) {
@@ -725,11 +777,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '</optgroup>';
             }
             systemTypeSelect.innerHTML = html;
+        } else if (adminLogCategory === 'token') {
+            userSelectControl.style.display = 'none';
+            userLogTypeControl.style.display = 'none';
+            systemLogTypeControl.style.display = 'none';
+            tokenLogTypeControl.style.display = 'block';
+            tokenTypeSelect.disabled = false;
         } else {
             userSelectControl.style.display = '';
             userSelect.disabled = true;
             userLogTypeControl.style.display = 'none';
             systemLogTypeControl.style.display = 'none';
+            tokenLogTypeControl.style.display = 'none';
             userSelect.innerHTML = '<option value="">Select Log Category First</option>';
             systemTypeSelect.innerHTML = '<option value="">Select Log Category First</option>';
             systemTypeSelect.disabled = true;
@@ -762,6 +821,20 @@ document.addEventListener('DOMContentLoaded', function() {
             autoRefreshBtn.disabled = true;
         }
     });
+    tokenTypeSelect.addEventListener('change', function() {
+        adminLogType = this.value;
+        resetLogContent();
+        if (adminLogType) {
+            fetchTokenLog();
+            reloadBtn.disabled = false;
+            loadMoreBtn.disabled = false;
+            autoRefreshBtn.disabled = false;
+        } else {
+            reloadBtn.disabled = true;
+            loadMoreBtn.disabled = true;
+            autoRefreshBtn.disabled = true;
+        }
+    });
     typeSelect.addEventListener('change', function() {
         adminLogType = this.value;
         if (adminLogUser && adminLogType) {
@@ -781,6 +854,8 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchAdminLog();
         } else if (adminLogCategory === 'system') {
             fetchSystemLog();
+        } else if (adminLogCategory === 'token') {
+            fetchTokenLog();
         }
     });
     loadMoreBtn.addEventListener('click', function() {
@@ -788,6 +863,8 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchAdminLog(true);
         } else if (adminLogCategory === 'system') {
             fetchSystemLog(true);
+        } else if (adminLogCategory === 'token') {
+            fetchTokenLog(true);
         }
     });
     autoRefreshBtn.addEventListener('click', function() {
@@ -901,6 +978,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 logTextarea.innerHTML = "(system log file is empty)";
             } else if (!json.data || json.data.trim() === "") {
                 logTextarea.innerHTML = "(system log is empty or not found)";
+            } else if (loadMore) {
+                logTextarea.innerHTML = json.data + logTextarea.innerHTML;
+            } else {
+                logTextarea.innerHTML = json.data;
+            }
+            adminLogLoaded += 200;
+        } catch (e) {
+            logTextarea.innerHTML = "Unable to connect to the logging system.";
+            console.error(e);
+        }
+    }
+    async function fetchTokenLog(loadMore = false) {
+        if (!adminLogType) return;
+        let since = loadMore ? adminLogLoaded : 0;
+        if (loadMore && adminLogLoaded >= adminLogLastLine) return;
+        try {
+            const resp = await fetch(`logs.php?admin_token_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
+            const json = await resp.json();
+            if (json.error) {
+                if (json.error === "not_found") {
+                    logTextarea.innerHTML = "Token log file not found.";
+                } else if (json.error === "permission_denied") {
+                    logTextarea.innerHTML = "Permission denied: Unable to read the log file. Please check file permissions.";
+                } else if (json.error === "connection_failed") {
+                    logTextarea.innerHTML = "Unable to connect to the logging system.";
+                } else {
+                    logTextarea.innerHTML = "An unknown error occurred.";
+                }
+                return;
+            }
+            adminLogLastLine = json.last_line;
+            if (json.empty) {
+                logTextarea.innerHTML = "(token log file is empty)";
+            } else if (!json.data || json.data.trim() === "") {
+                logTextarea.innerHTML = "(token log is empty or not found)";
             } else if (loadMore) {
                 logTextarea.innerHTML = json.data + logTextarea.innerHTML;
             } else {
