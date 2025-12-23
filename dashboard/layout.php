@@ -201,12 +201,10 @@ function uuidv4() {
                 </li>
             </ul>
             <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
-                <?php if (!empty($showModDropdown) && !empty($modChannels)): ?>
                 <a href="mod_channels.php" class="sidebar-user-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                     <span class="sidebar-user-text">Mod Channels</span>
                 </a>
-                <?php endif; ?>
                 <?php if (!empty($is_admin)): ?>
                 <a href="admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-shield-alt has-text-danger"></i></span>
@@ -495,12 +493,10 @@ function uuidv4() {
             </li>
         </ul>
         <div class="sidebar-user-section">
-            <?php if (!empty($showModDropdown) && !empty($modChannels)): ?>
             <a href="mod_channels.php" class="sidebar-user-item">
                 <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                 <span class="sidebar-user-text">Mod Channels</span>
             </a>
-            <?php endif; ?>
             <?php if (!empty($is_admin)): ?>
             <a href="admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>">
                 <span class="sidebar-user-icon"><i class="fas fa-shield-alt has-text-danger"></i></span>

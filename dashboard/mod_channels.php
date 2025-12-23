@@ -76,7 +76,7 @@ ob_start();
     <?php endif; ?>
     <?php if (empty($modChannels)): ?>
         <div class="notification is-info">
-            <p><i class="fas fa-info-circle"></i> You are not currently a moderator for any channels.</p>
+            <p><i class="fas fa-info-circle"></i> No channels to mod, if you believe this is incorrect please ask your broadcaster to add you to the allow list.</p>
         </div>
     <?php else: ?>
         <div class="mod-channels-grid">
