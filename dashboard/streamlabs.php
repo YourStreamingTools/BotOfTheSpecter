@@ -251,18 +251,15 @@ if ($isLinked && isset($access_token) && !empty($access_token)) {
 
 ob_start();
 ?>
-<div class="notification is-warning is-dark" style="border-radius: 8px; margin-bottom: 1.5rem;">
+<div class="notification is-success is-dark" style="border-radius: 8px; margin-bottom: 1.5rem;">
     <div style="display: flex; gap: 0.75rem;">
         <span class="icon" style="flex-shrink: 0; margin-top: 0.25rem;">
-            <i class="fas fa-tools"></i>
+            <i class="fas fa-bell"></i>
         </span>
         <div style="flex: 1;">
-            <p class="has-text-weight-bold" style="margin-bottom: 0.5rem;">StreamLabs Integration Coming Soon</p>
+            <p class="has-text-weight-bold" style="margin-bottom: 0.5rem;">StreamLabs API Enabled</p>
             <p style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">
-                We're actively building this feature and appreciate your patience. While the authorization button may redirect you to StreamLabs, our API is currently in the beta testing phase and requires manual whitelisting for security purposes.
-            </p>
-            <p style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">
-                We have submitted an application to StreamLabs for full API access and are working towards becoming a developer-partner with them. We'll be rolling out access gradually as development progresses, so stay tuned!
+                We have been approved and the API is unlocked — you may connect away and enjoy real-time notices about donations. If you have any issues while this is still under review and testing, please log a support ticket on our Discord server.
             </p>
         </div>
     </div>
