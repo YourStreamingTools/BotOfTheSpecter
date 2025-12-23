@@ -2922,7 +2922,13 @@ class BotOfTheSpecter(commands.Bot):
             async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    stream_data = data.get("data", [{}])[0]
+                    # Twitch may return {"data": []} when stream metadata is absent.
+                    items = []
+                    if isinstance(data, dict):
+                        items = data.get("data") or []
+                    if not items:
+                        return "Unknown Game", "No Title"
+                    stream_data = items[0]
                     game_name = stream_data.get("game_name", "Unknown Game")
                     stream_title = stream_data.get("title", "No Title")
                     return game_name, stream_title
