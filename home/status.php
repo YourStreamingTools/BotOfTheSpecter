@@ -3,23 +3,6 @@ $heartbeatStatus = '';
 
 include '/var/www/config/db_connect.php';
 
-// Create system_metrics table if it doesn't exist
-$conn->query("CREATE TABLE IF NOT EXISTS system_metrics (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    server_name VARCHAR(255) NOT NULL,
-    cpu_percent FLOAT,
-    ram_percent FLOAT,
-    ram_used FLOAT,
-    ram_total FLOAT,
-    disk_percent FLOAT,
-    disk_used FLOAT,
-    disk_total FLOAT,
-    net_sent FLOAT,
-    net_recv FLOAT,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_server (server_name)
-)");
-
 function fetchData($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -53,6 +36,13 @@ function format_speed($mb_per_sec) {
     } else {
         return number_format($bytes_per_sec, 2) . ' B/s';
     }
+}
+
+// Format integers for display with thousands separators. Returns 'N/A' for null.
+function format_number($n) {
+    if ($n === null) return 'N/A';
+    if (!is_numeric($n)) return htmlspecialchars($n);
+    return number_format((int)$n);
 }
 
 // Fetch version data
@@ -287,9 +277,9 @@ function checkServiceStatus($serviceName, $serviceData) {
             <div class="section">
                 <h2>Public API Requests</h2>
                 <div id="api-limits">
-                    <div class="info-item"><span class="has-text-weight-bold">Song Identification Remaing:</span> <span id="song-requests"><?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Remaing:</span> <span id="exchange-requests"><?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Weather Remaing:</span> <span id="weather-requests"><?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Song Identification Remaing:</span> <span id="song-requests"><?= format_number($songRequestsRemaining); ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Remaing:</span> <span id="exchange-requests"><?= format_number($exchangeRateRequestsRemaining); ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Weather Remaing:</span> <span id="weather-requests"><?= format_number($weatherRequestsRemaining); ?></span></div>
                 </div>
             </div>
         </div>
@@ -332,10 +322,10 @@ function checkServiceStatus($serviceName, $serviceData) {
             <div class="section">
                 <h2>Messages Sent</h2>
                 <div id="message-counts">
-                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-messages"><?= ($botMessageCounts['discordbot'] ?? 0) == 0 ? 'Not Counting Yet' : $botMessageCounts['discordbot']; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-messages"><?= ($botMessageCounts['twitch_stable'] ?? 0) == 0 ? 'Not Counting Yet' : $botMessageCounts['twitch_stable']; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-messages"><?= ($botMessageCounts['twitch_beta'] ?? 0) == 0 ? 'Not Counting Yet' : $botMessageCounts['twitch_beta']; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Custom:</span> <span id="custom-messages"><?= ($botMessageCounts['twitch_custom'] ?? 0) == 0 ? 'Not Counting Yet' : $botMessageCounts['twitch_custom']; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-messages"><?= ($botMessageCounts['discordbot'] ?? 0) == 0 ? 'Not Counting Yet' : format_number($botMessageCounts['discordbot']); ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-messages"><?= ($botMessageCounts['twitch_stable'] ?? 0) == 0 ? 'Not Counting Yet' : format_number($botMessageCounts['twitch_stable']); ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-messages"><?= ($botMessageCounts['twitch_beta'] ?? 0) == 0 ? 'Not Counting Yet' : format_number($botMessageCounts['twitch_beta']); ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Custom:</span> <span id="custom-messages"><?= ($botMessageCounts['twitch_custom'] ?? 0) == 0 ? 'Not Counting Yet' : format_number($botMessageCounts['twitch_custom']); ?></span></div>
                 </div>
             </div>
         </div>
@@ -396,6 +386,13 @@ function formatSpeed(mbPerSec) {
     }
 }
 
+// Format numbers with thousands separators for display (handles null/undefined)
+function formatNumber(n) {
+    if (n === null || n === undefined) return 'N/A';
+    if (typeof n === 'number' || !isNaN(n)) return Number(n).toLocaleString();
+    return String(n);
+}
+
 // Helper to update service status HTML
 const serverDisplayNames = {
     'web1': 'Web Server 1',
@@ -445,17 +442,17 @@ function fetchAndUpdateStatus() {
             document.getElementById('beta-version').textContent = data.betaVersion ?? 'N/A';
             document.getElementById('discord-version').textContent = data.discordVersion ?? 'N/A';
             // Update song info
-            document.getElementById('song-requests').textContent = data.songRequestsRemaining ?? 'N/A';
+            document.getElementById('song-requests').textContent = formatNumber(data.songRequestsRemaining);
             // Update exchange info
-            document.getElementById('exchange-requests').textContent = data.exchangeRateRequestsRemaining ?? 'N/A';
+            document.getElementById('exchange-requests').textContent = formatNumber(data.exchangeRateRequestsRemaining);
             // Update weather info
-            document.getElementById('weather-requests').textContent = data.weatherRequestsRemaining ?? 'N/A';
+            document.getElementById('weather-requests').textContent = formatNumber(data.weatherRequestsRemaining);
             // Update message counts if present
             if (data.botMessageCounts) {
-                document.getElementById('discord-messages').textContent = (data.botMessageCounts['discordbot'] ?? 0) == 0 ? 'Not Counting Yet' : data.botMessageCounts['discordbot'];
-                document.getElementById('stable-messages').textContent = (data.botMessageCounts['twitch_stable'] ?? 0) == 0 ? 'Not Counting Yet' : data.botMessageCounts['twitch_stable'];
-                document.getElementById('beta-messages').textContent = (data.botMessageCounts['twitch_beta'] ?? 0) == 0 ? 'Not Counting Yet' : data.botMessageCounts['twitch_beta'];
-                document.getElementById('custom-messages').textContent = (data.botMessageCounts['twitch_custom'] ?? 0) == 0 ? 'Not Counting Yet' : data.botMessageCounts['twitch_custom'];
+                document.getElementById('discord-messages').textContent = (data.botMessageCounts['discordbot'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['discordbot']);
+                document.getElementById('stable-messages').textContent = (data.botMessageCounts['twitch_stable'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['twitch_stable']);
+                document.getElementById('beta-messages').textContent = (data.botMessageCounts['twitch_beta'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['twitch_beta']);
+                document.getElementById('custom-messages').textContent = (data.botMessageCounts['twitch_custom'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['twitch_custom']);
             }
             // Update metrics if present
             if (data.metrics) {
