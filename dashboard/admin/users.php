@@ -279,6 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
             <!-- Populated by JS -->
         </section>
         <footer class="modal-card-foot" style="justify-content: flex-end;">
+            <button class="button is-primary" id="export-sensitive-btn" onclick="exportSensitiveUser()" title="Export user data">Export Data</button>
             <button class="button" onclick="closeSensitiveModal()">Close</button>
         </footer>
     </div>
@@ -398,8 +399,11 @@ function showSensitiveModal(userId) {
         </div>
     </div>
     `;
-
     document.getElementById('sensitive-modal-content').innerHTML = html;
+    // expose current modal user for export action
+    window.currentSensitiveUserId = user.id;
+    window.currentSensitiveUserEmail = user.email || '';
+    window.currentSensitiveUsername = user.username || '';
     document.getElementById('sensitive-modal').classList.add('is-active');
 }
 
@@ -571,6 +575,36 @@ function toggleRestrictUser(username, twitch_user_id, restrict) {
 document.getElementById('user-search').addEventListener('keyup', function(e) {
     filterUsers();
 });
+
+function exportSensitiveUser() {
+    const uid = window.currentSensitiveUserId;
+    const email = window.currentSensitiveUserEmail || '';
+    const username = window.currentSensitiveUsername || '';
+    if (!uid) return Swal.fire('Error','No user selected for export.','error');
+    Swal.fire({
+        title: 'Export user data?',
+        html: `Queue export for <b>${username}</b> (${uid}) and email to <b>${email || 'their account email'}</b>?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, export',
+        cancelButtonText: 'Cancel'
+    }).then((res)=>{
+        if (!res.isConfirmed) return;
+        const postData = { user_id: uid, email: email, username: username };
+        $.post('export_user_data.php', postData, function(resp){
+            let data = {};
+            try { data = typeof resp === 'object' ? resp : JSON.parse(resp); } catch(e){}
+            if (data && data.success) {
+                Swal.fire('Queued','User export has been started in background.','success');
+                closeSensitiveModal();
+            } else {
+                Swal.fire('Error', data.msg || 'Could not start export.', 'error');
+            }
+        }).fail(function(){
+            Swal.fire('Error','Could not reach export endpoint.','error');
+        });
+    });
+}
 </script>
 <?php
 $content = ob_get_clean();
