@@ -3072,20 +3072,48 @@ class BotOfTheSpecter(commands.Bot):
                             dict_cursor=True
                         )
                         if existing_notification:
-                            self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {existing_notification.get('posted_at')}")
-                            skip_post = True
-                    except Exception as e:
-                        self.logger.debug(f"Error checking existing live notifications for {account_username}: {e}")
-                    # Also check online_streams as fallback
-                    if not skip_post:
-                        try:
-                            if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
-                                existing = await self.live_channel_manager.get_online_stream(code)
-                                if existing:
+                            # Check if the notification is stale (older than 6 hours)
+                            posted_at = existing_notification.get('posted_at')
+                            self.logger.debug(f"Checking notification age: posted_at={posted_at}, type={type(posted_at)}")
+                            if posted_at:
+                                try:
+                                    # Handle both datetime objects and timezone-aware datetimes
+                                    if isinstance(posted_at, datetime):
+                                        if posted_at.tzinfo is None:
+                                            time_diff = datetime.utcnow() - posted_at
+                                        else:
+                                            time_diff = datetime.now(timezone.utc) - posted_at
+                                    else:
+                                        # If it's a string, skip the age check and just use the notification
+                                        self.logger.warning(f"posted_at is not a datetime object, it's {type(posted_at)}: {posted_at}")
+                                        self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at}")
+                                        skip_post = True
+                                        time_diff = None
+                                    if time_diff and time_diff > timedelta(hours=6):
+                                        self.logger.warning(f"Found stale notification for {account_username} in guild {guild.id} from {posted_at} ({time_diff.total_seconds()/3600:.1f}h ago) - treating as expired")
+                                        # Delete the stale notification
+                                        try:
+                                            await mysql_helper.execute(
+                                                "DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
+                                                (guild.id, str(account_username).lower()),
+                                                database_name='specterdiscordbot'
+                                            )
+                                            self.logger.info(f"Deleted stale notification for {account_username} in guild {guild.id}")
+                                        except Exception as e:
+                                            self.logger.error(f"Error deleting stale notification: {e}")
+                                    elif time_diff:
+                                        self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at} ({time_diff.total_seconds()/3600:.1f}h ago)")
+                                        skip_post = True
+                                except Exception as time_check_err:
+                                    self.logger.error(f"Error checking notification age for {account_username}: {time_check_err}", exc_info=True)
+                                    # If we can't check the age, assume it's fresh and skip
+                                    self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at} (age check failed)")
                                     skip_post = True
-                                    self.logger.info(f"Stream already marked online for {code}, skipping duplicate notification")
-                        except Exception as e:
-                            self.logger.debug(f"Error checking live_channel_manager for {code}: {e}")
+                            else:
+                                self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at}")
+                                skip_post = True
+                    except Exception as e:
+                        self.logger.error(f"Error checking existing live notifications for {account_username}: {e}", exc_info=True)
                     # Get user profile image and stream info
                     if skip_post:
                         self.logger.info(f"Skipping live notification for {account_username} - already posted to guild {guild.id}")
@@ -3223,6 +3251,16 @@ class BotOfTheSpecter(commands.Bot):
                     break
         else:
             self.logger.info(f"Channel name already matches target '{channel_update}' - skipping rename")
+        # For OFFLINE events, clear all live notifications across all guilds
+        if event_type == "OFFLINE":
+            try:
+                if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
+                    await self.live_channel_manager.mark_offline(code)
+                    # This clears notifications for ALL guilds, not just this one
+                    await self.live_channel_manager.clear_live_notifications_for_channel(code)
+                    self.logger.info(f"Cleared live notifications for {code} on OFFLINE event")
+            except Exception as e:
+                self.logger.error(f"Error clearing live notifications on OFFLINE for {code}: {e}")
         self.logger.info(f"Completed processing {event_type} event for channel_code: {code}")
 
     async def _process_stream_alert(self, guild, code, stream_channel_id, event_type):
