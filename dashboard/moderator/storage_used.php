@@ -3,10 +3,14 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Define the user's directories
-$walkon_path = "/var/www/walkons/" . $_SESSION['editing_username'];;
-$soundalert_path = "/var/www/soundalerts/" . $_SESSION['editing_username'];;
-$videoalert_path = "/var/www/videoalerts/" . $_SESSION['editing_username'];;
+// Start session early and safely read editing username to avoid undefined index notices
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+$editing_username = $_SESSION['editing_username'] ?? '';
+$walkon_path = "/var/www/walkons/" . $editing_username;
+$soundalert_path = "/var/www/soundalerts/" . $editing_username;
+$videoalert_path = "/var/www/videoalerts/" . $editing_username;
 $twitch_sound_alert_path = $soundalert_path . "/twitch";
 
 // Define user-specific storage limits
@@ -18,12 +22,8 @@ $tier = null;
 $is_beta_flag = false;
 $twitch_user_id = null;
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
-
-$editing_username = $_SESSION['editing_username'] ?? null;
-if ($editing_username) {
+// If no editing username (no channel selected), set safe defaults and skip IO/DB operations
+if (!empty($editing_username)) {
     // Try include DB connection; suppress warnings if not present.
     if (file_exists('/var/www/config/db_connect.php')) {
         @require_once '/var/www/config/db_connect.php';
@@ -48,6 +48,12 @@ if ($editing_username) {
             }
         }
     }
+} else {
+    // No channel selected — set safe defaults
+    $max_storage_size = $base_storage_size;
+    $current_storage_used = 0;
+    $storage_percentage = 0;
+    return;
 }
 
 // Fall back to session tier/beta values if DB didn't provide
@@ -135,7 +141,7 @@ function ensureDirectoryWritable($path) {
     return true;
 }
 
-// Create and fix permissions for user directories
+// Create and fix permissions for user directories (only when channel selected)
 ensureDirectoryWritable($walkon_path);
 ensureDirectoryWritable($soundalert_path);
 ensureDirectoryWritable($videoalert_path);
@@ -152,6 +158,7 @@ function calculateStorageUsed($directories) {
     return $size;
 }
 
+// Calculate storage used
 $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path]);
 $storage_percentage = ($max_storage_size > 0) ? ($current_storage_used / $max_storage_size) * 100 : 0;
 // No database access here, so just keep as is for MySQLi context
