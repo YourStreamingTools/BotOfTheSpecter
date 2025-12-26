@@ -75,6 +75,7 @@ bot/databse.txt
 bot/ytdl-cookies.txt
 help/search_index.json
 *.exe
+*test*
 bot/export_user_data.log
 
 # Ignoring the next update changelog file
