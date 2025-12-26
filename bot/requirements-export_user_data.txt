@@ -1,3 +1,5 @@
 aiomysql
 python-dotenv
 psutil
+boto3
+requests
