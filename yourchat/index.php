@@ -229,8 +229,13 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             let presenceEnabled = false;
             let presencePollHandle = null;
             let lastChatters = new Set();
-            // Presence polling interval (API-only) — check every 60s
+            // Presence polling interval (API-only) — default 60s (can be tuned)
             const PRESENCE_API_INTERVAL_MS = 60 * 1000; // API poll interval
+            // Poll/backoff state
+            const presenceBaseInterval = PRESENCE_API_INTERVAL_MS;
+            let presenceCurrentInterval = presenceBaseInterval;
+            let presenceBackoffAttempts = 0;
+            const PRESENCE_MAX_BACKOFF_MS = 5 * 60 * 1000; // cap backoff at 5 minutes
             function loadPresenceSetting() {
                 try {
                     if (window.localStorage) {
@@ -399,10 +404,12 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             }
             function stopPresenceAPI() {
                 if (presencePollHandle) {
-                    clearInterval(presencePollHandle);
+                    clearTimeout(presencePollHandle);
                     presencePollHandle = null;
                 }
                 lastChatters = new Set();
+                presenceBackoffAttempts = 0;
+                presenceCurrentInterval = presenceBaseInterval;
             }
             // Load filters from cookies
             function loadFilters() {
