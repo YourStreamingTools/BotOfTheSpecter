@@ -298,18 +298,30 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             }
             function showSystemMessage(text, kind) {
                 const overlay = document.getElementById('chat-overlay');
-                // Remove placeholder if present
-                if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
+                // Preserve fullscreen exit button if present
+                const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
+                // If only a placeholder is present (or empty), clear it but keep the exit button
+                if ((overlay.children.length === 1 && overlay.children[0].tagName === 'P') || overlay.children.length === 0) {
                     overlay.innerHTML = '';
+                    if (exitBtn) overlay.appendChild(exitBtn);
                 }
                 const div = document.createElement('div');
                 div.className = 'system-message';
                 if (kind) div.classList.add(kind);
                 div.textContent = text;
-                overlay.appendChild(div);
-                overlay.scrollTop = overlay.scrollHeight;
-                // Limit messages
-                if (overlay.children.length > 100) overlay.removeChild(overlay.firstChild);
+                // Insert system messages at the top (just after the exit button if present)
+                const ref = exitBtn ? exitBtn.nextSibling : overlay.firstChild;
+                overlay.insertBefore(div, ref);
+                // Do not force-scroll to bottom for system messages so they remain above chat history
+                // Enforce messages cap (count only message nodes)
+                const msgs = overlay.querySelectorAll('.chat-message, .reward-message, .system-message');
+                if (msgs.length > 100) {
+                    // remove oldest entries (those at the end when we're prepending)
+                    for (let i = msgs.length - 1; i >= 0 && overlay.querySelectorAll('.chat-message, .reward-message, .system-message').length > 100; i--) {
+                        const node = msgs[i];
+                        if (node && node.parentNode) node.parentNode.removeChild(node);
+                    }
+                }
             }
             // Message-based presence removed — presence is provided via Helix API polling
             function extractTextFromEvent(event) {
@@ -1059,10 +1071,18 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 }
                 if (successCount > 0) {
                     const overlay = document.getElementById('chat-overlay');
-                    // Only show "Connected to chat" if there are no messages loaded
-                    const hasMessages = overlay.querySelector('.chat-message, .reward-message');
+                    // Only show "Connected to chat" if there are no messages loaded (including system messages)
+                    const hasMessages = overlay.querySelector('.chat-message, .reward-message, .system-message');
                     if (!hasMessages) {
-                        overlay.innerHTML = '<p style="color: #999; text-align: center;">Connected to chat</p>';
+                        // preserve exit button if present
+                        const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
+                        overlay.innerHTML = '';
+                        if (exitBtn) overlay.appendChild(exitBtn);
+                        const p = document.createElement('p');
+                        p.style.color = '#999';
+                        p.style.textAlign = 'center';
+                        p.textContent = 'Connected to chat';
+                        overlay.appendChild(p);
                     }
                 } else {
                     updateStatus(false, 'Subscription Failed');
