@@ -152,6 +152,10 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             <div class="filters-header">
                 <h3>Filters</h3>
             </div>
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <button class="clear-history-btn" id="export-filters-btn">Export Filters</button>
+                <button class="clear-history-btn" id="open-import-filters-btn">Import Filters</button>
+            </div>
             <p class="settings-description">
                 Manage username and message filters separately. Each section can be collapsed.
             </p>
@@ -186,19 +190,24 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 </div>
             </div>
         </div>
+        <!-- Import modal (hidden) -->
+        <div id="import-filters-panel" style="display:none; margin-bottom:12px;" class="settings-panel">
+            <h3>Import Filters</h3>
+            <p class="settings-description">Paste legacy JSON array or object here to import filters. Examples: ["spam","baduser"] or {"usernames":["baduser"],"messages":["spam phrase"]}</p>
+            <textarea id="import-filters-text" style="width:100%; height:100px; padding:8px; border-radius:8px; border:1px solid #ddd;"></textarea>
+            <div style="margin-top:8px; display:flex; gap:8px;">
+                <button class="clear-history-btn" id="import-filters-btn">Import</button>
+                <button class="clear-history-btn" id="cancel-import-filters-btn">Cancel</button>
+            </div>
+        </div>
         <div class="chat-features-panel settings-panel">
             <h3>Chat Features</h3>
             <p class="settings-description" style="margin-bottom:8px;">Optional chat UI features you can enable.</p>
             <label class="feature-item">
                 <input type="checkbox" id="notify-joins-checkbox">&nbsp;Show join/leave notifications
             </label>
-            <div class="filters-header" style="margin-top:12px;">
-                <h4>Filtered Messages</h4>
-                <button id="toggle-filtered-msgs-btn" class="toggle-btn" data-target="filtered-msgs-body">Show</button>
-            </div>
-            <div id="filtered-msgs-body" class="filters-body" style="display:none; margin-top:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
-                    <div style="font-size:13px; color:#444;">Recently filtered messages (keeps last 50)</div>
+            <div id="filtered-msgs-body" class="filters-body" style="display:block; margin-top:8px;">
+                <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:8px;">
                     <div>
                         <button class="clear-history-btn" id="clear-filtered-msgs-btn">Clear</button>
                     </div>
@@ -703,6 +712,71 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             function clearFilteredMessages() {
                 recentFilteredMessages = [];
                 renderFilteredMessages();
+            }
+
+            // Import / Export helpers
+            function tryLoadLegacyCombined() {
+                try {
+                    let data = null;
+                    try { if (window.localStorage) data = localStorage.getItem('chat_filters'); } catch (e) {}
+                    if (!data) data = getCookie('chat_filters');
+                    if (!data) return null;
+                    return JSON.parse(data);
+                } catch (e) { return null; }
+            }
+            function importFiltersFromObject(obj) {
+                try {
+                    if (Array.isArray(obj)) {
+                        // treat as message filters
+                        saveFiltersMessages(obj);
+                    } else if (obj && typeof obj === 'object') {
+                        if (Array.isArray(obj.usernames)) saveFiltersUsernames(obj.usernames);
+                        if (Array.isArray(obj.messages)) saveFiltersMessages(obj.messages);
+                    }
+                    renderFilters();
+                    showSystemMessage('Filters imported', 'join');
+                } catch (e) { showSystemMessage('Import failed', 'leave'); }
+            }
+            async function exportFilters() {
+                try {
+                    const users = loadFiltersUsernames();
+                    const msgs = loadFiltersMessages();
+                    const out = {usernames: users, messages: msgs};
+                    const txt = JSON.stringify(out, null, 2);
+                    await navigator.clipboard.writeText(txt);
+                    showSystemMessage('Filters copied to clipboard', 'join');
+                } catch (e) { showSystemMessage('Export failed', 'leave'); }
+            }
+
+            // Wire import/export UI
+            function initImportExportUI() {
+                try {
+                    const exportBtn = document.getElementById('export-filters-btn');
+                    const openImportBtn = document.getElementById('open-import-filters-btn');
+                    const importPanel = document.getElementById('import-filters-panel');
+                    const importBtn = document.getElementById('import-filters-btn');
+                    const cancelBtn = document.getElementById('cancel-import-filters-btn');
+                    const importText = document.getElementById('import-filters-text');
+                    if (exportBtn) exportBtn.addEventListener('click', exportFilters);
+                    if (openImportBtn && importPanel) openImportBtn.addEventListener('click', () => { importPanel.style.display = 'block'; });
+                    if (cancelBtn && importPanel) cancelBtn.addEventListener('click', () => { importPanel.style.display = 'none'; importText.value = ''; });
+                    if (importBtn && importText) importBtn.addEventListener('click', () => {
+                        const raw = importText.value.trim();
+                        if (!raw) {
+                            // attempt automatic legacy load
+                            const legacy = tryLoadLegacyCombined();
+                            if (legacy) importFiltersFromObject(legacy);
+                            else showSystemMessage('No legacy filters found. Paste JSON into the box.', 'leave');
+                        } else {
+                            try {
+                                const parsed = JSON.parse(raw);
+                                importFiltersFromObject(parsed);
+                                importPanel.style.display = 'none';
+                                importText.value = '';
+                            } catch (e) { showSystemMessage('Invalid JSON', 'leave'); }
+                        }
+                    });
+                } catch (e) { console.warn('Import/Export init failed', e); }
             }
             function isMessageFiltered(event) {
                 const messageText = (event.message?.text || '').toString().toLowerCase();
@@ -1211,6 +1285,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             migrateOldFilters();
             renderFilters();
             initFilterCollapse();
+            initImportExportUI();
             renderFilteredMessages();
             fetchBadges(); // Fetch badge data
             connectWebSocket();
