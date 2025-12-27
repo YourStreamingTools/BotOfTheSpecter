@@ -254,6 +254,13 @@ body {
     max-height: 600px;
     overflow-y: auto;
     font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: calc(100% - 40px);
+    max-width: 1160px;
+    margin: 0 auto;
+    box-sizing: border-box;
 }
 
 .chat-placeholder {
@@ -283,6 +290,28 @@ body {
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.05);
     animation: slideIn 0.3s ease-out;
+}
+
+/* Center the colored message boxes and constrain their width */
+.chat-overlay .system-message,
+.chat-overlay .chat-message,
+.chat-overlay .reward-message,
+.chat-overlay .chat-placeholder {
+    width: 100%;
+    max-width: 100%;
+    align-self: stretch;
+}
+
+/* Keep the small placeholder centered visually */
+.chat-overlay .chat-placeholder { text-align: center; width: 100%; }
+
+/* On small screens let the overlay occupy available width */
+@media (max-width: 720px) {
+    .chat-overlay {
+        max-width: 100%;
+        margin: 0;
+        border-radius: 12px;
+    }
 }
 
 @keyframes slideIn {
