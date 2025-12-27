@@ -303,7 +303,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             badgeCache[set.set_id][version.id] = version.image_url_1x;
                         });
                     });
-                    console.log('Badges loaded:', Object.keys(badgeCache));
                 } catch (error) {
                     console.error('Error fetching badges:', error);
                 }
@@ -711,7 +710,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         setupKeepaliveTimeout(keepaliveTimeout);
                         break;
                     case 'session_keepalive':
-                        console.log('Keepalive received');
                         break;
                     case 'notification':
                             if (payload.subscription.type === 'channel.chat.message') {
@@ -833,8 +831,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 } catch (e) {
                     console.error('Error checking recent redemptions cache', e);
                 }
-                // Debug: Log badge data to console
-                console.log('Badge data:', event.badges);
                 const overlay = document.getElementById('chat-overlay');
                 // Clear placeholder text
                 if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
