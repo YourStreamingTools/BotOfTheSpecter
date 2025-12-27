@@ -207,6 +207,22 @@ body {
     text-align: center;
 }
 
+.system-message {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    color: #fff;
+    font-style: italic;
+    opacity: 0.95;
+}
+.system-message.join {
+    border-left: 4px solid #4ade80; /* green */
+}
+.system-message.leave {
+    border-left: 4px solid #fb7185; /* red */
+}
+
 .chat-message {
     margin-bottom: 12px;
     padding: 8px 12px;
