@@ -313,17 +313,19 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             'Client-Id': CONFIG.CLIENT_ID
                         }
                     });
-                    const data = await resp.json();
+                    const status = resp.status;
+                    const data = await resp.json().catch(() => null);
                     if (!resp.ok) {
-                        console.warn('Chatters API returned error:', data);
+                        console.warn('Chatters API returned error:', data || status);
                         // If the token is missing the moderator scope stop polling and inform the user
                         if (data && (data.status === 401 || data.status === 403) && typeof data.message === 'string' && data.message.toLowerCase().includes('missing scope')) {
-                            try {
-                                showSystemMessage('Presence API requires the moderator:read:chatters scope. Please re-authorize with that scope.', 'error');
-                            } catch (e) { console.warn('Unable to show system message', e); }
+                            try { showSystemMessage('Presence API requires the moderator:read:chatters scope. Please re-authorize with that scope.', 'error'); } catch (e) { console.warn('Unable to show system message', e); }
                             stopPresenceAPI();
+                            return { ok: false, status };
                         }
-                        return null;
+                        // If rate limited, return status so caller can back off
+                        if (status === 429) return { ok: false, status };
+                        return { ok: false, status, data };
                     }
                     const set = new Set();
                     if (data && Array.isArray(data.data)) {
@@ -332,44 +334,68 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             if (login) set.add(login);
                         });
                     }
-                    return set;
+                    return { ok: true, set };
                 } catch (err) {
                     console.error('Error fetching chatters from API:', err);
-                    return null;
+                    return { ok: false, status: 0, error: err };
                 }
             }
             function startPresenceAPI() {
                 if (presencePollHandle) return; // already running
                 // Do an initial fetch to establish baseline (no join messages on first load)
                 (async () => {
-                    const initial = await fetchChattersFromAPI();
-                    if (initial) {
-                        lastChatters = initial;
+                    const initialResp = await fetchChattersFromAPI();
+                    if (initialResp && initialResp.ok && initialResp.set) {
+                        lastChatters = initialResp.set;
                     } else {
                         lastChatters = new Set();
                     }
                 })();
 
-                // Periodic polling: compare current set with lastChatters and announce deltas
-                presencePollHandle = setInterval(async () => {
+                // Poll loop using setTimeout so we can adjust delay dynamically on backoff
+                const pollOnce = async () => {
                     if (!presenceEnabled) return;
-                    const current = await fetchChattersFromAPI();
-                    if (!current) return;
-                    // Joins: users present now but not in lastChatters
+                    const resp = await fetchChattersFromAPI();
+                    if (!resp) {
+                        // schedule next with current interval
+                        presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
+                        return;
+                    }
+                    if (!resp.ok) {
+                        if (resp.status === 429) {
+                            // rate limited — increase backoff
+                            presenceBackoffAttempts++;
+                            const next = Math.min(presenceBaseInterval * Math.pow(2, presenceBackoffAttempts), PRESENCE_MAX_BACKOFF_MS);
+                            presenceCurrentInterval = next + Math.floor(Math.random() * 1000); // add jitter
+                            showSystemMessage('Presence API rate-limited — backing off', 'error');
+                            presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
+                            return;
+                        }
+                        // other non-ok responses: schedule regular retry
+                        presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
+                        return;
+                    }
+                    // Successful response: reset backoff
+                    presenceBackoffAttempts = 0;
+                    presenceCurrentInterval = presenceBaseInterval;
+                    const current = resp.set;
+                    // Announce joins
                     current.forEach(login => {
                         if (!lastChatters.has(login)) {
                             showSystemMessage(`${login} joined the chat`, 'join');
                         }
                     });
-                    // Leaves: users that were in lastChatters but not in current
+                    // Announce leaves
                     lastChatters.forEach(login => {
                         if (!current.has(login)) {
                             showSystemMessage(`${login} left the chat`, 'leave');
                         }
                     });
-                    // Update baseline
                     lastChatters = current;
-                }, PRESENCE_API_INTERVAL_MS);
+                    presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
+                };
+                // Start first timed poll after base interval
+                presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
             }
             function stopPresenceAPI() {
                 if (presencePollHandle) {
