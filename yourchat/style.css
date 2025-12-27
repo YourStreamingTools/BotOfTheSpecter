@@ -352,8 +352,9 @@ body {
 /* On small screens let the overlay occupy available width */
 @media (max-width: 720px) {
     .chat-overlay {
-        max-width: 100%;
-        margin: 0;
+        width: calc(100% - 40px);
+        max-width: calc(100% - 40px);
+        margin: 0 auto;
         border-radius: 12px;
     }
 }
