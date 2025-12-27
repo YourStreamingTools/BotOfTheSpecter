@@ -223,6 +223,9 @@ body {
     margin-top: 10px;
 }
 
+/* Allow collapsing the filter-list element while keeping the input visible */
+.filter-list.collapsed { display: none; }
+
 .filter-tag {
     background: #9147ff;
     color: white;
@@ -421,6 +424,20 @@ body {
 .fullscreen-btn:hover {
     background: rgba(255, 255, 255, 0.3);
     border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Improve contrast for buttons inside settings panel (light background) */
+.settings-panel .clear-history-btn,
+.settings-panel .fullscreen-btn {
+    background: #f5f5f7;
+    color: #333;
+    border: 1px solid #e6e6e6;
+    box-shadow: none;
+}
+.settings-panel .clear-history-btn:hover,
+.settings-panel .fullscreen-btn:hover {
+    background: #eeeeee;
+    border-color: #dddddd;
 }
 
 .fullscreen-mode .header,
