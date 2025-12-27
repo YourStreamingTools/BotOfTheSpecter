@@ -109,6 +109,9 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <!-- Toastify for lightweight toasts -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 </head>
 <body>
     <div class="container">
@@ -728,10 +731,23 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     const out = {usernames: users, messages: msgs};
                     const txt = JSON.stringify(out, null, 2);
                     await navigator.clipboard.writeText(txt);
-                    showSystemMessage('Filters copied to clipboard', 'join');
-                } catch (e) { showSystemMessage('Export failed', 'leave'); }
+                    Toastify({
+                        text: 'Filters copied to clipboard',
+                        duration: 2500,
+                        gravity: 'bottom',
+                        position: 'right',
+                        style: { background: '#22c55e', color: '#fff' }
+                    }).showToast();
+                } catch (e) { 
+                    Toastify({
+                        text: 'Export failed',
+                        duration: 2500,
+                        gravity: 'bottom',
+                        position: 'right',
+                        style: { background: '#ff4d4f', color: '#fff' }
+                    }).showToast();
+                }
             }
-
             // Wire import/export UI
             function initImportExportUI() {
                 try {
