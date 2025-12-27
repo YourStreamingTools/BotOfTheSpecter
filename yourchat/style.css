@@ -150,6 +150,57 @@ body {
     color: #333;
 }
 
+/* Chat Features panel styling (reuses settings-panel visuals) */
+.chat-features-panel {
+    display: block;
+}
+.chat-features-panel .feature-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: #333;
+    padding: 8px 6px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.02);
+}
+.chat-features-panel .feature-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+/* Collapsible filters styles */
+.filters-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.toggle-btn {
+    background: rgba(0,0,0,0.05);
+    border: 1px solid rgba(0,0,0,0.06);
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.filters-body.collapsed {
+    display: none;
+}
+
+.sub-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.sub-panel h4 {
+    margin: 0;
+    font-size: 15px;
+}
+@media (max-width: 720px) {
+    .sub-filters { grid-template-columns: 1fr; }
+}
+
 .settings-description {
     margin-bottom: 10px;
     color: #666;

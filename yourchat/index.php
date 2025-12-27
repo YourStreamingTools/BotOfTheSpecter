@@ -149,21 +149,63 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             </div>
         </div>
         <div class="settings-panel">
-            <h3>Message Filters</h3>
+            <div class="filters-header">
+                <h3>Filters</h3>
+            </div>
             <p class="settings-description">
-                Add phrases or usernames to filter out from the chat overlay. Messages matching these filters will not be displayed.
+                Manage username and message filters separately. Each section can be collapsed.
             </p>
-            <input type="text" 
-                   id="filter-input" 
-                   class="filter-input" 
-                   placeholder="Enter phrase to filter (press Enter to add)"
-                   onkeypress="handleFilterInput(event)">
-            <div class="filter-list" id="filter-list"></div>
-                <div style="margin-top:12px; font-size:14px; color:#333; display:flex; flex-direction:column; gap:8px;">
-                    <label style="display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" id="notify-joins-checkbox"> Show join/leave notifications
-                    </label>
+            <div class="sub-filters">
+                <div class="sub-panel">
+                    <div class="filters-header">
+                        <h4>Username Filters</h4>
+                        <button id="toggle-filters-users-btn" class="toggle-btn" data-target="filters-users-body" aria-expanded="true">Hide</button>
+                    </div>
+                    <div id="filters-users-body" class="filters-body">
+                        <input type="text" 
+                               id="filter-user-input" 
+                               class="filter-input" 
+                               placeholder="Enter username to filter (press Enter to add)"
+                               onkeypress="handleFilterInput(event, 'user')">
+                        <div class="filter-list" id="filter-list-users"></div>
+                    </div>
                 </div>
+                <div class="sub-panel">
+                    <div class="filters-header">
+                        <h4>Message Filters</h4>
+                        <button id="toggle-filters-msg-btn" class="toggle-btn" data-target="filters-msg-body" aria-expanded="true">Hide</button>
+                    </div>
+                    <div id="filters-msg-body" class="filters-body">
+                        <input type="text" 
+                               id="filter-msg-input" 
+                               class="filter-input" 
+                               placeholder="Enter phrase to filter (press Enter to add)"
+                               onkeypress="handleFilterInput(event, 'message')">
+                        <div class="filter-list" id="filter-list-msg"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="chat-features-panel settings-panel">
+            <h3>Chat Features</h3>
+            <p class="settings-description" style="margin-bottom:8px;">Optional chat UI features you can enable.</p>
+            <label class="feature-item">
+                <input type="checkbox" id="notify-joins-checkbox">&nbsp;Show join/leave notifications
+            </label>
+            <div class="filters-header" style="margin-top:12px;">
+                <h4>Filtered Messages</h4>
+                <button id="toggle-filtered-msgs-btn" class="toggle-btn" data-target="filtered-msgs-body">Show</button>
+            </div>
+            <div id="filtered-msgs-body" class="filters-body" style="display:none; margin-top:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
+                    <div style="font-size:13px; color:#444;">Recently filtered messages (keeps last 50)</div>
+                    <div>
+                        <button class="clear-history-btn" id="clear-filtered-msgs-btn">Clear</button>
+                    </div>
+                </div>
+                <div id="filtered-messages-list" style="max-height:200px; overflow:auto; border-radius:8px; background:#fff; padding:8px;"></div>
+            </div>
+        </div>
         </div>
         <div class="chat-overlay" id="chat-overlay">
             <button class="fullscreen-exit-btn" id="fullscreen-exit" onclick="toggleFullscreen()" title="Exit Fullscreen (ESC)">
@@ -411,13 +453,56 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 presenceCurrentInterval = presenceBaseInterval;
             }
             // Load filters from cookies
-            function loadFilters() {
-                const filters = getCookie('chat_filters');
-                return filters ? JSON.parse(filters) : [];
+            // Filters storage: separate username and message filters
+            function loadFiltersUsernames() {
+                try {
+                    if (window.localStorage && localStorage.getItem('chat_filters_usernames')) {
+                        return JSON.parse(localStorage.getItem('chat_filters_usernames'));
+                    }
+                } catch (e) {}
+                const fromCookie = getCookie('chat_filters_usernames');
+                return fromCookie ? JSON.parse(fromCookie) : [];
             }
-            // Save filters to cookies
-            function saveFilters(filters) {
-                setCookie('chat_filters', JSON.stringify(filters), 365);
+            function saveFiltersUsernames(list) {
+                try { if (window.localStorage) localStorage.setItem('chat_filters_usernames', JSON.stringify(list)); } catch (e) {}
+                try { setCookie('chat_filters_usernames', JSON.stringify(list), 365); } catch (e) {}
+            }
+            function loadFiltersMessages() {
+                try {
+                    if (window.localStorage && localStorage.getItem('chat_filters_messages')) {
+                        return JSON.parse(localStorage.getItem('chat_filters_messages'));
+                    }
+                } catch (e) {}
+                const fromCookie = getCookie('chat_filters_messages');
+                return fromCookie ? JSON.parse(fromCookie) : [];
+            }
+            function saveFiltersMessages(list) {
+                try { if (window.localStorage) localStorage.setItem('chat_filters_messages', JSON.stringify(list)); } catch (e) {}
+                try { setCookie('chat_filters_messages', JSON.stringify(list), 365); } catch (e) {}
+            }
+            // Migrate legacy combined filters (cookie/localStorage key 'chat_filters')
+            function migrateOldFilters() {
+                try {
+                    // If new keys already have data, skip migration
+                    const haveUsers = (window.localStorage && localStorage.getItem('chat_filters_usernames')) || getCookie('chat_filters_usernames');
+                    const haveMsgs = (window.localStorage && localStorage.getItem('chat_filters_messages')) || getCookie('chat_filters_messages');
+                    if (haveUsers || haveMsgs) return;
+                    // Look for old combined storage
+                    let legacy = null;
+                    try { if (window.localStorage) legacy = localStorage.getItem('chat_filters'); } catch (e) {}
+                    if (!legacy) legacy = getCookie('chat_filters');
+                    if (!legacy) return;
+                    const parsed = JSON.parse(legacy);
+                    if (!Array.isArray(parsed) || parsed.length === 0) return;
+                    // Migrate into message filters by default (safer)
+                    saveFiltersMessages(parsed);
+                    // Remove legacy cookie to avoid repeated migration
+                    try { document.cookie = 'chat_filters=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/'; } catch (e) {}
+                    try { if (window.localStorage) localStorage.removeItem('chat_filters'); } catch (e) {}
+                    console.info('Migrated legacy chat_filters into message filters');
+                } catch (e) {
+                    console.warn('Failed to migrate old chat_filters', e);
+                }
             }
             // Save chat history to localStorage (fallback to cookies for older browsers)
             function saveChatHistory() {
@@ -513,48 +598,129 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             }
             // Filter management
             function renderFilters() {
-                const filters = loadFilters();
-                const filterList = document.getElementById('filter-list');
-                filterList.innerHTML = '';
-                filters.forEach(filter => {
+                // usernames
+                const users = loadFiltersUsernames();
+                const listUsers = document.getElementById('filter-list-users');
+                listUsers.innerHTML = '';
+                users.forEach(filter => {
                     const tag = document.createElement('div');
                     tag.className = 'filter-tag';
-                    tag.innerHTML = `
-                        ${filter}
-                        <button onclick="removeFilter('${filter.replace(/'/g, "\\'")}')">×</button>
-                    `;
-                    filterList.appendChild(tag);
+                    tag.innerHTML = `${filter} <button onclick="removeFilter('user','${filter.replace(/'/g, "\\'")}')">×</button>`;
+                    listUsers.appendChild(tag);
+                });
+                // messages
+                const msgs = loadFiltersMessages();
+                const listMsgs = document.getElementById('filter-list-msg');
+                listMsgs.innerHTML = '';
+                msgs.forEach(filter => {
+                    const tag = document.createElement('div');
+                    tag.className = 'filter-tag';
+                    tag.innerHTML = `${filter} <button onclick="removeFilter('message','${filter.replace(/'/g, "\\'")}')">×</button>`;
+                    listMsgs.appendChild(tag);
                 });
             }
-            function handleFilterInput(event) {
-                if (event.key === 'Enter') {
-                    const input = document.getElementById('filter-input');
-                    const value = input.value.trim();
-                    if (value) {
-                        const filters = loadFilters();
-                        if (!filters.includes(value)) {
-                            filters.push(value);
-                            saveFilters(filters);
-                            renderFilters();
-                        }
-                        input.value = '';
+            function handleFilterInput(event, type) {
+                if (event.key !== 'Enter') return;
+                const inputId = type === 'user' ? 'filter-user-input' : 'filter-msg-input';
+                const input = document.getElementById(inputId);
+                if (!input) return;
+                const value = input.value.trim();
+                if (!value) return;
+                if (type === 'user') {
+                    const filters = loadFiltersUsernames();
+                    if (!filters.includes(value)) {
+                        filters.push(value);
+                        saveFiltersUsernames(filters);
+                    }
+                } else {
+                    const filters = loadFiltersMessages();
+                    if (!filters.includes(value)) {
+                        filters.push(value);
+                        saveFiltersMessages(filters);
                     }
                 }
-            }
-            function removeFilter(filter) {
-                const filters = loadFilters().filter(f => f !== filter);
-                saveFilters(filters);
+                input.value = '';
                 renderFilters();
             }
-            function isMessageFiltered(event) {
-                const filters = loadFilters();
-                const messageText = event.message?.text?.toLowerCase() || '';
-                const username = event.chatter_user_login?.toLowerCase() || '';
-                return filters.some(filter => {
-                    const filterLower = filter.toLowerCase();
-                    // Check if message text contains the filter OR username matches exactly
-                    return messageText.includes(filterLower) || username === filterLower;
+            function removeFilter(type, filter) {
+                if (type === 'user') {
+                    const filters = loadFiltersUsernames().filter(f => f !== filter);
+                    saveFiltersUsernames(filters);
+                } else {
+                    const filters = loadFiltersMessages().filter(f => f !== filter);
+                    saveFiltersMessages(filters);
+                }
+                renderFilters();
+            }
+            // Collapsible filters UI for both username and message sections
+            function initFilterCollapse() {
+                try {
+                    const buttons = document.querySelectorAll('.toggle-btn[data-target]');
+                    buttons.forEach(btn => {
+                        const targetId = btn.getAttribute('data-target');
+                        const body = document.getElementById(targetId);
+                        if (!body) return;
+                        const key = `filters_collapsed_${targetId}`;
+                        const collapsed = window.localStorage && localStorage.getItem(key) === '1';
+                        if (collapsed) body.classList.add('collapsed');
+                        const updateBtn = () => {
+                            const isCollapsed = body.classList.contains('collapsed');
+                            btn.textContent = isCollapsed ? 'Show' : 'Hide';
+                            btn.setAttribute('aria-expanded', String(!isCollapsed));
+                        };
+                        btn.addEventListener('click', () => {
+                            body.classList.toggle('collapsed');
+                            try { if (window.localStorage) localStorage.setItem(key, body.classList.contains('collapsed') ? '1' : '0'); } catch (e) {}
+                            updateBtn();
+                        });
+                        updateBtn();
+                    });
+                } catch (e) { console.warn('Filter collapse init failed', e); }
+            }
+            // Recently filtered messages buffer
+            let recentFilteredMessages = [];
+            const FILTERED_MSGS_LIMIT = 50;
+            function addFilteredMessage(entry) {
+                try {
+                    // entry: {type, user, text, ts}
+                    recentFilteredMessages.unshift(entry);
+                    if (recentFilteredMessages.length > FILTERED_MSGS_LIMIT) recentFilteredMessages.pop();
+                    renderFilteredMessages();
+                } catch (e) { console.warn('Failed to add filtered message', e); }
+            }
+            function renderFilteredMessages() {
+                const container = document.getElementById('filtered-messages-list');
+                if (!container) return;
+                container.innerHTML = '';
+                recentFilteredMessages.forEach(e => {
+                    const div = document.createElement('div');
+                    div.style.padding = '6px';
+                    div.style.borderBottom = '1px solid rgba(0,0,0,0.06)';
+                    div.innerHTML = `<strong style="color:#222">${escapeHtml(e.user)}</strong>: <span style="color:#333">${escapeHtml(e.text)}</span> <span style="float:right; color:#888; font-size:12px">${new Date(e.ts).toLocaleTimeString()}</span>`;
+                    container.appendChild(div);
                 });
+            }
+            function clearFilteredMessages() {
+                recentFilteredMessages = [];
+                renderFilteredMessages();
+            }
+            function isMessageFiltered(event) {
+                const messageText = (event.message?.text || '').toString().toLowerCase();
+                const username = (event.chatter_user_login || '').toString().toLowerCase();
+                const displayName = (event.chatter_user_name || event.chatter_user_display_name || '').toString().toLowerCase();
+                // Check username filters (exact match)
+                const userFilters = loadFiltersUsernames();
+                if (userFilters.some(f => f.toLowerCase() === username || f.toLowerCase() === displayName)) {
+                    addFilteredMessage({type: 'username', user: event.chatter_user_name || username, text: messageText, ts: Date.now()});
+                    return true;
+                }
+                // Check message phrase filters (contains)
+                const msgFilters = loadFiltersMessages();
+                if (msgFilters.some(f => messageText.includes(f.toLowerCase()))) {
+                    addFilteredMessage({type: 'message', user: event.chatter_user_name || username, text: messageText, ts: Date.now()});
+                    return true;
+                }
+                return false;
             }
             // Token management
             function updateTokenTimer() {
@@ -1042,7 +1208,10 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             }
             // Initialize
             loadChatHistory();
+            migrateOldFilters();
             renderFilters();
+            initFilterCollapse();
+            renderFilteredMessages();
             fetchBadges(); // Fetch badge data
             connectWebSocket();
             updateTokenTimer();
@@ -1063,6 +1232,34 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             } catch (e) {
                 console.error('Error initializing presence setting', e);
             }
+            // Wire filtered messages UI buttons
+            try {
+                const toggleBtn = document.getElementById('toggle-filtered-msgs-btn');
+                const filteredBody = document.getElementById('filtered-msgs-body');
+                const clearBtn = document.getElementById('clear-filtered-msgs-btn');
+                if (toggleBtn && filteredBody) {
+                    toggleBtn.addEventListener('click', () => {
+                        const isHidden = filteredBody.style.display === 'none' || filteredBody.classList.contains('collapsed');
+                        if (isHidden) {
+                            filteredBody.style.display = 'block';
+                            toggleBtn.textContent = 'Hide';
+                            try { if (window.localStorage) localStorage.setItem('filtered_msgs_visible', '1'); } catch (e) {}
+                            renderFilteredMessages();
+                        } else {
+                            filteredBody.style.display = 'none';
+                            toggleBtn.textContent = 'Show';
+                            try { if (window.localStorage) localStorage.setItem('filtered_msgs_visible', '0'); } catch (e) {}
+                        }
+                    });
+                    // restore state
+                    try {
+                        const v = window.localStorage && localStorage.getItem('filtered_msgs_visible');
+                        if (v === '1') { filteredBody.style.display = 'block'; toggleBtn.textContent = 'Hide'; }
+                        else { filteredBody.style.display = 'none'; toggleBtn.textContent = 'Show'; }
+                    } catch (e) {}
+                }
+                if (clearBtn) clearBtn.addEventListener('click', clearFilteredMessages);
+            } catch (e) { console.warn('Filtered messages UI init failed', e); }
             // Update token timer every second
             setInterval(updateTokenTimer, 1000);
         </script>
