@@ -733,23 +733,32 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 const container = document.querySelector('.container');
                 const overlay = document.getElementById('chat-overlay');
                 const icon = document.getElementById('fullscreen-icon');
-                const exitBtn = document.getElementById('fullscreen-exit');
+                let exitBtn = document.getElementById('fullscreen-exit');
+                // If the exit button doesn't exist (was removed by history restore), create it
+                if (!exitBtn) {
+                    exitBtn = document.createElement('button');
+                    exitBtn.id = 'fullscreen-exit';
+                    exitBtn.className = 'fullscreen-exit-btn';
+                    exitBtn.onclick = toggleFullscreen;
+                    exitBtn.title = 'Exit Fullscreen (ESC)';
+                    exitBtn.textContent = '✕';
+                    // Append to overlay so CSS positioning applies
+                    overlay.appendChild(exitBtn);
+                }
                 if (container.classList.contains('fullscreen-mode')) {
                     // Exit fullscreen
                     container.classList.remove('fullscreen-mode');
                     overlay.classList.remove('fullscreen');
-                    if (exitBtn) {
-                        exitBtn.style.display = 'none';
-                    }
+                    exitBtn.style.display = 'none';
                     icon.textContent = '⛶';
                 } else {
                     // Enter fullscreen
                     container.classList.add('fullscreen-mode');
                     overlay.classList.add('fullscreen');
-                    if (exitBtn) {
-                        exitBtn.style.display = 'block';
-                        exitBtn.style.visibility = 'visible';
-                    }
+                    // Ensure the exit button is visible and on top
+                    exitBtn.style.display = 'flex';
+                    exitBtn.style.visibility = 'visible';
+                    exitBtn.style.zIndex = 10000;
                     icon.textContent = '⛶';
                     // Scroll to bottom when entering fullscreen
                     setTimeout(() => {
