@@ -273,27 +273,35 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             function saveFilters(filters) {
                 setCookie('chat_filters', JSON.stringify(filters), 365);
             }
-            // Save chat history to cookies
+            // Save chat history to localStorage (fallback to cookies for older browsers)
             function saveChatHistory() {
-                const overlay = document.getElementById('chat-overlay');
-                const messages = Array.from(overlay.children)
-                    .filter(child => child.classList.contains('chat-message') || child.classList.contains('reward-message'))
-                    .slice(-10) // Keep only last 10 messages
-                    .map(msg => btoa(unescape(encodeURIComponent(msg.outerHTML)))); // Base64 encode
                 try {
-                    setCookie('chat_history', JSON.stringify(messages), 1); // Expire after 1 day
+                    const overlay = document.getElementById('chat-overlay');
+                    const messages = Array.from(overlay.children)
+                        .filter(child => child.classList.contains('chat-message') || child.classList.contains('reward-message'))
+                        .slice(-10) // Keep only last 10 messages
+                        .map(msg => btoa(unescape(encodeURIComponent(msg.outerHTML)))); // Base64 encode
+                    if (window.localStorage) {
+                        localStorage.setItem('chat_history', JSON.stringify(messages));
+                    } else {
+                        setCookie('chat_history', JSON.stringify(messages), 1); // Expire after 1 day
+                    }
                 } catch (error) {
                     console.error('Error saving chat history:', error);
                 }
-            }            
+            }
             // Clear chat history
             function clearChatHistory() {
                 const overlay = document.getElementById('chat-overlay');
                 // Remove all messages from DOM
                 const messages = overlay.querySelectorAll('.chat-message, .automatic-reward, .custom-reward');
                 messages.forEach(msg => msg.remove());
-                // Clear cookie
-                setCookie('chat_history', JSON.stringify([]), 1);
+                // Clear storage
+                if (window.localStorage) {
+                    localStorage.removeItem('chat_history');
+                } else {
+                    setCookie('chat_history', JSON.stringify([]), 1);
+                }
                 // Add placeholder if chat is empty
                 if (overlay.children.length === 0 || (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn'))) {
                     const placeholder = document.createElement('p');
@@ -302,37 +310,41 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     overlay.appendChild(placeholder);
                 }
             }
-            // Load chat history from cookies
+            // Load chat history from localStorage (fallback to cookies)
             function loadChatHistory() {
-                const history = getCookie('chat_history');
-                if (history) {
-                    try {
+                let history = null;
+                try {
+                    if (window.localStorage && localStorage.getItem('chat_history')) {
+                        history = localStorage.getItem('chat_history');
+                    } else {
+                        history = getCookie('chat_history');
+                    }
+                    if (history) {
                         const messages = JSON.parse(history);
                         const overlay = document.getElementById('chat-overlay');
-                        // Clear placeholder
-                        const placeholder = overlay.querySelector('.chat-placeholder');
-                        if (placeholder) {
-                            overlay.innerHTML = '';
-                        }
+                        // Preserve any non-message nodes like fullscreen button
+                        const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
+                        // Clear placeholder but keep exit button
+                        overlay.innerHTML = '';
+                        if (exitBtn) overlay.appendChild(exitBtn);
                         // Restore messages
                         messages.forEach(encoded => {
                             try {
-                                // Try Base64 decode
                                 const html = decodeURIComponent(escape(atob(encoded)));
                                 const div = document.createElement('div');
                                 div.innerHTML = html;
                                 overlay.appendChild(div.firstChild);
                             } catch (decodeError) {
-                                // If Base64 fails, it might be old format - skip it
-                                console.log('Skipping old format message');
+                                console.log('Skipping invalid history entry');
                             }
                         });
                         overlay.scrollTop = overlay.scrollHeight;
-                    } catch (error) {
-                        console.error('Error loading chat history:', error);
-                        // Clear corrupted history
-                        document.cookie = 'chat_history=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
                     }
+                } catch (error) {
+                    console.error('Error loading chat history:', error);
+                    // Clear corrupted history
+                    if (window.localStorage) localStorage.removeItem('chat_history');
+                    document.cookie = 'chat_history=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
                 }
             }
             // Cookie helpers
