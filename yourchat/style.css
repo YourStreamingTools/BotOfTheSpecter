@@ -43,9 +43,12 @@ body {
     }
     .header h1 {
         font-size: 18px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        /* Allow the title to wrap on narrow viewports instead of truncating */
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        word-break: break-word;
+        margin: 0;
     }
     .header p {
         font-size: 12px;
@@ -65,6 +68,10 @@ body {
         padding: 6px 8px;
         font-size: 16px;
     }
+    /* Prevent action buttons from shrinking and allow title area to expand */
+    .compact-actions {
+        flex-shrink: 0;
+    }
 }
 
 @media (max-width: 420px) {
@@ -74,6 +81,19 @@ body {
         gap: 8px;
     }
     .status-bar { width: 100%; justify-content: space-between; }
+    /* Ensure header action buttons are properly padded and aligned on very small screens */
+    .compact-actions {
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 8px;
+        align-items: center;
+    }
+    .compact-actions button {
+        padding: 8px 12px;
+        font-size: 16px;
+    }
 }
 
 /* Tablet-specific adjustments to improve header button alignment */
