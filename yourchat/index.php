@@ -159,6 +159,16 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 <button class="clear-history-btn" id="export-filters-btn">Export Filters</button>
                 <button class="clear-history-btn" id="open-import-filters-btn">Import Filters</button>
             </div>
+            <!-- Inline import menu shown under Export/Import buttons -->
+            <div id="import-filters-panel-inline" style="display:none; margin-top:8px; max-width:720px;">
+                <div style="margin-bottom:8px;">
+                    <textarea id="import-filters-textarea" placeholder='Paste filters JSON here (e.g. {"usernames":[...],"messages":[...]}) or leave empty to attempt legacy import' rows="6" style="width:100%; box-sizing:border-box; resize:vertical; padding:8px; font-family:monospace;"></textarea>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button class="clear-history-btn" id="import-filters-btn">Import Messages</button>
+                    <button class="clear-history-btn" id="cancel-import-filters-btn">Cancel</button>
+                </div>
+            </div>
             <p class="settings-description">
                 Manage username and message filters separately. Each section can be collapsed.
             </p>
@@ -191,16 +201,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         <div class="filter-list" id="filter-list-msg"></div>
                     </div>
                 </div>
-            </div>
-        </div>
-        <!-- Import modal (hidden) -->
-        <div id="import-filters-panel" style="display:none; margin-bottom:12px;" class="settings-panel">
-            <h3>Import Filters</h3>
-            <p class="settings-description">Paste legacy JSON array or object here to import filters. Examples: ["spam","baduser"] or {"usernames":["baduser"],"messages":["spam phrase"]}</p>
-            <textarea id="import-filters-text" style="width:100%; height:100px; padding:8px; border-radius:8px; border:1px solid #ddd;"></textarea>
-            <div style="margin-top:8px; display:flex; gap:8px;">
-                <button class="clear-history-btn" id="import-filters-btn">Import</button>
-                <button class="clear-history-btn" id="cancel-import-filters-btn">Cancel</button>
             </div>
         </div>
         <div class="chat-features-panel settings-panel">
@@ -729,8 +729,8 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         if (Array.isArray(obj.messages)) saveFiltersMessages(obj.messages);
                     }
                     renderFilters();
-                    showSystemMessage('Filters imported', 'join');
-                } catch (e) { showSystemMessage('Import failed', 'leave'); }
+                    Toastify({ text: 'Filters imported', duration: 2500, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
+                } catch (e) { Toastify({ text: 'Import failed', duration: 2500, gravity: 'bottom', position: 'right', style: { background: '#ff4d4f', color: '#fff' } }).showToast(); }
             }
             async function exportFilters() {
                 try {
@@ -761,27 +761,36 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 try {
                     const exportBtn = document.getElementById('export-filters-btn');
                     const openImportBtn = document.getElementById('open-import-filters-btn');
-                    const importPanel = document.getElementById('import-filters-panel');
+                    const importPanel = document.getElementById('import-filters-panel-inline');
                     const importBtn = document.getElementById('import-filters-btn');
                     const cancelBtn = document.getElementById('cancel-import-filters-btn');
-                    const importText = document.getElementById('import-filters-text');
                     if (exportBtn) exportBtn.addEventListener('click', exportFilters);
                     if (openImportBtn && importPanel) openImportBtn.addEventListener('click', () => { importPanel.style.display = 'block'; });
-                    if (cancelBtn && importPanel) cancelBtn.addEventListener('click', () => { importPanel.style.display = 'none'; importText.value = ''; });
-                    if (importBtn && importText) importBtn.addEventListener('click', () => {
-                        const raw = importText.value.trim();
-                        if (!raw) {
-                            // attempt automatic legacy load
-                            const legacy = tryLoadLegacyCombined();
-                            if (legacy) importFiltersFromObject(legacy);
-                            else showSystemMessage('No legacy filters found. Paste JSON into the box.', 'leave');
-                        } else {
+                    if (cancelBtn && importPanel) cancelBtn.addEventListener('click', () => { importPanel.style.display = 'none'; });
+                    if (importBtn && importPanel) importBtn.addEventListener('click', () => {
+                        // Prefer user-provided JSON in the textarea. If empty, attempt legacy import.
+                        const textarea = importPanel.querySelector('#import-filters-textarea');
+                        const raw = textarea ? (textarea.value || '').trim() : '';
+                        if (raw) {
                             try {
                                 const parsed = JSON.parse(raw);
                                 importFiltersFromObject(parsed);
                                 importPanel.style.display = 'none';
-                                importText.value = '';
-                            } catch (e) { showSystemMessage('Invalid JSON', 'leave'); }
+                                // clear textarea after successful import
+                                if (textarea) textarea.value = '';
+                                return;
+                            } catch (err) {
+                                Toastify({ text: 'Invalid JSON: ' + (err.message || ''), duration: 3500, gravity: 'bottom', position: 'right', style: { background: '#ff4d4f', color: '#fff' } }).showToast();
+                                return;
+                            }
+                        }
+                        // No textarea content — try legacy storage locations
+                        const legacy = tryLoadLegacyCombined();
+                        if (legacy) {
+                            importFiltersFromObject(legacy);
+                            importPanel.style.display = 'none';
+                        } else {
+                            Toastify({ text: 'No legacy filters found', duration: 2500, gravity: 'bottom', position: 'right', style: { background: '#ff4d4f', color: '#fff' } }).showToast();
                         }
                     });
                 } catch (e) { console.warn('Import/Export init failed', e); }
