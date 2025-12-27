@@ -163,7 +163,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 <div class="sub-panel">
                     <div class="filters-header">
                         <h4>Username Filters</h4>
-                        <button id="toggle-filters-users-btn" class="toggle-btn" data-target="filters-users-body" aria-expanded="true">Hide</button>
+                        <button id="toggle-filters-users-btn" class="toggle-btn" data-target="filter-list-users" aria-expanded="true">Hide</button>
                     </div>
                     <div id="filters-users-body" class="filters-body">
                         <input type="text" 
@@ -177,7 +177,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 <div class="sub-panel">
                     <div class="filters-header">
                         <h4>Message Filters</h4>
-                        <button id="toggle-filters-msg-btn" class="toggle-btn" data-target="filters-msg-body" aria-expanded="true">Hide</button>
+                        <button id="toggle-filters-msg-btn" class="toggle-btn" data-target="filter-list-msg" aria-expanded="true">Hide</button>
                     </div>
                     <div id="filters-msg-body" class="filters-body">
                         <input type="text" 
@@ -280,6 +280,8 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             let presenceEnabled = false;
             let presencePollHandle = null;
             let lastChatters = new Set();
+            // Tracks consecutive missed polls for users before announcing they left
+            let presenceMissCounts = {};
             // Presence polling interval (API-only) — default 60s (can be tuned)
             const PRESENCE_API_INTERVAL_MS = 60 * 1000; // API poll interval
             // Poll/backoff state
@@ -434,19 +436,37 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     presenceBackoffAttempts = 0;
                     presenceCurrentInterval = presenceBaseInterval;
                     const current = resp.set;
-                    // Announce joins
+                    // Determine joins (present now but not previously) and leaves (previously present but not now)
+                    const joins = [];
                     current.forEach(login => {
-                        if (!lastChatters.has(login)) {
-                            showSystemMessage(`${login} joined the chat`, 'join');
-                        }
+                        if (!lastChatters.has(login)) joins.push(login);
                     });
-                    // Announce leaves
+                    const leavesCandidates = [];
                     lastChatters.forEach(login => {
-                        if (!current.has(login)) {
+                        if (!current.has(login)) leavesCandidates.push(login);
+                    });
+
+                    // Announce joins immediately and reset miss counts
+                    joins.forEach(login => {
+                        showSystemMessage(`${login} joined the chat`, 'join');
+                        presenceMissCounts[login] = 0;
+                        lastChatters.add(login);
+                    });
+
+                    // For leave candidates, increment miss counters and only announce after 2 consecutive misses
+                    leavesCandidates.forEach(login => {
+                        presenceMissCounts[login] = (presenceMissCounts[login] || 0) + 1;
+                        if (presenceMissCounts[login] >= 2) {
                             showSystemMessage(`${login} left the chat`, 'leave');
+                            lastChatters.delete(login);
+                            delete presenceMissCounts[login];
                         }
                     });
-                    lastChatters = current;
+
+                    // Reset miss counts for users we saw in this poll
+                    current.forEach(login => {
+                        presenceMissCounts[login] = 0;
+                    });
                     presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
                 };
                 // Start first timed poll after base interval
