@@ -323,6 +323,27 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     }
                 }
             }
+            // Update or insert a 'presence' system message (used for the "Currently in chat" summary)
+            function setPresenceMessage(text) {
+                const overlay = document.getElementById('chat-overlay');
+                const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
+                // Look for an existing presence/system join message
+                const existing = overlay.querySelector('.system-message.join');
+                if (existing) {
+                    existing.textContent = text;
+                    return;
+                }
+                // No existing presence message, prepend one
+                if ((overlay.children.length === 1 && overlay.children[0].tagName === 'P') || overlay.children.length === 0) {
+                    overlay.innerHTML = '';
+                    if (exitBtn) overlay.appendChild(exitBtn);
+                }
+                const div = document.createElement('div');
+                div.className = 'system-message join';
+                div.textContent = text;
+                const ref = exitBtn ? exitBtn.nextSibling : overlay.firstChild;
+                overlay.insertBefore(div, ref);
+            }
             // Message-based presence removed — presence is provided via Helix API polling
             function extractTextFromEvent(event) {
                 if (!event) return '';
@@ -413,13 +434,13 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         lastChatters = initialResp.set;
                         try {
                             const arr = Array.from(initialResp.set || []);
-                            if (arr.length === 0) {
-                                showSystemMessage('No chatters present right now', 'leave');
-                            } else {
-                                const preview = arr.slice(0, 20);
-                                const more = arr.length > preview.length ? ` and ${arr.length - preview.length} more` : '';
-                                showSystemMessage(`Currently in chat: ${preview.join(', ')}${more}`, 'join');
-                            }
+                                if (arr.length === 0) {
+                                    setPresenceMessage('No chatters present right now');
+                                } else {
+                                    const preview = arr.slice(0, 20);
+                                    const more = arr.length > preview.length ? ` and ${arr.length - preview.length} more` : '';
+                                    setPresenceMessage(`Currently in chat: ${preview.join(', ')}${more}`);
+                                }
                         } catch (e) {
                             console.warn('Unable to display initial chatters list', e);
                         }
