@@ -281,6 +281,8 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         .map(msg => btoa(unescape(encodeURIComponent(msg.outerHTML)))); // Base64 encode
                     if (window.localStorage) {
                         localStorage.setItem('chat_history', JSON.stringify(messages));
+                        // Keep cookie in sync as a fallback for other browsers
+                        try { setCookie('chat_history', JSON.stringify(messages), 1); } catch (e) { /* ignore */ }
                     } else {
                         setCookie('chat_history', JSON.stringify(messages), 1); // Expire after 1 day
                     }
@@ -296,10 +298,10 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 messages.forEach(msg => msg.remove());
                 // Clear storage
                 if (window.localStorage) {
-                    localStorage.removeItem('chat_history');
-                } else {
-                    setCookie('chat_history', JSON.stringify([]), 1);
+                    try { localStorage.removeItem('chat_history'); } catch (e) { /* ignore */ }
                 }
+                // Always remove cookie backup as well
+                try { document.cookie = 'chat_history=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/'; } catch (e) { /* ignore */ }
                 // Add placeholder if chat is empty
                 if (overlay.children.length === 0 || (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn'))) {
                     const placeholder = document.createElement('p');
