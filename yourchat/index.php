@@ -136,17 +136,15 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             <div class="status-bar">
                 <div class="status-indicator">
                     <span class="status-light" id="ws-status"></span>
-                    <span id="ws-status-text">Disconnected</span>
+                    <span id="ws-status-text" class="hide-on-narrow">Disconnected</span>
                 </div>
                 <div class="status-indicator">
-                    <span>Token: <span id="token-timer">--:--</span></span>
+                    <span class="token-wrapper"><span class="token-label hide-on-narrow">Token:</span> <span id="token-timer">--:--</span></span>
                 </div>
-                <button class="clear-history-btn" onclick="clearChatHistory()" title="Clear Chat History">
-                    🗑️
-                </button>
-                <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
-                    <span id="fullscreen-icon">⛶</span>
-                </button>
+                <div class="compact-actions" aria-hidden="false">
+                    <button class="clear-history-btn" onclick="clearChatHistory()" title="Clear Chat History" aria-label="Clear chat history">🗑️</button>
+                    <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen" aria-label="Toggle fullscreen"><span id="fullscreen-icon">⛶</span></button>
+                </div>
             </div>
         </div>
         <div class="settings-panel">
