@@ -206,14 +206,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             <label class="feature-item">
                 <input type="checkbox" id="notify-joins-checkbox">&nbsp;Show join/leave notifications
             </label>
-            <div id="filtered-msgs-body" class="filters-body" style="display:block; margin-top:8px;">
-                <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:8px;">
-                    <div>
-                        <button class="clear-history-btn" id="clear-filtered-msgs-btn">Clear</button>
-                    </div>
-                </div>
-                <div id="filtered-messages-list" style="max-height:200px; overflow:auto; border-radius:8px; background:#fff; padding:8px;"></div>
-            </div>
         </div>
         </div>
         <div class="chat-overlay" id="chat-overlay">
@@ -706,34 +698,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     });
                 } catch (e) { console.warn('Filter collapse init failed', e); }
             }
-            // Recently filtered messages buffer
-            let recentFilteredMessages = [];
-            const FILTERED_MSGS_LIMIT = 50;
-            function addFilteredMessage(entry) {
-                try {
-                    // entry: {type, user, text, ts}
-                    recentFilteredMessages.unshift(entry);
-                    if (recentFilteredMessages.length > FILTERED_MSGS_LIMIT) recentFilteredMessages.pop();
-                    renderFilteredMessages();
-                } catch (e) { console.warn('Failed to add filtered message', e); }
-            }
-            function renderFilteredMessages() {
-                const container = document.getElementById('filtered-messages-list');
-                if (!container) return;
-                container.innerHTML = '';
-                recentFilteredMessages.forEach(e => {
-                    const div = document.createElement('div');
-                    div.style.padding = '6px';
-                    div.style.borderBottom = '1px solid rgba(0,0,0,0.06)';
-                    div.innerHTML = `<strong style="color:#222">${escapeHtml(e.user)}</strong>: <span style="color:#333">${escapeHtml(e.text)}</span> <span style="float:right; color:#888; font-size:12px">${new Date(e.ts).toLocaleTimeString()}</span>`;
-                    container.appendChild(div);
-                });
-            }
-            function clearFilteredMessages() {
-                recentFilteredMessages = [];
-                renderFilteredMessages();
-            }
-
             // Import / Export helpers
             function tryLoadLegacyCombined() {
                 try {
@@ -805,13 +769,11 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 // Check username filters (exact match)
                 const userFilters = loadFiltersUsernames();
                 if (userFilters.some(f => f.toLowerCase() === username || f.toLowerCase() === displayName)) {
-                    addFilteredMessage({type: 'username', user: event.chatter_user_name || username, text: messageText, ts: Date.now()});
                     return true;
                 }
                 // Check message phrase filters (contains)
                 const msgFilters = loadFiltersMessages();
                 if (msgFilters.some(f => messageText.includes(f.toLowerCase()))) {
-                    addFilteredMessage({type: 'message', user: event.chatter_user_name || username, text: messageText, ts: Date.now()});
                     return true;
                 }
                 return false;
@@ -953,7 +915,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             async function handleWebSocketMessage(message) {
                 const metadata = message.metadata;
                 const payload = message.payload;
-                
                 if (!metadata || !metadata.message_type) {
                     return;
                 }
@@ -1306,7 +1267,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             renderFilters();
             initFilterCollapse();
             initImportExportUI();
-            renderFilteredMessages();
             fetchBadges(); // Fetch badge data
             connectWebSocket();
             updateTokenTimer();
@@ -1327,34 +1287,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             } catch (e) {
                 console.error('Error initializing presence setting', e);
             }
-            // Wire filtered messages UI buttons
-            try {
-                const toggleBtn = document.getElementById('toggle-filtered-msgs-btn');
-                const filteredBody = document.getElementById('filtered-msgs-body');
-                const clearBtn = document.getElementById('clear-filtered-msgs-btn');
-                if (toggleBtn && filteredBody) {
-                    toggleBtn.addEventListener('click', () => {
-                        const isHidden = filteredBody.style.display === 'none' || filteredBody.classList.contains('collapsed');
-                        if (isHidden) {
-                            filteredBody.style.display = 'block';
-                            toggleBtn.textContent = 'Hide';
-                            try { if (window.localStorage) localStorage.setItem('filtered_msgs_visible', '1'); } catch (e) {}
-                            renderFilteredMessages();
-                        } else {
-                            filteredBody.style.display = 'none';
-                            toggleBtn.textContent = 'Show';
-                            try { if (window.localStorage) localStorage.setItem('filtered_msgs_visible', '0'); } catch (e) {}
-                        }
-                    });
-                    // restore state
-                    try {
-                        const v = window.localStorage && localStorage.getItem('filtered_msgs_visible');
-                        if (v === '1') { filteredBody.style.display = 'block'; toggleBtn.textContent = 'Hide'; }
-                        else { filteredBody.style.display = 'none'; toggleBtn.textContent = 'Show'; }
-                    } catch (e) {}
-                }
-                if (clearBtn) clearBtn.addEventListener('click', clearFilteredMessages);
-            } catch (e) { console.warn('Filtered messages UI init failed', e); }
             // Update token timer every second
             setInterval(updateTokenTimer, 1000);
         </script>
