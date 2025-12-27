@@ -188,6 +188,51 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             let keepaliveTimeoutHandle = null;
             let keepaliveTimeoutSeconds = 10; // Default, will be updated from session
             let badgeCache = {}; // Cache for badge URLs
+            // Recent redemptions cache to deduplicate matching chat messages
+            let recentRedemptions = [];
+            function extractTextFromEvent(event) {
+                if (!event) return '';
+                // Custom reward user input
+                if (event.user_input) return String(event.user_input).trim();
+                // Message object (chat or automatic reward)
+                if (event.message) {
+                    if (event.message.fragments && Array.isArray(event.message.fragments)) {
+                        return event.message.fragments.map(f => f.text || '').join('').trim();
+                    }
+                    return String(event.message.text || '').trim();
+                }
+                return '';
+            }
+            function addRecentRedemption(user_login, user_name, text) {
+                const entry = {
+                    user_login: user_login ? String(user_login).toLowerCase() : null,
+                    user_name: user_name ? String(user_name).toLowerCase() : null,
+                    text: text ? String(text).trim() : '',
+                    ts: Date.now()
+                };
+                recentRedemptions.push(entry);
+                // Keep cache small: remove entries older than 10s
+                const cutoff = Date.now() - 10000;
+                recentRedemptions = recentRedemptions.filter(e => e.ts >= cutoff);
+            }
+            function consumeMatchingRedemption(chatter_login, chatter_name, text) {
+                if (!text) return false;
+                const t = String(text).trim();
+                const login = chatter_login ? String(chatter_login).toLowerCase() : null;
+                const name = chatter_name ? String(chatter_name).toLowerCase() : null;
+                const now = Date.now();
+                // Consider matches within last 5 seconds
+                for (let i = 0; i < recentRedemptions.length; i++) {
+                    const e = recentRedemptions[i];
+                    if (now - e.ts > 5000) continue;
+                    if (e.text === t && ((login && e.user_login === login) || (name && e.user_name === name))) {
+                        // remove this entry and return true
+                        recentRedemptions.splice(i, 1);
+                        return true;
+                    }
+                }
+                return false;
+            }
             // Fetch badge data from Twitch API
             async function fetchBadges() {
                 try {
@@ -602,6 +647,16 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 if (isMessageFiltered(event)) {
                     return;
                 }
+                // Deduplicate: if a recent redemption from same user with identical text exists, skip showing this chat message
+                const chatTextForMatch = extractTextFromEvent(event) || (event.message && event.message.text) || '';
+                try {
+                    if (consumeMatchingRedemption(event.chatter_user_login || event.chatter_user_id || null, event.chatter_user_name || event.chatter_user_display_name || null, chatTextForMatch)) {
+                        console.log('Suppressed chat message because a matching recent redemption was recorded:', chatTextForMatch);
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Error checking recent redemptions cache', e);
+                }
                 // Debug: Log badge data to console
                 console.log('Badge data:', event.badges);
                 const overlay = document.getElementById('chat-overlay');
@@ -721,6 +776,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 const rewardName = rewardTypeNames[event.reward.type] || event.reward.type;
                 // Build message HTML with emotes if present
                 let messageHtml = '';
+                const redemptionText = extractTextFromEvent(event);
                 if (event.message && event.message.text) {
                     if (event.message.fragments) {
                         event.message.fragments.forEach(fragment => {
@@ -733,6 +789,12 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     } else {
                         messageHtml = escapeHtml(event.message.text);
                     }
+                }
+                // Record this redemption so a near-simultaneous chat message from the same user with the same text can be ignored
+                try {
+                    addRecentRedemption(event.user_login || event.user_id || null, event.user_name || null, redemptionText);
+                } catch (e) {
+                    console.error('Error adding redemption to cache', e);
                 }
                 rewardDiv.innerHTML = `
                     <div class="reward-header">
@@ -768,6 +830,13 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     imageHtml = `<img src="${event.reward.image.url_1x}" class="reward-image" alt="${escapeHtml(event.reward.title)}">`;
                 } else if (event.reward && event.reward.default_image && event.reward.default_image.url_1x) {
                     imageHtml = `<img src="${event.reward.default_image.url_1x}" class="reward-image" alt="${escapeHtml(event.reward.title)}">`;
+                }
+                // Record this redemption in cache so matching chat messages can be suppressed
+                const redemptionText = extractTextFromEvent(event) || (event.user_input ? String(event.user_input).trim() : '');
+                try {
+                    addRecentRedemption(event.user_login || event.user_id || null, event.user_name || null, redemptionText);
+                } catch (e) {
+                    console.error('Error adding custom redemption to cache', e);
                 }
                 rewardDiv.innerHTML = `
                     <div class="reward-header">
