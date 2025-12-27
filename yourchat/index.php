@@ -399,11 +399,22 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     const initialResp = await fetchChattersFromAPI();
                     if (initialResp && initialResp.ok && initialResp.set) {
                         lastChatters = initialResp.set;
+                        try {
+                            const arr = Array.from(initialResp.set || []);
+                            if (arr.length === 0) {
+                                showSystemMessage('No chatters present right now', 'leave');
+                            } else {
+                                const preview = arr.slice(0, 20);
+                                const more = arr.length > preview.length ? ` and ${arr.length - preview.length} more` : '';
+                                showSystemMessage(`Currently in chat: ${preview.join(', ')}${more}`, 'join');
+                            }
+                        } catch (e) {
+                            console.warn('Unable to display initial chatters list', e);
+                        }
                     } else {
                         lastChatters = new Set();
                     }
                 })();
-
                 // Poll loop using setTimeout so we can adjust delay dynamically on backoff
                 const pollOnce = async () => {
                     if (!presenceEnabled) return;
@@ -440,14 +451,12 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     lastChatters.forEach(login => {
                         if (!current.has(login)) leavesCandidates.push(login);
                     });
-
                     // Announce joins immediately and reset miss counts
                     joins.forEach(login => {
                         showSystemMessage(`${login} joined the chat`, 'join');
                         presenceMissCounts[login] = 0;
                         lastChatters.add(login);
                     });
-
                     // For leave candidates, increment miss counters and only announce after 2 consecutive misses
                     leavesCandidates.forEach(login => {
                         presenceMissCounts[login] = (presenceMissCounts[login] || 0) + 1;
@@ -457,7 +466,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             delete presenceMissCounts[login];
                         }
                     });
-
                     // Reset miss counts for users we saw in this poll
                     current.forEach(login => {
                         presenceMissCounts[login] = 0;
