@@ -117,7 +117,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             <h1>YourChat - Custom Twitch Chat Overlay</h1>
             <p class="login-subtitle">Login with Twitch to customize your chat overlay</p>
             <?php
-            $scopes = 'user:read:chat channel:read:redemptions';
+            $scopes = 'user:read:chat channel:read:redemptions moderator:read:chatters';
             $authUrl = 'https://id.twitch.tv/oauth2/authorize?' . http_build_query([
                 'client_id' => $clientID,
                 'redirect_uri' => 'https://yourchat.botofthespecter.com/index.php',
@@ -158,6 +158,11 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                    placeholder="Enter phrase to filter (press Enter to add)"
                    onkeypress="handleFilterInput(event)">
             <div class="filter-list" id="filter-list"></div>
+                <div style="margin-top:12px; font-size:14px; color:#333; display:flex; flex-direction:column; gap:8px;">
+                    <label style="display:flex; align-items:center; gap:8px;">
+                        <input type="checkbox" id="notify-joins-checkbox"> Show join/leave notifications
+                    </label>
+                </div>
         </div>
         <div class="chat-overlay" id="chat-overlay">
             <button class="fullscreen-exit-btn" id="fullscreen-exit" onclick="toggleFullscreen()" title="Exit Fullscreen (ESC)">
@@ -188,6 +193,41 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             let badgeCache = {}; // Cache for badge URLs
             // Recent redemptions cache to deduplicate matching chat messages
             let recentRedemptions = [];
+            // Presence settings (API-only)
+            const PRESENCE_JOIN_KEY = 'notify_join_leave';
+            let presenceEnabled = false;
+            let presencePollHandle = null;
+            let lastChatters = new Set();
+            // Presence polling interval (API-only)
+            const PRESENCE_API_INTERVAL_MS = 15 * 1000; // API poll interval
+            function loadPresenceSetting() {
+                try {
+                    if (window.localStorage) {
+                        presenceEnabled = localStorage.getItem(PRESENCE_JOIN_KEY) === '1';
+                        return presenceEnabled;
+                    }
+                } catch (e) {}
+                return false;
+            }
+            function savePresenceSetting(enabled) {
+                try { if (window.localStorage) localStorage.setItem(PRESENCE_JOIN_KEY, enabled ? '1' : '0'); } catch (e) {}
+            }
+            function showSystemMessage(text, kind) {
+                const overlay = document.getElementById('chat-overlay');
+                // Remove placeholder if present
+                if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
+                    overlay.innerHTML = '';
+                }
+                const div = document.createElement('div');
+                div.className = 'system-message';
+                if (kind) div.classList.add(kind);
+                div.textContent = text;
+                overlay.appendChild(div);
+                overlay.scrollTop = overlay.scrollHeight;
+                // Limit messages
+                if (overlay.children.length > 100) overlay.removeChild(overlay.firstChild);
+            }
+            // Message-based presence removed — presence is provided via Helix API polling
             function extractTextFromEvent(event) {
                 if (!event) return '';
                 // Custom reward user input
@@ -200,36 +240,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     return String(event.message.text || '').trim();
                 }
                 return '';
-            }
-            function addRecentRedemption(user_login, user_name, text) {
-                const entry = {
-                    user_login: user_login ? String(user_login).toLowerCase() : null,
-                    user_name: user_name ? String(user_name).toLowerCase() : null,
-                    text: text ? String(text).trim() : '',
-                    ts: Date.now()
-                };
-                recentRedemptions.push(entry);
-                // Keep cache small: remove entries older than 10s
-                const cutoff = Date.now() - 10000;
-                recentRedemptions = recentRedemptions.filter(e => e.ts >= cutoff);
-            }
-            function consumeMatchingRedemption(chatter_login, chatter_name, text) {
-                if (!text) return false;
-                const t = String(text).trim();
-                const login = chatter_login ? String(chatter_login).toLowerCase() : null;
-                const name = chatter_name ? String(chatter_name).toLowerCase() : null;
-                const now = Date.now();
-                // Consider matches within last 5 seconds
-                for (let i = 0; i < recentRedemptions.length; i++) {
-                    const e = recentRedemptions[i];
-                    if (now - e.ts > 5000) continue;
-                    if (e.text === t && ((login && e.user_login === login) || (name && e.user_name === name))) {
-                        // remove this entry and return true
-                        recentRedemptions.splice(i, 1);
-                        return true;
-                    }
-                }
-                return false;
             }
             // Fetch badge data from Twitch API
             async function fetchBadges() {
@@ -261,6 +271,78 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 } catch (error) {
                     console.error('Error fetching badges:', error);
                 }
+            }
+            // Fetch current chatters using Helix API
+            async function fetchChattersFromAPI() {
+                try {
+                    const url = `https://api.twitch.tv/helix/chat/chatters?broadcaster_id=${CONFIG.USER_ID}&moderator_id=${CONFIG.USER_ID}`;
+                    const resp = await fetch(url, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Client-Id': CONFIG.CLIENT_ID
+                        }
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) {
+                        console.warn('Chatters API returned error:', data);
+                        // If the token is missing the moderator scope stop polling and inform the user
+                        if (data && (data.status === 401 || data.status === 403) && typeof data.message === 'string' && data.message.toLowerCase().includes('missing scope')) {
+                            try {
+                                showSystemMessage('Presence API requires the moderator:read:chatters scope. Please re-authorize with that scope.', 'error');
+                            } catch (e) { console.warn('Unable to show system message', e); }
+                            stopPresenceAPI();
+                        }
+                        return null;
+                    }
+                    const set = new Set();
+                    if (data && Array.isArray(data.data)) {
+                        data.data.forEach(u => {
+                            const login = (u.user_login || u.user_name || u.user_id || '').toString().toLowerCase();
+                            if (login) set.add(login);
+                        });
+                    }
+                    return set;
+                } catch (err) {
+                    console.error('Error fetching chatters from API:', err);
+                    return null;
+                }
+            }
+            function startPresenceAPI() {
+                if (presencePollHandle) return; // already running
+                // Do an initial fetch to establish baseline
+                (async () => {
+                    const initial = await fetchChattersFromAPI();
+                    if (initial) {
+                        lastChatters = initial;
+                    } else {
+                        lastChatters = new Set();
+                    }
+                })();
+                presencePollHandle = setInterval(async () => {
+                    if (!presenceEnabled) return;
+                    const current = await fetchChattersFromAPI();
+                    if (!current) return;
+                    // Joins: in current not in last
+                    current.forEach(login => {
+                        if (!lastChatters.has(login)) {
+                            showSystemMessage(`${login} joined the chat`, 'join');
+                        }
+                    });
+                    // Leaves: in last not in current
+                    lastChatters.forEach(login => {
+                        if (!current.has(login)) {
+                            showSystemMessage(`${login} left the chat`, 'leave');
+                        }
+                    });
+                    lastChatters = current;
+                }, PRESENCE_API_INTERVAL_MS);
+            }
+            function stopPresenceAPI() {
+                if (presencePollHandle) {
+                    clearInterval(presencePollHandle);
+                    presencePollHandle = null;
+                }
+                lastChatters = new Set();
             }
             // Load filters from cookies
             function loadFilters() {
@@ -551,8 +633,8 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         console.log('Keepalive received');
                         break;
                     case 'notification':
-                        if (payload.subscription.type === 'channel.chat.message') {
-                            handleChatMessage(payload.event);
+                            if (payload.subscription.type === 'channel.chat.message') {
+                                handleChatMessage(payload.event);
                         } else if (payload.subscription.type === 'channel.channel_points_automatic_reward_redemption.add') {
                             handleAutomaticReward(payload.event);
                         } else if (payload.subscription.type === 'channel.channel_points_custom_reward_redemption.add') {
@@ -659,6 +741,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 if (isMessageFiltered(event)) {
                     return;
                 }
+                // Presence is handled via Twitch Helix API (no message-based presence)
                 // Deduplicate: if a recent redemption from same user with identical text exists, skip showing this chat message
                 const chatTextForMatch = extractTextFromEvent(event) || (event.message && event.message.text) || '';
                 try {
@@ -886,6 +969,23 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             fetchBadges(); // Fetch badge data
             connectWebSocket();
             updateTokenTimer();
+            // Initialize presence checkbox and state (API-only)
+            try {
+                const checkbox = document.getElementById('notify-joins-checkbox');
+                presenceEnabled = loadPresenceSetting();
+                if (checkbox) {
+                    checkbox.checked = presenceEnabled;
+                    checkbox.addEventListener('change', (e) => {
+                        presenceEnabled = !!e.target.checked;
+                        savePresenceSetting(presenceEnabled);
+                        if (presenceEnabled) startPresenceAPI(); else stopPresenceAPI();
+                    });
+                }
+                // Start polling immediately if setting enabled
+                if (presenceEnabled) startPresenceAPI();
+            } catch (e) {
+                console.error('Error initializing presence setting', e);
+            }
             // Update token timer every second
             setInterval(updateTokenTimer, 1000);
         </script>
