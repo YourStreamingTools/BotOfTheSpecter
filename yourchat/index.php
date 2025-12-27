@@ -144,6 +144,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 <div class="compact-actions" aria-hidden="false">
                     <button class="clear-history-btn" onclick="clearChatHistory()" title="Clear Chat History" aria-label="Clear chat history">🗑️</button>
                     <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen" aria-label="Toggle fullscreen"><span id="fullscreen-icon">⛶</span></button>
+                    <button class="clear-history-btn" onclick="logoutUser()" title="Logout" aria-label="Logout">Logout</button>
                 </div>
             </div>
         </div>
@@ -193,13 +194,43 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             let badgeCache = {}; // Cache for badge URLs
             // Recent redemptions cache to deduplicate matching chat messages
             let recentRedemptions = [];
+            function addRecentRedemption(user_login, user_name, text) {
+                const entry = {
+                    user_login: user_login ? String(user_login).toLowerCase() : null,
+                    user_name: user_name ? String(user_name).toLowerCase() : null,
+                    text: text ? String(text).trim() : '',
+                    ts: Date.now()
+                };
+                recentRedemptions.push(entry);
+                // Trim entries older than 10s
+                const cutoff = Date.now() - 10000;
+                recentRedemptions = recentRedemptions.filter(e => e.ts >= cutoff);
+            }
+            function consumeMatchingRedemption(chatter_login, chatter_name, text) {
+                if (!text) return false;
+                const t = String(text).trim();
+                const login = chatter_login ? String(chatter_login).toLowerCase() : null;
+                const name = chatter_name ? String(chatter_name).toLowerCase() : null;
+                const now = Date.now();
+                // Consider matches within last 5 seconds
+                for (let i = 0; i < recentRedemptions.length; i++) {
+                    const e = recentRedemptions[i];
+                    if (now - e.ts > 5000) continue;
+                    if (e.text === t && ((login && e.user_login === login) || (name && e.user_name === name))) {
+                        // remove this entry and return true
+                        recentRedemptions.splice(i, 1);
+                        return true;
+                    }
+                }
+                return false;
+            }
             // Presence settings (API-only)
             const PRESENCE_JOIN_KEY = 'notify_join_leave';
             let presenceEnabled = false;
             let presencePollHandle = null;
             let lastChatters = new Set();
-            // Presence polling interval (API-only)
-            const PRESENCE_API_INTERVAL_MS = 15 * 1000; // API poll interval
+            // Presence polling interval (API-only) — check every 60s
+            const PRESENCE_API_INTERVAL_MS = 60 * 1000; // API poll interval
             function loadPresenceSetting() {
                 try {
                     if (window.localStorage) {
@@ -309,7 +340,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             }
             function startPresenceAPI() {
                 if (presencePollHandle) return; // already running
-                // Do an initial fetch to establish baseline
+                // Do an initial fetch to establish baseline (no join messages on first load)
                 (async () => {
                     const initial = await fetchChattersFromAPI();
                     if (initial) {
@@ -318,22 +349,25 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         lastChatters = new Set();
                     }
                 })();
+
+                // Periodic polling: compare current set with lastChatters and announce deltas
                 presencePollHandle = setInterval(async () => {
                     if (!presenceEnabled) return;
                     const current = await fetchChattersFromAPI();
                     if (!current) return;
-                    // Joins: in current not in last
+                    // Joins: users present now but not in lastChatters
                     current.forEach(login => {
                         if (!lastChatters.has(login)) {
                             showSystemMessage(`${login} joined the chat`, 'join');
                         }
                     });
-                    // Leaves: in last not in current
+                    // Leaves: users that were in lastChatters but not in current
                     lastChatters.forEach(login => {
                         if (!current.has(login)) {
                             showSystemMessage(`${login} left the chat`, 'leave');
                         }
                     });
+                    // Update baseline
                     lastChatters = current;
                 }, PRESENCE_API_INTERVAL_MS);
             }
@@ -565,6 +599,20 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         <p style="margin-top: 10px; font-size: 14px;">Refresh the page to start a new session.</p>
                     </div>
                 `;
+            }
+            // Logout action: destroy PHP session and reload to show login button
+            async function logoutUser() {
+                try {
+                    if (ws) {
+                        ws.close();
+                        ws = null;
+                    }
+                    await fetch('?action=expire_session');
+                } catch (err) {
+                    console.error('Logout error:', err);
+                }
+                // Reload to show login view
+                window.location.reload();
             }
             // WebSocket management
             function updateStatus(connected, text) {
