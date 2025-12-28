@@ -944,6 +944,16 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     statusLight.classList.remove('connected');
                 }
                 statusText.textContent = text;
+                // Also update the chat overlay placeholder text if present
+                try {
+                    const overlay = document.getElementById('chat-overlay');
+                    if (overlay) {
+                        const ph = overlay.querySelector('.chat-placeholder');
+                        if (ph) ph.textContent = text;
+                    }
+                } catch (e) {
+                    console.warn('Failed to update chat placeholder status text', e);
+                }
             }
             function connectWebSocket() {
                 if (ws) {
