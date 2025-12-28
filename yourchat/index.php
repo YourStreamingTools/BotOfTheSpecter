@@ -1214,12 +1214,38 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     // Exit fullscreen
                     container.classList.remove('fullscreen-mode');
                     overlay.classList.remove('fullscreen');
+                    // restore overlay to original parent if we moved it
+                    try {
+                        if (window.__overlayOriginalParent) {
+                            const origParent = window.__overlayOriginalParent;
+                            const origNext = window.__overlayOriginalNextSibling;
+                            if (origNext && origNext.parentNode === origParent) {
+                                origParent.insertBefore(overlay, origNext);
+                            } else {
+                                origParent.appendChild(overlay);
+                            }
+                            delete window.__overlayOriginalParent;
+                            delete window.__overlayOriginalNextSibling;
+                        }
+                    } catch (e) { console.warn('Failed to restore overlay parent', e); }
+                    // remove global fullscreen lock
+                    try { document.documentElement.classList.remove('overlay-fullscreen'); } catch(e) {}
                     exitBtn.style.display = 'none';
                     icon.textContent = '⛶';
                 } else {
                     // Enter fullscreen
                     container.classList.add('fullscreen-mode');
                     overlay.classList.add('fullscreen');
+                    // move overlay to body so fixed positioning covers full viewport
+                    try {
+                        if (!window.__overlayOriginalParent) {
+                            window.__overlayOriginalParent = overlay.parentNode;
+                            window.__overlayOriginalNextSibling = overlay.nextSibling;
+                            document.body.appendChild(overlay);
+                        }
+                    } catch (e) { console.warn('Failed to move overlay to body for fullscreen', e); }
+                    // add global fullscreen lock (prevent body scrolling, ensure full coverage)
+                    try { document.documentElement.classList.add('overlay-fullscreen'); } catch(e) {}
                     // Ensure the exit button is visible and on top
                     exitBtn.style.display = 'flex';
                     exitBtn.style.visibility = 'visible';
