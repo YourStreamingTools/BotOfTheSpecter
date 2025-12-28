@@ -369,6 +369,12 @@ body {
     font-style: normal;
     font-weight: 500;
 }
+.system-message.bits {
+    border-left: 4px solid #9146ff; /* Twitch purple */
+    background: rgba(145, 70, 255, 0.1);
+    font-style: normal;
+    font-weight: 500;
+}
 
 .chat-message {
     margin-bottom: 12px;
