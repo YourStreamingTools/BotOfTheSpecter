@@ -120,7 +120,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             <h1>YourChat - Custom Twitch Chat Overlay</h1>
             <p class="login-subtitle">Login with Twitch to customize your chat overlay</p>
             <?php
-            $scopes = 'user:read:chat channel:read:redemptions moderator:read:chatters';
+            $scopes = 'user:read:chat channel:read:redemptions moderator:read:chatters bits:read';
             $authUrl = 'https://id.twitch.tv/oauth2/authorize?' . http_build_query([
                 'client_id' => $clientID,
                 'redirect_uri' => 'https://yourchat.botofthespecter.com/index.php',
@@ -1066,6 +1066,8 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             handleCustomReward(payload.event);
                         } else if (payload.subscription.type === 'channel.raid') {
                             handleRaidEvent(payload.event);
+                        } else if (payload.subscription.type === 'channel.bits.use') {
+                            handleBitsEvent(payload.event);
                         }
                         break;
                     case 'session_reconnect':
@@ -1125,6 +1127,13 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         version: '1',
                         condition: {
                             to_broadcaster_user_id: CONFIG.USER_ID
+                        }
+                    },
+                    {
+                        type: 'channel.bits.use',
+                        version: '1',
+                        condition: {
+                            broadcaster_user_id: CONFIG.USER_ID
                         }
                     }
                 ];
@@ -1460,6 +1469,68 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 // Save chat history
                 saveChatHistory();
             }
+            
+            // Bits event handling
+            function handleBitsEvent(event) {
+                const overlay = document.getElementById('chat-overlay');
+                // Clear placeholder text
+                if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
+                    overlay.innerHTML = '';
+                }
+                
+                const bitsDiv = document.createElement('div');
+                bitsDiv.className = 'system-message bits';
+                
+                let bitsText = '';
+                let emoji = '';
+                
+                switch(event.type) {
+                    case 'cheer':
+                        emoji = '💎';
+                        bitsText = `cheered ${event.bits} bits`;
+                        break;
+                    case 'power_up':
+                        emoji = '⚡';
+                        bitsText = `used a power-up (${event.bits} bits)`;
+                        break;
+                    default:
+                        emoji = '💎';
+                        bitsText = `used ${event.bits} bits`;
+                        break;
+                }
+                
+                let messageHtml = `
+                    <span style="font-weight: bold; color: #9146ff;">${emoji} BITS!</span>
+                    <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.user_name)}</span>
+                    ${bitsText}
+                `;
+                
+                // Add the message content if it's a cheer
+                if (event.type === 'cheer' && event.message && event.message.text) {
+                    messageHtml += `<div style="margin-top: 4px; font-style: italic; color: #e6e6e6;">${escapeHtml(event.message.text)}</div>`;
+                }
+                
+                bitsDiv.innerHTML = messageHtml;
+                
+                overlay.appendChild(bitsDiv);
+                overlay.scrollTop = overlay.scrollHeight;
+                
+                // Limit messages
+                const msgs = overlay.querySelectorAll('.chat-message, .reward-message, .system-message');
+                if (msgs.length > 100) {
+                    for (let i = 0; i < msgs.length - 100; i++) {
+                        const node = msgs[i];
+                        if (!node.classList.contains('fullscreen-exit-btn') && 
+                            !(node.classList.contains('system-message') && !node.classList.contains('join') && !node.classList.contains('leave') && !node.classList.contains('raid') && !node.classList.contains('bits'))) {
+                            if (node && node.parentNode) node.parentNode.removeChild(node);
+                        }
+                    }
+                }
+                
+                // Save chat history
+                saveChatHistory();
+            }
+            
             // Initialize
             loadChatHistory();
             migrateOldFilters();
