@@ -247,10 +247,12 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     text: text ? String(text).trim() : '',
                     ts: Date.now()
                 };
+                console.log('Added redemption to cache:', entry);
                 recentRedemptions.push(entry);
                 // Trim entries older than 10s
                 const cutoff = Date.now() - 10000;
                 recentRedemptions = recentRedemptions.filter(e => e.ts >= cutoff);
+                console.log('Recent redemptions cache now has', recentRedemptions.length, 'entries');
             }
             function consumeMatchingRedemption(chatter_login, chatter_name, text) {
                 if (!text) return false;
@@ -258,16 +260,20 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 const login = chatter_login ? String(chatter_login).toLowerCase() : null;
                 const name = chatter_name ? String(chatter_name).toLowerCase() : null;
                 const now = Date.now();
+                console.log('Looking for matching redemption:', {login, name, text: t, cacheSize: recentRedemptions.length});
                 // Consider matches within last 5 seconds
                 for (let i = 0; i < recentRedemptions.length; i++) {
                     const e = recentRedemptions[i];
                     if (now - e.ts > 5000) continue;
+                    console.log('Checking against:', e, 'age:', (now - e.ts) + 'ms');
                     if (e.text === t && ((login && e.user_login === login) || (name && e.user_name === name))) {
                         // remove this entry and return true
+                        console.log('FOUND MATCH! Consuming redemption and suppressing chat message');
                         recentRedemptions.splice(i, 1);
                         return true;
                     }
                 }
+                console.log('No matching redemption found');
                 return false;
             }
             // Presence settings (API-only)
