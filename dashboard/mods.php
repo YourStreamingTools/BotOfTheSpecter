@@ -101,51 +101,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
     if ($action === 'add') {
-        // Ensure the referenced user exists in `users` to satisfy FK constraint
-        $checkUser = $conn->prepare('SELECT 1 FROM users WHERE twitch_user_id = ? LIMIT 1');
-        if ($checkUser) {
-            $checkUser->bind_param('s', $moderator_id);
-            $checkUser->execute();
-            $checkRes = $checkUser->get_result();
-            $userExists = $checkRes && $checkRes->num_rows > 0;
-        } else {
-            $userExists = false;
-        }
-        if (!$userExists) {
-            // Try to fetch user display name from Twitch API
-            $twitchDisplay = null;
-            if (isset($authToken) && isset($clientID)) {
-                $usersUrl = 'https://api.twitch.tv/helix/users?id=' . urlencode($moderator_id);
-                $ch = curl_init($usersUrl);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Authorization: Bearer ' . $authToken,
-                    'Client-ID: ' . $clientID
-                ]);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                $uResp = curl_exec($ch);
-                if ($uResp !== false) {
-                    $uData = json_decode($uResp, true);
-                    if (!empty($uData['data'][0]['display_name'])) {
-                        $twitchDisplay = $uData['data'][0]['display_name'];
-                    }
-                }
-                curl_close($ch);
-            }
-            // Insert a minimal users row including required fields (username, api_key) to satisfy FK constraints
-            $insertUser = $conn->prepare('INSERT INTO users (twitch_user_id, twitch_display_name, username, api_key) VALUES (?, ?, ?, ?)');
-            if ($insertUser) {
-                $displayToInsert = $twitchDisplay ?? $moderator_id;
-                $usernameToInsert = strtolower(preg_replace('/[^a-z0-9_]/i', '', $displayToInsert));
-                if ($usernameToInsert === '') {
-                    $usernameToInsert = 'user_' . $moderator_id;
-                }
-                $apiKeyToInsert = bin2hex(random_bytes(16)); // Generate a random 32-character API key
-                if (!@$insertUser->bind_param('ssss', $moderator_id, $displayToInsert, $usernameToInsert, $apiKeyToInsert) || !$insertUser->execute()) {
-                    $err = $insertUser->error ?: $conn->error;
-                    error_log('mods.php INSERT USER FAILED: ' . $err);
-                }
-            }
-        }
         $stmt = $conn->prepare('INSERT INTO moderator_access (moderator_id, broadcaster_id) VALUES (?, ?)');
         if ($stmt === false) {
             $err = $conn->error;
@@ -165,7 +120,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $err = $stmt->error ?: $conn->error;
             error_log('mods.php EXECUTE ADD FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
+            // Check if this is a foreign key constraint error
+            if (strpos($err, 'foreign key constraint') !== false || strpos($err, 'FOREIGN KEY') !== false) {
+                echo json_encode(['status' => 'error', 'message' => 'This moderator must register for a dashboard account first before being granted access.']);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => $err]);
+            }
         }
     } elseif ($action === 'remove') {
         $stmt = $conn->prepare('DELETE FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ?');
