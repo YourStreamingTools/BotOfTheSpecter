@@ -363,6 +363,12 @@ body {
 .system-message.leave {
     border-left: 4px solid #fb7185; /* red */
 }
+.system-message.raid {
+    border-left: 4px solid #ff6b6b; /* raid red */
+    background: rgba(255, 107, 107, 0.1);
+    font-style: normal;
+    font-weight: 500;
+}
 
 .chat-message {
     margin-bottom: 12px;
