@@ -304,28 +304,37 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             }
             function showSystemMessage(text, kind) {
                 const overlay = document.getElementById('chat-overlay');
-                // Preserve fullscreen exit button if present
-                const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
-                // If only a placeholder is present (or empty), clear it but keep the exit button
-                if ((overlay.children.length === 1 && overlay.children[0].tagName === 'P') || overlay.children.length === 0) {
+                // Clear placeholder text if it's the only thing there
+                if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
                     overlay.innerHTML = '';
-                    if (exitBtn) overlay.appendChild(exitBtn);
                 }
                 const div = document.createElement('div');
                 div.className = 'system-message';
                 if (kind) div.classList.add(kind);
                 div.textContent = text;
-                // Insert system messages at the top (just after the exit button if present)
-                const ref = exitBtn ? exitBtn.nextSibling : overlay.firstChild;
-                overlay.insertBefore(div, ref);
-                // Do not force-scroll to bottom for system messages so they remain above chat history
+                // Only presence summary messages go at the top; join/leave messages are chronological
+                if (kind === 'join' || kind === 'leave') {
+                    // Append join/leave messages at the bottom like regular chat messages
+                    overlay.appendChild(div);
+                    // Auto-scroll to show new join/leave messages
+                    overlay.scrollTop = overlay.scrollHeight;
+                } else {
+                    // Other system messages (like presence summary) go at the top
+                    const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
+                    const ref = exitBtn ? exitBtn.nextSibling : overlay.firstChild;
+                    overlay.insertBefore(div, ref);
+                }
                 // Enforce messages cap (count only message nodes)
                 const msgs = overlay.querySelectorAll('.chat-message, .reward-message, .system-message');
                 if (msgs.length > 100) {
-                    // remove oldest entries (those at the end when we're prepending)
-                    for (let i = msgs.length - 1; i >= 0 && overlay.querySelectorAll('.chat-message, .reward-message, .system-message').length > 100; i--) {
+                    // Remove oldest messages (first ones in DOM order, skip exit button)
+                    for (let i = 0; i < msgs.length && msgs.length > 100; i++) {
                         const node = msgs[i];
-                        if (node && node.parentNode) node.parentNode.removeChild(node);
+                        // Skip exit button and presence summary (non-join/leave system messages)
+                        if (!node.classList.contains('fullscreen-exit-btn') && 
+                            !(node.classList.contains('system-message') && !node.classList.contains('join') && !node.classList.contains('leave'))) {
+                            if (node && node.parentNode) node.parentNode.removeChild(node);
+                        }
                     }
                 }
             }
