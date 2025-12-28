@@ -28,6 +28,21 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+// Fetch all moderators and their access status (requires $conn from db_connect.php)
+$stmt = $conn->prepare('SELECT * FROM moderator_access WHERE broadcaster_id = ?');
+$stmt->bind_param('s', $_SESSION['twitchUserId']);
+$stmt->execute();
+$moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// Fetch all registered users from the users table
+$registeredUsers = [];
+$userStmt = $conn->prepare('SELECT twitch_display_name FROM users');
+$userStmt->execute();
+$result = $userStmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    $registeredUsers[] = strtolower($row['twitch_display_name']);
+}
+
 // API endpoint to fetch moderators
 $moderatorsURL = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=$broadcasterID";
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
@@ -77,36 +92,107 @@ $endIndex = $startIndex + $moderatorsPerPage;
 $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderatorsPerPage);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $moderator_id = $_POST['moderator_id'];
-    $broadcaster_id = $_SESSION['twitchUserId'];
-    $action = $_POST['action'];
+    header('Content-Type: application/json');
+    $moderator_id = isset($_POST['moderator_id']) ? $_POST['moderator_id'] : null;
+    $broadcaster_id = isset($_SESSION['twitchUserId']) ? $_SESSION['twitchUserId'] : null;
+    $action = isset($_POST['action']) ? $_POST['action'] : null;
+    if (!$moderator_id || !$broadcaster_id || !$action) {
+        echo json_encode(['status' => 'error', 'message' => 'missing_parameters']);
+        exit();
+    }
     if ($action === 'add') {
-        // Insert the new moderator access into the database
+        // Ensure the referenced user exists in `users` to satisfy FK constraint
+        $checkUser = $conn->prepare('SELECT 1 FROM users WHERE twitch_user_id = ? LIMIT 1');
+        if ($checkUser) {
+            $checkUser->bind_param('s', $moderator_id);
+            $checkUser->execute();
+            $checkRes = $checkUser->get_result();
+            $userExists = $checkRes && $checkRes->num_rows > 0;
+        } else {
+            $userExists = false;
+        }
+        if (!$userExists) {
+            // Try to fetch user display name from Twitch API
+            $twitchDisplay = null;
+            if (isset($authToken) && isset($clientID)) {
+                $usersUrl = 'https://api.twitch.tv/helix/users?id=' . urlencode($moderator_id);
+                $ch = curl_init($usersUrl);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Authorization: Bearer ' . $authToken,
+                    'Client-ID: ' . $clientID
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                $uResp = curl_exec($ch);
+                if ($uResp !== false) {
+                    $uData = json_decode($uResp, true);
+                    if (!empty($uData['data'][0]['display_name'])) {
+                        $twitchDisplay = $uData['data'][0]['display_name'];
+                    }
+                }
+                curl_close($ch);
+            }
+            // Insert a minimal users row including required fields (username, api_key) to satisfy FK constraints
+            $insertUser = $conn->prepare('INSERT INTO users (twitch_user_id, twitch_display_name, username, api_key) VALUES (?, ?, ?, ?)');
+            if ($insertUser) {
+                $displayToInsert = $twitchDisplay ?? $moderator_id;
+                $usernameToInsert = strtolower(preg_replace('/[^a-z0-9_]/i', '', $displayToInsert));
+                if ($usernameToInsert === '') {
+                    $usernameToInsert = 'user_' . $moderator_id;
+                }
+                $apiKeyToInsert = bin2hex(random_bytes(16)); // Generate a random 32-character API key
+                if (!@$insertUser->bind_param('ssss', $moderator_id, $displayToInsert, $usernameToInsert, $apiKeyToInsert) || !$insertUser->execute()) {
+                    $err = $insertUser->error ?: $conn->error;
+                    error_log('mods.php INSERT USER FAILED: ' . $err);
+                }
+            }
+        }
         $stmt = $conn->prepare('INSERT INTO moderator_access (moderator_id, broadcaster_id) VALUES (?, ?)');
-        $stmt->bind_param('ss', $moderator_id, $broadcaster_id);
-        $stmt->execute();
+        if ($stmt === false) {
+            $err = $conn->error;
+            error_log('mods.php PREPARE ADD FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+            exit();
+        }
+        if (!@$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
+            $err = $stmt->error ?: $conn->error;
+            error_log('mods.php BIND ADD FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+            exit();
+        }
+        $res = $stmt->execute();
+        if ($res) {
+            echo json_encode(['status' => 'ok', 'action' => 'add', 'moderator_id' => $moderator_id]);
+        } else {
+            $err = $stmt->error ?: $conn->error;
+            error_log('mods.php EXECUTE ADD FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+        }
     } elseif ($action === 'remove') {
-        // Remove the moderator access from the database
         $stmt = $conn->prepare('DELETE FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ?');
-        $stmt->bind_param('ss', $moderator_id, $broadcaster_id);
-        $stmt->execute();
+        if ($stmt === false) {
+            $err = $conn->error;
+            error_log('mods.php PREPARE REMOVE FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+            exit();
+        }
+        if (!@$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
+            $err = $stmt->error ?: $conn->error;
+            error_log('mods.php BIND REMOVE FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+            exit();
+        }
+        $res = $stmt->execute();
+        if ($res) {
+            echo json_encode(['status' => 'ok', 'action' => 'remove', 'moderator_id' => $moderator_id]);
+        } else {
+            $err = $stmt->error ?: $conn->error;
+            error_log('mods.php EXECUTE REMOVE FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+        }
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'invalid_action']);
     }
     exit();
-}
-
-// Fetch all moderators and their access status
-$stmt = $conn->prepare('SELECT * FROM moderator_access WHERE broadcaster_id = ?');
-$stmt->bind_param('s', $_SESSION['twitchUserId']);
-$stmt->execute();
-$moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-
-// Fetch all registered users from the users table
-$registeredUsers = [];
-$userStmt = $conn->prepare('SELECT twitch_display_name FROM users');
-$userStmt->execute();
-$result = $userStmt->get_result();
-while ($row = $result->fetch_assoc()) {
-    $registeredUsers[] = strtolower($row['twitch_display_name']);
 }
 
 // Filter out common bot accounts
@@ -291,20 +377,83 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-$(document).ready(function() {
-    $('.access-control').on('click', function() {
-        var twitchUserId = $(this).data('user-id');
-        var action = $(this).data('action');
-        $.ajax({
-            url: 'mods.php',
-            type: 'POST',
-            data: { moderator_id: twitchUserId, action: action },
-            success: function(response) { location.reload(); },
-            error: function(xhr, status, error) {
-                console.error('Error: ' + error);
-                alert('<?php echo t('mods_access_update_failed'); ?>');
-            }
+document.addEventListener('DOMContentLoaded', function() {
+    var addText = <?php echo json_encode(t('mods_add_access')); ?>;
+    var removeText = <?php echo json_encode(t('mods_remove_access')); ?>;
+    function loadToastify() {
+        return new Promise(function(resolve) {
+            if (window.Toastify) return resolve();
+            var css = document.createElement('link');
+            css.rel = 'stylesheet';
+            css.href = 'https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css';
+            document.head.appendChild(css);
+            var script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/toastify-js';
+            script.onload = function() { resolve(); };
+            script.onerror = function() { resolve(); };
+            document.body.appendChild(script);
         });
+    }
+    function showToast(message, success) {
+        if (window.Toastify) {
+            Toastify({
+                text: message,
+                duration: 3500,
+                close: true,
+                gravity: 'top',
+                position: 'right',
+                style: { background: success ? '#48c774' : '#f14668' }
+            }).showToast();
+        } else {
+            alert(message);
+        }
+    }
+    function handleClick(e) {
+        var btn = e.currentTarget;
+        var twitchUserId = btn.getAttribute('data-user-id');
+        var action = btn.getAttribute('data-action');
+        console.debug('mods: sending', { moderator_id: twitchUserId, action: action });
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+        var formData = new FormData();
+        formData.append('moderator_id', twitchUserId);
+        formData.append('action', action);
+        fetch('mods.php', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        }).then(function(resp) {
+            if (!resp.ok) throw new Error('Network response was not ok ' + resp.status);
+            return resp.json();
+        }).then(function(json) {
+            if (json.status === 'ok') {
+                if (json.action === 'add') {
+                    btn.classList.remove('is-primary');
+                    btn.classList.add('is-danger');
+                    btn.setAttribute('data-action', 'remove');
+                    btn.textContent = removeText;
+                } else if (json.action === 'remove') {
+                    btn.classList.remove('is-danger');
+                    btn.classList.add('is-primary');
+                    btn.setAttribute('data-action', 'add');
+                    btn.textContent = addText;
+                }
+                loadToastify().then(function() { showToast('Access updated successfully', true); });
+            } else {
+                console.error('Server error:', json.message || json);
+                loadToastify().then(function() { showToast(json.message || 'Failed to update access', false); });
+            }
+        }).catch(function(err) {
+            console.error('Error updating mod access:', err);
+            loadToastify().then(function() { showToast('Failed to update access', false); });
+        }).finally(function() {
+            btn.disabled = false;
+            btn.classList.remove('is-loading');
+        });
+    }
+    var buttons = document.querySelectorAll('.access-control');
+    buttons.forEach(function(btn) {
+        btn.addEventListener('click', handleClick);
     });
 });
 </script>
