@@ -283,13 +283,16 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
             let lastChatters = new Set();
             // Tracks consecutive missed polls for users before announcing they left
             let presenceMissCounts = {};
-            // Presence polling interval (API-only) — default 60s (can be tuned)
-            const PRESENCE_API_INTERVAL_MS = 60 * 1000; // API poll interval
+            // Presence polling: 3s interval optimized for Twitch's 800 points/minute rate limit
+            const PRESENCE_API_INTERVAL_MS = 3 * 1000;
+            // Rate limit tracking
+            let rateLimitRemaining = 800;
+            let rateLimitReset = 0;
             // Poll/backoff state
             const presenceBaseInterval = PRESENCE_API_INTERVAL_MS;
             let presenceCurrentInterval = presenceBaseInterval;
             let presenceBackoffAttempts = 0;
-            const PRESENCE_MAX_BACKOFF_MS = 5 * 60 * 1000; // cap backoff at 5 minutes
+            const PRESENCE_MAX_BACKOFF_MS = 5 * 60 * 1000;
             function loadPresenceSetting() {
                 try {
                     if (window.localStorage) {
@@ -403,7 +406,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     console.error('Error fetching badges:', error);
                 }
             }
-            // Fetch current chatters using Helix API
+            // Fetch current chatters using Helix API with rate limit monitoring
             async function fetchChattersFromAPI() {
                 try {
                     const url = `https://api.twitch.tv/helix/chat/chatters?broadcaster_id=${CONFIG.USER_ID}&moderator_id=${CONFIG.USER_ID}`;
@@ -413,6 +416,15 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             'Client-Id': CONFIG.CLIENT_ID
                         }
                     });
+                    // Track rate limit headers
+                    const rateLimitHeaderRemaining = resp.headers.get('Ratelimit-Remaining');
+                    const rateLimitHeaderReset = resp.headers.get('Ratelimit-Reset');
+                    if (rateLimitHeaderRemaining) {
+                        rateLimitRemaining = parseInt(rateLimitHeaderRemaining, 10) || rateLimitRemaining;
+                    }
+                    if (rateLimitHeaderReset) {
+                        rateLimitReset = parseInt(rateLimitHeaderReset, 10) || rateLimitReset;
+                    }
                     const status = resp.status;
                     const data = await resp.json().catch(() => null);
                     if (!resp.ok) {
@@ -423,8 +435,9 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             stopPresenceAPI();
                             return { ok: false, status };
                         }
-                        // If rate limited, return status so caller can back off
-                        if (status === 429) return { ok: false, status };
+                        if (status === 429) {
+                            return { ok: false, status, rateLimitReset };
+                        }
                         return { ok: false, status, data };
                     }
                     const set = new Set();
@@ -434,15 +447,15 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             if (login) set.add(login);
                         });
                     }
-                    return { ok: true, set };
+                    return { ok: true, set, rateLimitRemaining, rateLimitReset };
                 } catch (err) {
                     console.error('Error fetching chatters from API:', err);
                     return { ok: false, status: 0, error: err };
                 }
             }
             function startPresenceAPI() {
-                if (presencePollHandle) return; // already running
-                // Do an initial fetch to establish baseline (no join messages on first load)
+                if (presencePollHandle) return;
+                // Initial fetch to establish baseline
                 (async () => {
                     const initialResp = await fetchChattersFromAPI();
                     if (initialResp && initialResp.ok && initialResp.set) {
@@ -463,34 +476,55 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         lastChatters = new Set();
                     }
                 })();
-                // Poll loop using setTimeout so we can adjust delay dynamically on backoff
+                // Poll loop with dynamic interval adjustment
                 const pollOnce = async () => {
                     if (!presenceEnabled) return;
+                    
+                    // Check rate limit and delay if needed
+                    const now = Math.floor(Date.now() / 1000);
+                    if (rateLimitRemaining < 50 && rateLimitReset > now) {
+                        const delayUntilReset = (rateLimitReset - now + 5) * 1000;
+                        console.log(`Rate limit low (${rateLimitRemaining} remaining), waiting ${Math.round(delayUntilReset/1000)}s for reset`);
+                        presencePollHandle = setTimeout(pollOnce, delayUntilReset);
+                        return;
+                    }
                     const resp = await fetchChattersFromAPI();
                     if (!resp) {
-                        // schedule next with current interval
                         presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
                         return;
                     }
                     if (!resp.ok) {
                         if (resp.status === 429) {
-                            // rate limited — increase backoff
-                            presenceBackoffAttempts++;
-                            const next = Math.min(presenceBaseInterval * Math.pow(2, presenceBackoffAttempts), PRESENCE_MAX_BACKOFF_MS);
-                            presenceCurrentInterval = next + Math.floor(Math.random() * 1000); // add jitter
+                            let backoffMs;
+                            if (resp.rateLimitReset && resp.rateLimitReset > now) {
+                                backoffMs = (resp.rateLimitReset - now + 2) * 1000;
+                                console.log(`Rate limited, waiting ${Math.round(backoffMs/1000)}s until reset`);
+                            } else {
+                                presenceBackoffAttempts++;
+                                backoffMs = Math.min(presenceBaseInterval * Math.pow(2, presenceBackoffAttempts), PRESENCE_MAX_BACKOFF_MS);
+                                backoffMs += Math.floor(Math.random() * 1000);
+                            }
+                            presenceCurrentInterval = backoffMs;
                             showSystemMessage('Presence API rate-limited — backing off', 'error');
-                            presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
+                            presencePollHandle = setTimeout(pollOnce, backoffMs);
                             return;
                         }
-                        // other non-ok responses: schedule regular retry
                         presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
                         return;
                     }
-                    // Successful response: reset backoff
+                    
+                    // Success: reset backoff and adjust interval based on rate limit
                     presenceBackoffAttempts = 0;
-                    presenceCurrentInterval = presenceBaseInterval;
+                    if (rateLimitRemaining > 400) {
+                        presenceCurrentInterval = Math.max(2 * 1000, presenceBaseInterval * 0.7);
+                    } else if (rateLimitRemaining > 200) {
+                        presenceCurrentInterval = presenceBaseInterval;
+                    } else {
+                        presenceCurrentInterval = presenceBaseInterval * 1.7;
+                    }
+                    
                     const current = resp.set;
-                    // Determine joins (present now but not previously) and leaves (previously present but not now)
+                    // Determine joins and leaves
                     const joins = [];
                     current.forEach(login => {
                         if (!lastChatters.has(login)) joins.push(login);
@@ -505,7 +539,7 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         presenceMissCounts[login] = 0;
                         lastChatters.add(login);
                     });
-                    // For leave candidates, increment miss counters and only announce after 2 consecutive misses
+                    // Track leave candidates (require 2 consecutive misses to announce)
                     leavesCandidates.forEach(login => {
                         presenceMissCounts[login] = (presenceMissCounts[login] || 0) + 1;
                         if (presenceMissCounts[login] >= 2) {
@@ -514,13 +548,13 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             delete presenceMissCounts[login];
                         }
                     });
-                    // Reset miss counts for users we saw in this poll
+                    // Reset miss counts for users still present
                     current.forEach(login => {
                         presenceMissCounts[login] = 0;
                     });
                     presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
                 };
-                // Start first timed poll after base interval
+                // Start polling
                 presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
             }
             function stopPresenceAPI() {
