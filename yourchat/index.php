@@ -1192,6 +1192,13 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 if (isMessageFiltered(event)) {
                     return;
                 }
+                // Check if this user needs to be marked as joined first
+                const userLogin = event.chatter_user_login;
+                if (presenceEnabled && userLogin && !lastChatters.has(userLogin)) {
+                    // User hasn't been detected by presence system, mark them as joined
+                    lastChatters.add(userLogin);
+                    showSystemMessage(`${event.chatter_user_name} joined the chat`, 'join');
+                }
                 // Presence is handled via Twitch Helix API (no message-based presence)
                 // Deduplicate: if a recent redemption from same user with identical text exists, skip showing this chat message
                 const chatTextForMatch = extractTextFromEvent(event) || (event.message && event.message.text) || '';
