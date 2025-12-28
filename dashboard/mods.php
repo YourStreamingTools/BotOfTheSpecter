@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['status' => 'error', 'message' => $err]);
             exit();
         }
-        if (!@$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
+        if (!$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
             $err = $stmt->error ?: $conn->error;
             error_log('mods.php BIND ADD FAILED: ' . $err);
             echo json_encode(['status' => 'error', 'message' => $err]);
@@ -120,12 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $err = $stmt->error ?: $conn->error;
             error_log('mods.php EXECUTE ADD FAILED: ' . $err);
-            // Check if this is a foreign key constraint error
-            if (strpos($err, 'foreign key constraint') !== false || strpos($err, 'FOREIGN KEY') !== false) {
-                echo json_encode(['status' => 'error', 'message' => 'This moderator must register for a dashboard account first before being granted access.']);
-            } else {
-                echo json_encode(['status' => 'error', 'message' => $err]);
-            }
+            echo json_encode(['status' => 'error', 'message' => $err]);
         }
     } elseif ($action === 'remove') {
         $stmt = $conn->prepare('DELETE FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ?');
