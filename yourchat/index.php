@@ -1064,6 +1064,8 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                             handleAutomaticReward(payload.event);
                         } else if (payload.subscription.type === 'channel.channel_points_custom_reward_redemption.add') {
                             handleCustomReward(payload.event);
+                        } else if (payload.subscription.type === 'channel.raid') {
+                            handleRaidEvent(payload.event);
                         }
                         break;
                     case 'session_reconnect':
@@ -1116,6 +1118,13 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         version: '1',
                         condition: {
                             broadcaster_user_id: CONFIG.USER_ID
+                        }
+                    },
+                    {
+                        type: 'channel.raid',
+                        version: '1',
+                        condition: {
+                            to_broadcaster_user_id: CONFIG.USER_ID
                         }
                     }
                 ];
@@ -1416,6 +1425,37 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 // Limit messages
                 if (overlay.children.length > 100) {
                     overlay.removeChild(overlay.firstChild);
+                }
+                // Save chat history
+                saveChatHistory();
+            }
+            // Raid event handling
+            function handleRaidEvent(event) {
+                const overlay = document.getElementById('chat-overlay');
+                // Clear placeholder text
+                if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
+                    overlay.innerHTML = '';
+                }
+                const raidDiv = document.createElement('div');
+                raidDiv.className = 'system-message raid';
+                const viewerText = event.viewers === 1 ? 'viewer' : 'viewers';
+                raidDiv.innerHTML = `
+                    <span style="font-weight: bold; color: #ff6b6b;">🎯 RAID!</span>
+                    <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.from_broadcaster_user_name)}</span>
+                    is raiding with <span style="font-weight: bold; color: #ffd700;">${event.viewers.toLocaleString()}</span> ${viewerText}!
+                `;
+                overlay.appendChild(raidDiv);
+                overlay.scrollTop = overlay.scrollHeight;
+                // Limit messages
+                const msgs = overlay.querySelectorAll('.chat-message, .reward-message, .system-message');
+                if (msgs.length > 100) {
+                    for (let i = 0; i < msgs.length - 100; i++) {
+                        const node = msgs[i];
+                        if (!node.classList.contains('fullscreen-exit-btn') && 
+                            !(node.classList.contains('system-message') && !node.classList.contains('join') && !node.classList.contains('leave') && !node.classList.contains('raid'))) {
+                            if (node && node.parentNode) node.parentNode.removeChild(node);
+                        }
+                    }
                 }
                 // Save chat history
                 saveChatHistory();
