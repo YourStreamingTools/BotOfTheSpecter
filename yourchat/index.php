@@ -93,6 +93,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'expire_session') {
 }
 
 $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
+
+// Cache busting for CSS file using file modification time
+$cssFile = __DIR__ . '/style.css';
+$cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -100,16 +104,10 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YourChat - Custom Twitch Chat Overlay</title>
-    <?php
-    // Cache busting for CSS file using file modification time
-    $cssFile = __DIR__ . '/style.css';
-    $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
-    ?>
     <link rel="stylesheet" href="style.css?v=<?php echo $cssVersion; ?>">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <!-- Toastify for lightweight toasts -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 </head>
@@ -479,7 +477,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 // Poll loop with dynamic interval adjustment
                 const pollOnce = async () => {
                     if (!presenceEnabled) return;
-                    
                     // Check rate limit and delay if needed
                     const now = Math.floor(Date.now() / 1000);
                     if (rateLimitRemaining < 50 && rateLimitReset > now) {
@@ -512,7 +509,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
                         return;
                     }
-                    
                     // Success: reset backoff and adjust interval based on rate limit
                     presenceBackoffAttempts = 0;
                     if (rateLimitRemaining > 400) {
@@ -522,7 +518,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                     } else {
                         presenceCurrentInterval = presenceBaseInterval * 1.7;
                     }
-                    
                     const current = resp.set;
                     // Determine joins and leaves
                     const joins = [];
@@ -1476,7 +1471,6 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 // Save chat history
                 saveChatHistory();
             }
-            
             // Bits event handling
             function handleBitsEvent(event) {
                 const overlay = document.getElementById('chat-overlay');
@@ -1484,13 +1478,10 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                 if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
                     overlay.innerHTML = '';
                 }
-                
                 const bitsDiv = document.createElement('div');
                 bitsDiv.className = 'system-message bits';
-                
                 let bitsText = '';
                 let emoji = '';
-                
                 switch(event.type) {
                     case 'cheer':
                         emoji = '💎';
@@ -1505,23 +1496,18 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         bitsText = `used ${event.bits} bits`;
                         break;
                 }
-                
                 let messageHtml = `
                     <span style="font-weight: bold; color: #9146ff;">${emoji} BITS!</span>
                     <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.user_name)}</span>
                     ${bitsText}
                 `;
-                
                 // Add the message content if it's a cheer
                 if (event.type === 'cheer' && event.message && event.message.text) {
                     messageHtml += `<div style="margin-top: 4px; font-style: italic; color: #e6e6e6;">${escapeHtml(event.message.text)}</div>`;
                 }
-                
                 bitsDiv.innerHTML = messageHtml;
-                
                 overlay.appendChild(bitsDiv);
                 overlay.scrollTop = overlay.scrollHeight;
-                
                 // Limit messages
                 const msgs = overlay.querySelectorAll('.chat-message, .reward-message, .system-message');
                 if (msgs.length > 100) {
@@ -1533,11 +1519,9 @@ $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
                         }
                     }
                 }
-                
                 // Save chat history
                 saveChatHistory();
             }
-            
             // Initialize
             loadChatHistory();
             migrateOldFilters();
