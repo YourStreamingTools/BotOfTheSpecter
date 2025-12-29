@@ -278,7 +278,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const PRESENCE_JOIN_KEY = 'notify_join_leave';
             let presenceEnabled = false;
             let presencePollHandle = null;
-            let lastChatters = new Set();
+            let lastChatters = new Set(); // API-confirmed chatters
+            let messageBasedChatters = new Set(); // Users detected via first message only
             // Tracks consecutive missed polls for users before announcing they left
             let presenceMissCounts = {};
             // Presence polling: 3s interval optimized for Twitch's 800 points/minute rate limit
@@ -530,12 +531,23 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     });
                     // Announce joins immediately and reset miss counts
                     joins.forEach(login => {
-                        showSystemMessage(`${login} joined the chat`, 'join');
+                        // Only announce if they weren't already detected via message
+                        if (!messageBasedChatters.has(login)) {
+                            showSystemMessage(`${login} joined the chat`, 'join');
+                        } else {
+                            // Move from message-based to API-confirmed tracking
+                            messageBasedChatters.delete(login);
+                        }
                         presenceMissCounts[login] = 0;
                         lastChatters.add(login);
                     });
                     // Track leave candidates (require 2 consecutive misses to announce)
+                    // Only track leaves for API-confirmed users, not message-based joins
                     leavesCandidates.forEach(login => {
+                        // Skip users who were only detected via message and never confirmed by API
+                        if (messageBasedChatters.has(login)) {
+                            return; // Don't track leaves for message-only users
+                        }
                         presenceMissCounts[login] = (presenceMissCounts[login] || 0) + 1;
                         if (presenceMissCounts[login] >= 2) {
                             showSystemMessage(`${login} left the chat`, 'leave');
@@ -558,6 +570,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     presencePollHandle = null;
                 }
                 lastChatters = new Set();
+                messageBasedChatters = new Set();
                 presenceBackoffAttempts = 0;
                 presenceCurrentInterval = presenceBaseInterval;
             }
@@ -1189,9 +1202,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
                 // Check if this user needs to be marked as joined first
                 const userLogin = event.chatter_user_login;
-                if (presenceEnabled && userLogin && !lastChatters.has(userLogin)) {
-                    // User hasn't been detected by presence system, mark them as joined
-                    lastChatters.add(userLogin);
+                if (presenceEnabled && userLogin && !lastChatters.has(userLogin) && !messageBasedChatters.has(userLogin)) {
+                    // User hasn't been detected by presence system, mark them as joined via message
+                    messageBasedChatters.add(userLogin);
                     showSystemMessage(`${event.chatter_user_name} joined the chat`, 'join');
                 }
                 // Presence is handled via Twitch Helix API (no message-based presence)
