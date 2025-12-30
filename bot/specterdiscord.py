@@ -5732,7 +5732,6 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                         if response.status != 200:
                             if response.status == 401:
                                 # Try to get bot's auth token as fallback
-                                self.logger.warning(f"401 Unauthorized for guild {guild_id}, attempting to use bot auth token")
                                 bot_auth_token = await self.mysql.fetchone(
                                     "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", 
                                     ("971436498",), database_name='website'
@@ -5743,7 +5742,6 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                                     else:
                                         bot_auth_token = bot_auth_token[0] if bot_auth_token else None
                                     if bot_auth_token:
-                                        self.logger.info(f"Retrying with bot auth token for guild {guild_id}")
                                         retry_headers = {
                                             "Client-ID": config.twitch_client_id,
                                             "Authorization": f"Bearer {bot_auth_token}"
@@ -5791,7 +5789,6 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                             if response.status != 200:
                                 if response.status == 401:
                                     # Try to get bot's auth token as fallback
-                                    self.logger.warning(f"401 Unauthorized for guild {guild_id} batch {chunk_index + 1}, attempting to use bot auth token")
                                     bot_auth_token = await self.mysql.fetchone(
                                         "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", 
                                         ("971436498",), database_name='website'
@@ -5802,7 +5799,6 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                                         else:
                                             bot_auth_token = bot_auth_token[0] if bot_auth_token else None
                                         if bot_auth_token:
-                                            self.logger.info(f"Retrying batch {chunk_index + 1} with bot auth token for guild {guild_id}")
                                             retry_headers = {
                                                 "Client-ID": config.twitch_client_id,
                                                 "Authorization": f"Bearer {bot_auth_token}"
