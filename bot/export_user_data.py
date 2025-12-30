@@ -124,13 +124,12 @@ async def create_zip(username, out_path):
     tmpdir = tempfile.mkdtemp(prefix=f'user_export_{safe_name}_')
     try:
         had_error = False
-        # Placeholder profile file
-        profile_path = os.path.join(tmpdir, 'profile.txt')
-        with open(profile_path, 'w', encoding='utf-8') as f:
-            f.write(f'Username: {username}\n')
-        # Attempt to export database as JSON files into tmpdir
+        # Create database subdirectory for JSON files
+        db_json_dir = os.path.join(tmpdir, 'database')
+        os.makedirs(db_json_dir, exist_ok=True)
+        # Attempt to export database as JSON files into database subdirectory
         try:
-            await export_db_as_json(username, tmpdir)
+            await export_db_as_json(username, db_json_dir)
         except Exception as e:
             log(f'Database export failed: {e}\n' + traceback.format_exc())
             had_error = True
@@ -1044,7 +1043,8 @@ async def main():
                     else:
                         # Generate R2 key with timestamp and username
                         timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-                        r2_key = f'user-exports/{username}/{timestamp}/export.zip'
+                        date_str = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d')
+                        r2_key = f'user-exports/{username}/{timestamp}/BotOfTheSpecter_Export_{username}_{date_str}.zip'
                         download_link = await upload_to_r2(out_zip, r2_key)
                         log(f'Export uploaded to R2: {r2_key}')
                 except Exception as e:
