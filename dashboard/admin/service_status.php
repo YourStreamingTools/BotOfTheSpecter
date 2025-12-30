@@ -90,6 +90,12 @@ $serviceMap = [
         'ssh_host' => $sql_server_host,
         'ssh_username' => $sql_server_username,
         'ssh_password' => $sql_server_password
+    ],
+    'export_queue_worker' => [
+        'service_name' => 'export_queue_worker.service',
+        'ssh_host' => $bots_ssh_host,
+        'ssh_username' => $bots_ssh_username,
+        'ssh_password' => $bots_ssh_password
     ]
 ];
 
