@@ -664,13 +664,16 @@ async def _resource_monitor(interval, out_metrics):
     out_metrics['cpu_avg'] = (sum(cpu_samples) / len(cpu_samples)) if cpu_samples else 0.0
     out_metrics['duration'] = duration
 
-def send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_addr, to_addr, subject, body, attachment_path):
+def send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_addr, to_addr, subject, body, attachment_path, html_body=None):
     msg = EmailMessage()
     from_name = os.environ.get('SMTP_FROM_NAME') or SMTP_FROM_NAME
     msg['From'] = formataddr((from_name, from_addr))
     msg['To'] = to_addr
     msg['Subject'] = subject
     msg.set_content(body)
+    # Add HTML version if provided
+    if html_body:
+        msg.add_alternative(html_body, subtype='html')
     # attach file if present
     if attachment_path and os.path.exists(attachment_path):
         with open(attachment_path, 'rb') as f:
@@ -966,6 +969,50 @@ async def main():
                             "Regards,\n"
                             "BotOfTheSpecter Dashboard Systems"
                         )
+                        user_html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h1 style="color: #333333; font-size: 24px; margin: 0 0 20px 0;">Hi {username},</h1>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                Thanks for requesting your data from our system.
+                            </p>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 0 0 30px 0;">
+                                Your export file has been uploaded to a secure download link.
+                            </p>
+                            <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                <tr>
+                                    <td align="center" style="padding: 0 0 30px 0;">
+                                        <a href="{download_link}" style="display: inline-block; padding: 15px 40px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold;">Download Your Data</a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="color: #999999; font-size: 14px; line-height: 20px; margin: 0 0 20px 0;">
+                                Please download your data within <strong>7 days</strong>. After that, the link will expire and you'll need to request a new export.
+                            </p>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 30px 0 0 0;">
+                                Regards,<br>
+                                <strong>BotOfTheSpecter Dashboard Systems</strong>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
                     else:
                         user_body = (
                             f"Hi {username},\n\n"
@@ -974,6 +1021,40 @@ async def main():
                             "Regards,\n"
                             "BotOfTheSpecter Dashboard Systems"
                         )
+                        user_html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h1 style="color: #333333; font-size: 24px; margin: 0 0 20px 0;">Hi {username},</h1>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                Thanks for requesting your data from our system.
+                            </p>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 0 0 30px 0;">
+                                We have attached the export to this email so you may download this at any time.
+                            </p>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 30px 0 0 0;">
+                                Regards,<br>
+                                <strong>BotOfTheSpecter Dashboard Systems</strong>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
                     if dry_run:
                         log(f'Dry-run: would send email to {email} with {"download link" if download_link else "attachment " + out_zip}')
                     else:
@@ -981,7 +1062,7 @@ async def main():
                         attachment = None if download_link else out_zip
                         send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_email, email,
                                    user_subject,
-                                   user_body, attachment)
+                                   user_body, attachment, html_body=user_html_body)
                         log(f'Email sent to {email} with {"download link" if download_link else "attachment"}')
                     # remove the zip now that it's been emailed to the user
                     try:
