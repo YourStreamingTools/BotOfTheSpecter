@@ -30,6 +30,9 @@ ADMIN_NOTIFICATION_EMAIL = 'admin@botofthespecter.com'
 # Tables that are optional and should not mark the whole export as failed if missing
 OPTIONAL_TABLES = {'server_management'}
 
+# Load environment variables
+load_dotenv()
+
 # Default sender display name for emails
 SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME') or 'BotOfTheSpecter'
 
@@ -43,9 +46,6 @@ S3_SECRET = os.environ.get('S3_SECRET_KEY')
 S3_BUCKET = os.environ.get('S3_BUCKET_NAME') or 'specterexports'
 S3_VERIFY = os.environ.get('S3_VERIFY', '1').lower() not in ('0', 'false', 'no')
 S3_ALWAYS_UPLOAD = os.environ.get('S3_ALWAYS_UPLOAD', 'False').lower() in ('true', '1', 'yes')
-
-# Load environment variables
-load_dotenv()
 
 LOG_FILE = os.path.join(os.path.dirname(__file__), 'export_user_data.log')
 
