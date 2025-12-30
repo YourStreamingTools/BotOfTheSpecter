@@ -3070,7 +3070,7 @@ class BotOfTheSpecter(commands.Bot):
                     # Decide if we should skip this posting due to existing notification already sent
                     skip_post = False
                     try:
-                        # Check if we've already posted a live notification for this user in this guild
+                        # Check if we've already posted a live notification for this user in THIS specific guild
                         existing_notification = await mysql_helper.fetchone(
                             "SELECT * FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
                             (guild.id, str(account_username).lower()),
@@ -5846,26 +5846,23 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
             (str(user_login).lower(),), database_name='website', dict_cursor=True
         )
         channel_code = user_row['api_key'] if user_row else None
-        # If we have a live channel manager, and/or existing live_notifications, check for duplicates
-        if channel_code and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
-            try:
-                online = await self.bot.live_channel_manager.get_online_stream(channel_code)
-            except Exception as e:
-                self.logger.debug(f"Error checking live_channel_manager for {channel_code}: {e}")
-                online = None
-        else:
-            online = None
-        # Also check the live_notifications table for an already posted message for this guild & username
+        # Each guild that tracks a streamer gets their own notification
         try:
-            ln_row = await self.mysql.fetchone("SELECT stream_id FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s", (guild_id, str(user_login).lower()), database_name='specterdiscordbot', dict_cursor=True)
-        except Exception:
+            ln_row = await self.mysql.fetchone(
+                "SELECT stream_id, posted_at FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
+                (guild_id, str(user_login).lower()),
+                database_name='specterdiscordbot',
+                dict_cursor=True
+            )
+        except Exception as e:
+            self.logger.debug(f"Error checking live_notifications for guild {guild_id}, user {user_login}: {e}")
             ln_row = None
         # Determine candidate stream ID
         stream_id = stream_data.get('id') or stream_data.get('stream_id')
+        # Only skip if we've already posted THIS stream_id for THIS guild
         if ln_row and ln_row.get('stream_id') and stream_id and str(ln_row.get('stream_id')) == str(stream_id):
             return False
-        if online and online.get('stream_id') and stream_id and str(online.get('stream_id')) == str(stream_id):
-            return False
+        # If there's an old notification for a different stream_id, we should post this new one
         title = stream_data['title']
         game_name = stream_data['game_name']
         stream_url = stream_data.get('stream_url', f"https://twitch.tv/{user_login}")
@@ -5970,7 +5967,6 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                         )
                 except Exception as e:
                     self.logger.debug(f"Error marking online for {username} via live_channel_manager: {e}")
-                self.logger.info(f"Started monitoring {username} for guild {guild_id} (persisted)")
         # Check for users who went offline
         previously_live = set(guild_live_users.keys())
         went_offline = previously_live - current_live_usernames
