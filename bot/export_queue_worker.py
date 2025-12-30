@@ -30,7 +30,8 @@ def ensure_dirs():
 
 def pick_job():
     # FIFO by filename (timestamp prefix expected)
-    files = sorted([p for p in QUEUE_DIR.iterdir() if p.is_file()])
+    # Only pick .json files, ignore logs and other files
+    files = sorted([p for p in QUEUE_DIR.iterdir() if p.is_file() and p.suffix == '.json'])
     return files[0] if files else None
 
 def run_job(jobfile: Path):
