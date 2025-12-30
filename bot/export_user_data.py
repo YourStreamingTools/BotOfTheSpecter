@@ -20,6 +20,9 @@ import asyncio.subprocess
 import time
 from pathlib import Path
 import pymysql
+import boto3
+from botocore.client import Config
+import botocore.exceptions
 
 # Admin notification address for export failures (fixed)
 ADMIN_NOTIFICATION_EMAIL = 'admin@botofthespecter.com'
@@ -33,6 +36,13 @@ SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME') or 'BotOfTheSpecter'
 # Maximum attachment size allowed for email (50 MB). Larger files must be delivered via S3 signed link.
 MAX_EMAIL_ZIP_SIZE = 50 * 1024 * 1024
 
+# CloudFlare R2 configuration for large file delivery
+S3_HOST = os.environ.get('S3_ENDPOINT_HOSTNAME')
+S3_KEY = os.environ.get('S3_ACCESS_KEY')
+S3_SECRET = os.environ.get('S3_SECRET_KEY')
+S3_BUCKET = os.environ.get('S3_BUCKET_NAME') or 'specterexports'
+S3_VERIFY = os.environ.get('S3_VERIFY', '1').lower() not in ('0', 'false', 'no')
+
 # Load environment variables
 load_dotenv()
 
@@ -45,6 +55,53 @@ def log(msg):
     ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
     with open(LOG_FILE, 'a', encoding='utf-8') as f:
         f.write(f"[{ts}] {msg}\n")
+
+def make_r2_client():
+    if not boto3:
+        raise RuntimeError('boto3 not installed; cannot upload to R2')
+    if not all([S3_HOST, S3_KEY, S3_SECRET]):
+        raise RuntimeError('R2 configuration missing (S3_ENDPOINT_HOSTNAME, S3_ACCESS_KEY, S3_SECRET_KEY)')
+    endpoint = f'https://{S3_HOST}' if not S3_HOST.startswith('http') else S3_HOST
+    cfg = Config(
+        signature_version='s3v4',
+        s3={'addressing_style': 'virtual'},
+        connect_timeout=10,
+        read_timeout=120,
+        retries={'max_attempts': 4, 'mode': 'standard'},
+    )
+    session = boto3.session.Session()
+    client = session.client(
+        's3',
+        endpoint_url=endpoint,
+        aws_access_key_id=S3_KEY,
+        aws_secret_access_key=S3_SECRET,
+        region_name='auto',  # Required by R2
+        config=cfg
+    )
+    try:
+        client._endpoint.http_session.verify = S3_VERIFY
+    except Exception:
+        pass
+    return client
+
+async def upload_to_r2(local_path, key):
+    try:
+        client = make_r2_client()
+        log(f'Uploading {local_path} to R2 bucket {S3_BUCKET} with key {key}')
+        with open(local_path, 'rb') as fh:
+            client.put_object(Bucket=S3_BUCKET, Key=key, Body=fh)
+        log(f'Upload succeeded')
+        # Generate presigned URL valid for 7 days (604800 seconds)
+        url = client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': S3_BUCKET, 'Key': key},
+            ExpiresIn=604800
+        )
+        log(f'Generated presigned URL valid for 7 days')
+        return url
+    except Exception as e:
+        log(f'R2 upload failed: {e}\n' + traceback.format_exc())
+        raise
 
 async def create_zip(username, out_path):
     safe_name = username or 'unknown'
@@ -848,20 +905,42 @@ async def main():
                 log(f'Failed to send admin notification: {e}\n' + traceback.format_exc())
             log(f'Export for {username} completed with errors; admin notified; user not emailed')
         else:
-            # If the zip is too large to email, notify admin so they can provide a signed S3 link
+            # Handle large files by uploading to R2 and providing a download link
+            download_link = None
             if large_zip:
                 try:
                     if dry_run:
-                        log('Dry-run: large zip would notify admin; skipping')
+                        log('Dry-run: large zip would be uploaded to R2; skipping')
                     else:
-                        send_admin_notification(username, f'Export completed; ZIP is too large to email (>{MAX_EMAIL_ZIP_SIZE} bytes). Please upload to S3 and provide signed download link.', None, user_email=email)
+                        # Generate R2 key with timestamp and username
+                        timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+                        r2_key = f'user-exports/{username}/{timestamp}/export.zip'
+                        download_link = await upload_to_r2(out_zip, r2_key)
+                        log(f'Large export uploaded to R2: {r2_key}')
                 except Exception as e:
-                    log(f'Failed to notify admin about large zip: {e}\n' + traceback.format_exc())
-                log(f'Export for {username} completed; file too large to email; admin notified')
-            else:
-                if smtp_host and from_email and email:
+                    log(f'Failed to upload large zip to R2: {e}\n' + traceback.format_exc())
+                    # Fallback: notify admin to handle manually
                     try:
-                        user_subject = 'BotOfTheSpecter: Data Export form Dashboard'
+                        send_admin_notification(username, f'Export completed but R2 upload failed: {e}. ZIP is too large to email (>{MAX_EMAIL_ZIP_SIZE} bytes). Manual upload required.', None, user_email=email)
+                    except Exception:
+                        log('Failed to send admin notification about R2 upload failure')
+                    log(f'Export for {username} completed but R2 upload failed; admin notified')
+                    return 1
+            if smtp_host and from_email and email:
+                try:
+                    user_subject = 'BotOfTheSpecter: Data Export from Dashboard'
+                    if large_zip and download_link:
+                        user_body = (
+                            f"Hi {username},\n\n"
+                            "Thanks for requesting your data from our system.\n\n"
+                            "Your export file is too large to attach to this email, so we've uploaded it to a secure download link.\n\n"
+                            "Download your data here (valid for 7 days):\n"
+                            f"{download_link}\n\n"
+                            "Please download your data within 7 days. After that, the link will expire and you'll need to request a new export.\n\n"
+                            "Regards,\n"
+                            "BotOfTheSpecter Dashboard Systems"
+                        )
+                    else:
                         user_body = (
                             f"Hi {username},\n\n"
                             "Thanks for requesting your data from our system.\n\n"
@@ -869,74 +948,75 @@ async def main():
                             "Regards,\n"
                             "BotOfTheSpecter Dashboard Systems"
                         )
-                        if dry_run:
-                            log(f'Dry-run: would send email to {email} with attachment {out_zip}')
-                        else:
-                            send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_email, email,
-                                       user_subject,
-                                       user_body, out_zip)
-                            log(f'Email sent to {email}')
-                        # remove the zip now that it's been emailed to the user
-                        try:
-                            if monitor_task is not None and metrics.get('available'):
-                                # ensure benchmark metrics are written before potential deletion
-                                metrics_path = out_zip + '.benchmark.json'
-                                if not os.path.exists(metrics_path):
-                                    try:
-                                        with open(metrics_path, 'w', encoding='utf-8') as mf:
-                                            json.dump(metrics, mf, default=str, ensure_ascii=False, indent=2)
-                                        log(f'Wrote benchmark metrics to {metrics_path}')
-                                    except Exception as e:
-                                        log(f'Failed to write benchmark metrics before deletion: {e}\n' + traceback.format_exc())
-                            if not no_delete:
-                                if os.path.exists(out_zip):
-                                    os.remove(out_zip)
-                                    log(f'Removed exported zip {out_zip} after emailing user')
-                            else:
-                                log(f'Keeping exported zip {out_zip} due to --no-delete')
-                        except Exception as e:
-                            log(f'Failed to remove exported zip {out_zip}: {e}\n' + traceback.format_exc())
-                        # Send plain-text admin report (no attachment)
-                        try:
-                                if dry_run:
-                                    log('Dry-run: would send admin success report')
-                                else:
-                                    if large_zip:
-                                        # no signed link implemented yet; notify admins to provide link
-                                        send_admin_success_report(username, 'link', sent_value=None, user_email=email)
-                                    else:
-                                        send_admin_success_report(username, 'zip', sent_value=out_zip, user_email=email)
-                        except Exception as e:
-                            log(f'Failed to send admin success report: {e}\n' + traceback.format_exc())
-                        # If benchmarking, stop monitor and write metrics
-                        if monitor_task is not None:
-                            try:
-                                MONITOR_STOP.set()
-                                await monitor_task
-                                # write metrics to JSON next to the zip (or in exports dir if zip removed)
+                    if dry_run:
+                        log(f'Dry-run: would send email to {email} with {"download link" if large_zip else "attachment " + out_zip}')
+                    else:
+                        # Don't attach file for large zips since we're providing a download link
+                        attachment = None if large_zip else out_zip
+                        send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_email, email,
+                                   user_subject,
+                                   user_body, attachment)
+                        log(f'Email sent to {email} with {"download link" if large_zip else "attachment"}')
+                    # remove the zip now that it's been emailed to the user
+                    try:
+                        if monitor_task is not None and metrics.get('available'):
+                            # ensure benchmark metrics are written before potential deletion
+                            metrics_path = out_zip + '.benchmark.json'
+                            if not os.path.exists(metrics_path):
                                 try:
-                                    metrics_path = out_zip + '.benchmark.json'
                                     with open(metrics_path, 'w', encoding='utf-8') as mf:
                                         json.dump(metrics, mf, default=str, ensure_ascii=False, indent=2)
                                     log(f'Wrote benchmark metrics to {metrics_path}')
                                 except Exception as e:
-                                    log(f'Failed to write benchmark metrics: {e}\n' + traceback.format_exc())
-                            except Exception as e:
-                                log(f'Failed to stop/wait for monitor task: {e}\n' + traceback.format_exc())
+                                    log(f'Failed to write benchmark metrics before deletion: {e}\n' + traceback.format_exc())
+                        if not no_delete:
+                            if os.path.exists(out_zip):
+                                os.remove(out_zip)
+                                log(f'Removed exported zip {out_zip} after emailing user')
+                        else:
+                            log(f'Keeping exported zip {out_zip} due to --no-delete')
                     except Exception as e:
-                        log(f'Failed to send email: {e}\n' + traceback.format_exc())
-                        # attempt to notify admin about email failure (attach zip if small)
-                        try:
-                            send_admin_notification(username, f'Failed to send user email: {e}', out_zip if not large_zip else None, user_email=email)
-                        except Exception:
-                            log('Failed to notify admin about email failure')
-                else:
-                    log('SMTP not configured or recipient missing; export left on disk')
-                    # attempt to notify admin about successful export (will create marker file if SMTP fails)
+                        log(f'Failed to remove exported zip {out_zip}: {e}\n' + traceback.format_exc())
+                    # Send plain-text admin report (no attachment)
                     try:
-                        send_admin_notification(username, 'Export completed successfully; SMTP not configured so export left on disk.', attachment_path=out_zip, user_email=email)
+                        if dry_run:
+                            log('Dry-run: would send admin success report')
+                        else:
+                            if large_zip and download_link:
+                                send_admin_success_report(username, 'link', sent_value=download_link, user_email=email)
+                            else:
+                                send_admin_success_report(username, 'zip', sent_value=out_zip, user_email=email)
                     except Exception as e:
-                        log(f'Failed to notify admin of successful export when SMTP missing: {e}\n' + traceback.format_exc())
+                        log(f'Failed to send admin success report: {e}\n' + traceback.format_exc())
+                    # If benchmarking, stop monitor and write metrics
+                    if monitor_task is not None:
+                        try:
+                            MONITOR_STOP.set()
+                            await monitor_task
+                            # write metrics to JSON next to the zip (or in exports dir if zip removed)
+                            try:
+                                metrics_path = out_zip + '.benchmark.json'
+                                with open(metrics_path, 'w', encoding='utf-8') as mf:
+                                    json.dump(metrics, mf, default=str, ensure_ascii=False, indent=2)
+                                log(f'Wrote benchmark metrics to {metrics_path}')
+                            except Exception as e:
+                                log(f'Failed to write benchmark metrics: {e}\n' + traceback.format_exc())
+                        except Exception as e:
+                            log(f'Failed to stop/wait for monitor task: {e}\n' + traceback.format_exc())
+                except Exception as e:
+                    log(f'Failed to send email: {e}\n' + traceback.format_exc())
+                    # attempt to notify admin about email failure (attach zip if small)
+                    try:
+                        send_admin_notification(username, f'Failed to send user email: {e}', out_zip if not large_zip else None, user_email=email)
+                    except Exception:
+                        log('Failed to notify admin about email failure')
+            else:
+                log('SMTP not configured or recipient missing; export left on disk')
+                # attempt to notify admin about successful export (will create marker file if SMTP fails)
+                try:
+                    send_admin_notification(username, 'Export completed successfully; SMTP not configured so export left on disk.', attachment_path=out_zip, user_email=email)
+                except Exception as e:
+                    log(f'Failed to notify admin of successful export when SMTP missing: {e}\n' + traceback.format_exc())
         return 0
     except Exception as e:
         err_text = str(e) + '\n' + traceback.format_exc()
