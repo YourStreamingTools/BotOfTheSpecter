@@ -91,7 +91,7 @@ if (isset($bots_ssh_host) && !empty($bots_ssh_host) && class_exists('SSHConnecti
             $remoteCmd = "mkdir -p /home/botofthespecter/export_queue && cat > " . escapeshellarg($remoteFile) . " <<'JSON'\n" . $jobJson . "\nJSON\n";
             $res = SSHConnectionManager::executeCommand($conn, $remoteCmd, true);
             if ($res === false) {
-                echo json_encode(['success' => false, 'msg' => 'Failed to enqueue remote export job via SSHConnectionManager']);
+                echo json_encode(['success' => false, 'msg' => 'Failed to enqueue remote export job via SSH. Check SSH credentials and permissions.']);
                 exit();
             }
             // Record the request timestamp so users cannot re-request within the cooldown window.
@@ -100,16 +100,24 @@ if (isset($bots_ssh_host) && !empty($bots_ssh_host) && class_exists('SSHConnecti
             }
             @file_put_contents($cooldownFile, json_encode(['last_requested_at' => time()]));
         } catch (Exception $e) {
-            echo json_encode(['success' => false, 'msg' => 'SSH error: ' . $e->getMessage()]);
+            echo json_encode(['success' => false, 'msg' => 'SSH error creating job: ' . $e->getMessage()]);
             exit();
         }
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'msg' => 'SSH error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'msg' => 'SSH connection error: ' . $e->getMessage()]);
         exit();
     }
 } else {
-    // SSH not configured
-    echo json_encode(['success' => false, 'msg' => 'SSH configuration missing; cannot run export.']);
+    // SSH not configured - provide diagnostic info
+    $diagnostic = [];
+    if (!isset($bots_ssh_host) || empty($bots_ssh_host)) {
+        $diagnostic[] = 'SSH host not configured';
+    }
+    if (!class_exists('SSHConnectionManager')) {
+        $diagnostic[] = 'SSHConnectionManager class not found';
+    }
+    $msg = 'SSH configuration missing: ' . implode(', ', $diagnostic);
+    echo json_encode(['success' => false, 'msg' => $msg]);
     exit();
 }
 
