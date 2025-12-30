@@ -23,6 +23,21 @@ import pymysql
 import boto3
 from botocore.client import Config
 import socket
+import urllib3.util.connection as urllib_conn
+
+# Patch urllib3 to prefer IPv4 connections to avoid issues on IPv6-disabled systems
+_orig_create_connection = urllib_conn.create_connection
+def patched_create_connection(address, *args, **kwargs):
+    host, port = address
+    # Force IPv4 by resolving with AF_INET
+    ipv4_addrs = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+    if ipv4_addrs:
+        # Use the first IPv4 address
+        ipv4_addr = ipv4_addrs[0][4]
+        return _orig_create_connection(ipv4_addr, *args, **kwargs)
+    # Fallback to original if no IPv4 found
+    return _orig_create_connection(address, *args, **kwargs)
+urllib_conn.create_connection = patched_create_connection
 
 # Admin notification address for export failures (fixed)
 ADMIN_NOTIFICATION_EMAIL = 'admin@botofthespecter.com'
@@ -62,11 +77,6 @@ def make_r2_client():
         raise RuntimeError('boto3 not installed; cannot upload to R2')
     if not all([S3_HOST, S3_KEY, S3_SECRET]):
         raise RuntimeError('R2 configuration missing (S3_ENDPOINT_HOSTNAME, S3_ACCESS_KEY, S3_SECRET_KEY)')
-    # Force IPv4 resolution to match API token IP restrictions
-    original_getaddrinfo = socket.getaddrinfo
-    def getaddrinfo_ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
-        return original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
-    socket.getaddrinfo = getaddrinfo_ipv4_only
     endpoint = f'https://{S3_HOST}' if not S3_HOST.startswith('http') else S3_HOST
     cfg = Config(
         signature_version='s3v4',
@@ -88,8 +98,6 @@ def make_r2_client():
         client._endpoint.http_session.verify = S3_VERIFY
     except Exception:
         pass
-    # Restore original socket behavior after client creation
-    socket.getaddrinfo = original_getaddrinfo
     return client
 
 async def upload_to_r2(local_path, key):
