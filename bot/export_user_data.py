@@ -143,7 +143,7 @@ async def create_zip(username, out_path):
         try:
             website_row = await fetch_website_user_row(username)
             if website_row is not None:
-                user_data_path = os.path.join(tmpdir, 'user_data.json')
+                user_data_path = os.path.join(db_json_dir, 'user_data.json')
                 with open(user_data_path, 'w', encoding='utf-8') as f:
                     json.dump({'table': 'users', 'rows': [website_row]}, f, default=str, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -156,28 +156,28 @@ async def create_zip(username, out_path):
             if website_row is not None:
                 twitch_id = website_row.get('twitch_user_id') or website_row.get('twitch_id')
             # For both tables, export rows where twitch_user_id matches. If twitch_id missing, create empty files.
-            await export_website_table_filtered('streamlabs_tokens', 'twitch_user_id', twitch_id, tmpdir)
-            await export_website_table_filtered('streamelements_tokens', 'twitch_user_id', twitch_id, tmpdir)
+            await export_website_table_filtered('streamlabs_tokens', 'twitch_user_id', twitch_id, db_json_dir)
+            await export_website_table_filtered('streamelements_tokens', 'twitch_user_id', twitch_id, db_json_dir)
             # Export spotify_tokens filtered by website user id
             try:
-                await export_website_table_filtered('spotify_tokens', 'user_id', website_row.get('id') if website_row is not None else None, tmpdir)
+                await export_website_table_filtered('spotify_tokens', 'user_id', website_row.get('id') if website_row is not None else None, db_json_dir)
             except Exception as e:
                 log(f'Failed to export spotify_tokens for user {username}: {e}\n' + traceback.format_exc())
                 had_error = True
             try:
-                await export_website_table_filtered('discord_users', 'user_id', (website_row.get('id') if website_row is not None else None), tmpdir)
+                await export_website_table_filtered('discord_users', 'user_id', (website_row.get('id') if website_row is not None else None), db_json_dir)
             except Exception as e:
                 log(f'Failed to export discord_users for user {username}: {e}\n' + traceback.format_exc())
                 had_error = True
             try:
-                await export_website_table_filtered('custom_bots', 'channel_id', (website_row.get('id') if website_row is not None else None), tmpdir)
+                await export_website_table_filtered('custom_bots', 'channel_id', (website_row.get('id') if website_row is not None else None), db_json_dir)
             except Exception as e:
                 log(f'Failed to export custom_bots for user {username}: {e}\n' + traceback.format_exc())
                 had_error = True
             try:
                 # export server_management (discord-related settings) and rename to requested filename
                 server_id_key = (website_row.get('id') if website_row is not None else None)
-                await export_website_table_filtered('server_management', 'server_id', server_id_key, tmpdir)
+                await export_website_table_filtered('server_management', 'server_id', server_id_key, db_json_dir)
                 src = os.path.join(tmpdir, 'server_management.json')
                 dst = os.path.join(tmpdir, 'discord_server_managemenet.json')
                 if os.path.exists(src):
