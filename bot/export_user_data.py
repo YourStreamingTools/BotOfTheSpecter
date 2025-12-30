@@ -127,6 +127,12 @@ async def create_zip(username, out_path):
         except Exception as e:
             log(f'Failed to gather media files for {username}: {e}\n' + traceback.format_exc())
             media_files, media_empty_dirs = [], []
+        # Gather bot logs (rotated files like username.txt, username.txt.1, etc.)
+        try:
+            log_files, log_empty_dirs = gather_bot_logs(username)
+        except Exception as e:
+            log(f'Failed to gather bot logs for {username}: {e}\n' + traceback.format_exc())
+            log_files, log_empty_dirs = [], []
         # Include files present in tmpdir into the zip, then add media files directly (stored, no compression)
         with zipfile.ZipFile(out_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             # Add all generated export files from tmpdir (JSON, SQL, etc.) using default compression
@@ -143,6 +149,14 @@ async def create_zip(username, out_path):
                     zf.write(src, arcname=arcname, compress_type=zipfile.ZIP_STORED)
                 except Exception as e:
                     log(f'Failed to add media file to zip {src}: {e}\n' + traceback.format_exc())
+            # Add bot log files (these live under /home/botofthespecter/logs/logs/<subfolder>)
+            for src, arc in log_files:
+                try:
+                    arcname = arc.replace('\\', '/')
+                    # logs can be compressed normally
+                    zf.write(src, arcname=arcname)
+                except Exception as e:
+                    log(f'Failed to add log file to zip {src}: {e}\n' + traceback.format_exc())
             # Add empty directory entries for media dirs that had no files
             for arcdir in media_empty_dirs:
                 if not arcdir.endswith('/'):
@@ -154,6 +168,16 @@ async def create_zip(username, out_path):
                     zf.writestr(zinfo, b'')
                 except Exception as e:
                     log(f'Failed to add empty media dir to zip {arcdir}: {e}\n' + traceback.format_exc())
+            # Add empty directory entries for log dirs that had no logs
+            for arcdir in log_empty_dirs:
+                if not arcdir.endswith('/'):
+                    arcdir = arcdir + '/'
+                try:
+                    zinfo = zipfile.ZipInfo(arcdir)
+                    zinfo.external_attr = 0o40775 << 16
+                    zf.writestr(zinfo, b'')
+                except Exception as e:
+                    log(f'Failed to add empty log dir to zip {arcdir}: {e}\n' + traceback.format_exc())
         return out_path, had_error
     finally:
         # Cleanup tempdir unless running in dry-run/benchmark mode.
@@ -484,6 +508,46 @@ def gather_media_entries(username):
             empty_dirs.append(os.path.join(m, username).replace('\\', '/') + '/')
     return files, empty_dirs
 
+
+def gather_bot_logs(username):
+    logs_root = '/home/botofthespecter/logs/logs'
+    subfolders = ['bot', 'websocket', 'twitch', 'event_log', 'chat_history', 'chat', 'api']
+    files = []
+    empty_dirs = []
+    for sub in subfolders:
+        src_dir = os.path.join(logs_root, sub)
+        try:
+            exists = os.path.exists(src_dir)
+        except Exception as e:
+            err_text = f'Log path check failed for {src_dir}: {e}'
+            log(err_text)
+            try:
+                _write_manual_notification_marker(None, username, err_text)
+            except Exception:
+                log(f'Failed to write manual notification marker for logs I/O error: {src_dir}')
+            empty_dirs.append(os.path.join('logs', sub).replace('\\', '/') + '/')
+            continue
+        found = False
+        if exists:
+            try:
+                for fname in os.listdir(src_dir):
+                    # match username.txt and rotated variants like username.txt.1, username.txt.2, etc.
+                    if fname == f"{username}.txt" or fname.startswith(f"{username}.txt."):
+                        full = os.path.join(src_dir, fname)
+                        arc = os.path.join('logs', sub, fname).replace('\\', '/')
+                        files.append((full, arc))
+                        found = True
+            except Exception as e:
+                err_text = f'Log walk failed for {src_dir}: {e}'
+                log(err_text)
+                try:
+                    _write_manual_notification_marker(None, username, err_text)
+                except Exception:
+                    log(f'Failed to write manual notification marker for logs walk error: {src_dir}')
+        if not exists or not found:
+            # create an archive dir entry so admins can see that folder was expected
+            empty_dirs.append(os.path.join('logs', sub).replace('\\', '/') + '/')
+    return files, empty_dirs
 
 async def _resource_monitor(interval, out_metrics):
     try:
