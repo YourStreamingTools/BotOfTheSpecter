@@ -42,6 +42,7 @@ S3_KEY = os.environ.get('S3_ACCESS_KEY')
 S3_SECRET = os.environ.get('S3_SECRET_KEY')
 S3_BUCKET = os.environ.get('S3_BUCKET_NAME') or 'specterexports'
 S3_VERIFY = os.environ.get('S3_VERIFY', '1').lower() not in ('0', 'false', 'no')
+S3_ALWAYS_UPLOAD = os.environ.get('S3_ALWAYS_UPLOAD', 'False').lower() in ('true', '1', 'yes')
 
 # Load environment variables
 load_dotenv()
@@ -875,14 +876,21 @@ async def main():
                     pass
             return 130
         log(f'Created zip at {out_zip} (had_error={had_error})')
-        # determine if zip is too large to email
+        # Reload environment variables to ensure we have the latest S3_ALWAYS_UPLOAD setting
+        load_dotenv(override=True)
+        s3_always_upload = os.environ.get('S3_ALWAYS_UPLOAD', 'False').lower() in ('true', '1', 'yes')
+        # determine if zip is too large to email or if we should always upload to R2
         large_zip = False
+        upload_to_r2_required = s3_always_upload  # Upload to R2 if always_upload is enabled
         try:
             if os.path.exists(out_zip):
                 size = os.path.getsize(out_zip)
                 if size > MAX_EMAIL_ZIP_SIZE:
                     large_zip = True
+                    upload_to_r2_required = True  # Also upload if file is too large
                     log(f'Zip file {out_zip} is too large to email ({size} bytes)')
+                elif s3_always_upload:
+                    log(f'S3_ALWAYS_UPLOAD is enabled; will upload to R2 regardless of size ({size} bytes)')
         except Exception as e:
             log(f'Failed to stat zip file size: {e}')
         # Try to send email if SMTP configured. If any export step failed, do NOT email the user; notify admin instead.
@@ -905,23 +913,26 @@ async def main():
                 log(f'Failed to send admin notification: {e}\n' + traceback.format_exc())
             log(f'Export for {username} completed with errors; admin notified; user not emailed')
         else:
-            # Handle large files by uploading to R2 and providing a download link
+            # Handle files by uploading to R2 if required (either large or S3_ALWAYS_UPLOAD is enabled)
             download_link = None
-            if large_zip:
+            if upload_to_r2_required:
                 try:
                     if dry_run:
-                        log('Dry-run: large zip would be uploaded to R2; skipping')
+                        log('Dry-run: file would be uploaded to R2; skipping')
                     else:
                         # Generate R2 key with timestamp and username
                         timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
                         r2_key = f'user-exports/{username}/{timestamp}/export.zip'
                         download_link = await upload_to_r2(out_zip, r2_key)
-                        log(f'Large export uploaded to R2: {r2_key}')
+                        log(f'Export uploaded to R2: {r2_key}')
                 except Exception as e:
-                    log(f'Failed to upload large zip to R2: {e}\n' + traceback.format_exc())
+                    log(f'Failed to upload to R2: {e}\n' + traceback.format_exc())
                     # Fallback: notify admin to handle manually
                     try:
-                        send_admin_notification(username, f'Export completed but R2 upload failed: {e}. ZIP is too large to email (>{MAX_EMAIL_ZIP_SIZE} bytes). Manual upload required.', None, user_email=email)
+                        if large_zip:
+                            send_admin_notification(username, f'Export completed but R2 upload failed: {e}. ZIP is too large to email (>{MAX_EMAIL_ZIP_SIZE} bytes). Manual upload required.', None, user_email=email)
+                        else:
+                            send_admin_notification(username, f'Export completed but R2 upload failed: {e}. S3_ALWAYS_UPLOAD is enabled but upload failed. Manual upload required.', None, user_email=email)
                     except Exception:
                         log('Failed to send admin notification about R2 upload failure')
                     log(f'Export for {username} completed but R2 upload failed; admin notified')
@@ -929,11 +940,11 @@ async def main():
             if smtp_host and from_email and email:
                 try:
                     user_subject = 'BotOfTheSpecter: Data Export from Dashboard'
-                    if large_zip and download_link:
+                    if download_link:
                         user_body = (
                             f"Hi {username},\n\n"
                             "Thanks for requesting your data from our system.\n\n"
-                            "Your export file is too large to attach to this email, so we've uploaded it to a secure download link.\n\n"
+                            "Your export file has been uploaded to a secure download link.\n\n"
                             "Download your data here (valid for 7 days):\n"
                             f"{download_link}\n\n"
                             "Please download your data within 7 days. After that, the link will expire and you'll need to request a new export.\n\n"
@@ -949,14 +960,14 @@ async def main():
                             "BotOfTheSpecter Dashboard Systems"
                         )
                     if dry_run:
-                        log(f'Dry-run: would send email to {email} with {"download link" if large_zip else "attachment " + out_zip}')
+                        log(f'Dry-run: would send email to {email} with {"download link" if download_link else "attachment " + out_zip}')
                     else:
-                        # Don't attach file for large zips since we're providing a download link
-                        attachment = None if large_zip else out_zip
+                        # Don't attach file if we have a download link (R2 upload)
+                        attachment = None if download_link else out_zip
                         send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_email, email,
                                    user_subject,
                                    user_body, attachment)
-                        log(f'Email sent to {email} with {"download link" if large_zip else "attachment"}')
+                        log(f'Email sent to {email} with {"download link" if download_link else "attachment"}')
                     # remove the zip now that it's been emailed to the user
                     try:
                         if monitor_task is not None and metrics.get('available'):
@@ -982,7 +993,7 @@ async def main():
                         if dry_run:
                             log('Dry-run: would send admin success report')
                         else:
-                            if large_zip and download_link:
+                            if download_link:
                                 send_admin_success_report(username, 'link', sent_value=download_link, user_email=email)
                             else:
                                 send_admin_success_report(username, 'zip', sent_value=out_zip, user_email=email)
@@ -1005,9 +1016,9 @@ async def main():
                             log(f'Failed to stop/wait for monitor task: {e}\n' + traceback.format_exc())
                 except Exception as e:
                     log(f'Failed to send email: {e}\n' + traceback.format_exc())
-                    # attempt to notify admin about email failure (attach zip if small)
+                    # attempt to notify admin about email failure (attach zip if not uploaded to R2)
                     try:
-                        send_admin_notification(username, f'Failed to send user email: {e}', out_zip if not large_zip else None, user_email=email)
+                        send_admin_notification(username, f'Failed to send user email: {e}', out_zip if not download_link else None, user_email=email)
                     except Exception:
                         log('Failed to notify admin about email failure')
             else:
