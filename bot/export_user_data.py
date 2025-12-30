@@ -1041,10 +1041,10 @@ async def main():
                     if dry_run:
                         log('Dry-run: file would be uploaded to R2; skipping')
                     else:
-                        # Generate R2 key with timestamp and username
-                        timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+                        # Generate R2 key with username and date
                         date_str = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d')
-                        r2_key = f'user-exports/{username}/{timestamp}/BotOfTheSpecter_Export_{username}_{date_str}.zip'
+                        timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+                        r2_key = f'user-exports/{username}/BotOfTheSpecter_Export_{username}_{date_str}_{timestamp}.zip'
                         download_link = await upload_to_r2(out_zip, r2_key)
                         log(f'Export uploaded to R2: {r2_key}')
                 except Exception as e:
