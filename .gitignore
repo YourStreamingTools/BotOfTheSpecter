@@ -96,6 +96,7 @@ docs/5.8.md
 /bot/ai/chat-history
 /deploy
 /wiki
+/bot/export_queue
 # This will be added later to the commits, for now, we're ignoring it.
 /ghostbot
 
