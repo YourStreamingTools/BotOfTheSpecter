@@ -3168,8 +3168,10 @@ class BotOfTheSpecter(commands.Bot):
                             try:
                                 posted_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
                                 started_at = posted_at
-                                # Fetch stream_id from Twitch API
+                                # Fetch stream_id and full stream details from Twitch API
                                 stream_id = None
+                                twitch_user_id = None
+                                stream_data = None
                                 try:
                                     user_row = await mysql_helper.fetchone(
                                         "SELECT twitch_user_id FROM users WHERE LOWER(username) = %s",
@@ -3196,7 +3198,15 @@ class BotOfTheSpecter(commands.Bot):
                                 stream_id = stream_id or ""
                                 await mysql_helper.insert_live_notification(guild.id, account_username, stream_id, started_at, posted_at)
                                 if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
-                                    await self.live_channel_manager.mark_online(code, username=account_username, twitch_user_id=None, stream_id=stream_id or None, started_at=started_at, details=None)
+                                    # Pass twitch_user_id and stream_data to properly populate online_streams table
+                                    await self.live_channel_manager.mark_online(
+                                        code,
+                                        username=account_username,
+                                        twitch_user_id=twitch_user_id,
+                                        stream_id=stream_id or None,
+                                        started_at=started_at,
+                                        details=stream_data
+                                    )
                             except Exception as e:
                                 self.logger.debug(f"Error persisting live notification or marking online for {code}: {e}")
                 else:
@@ -5957,10 +5967,12 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                     )
                     channel_code = user_row['api_key'] if user_row else None
                     if channel_code and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                        # Extract twitch_user_id from stream data (it's the user_id field)
+                        twitch_user_id = stream.get('user_id')
                         await self.bot.live_channel_manager.mark_online(
                             channel_code,
                             username=username,
-                            twitch_user_id=None,
+                            twitch_user_id=twitch_user_id,
                             stream_id=stream['id'],
                             started_at=started_at,
                             details=stream
