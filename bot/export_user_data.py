@@ -47,7 +47,7 @@ S3_BUCKET = os.environ.get('S3_BUCKET_NAME') or 'specterexports'
 S3_VERIFY = os.environ.get('S3_VERIFY', '1').lower() not in ('0', 'false', 'no')
 S3_ALWAYS_UPLOAD = os.environ.get('S3_ALWAYS_UPLOAD', 'False').lower() in ('true', '1', 'yes')
 
-LOG_FILE = os.path.join(os.path.dirname(__file__), 'export_user_data.log')
+LOG_FILE = '/home/botofthespecter/export_queue/export_user_data.log'
 
 # Global dry-run flag (set by CLI) so top-level exception handler can respect it
 DRY_RUN = False
