@@ -759,8 +759,52 @@ def send_admin_notification(username, error_text, attachment_path=None, user_id=
         f"Error details:\n{error_text}\n\n"
         f"See {LOG_FILE} for more info. The export ZIP (if any) is attached."
     )
+    details_html = '<br>'.join(details)
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 40px 30px; border-left: 4px solid #ef4444;">
+                            <h1 style="color: #dc2626; font-size: 24px; margin: 0 0 20px 0;">⚠️ Export Failed</h1>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                An automated export for the following user failed and requires manual intervention:
+                            </p>
+                            <div style="background-color: #f9fafb; border-radius: 6px; padding: 20px; margin: 0 0 20px 0;">
+                                <p style="color: #374151; font-size: 14px; line-height: 20px; margin: 0;">
+                                    {details_html}
+                                </p>
+                            </div>
+                            <h2 style="color: #374151; font-size: 18px; margin: 0 0 10px 0;">Error Details:</h2>
+                            <div style="background-color: #fef2f2; border-left: 3px solid #ef4444; padding: 15px; margin: 0 0 20px 0;">
+                                <pre style="color: #991b1b; font-size: 12px; line-height: 18px; margin: 0; white-space: pre-wrap; word-wrap: break-word; font-family: 'Courier New', monospace;">{error_text}</pre>
+                            </div>
+                            <p style="color: #6b7280; font-size: 14px; line-height: 20px; margin: 0 0 20px 0;">
+                                See <code style="background-color: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 13px;">{LOG_FILE}</code> for more info.
+                            </p>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 20px 0 0 0;">
+                                Regards,<br>
+                                <strong>BotOfTheSpecter Automated Exports</strong>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
     try:
-        send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_email, admin, subject, body, attachment_path)
+        send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_email, admin, subject, body, attachment_path, html_body=html_body)
         log(f'Admin notification sent to {admin} for {username}')
         return True
     except Exception as e:
@@ -829,8 +873,68 @@ def send_admin_success_report(username, sent_type, sent_value=None, user_email=N
         'BotOfTheSpecter Automated Exports',
     ])
     body = '\n'.join(lines)
+    
+    # Build HTML version
+    delivery_html = ''
+    if sent_type == 'zip' and sent_value:
+        delivery_html = f"""
+            <div style="background-color: #f0fdf4; border-left: 3px solid #22c55e; padding: 15px; margin: 20px 0;">
+                <p style="color: #166534; font-size: 14px; line-height: 20px; margin: 0 0 8px 0;"><strong>Delivery:</strong> ZIP file emailed to user</p>
+                <p style="color: #166534; font-size: 14px; line-height: 20px; margin: 0 0 8px 0;"><strong>Filename:</strong> {os.path.basename(sent_value)}</p>
+                <p style="color: #166534; font-size: 14px; line-height: 20px; margin: 0 0 8px 0;"><strong>File size:</strong> {filesize_text}</p>
+                <p style="color: #166534; font-size: 14px; line-height: 20px; margin: 0;"><strong>Local path:</strong> <code style="background-color: #dcfce7; padding: 2px 6px; border-radius: 3px; font-size: 12px;">{sent_value}</code></p>
+            </div>
+"""
+    elif sent_type == 'link' and sent_value:
+        delivery_html = f"""
+            <div style="background-color: #eff6ff; border-left: 3px solid #3b82f6; padding: 15px; margin: 20px 0;">
+                <p style="color: #1e40af; font-size: 14px; line-height: 20px; margin: 0 0 8px 0;"><strong>Delivery:</strong> Signed download link provided to user</p>
+                <p style="color: #1e40af; font-size: 14px; line-height: 20px; margin: 0; word-break: break-all;"><strong>Link:</strong> <a href="{sent_value}" style="color: #2563eb;">{sent_value[:80]}...</a></p>
+            </div>
+"""
+    
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; max-width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 40px 30px; border-left: 4px solid #22c55e;">
+                            <h1 style="color: #16a34a; font-size: 24px; margin: 0 0 20px 0;">✅ Export Completed</h1>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                A user data export completed successfully.
+                            </p>
+                            <div style="background-color: #f9fafb; border-radius: 6px; padding: 20px; margin: 0 0 20px 0;">
+                                <p style="color: #374151; font-size: 14px; line-height: 20px; margin: 0 0 8px 0;"><strong>Username:</strong> {username}</p>
+                                <p style="color: #374151; font-size: 14px; line-height: 20px; margin: 0 0 8px 0;"><strong>Request timestamp (UTC):</strong> {now_iso}</p>
+                                {f'<p style="color: #374151; font-size: 14px; line-height: 20px; margin: 0;"><strong>User email:</strong> {user_email}</p>' if user_email else ''}
+                            </div>
+                            {delivery_html}
+                            <p style="color: #6b7280; font-size: 14px; line-height: 20px; margin: 20px 0;">
+                                Log file: <code style="background-color: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 13px;">{LOG_FILE}</code>
+                            </p>
+                            <p style="color: #666666; font-size: 16px; line-height: 24px; margin: 20px 0 0 0;">
+                                Regards,<br>
+                                <strong>BotOfTheSpecter Automated Exports</strong>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
     try:
-        send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_email, admin, subject, body, None)
+        send_email(smtp_host, smtp_port, smtp_username, smtp_password, from_email, admin, subject, body, None, html_body=html_body)
         log(f'Admin success report sent to {admin} for {username}')
         return True
     except Exception as e:
