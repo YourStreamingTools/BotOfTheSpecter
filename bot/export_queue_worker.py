@@ -35,6 +35,10 @@ def pick_job():
     return files[0] if files else None
 
 def run_job(jobfile: Path):
+    # Check if file still exists (race condition protection)
+    if not jobfile.exists():
+        log(f'Job file {jobfile} no longer exists; skipping')
+        return
     try:
         with jobfile.open('r', encoding='utf-8') as f:
             job = json.load(f)
@@ -42,20 +46,23 @@ def run_job(jobfile: Path):
         log(f'Invalid job file {jobfile}: {e}')
         jobfile.rename(FAILED_DIR / jobfile.name)
         return
-
     username = job.get('username')
     if not username:
         log(f'Job {jobfile} missing username; moving to failed')
         jobfile.rename(FAILED_DIR / jobfile.name)
         return
-
     procfile = PROCESSING_DIR / jobfile.name
+    # Ensure processing directory exists before moving file
+    try:
+        PROCESSING_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        log(f'Failed to create processing directory: {e}')
+        return
     try:
         jobfile.rename(procfile)
     except Exception as e:
         log(f'Failed to move job {jobfile} to processing: {e}')
         return
-
     log(f'Starting export for {username} (job={procfile.name})')
     cmd = ['python3', '/home/botofthespecter/export_user_data.py', username]
     try:
@@ -67,20 +74,22 @@ def run_job(jobfile: Path):
     except Exception as e:
         log(f'Failed to run export for {username}: {e}')
         try:
+            FAILED_DIR.mkdir(parents=True, exist_ok=True)
             shutil.move(str(procfile), FAILED_DIR / procfile.name)
         except Exception:
             pass
         return
-
     if ret == 0:
         log(f'Export succeeded for {username} (job={procfile.name})')
         try:
+            PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
             shutil.move(str(procfile), PROCESSED_DIR / procfile.name)
         except Exception as e:
             log(f'Failed to move processed job {procfile}: {e}')
     else:
         log(f'Export failed for {username} (job={procfile.name}) exit={ret}')
         try:
+            FAILED_DIR.mkdir(parents=True, exist_ok=True)
             shutil.move(str(procfile), FAILED_DIR / procfile.name)
         except Exception as e:
             log(f'Failed to move failed job {procfile}: {e}')
