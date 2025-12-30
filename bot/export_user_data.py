@@ -22,7 +22,6 @@ from pathlib import Path
 import pymysql
 import boto3
 from botocore.client import Config
-import botocore.exceptions
 import socket
 
 # Admin notification address for export failures (fixed)
