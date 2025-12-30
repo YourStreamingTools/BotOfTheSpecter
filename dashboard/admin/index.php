@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $success = false;
     $output = '';
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'fastapi.service', 'websocket.service', 'mysql.service'];
+    $allowedServices = ['discordbot.service', 'fastapi.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service'];
     if (in_array($service, $allowedServices)) {
         try {
             // Determine which server credentials to use based on service
@@ -696,7 +696,7 @@ ob_start();
     <h2 class="title is-4"><span class="icon"><i class="fas fa-server"></i></span> Server Overview</h2>
     <div class="columns is-multiline">
         <!-- Discord Bot Service -->
-        <div class="column is-full-mobile is-one-quarter-tablet">
+        <div class="column is-full-mobile is-one-fifth-tablet">
             <div class="box hover-box">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
@@ -726,7 +726,7 @@ ob_start();
             </div>
         </div>
         <!-- API Server Service -->
-        <div class="column is-full-mobile is-one-quarter-tablet">
+        <div class="column is-full-mobile is-one-fifth-tablet">
             <div class="box hover-box">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
@@ -756,7 +756,7 @@ ob_start();
             </div>
         </div>
         <!-- WebSocket Server Service -->
-        <div class="column is-full-mobile is-one-quarter-tablet">
+        <div class="column is-full-mobile is-one-fifth-tablet">
             <div class="box hover-box">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
@@ -786,7 +786,7 @@ ob_start();
             </div>
         </div>
         <!-- MySQL Server Service -->
-        <div class="column is-full-mobile is-one-quarter-tablet">
+        <div class="column is-full-mobile is-one-fifth-tablet">
             <div class="box hover-box">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
@@ -810,6 +810,36 @@ ob_start();
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
                     <button type="button" class="button is-warning" onclick="controlService('mysql.service', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Export Queue Worker Service -->
+        <div class="column is-full-mobile is-one-fifth-tablet">
+            <div class="box hover-box">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon has-text-info">
+                            <i class="fas fa-file-export fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <p class="heading">Export Queue Worker</p>
+                            <p class="title is-6 has-text-info" id="export-queue-status">Loading...</p>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="tag is-light has-text-black" id="export-queue-pid">PID: ...</span>
+                    </div>
+                </div>
+                <div class="buttons are-small mt-4" id="export-queue-buttons">
+                    <button type="button" class="button is-success" onclick="controlService('export_queue_worker.service', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="button is-danger" onclick="controlService('export_queue_worker.service', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="button is-warning" onclick="controlService('export_queue_worker.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
@@ -1486,6 +1516,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
         updateServiceStatus('mysql', 'mysql-status', 'mysql-pid', 'mysql-buttons');
+        updateServiceStatus('export_queue_worker', 'export-queue-status', 'export-queue-pid', 'export-queue-buttons');
     }, 100);
     // Utility to create safe DOM ids from channel names
     function sanitizeId(str) {
