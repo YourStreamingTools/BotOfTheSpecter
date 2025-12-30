@@ -23,6 +23,7 @@ import pymysql
 import boto3
 from botocore.client import Config
 import botocore.exceptions
+import socket
 
 # Admin notification address for export failures (fixed)
 ADMIN_NOTIFICATION_EMAIL = 'admin@botofthespecter.com'
@@ -62,6 +63,11 @@ def make_r2_client():
         raise RuntimeError('boto3 not installed; cannot upload to R2')
     if not all([S3_HOST, S3_KEY, S3_SECRET]):
         raise RuntimeError('R2 configuration missing (S3_ENDPOINT_HOSTNAME, S3_ACCESS_KEY, S3_SECRET_KEY)')
+    # Force IPv4 resolution to match API token IP restrictions
+    original_getaddrinfo = socket.getaddrinfo
+    def getaddrinfo_ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
+        return original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+    socket.getaddrinfo = getaddrinfo_ipv4_only
     endpoint = f'https://{S3_HOST}' if not S3_HOST.startswith('http') else S3_HOST
     cfg = Config(
         signature_version='s3v4',
@@ -83,6 +89,8 @@ def make_r2_client():
         client._endpoint.http_session.verify = S3_VERIFY
     except Exception:
         pass
+    # Restore original socket behavior after client creation
+    socket.getaddrinfo = original_getaddrinfo
     return client
 
 async def upload_to_r2(local_path, key):
