@@ -449,140 +449,173 @@ CREATE DATABASE IF NOT EXISTS website;
 USE website;
 
 CREATE TABLE IF NOT EXISTS api_counts (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    type VARCHAR(50),
-    count INT DEFAULT 0,
-    reset_day INT,
-    updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    id INT NOT NULL AUTO_INCREMENT,
+    type VARCHAR(50) NOT NULL,
+    count INT NOT NULL,
+    reset_day INT NOT NULL,
+    updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY type (type)
+);
+
+CREATE TABLE IF NOT EXISTS bot_messages (
+    bot_system VARCHAR(255) NOT NULL,
+    counted_since DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    messages_sent INT NOT NULL DEFAULT 0,
+    last_updated DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (bot_system)
+);
+
+CREATE TABLE IF NOT EXISTS custom_bots (
+    channel_id VARCHAR(255) NOT NULL,
+    bot_username VARCHAR(255) NOT NULL,
+    bot_channel_id VARCHAR(255) NOT NULL,
+    access_token VARCHAR(255) NOT NULL,
+    refresh_token VARCHAR(255) NOT NULL,
+    token_expires DATETIME NOT NULL,
+    is_verified INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (channel_id)
 );
 
 CREATE TABLE IF NOT EXISTS discord_users (
-    user_id INT AUTO_INCREMENT PRIMARY KEY,
-    discord_id VARCHAR(255),
-    access_token VARCHAR(255),
-    refresh_token VARCHAR(255),
-    reauth INT DEFAULT 0,
-    manual_ids INT DEFAULT 0,
-    guild_id VARCHAR(255),
-    live_channel_id VARCHAR(255),
-    stream_alert_channel_id VARCHAR(255),
-    moderation_channel_id VARCHAR(255),
-    alert_channel_id VARCHAR(255),
-    member_streams_id VARCHAR(255),
-    stream_alert_everyone TINYINT(1) DEFAULT 1,
-    stream_alert_custom_role VARCHAR(255),
-    online_text VARCHAR(20) DEFAULT 'Live on Twitch',
-    offline_text VARCHAR(20) DEFAULT 'Not Live',
-    auto_role_id VARCHAR(255)
+    user_id INT NOT NULL,
+    discord_id VARCHAR(255) NOT NULL,
+    access_token VARCHAR(255) DEFAULT NULL,
+    refresh_token VARCHAR(255) DEFAULT NULL,
+    reauth INT NOT NULL DEFAULT 0,
+    discord_allowed_callers TINYINT NOT NULL DEFAULT 0,
+    manual_ids INT NOT NULL DEFAULT 0,
+    guild_id VARCHAR(255) DEFAULT NULL,
+    live_channel_id VARCHAR(255) DEFAULT NULL,
+    stream_alert_channel_id VARCHAR(255) DEFAULT NULL,
+    moderation_channel_id VARCHAR(255) DEFAULT NULL,
+    alert_channel_id VARCHAR(255) DEFAULT NULL,
+    member_streams_id VARCHAR(255) DEFAULT NULL,
+    stream_alert_everyone TINYINT NOT NULL DEFAULT 1,
+    stream_alert_custom_role VARCHAR(255) DEFAULT NULL,
+    online_text VARCHAR(20) NOT NULL DEFAULT 'Live on Twitch',
+    offline_text VARCHAR(20) NOT NULL DEFAULT 'Not Live',
+    auto_role_id VARCHAR(255) DEFAULT NULL,
+    UNIQUE KEY user_id (user_id),
+    CONSTRAINT discord_users_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id INT NOT NULL AUTO_INCREMENT,
+    twitch_user_id VARCHAR(64) DEFAULT NULL,
+    display_name VARCHAR(255) DEFAULT NULL,
+    message TEXT,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS languages (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id INT NOT NULL AUTO_INCREMENT,
     name VARCHAR(50) NOT NULL,
-    code VARCHAR(50) NOT NULL
+    code VARCHAR(50) NOT NULL,
+    PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS moderator_access (
     moderator_id VARCHAR(255) NOT NULL,
     broadcaster_id VARCHAR(255) NOT NULL,
-    PRIMARY KEY (moderator_id, broadcaster_id)
+    PRIMARY KEY (moderator_id, broadcaster_id),
+    KEY broadcaster_id (broadcaster_id),
+    CONSTRAINT moderator_access_ibfk_1 FOREIGN KEY (moderator_id) REFERENCES users (twitch_user_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT moderator_access_ibfk_2 FOREIGN KEY (broadcaster_id) REFERENCES users (twitch_user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS restricted_users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50),
-    twitch_user_id VARCHAR(50)
+    id INT NOT NULL AUTO_INCREMENT,
+    username VARCHAR(50) NOT NULL,
+    twitch_user_id VARCHAR(50) NOT NULL,
+    PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS spotify_tokens (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT,
-    email TEXT DEFAULT NULL,
-    has_access INT DEFAULT 0,
-    access_token VARCHAR(255),
-    refresh_token VARCHAR(255),
-    auth TINYINT DEFAULT 1,
-    own_client TINYINT DEFAULT 0,
-    client_id VARCHAR(255) NULL,
-    client_secret VARCHAR(255) NULL
+    id INT NOT NULL AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    email TEXT,
+    auth TINYINT NOT NULL DEFAULT 1,
+    has_access INT NOT NULL DEFAULT 0,
+    access_token VARCHAR(255) NOT NULL,
+    refresh_token VARCHAR(255) NOT NULL,
+    own_client TINYINT NOT NULL DEFAULT 0,
+    client_id VARCHAR(255) DEFAULT NULL,
+    client_secret VARCHAR(255) DEFAULT NULL,
+    PRIMARY KEY (id),
+    KEY user_id (user_id),
+    CONSTRAINT spotify_tokens_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS streamelements_tokens (
-    twitch_user_id VARCHAR(50) PRIMARY KEY,
-    access_token VARCHAR(255),
-    refresh_token VARCHAR(255),
-    jwt_token LONGTEXT DEFAULT NULL
+    twitch_user_id VARCHAR(50) NOT NULL,
+    access_token VARCHAR(255) NOT NULL,
+    refresh_token VARCHAR(255) NOT NULL,
+    jwt_token LONGTEXT,
+    PRIMARY KEY (twitch_user_id)
 );
 
 CREATE TABLE IF NOT EXISTS streamlabs_tokens (
-    twitch_user_id VARCHAR(255) PRIMARY KEY,
-    access_token VARCHAR(255),
-    refresh_token VARCHAR(255)
+    twitch_user_id VARCHAR(255) NOT NULL DEFAULT '',
+    access_token LONGTEXT NOT NULL,
+    refresh_token LONGTEXT NOT NULL,
+    socket_token LONGTEXT,
+    expires_in INT NOT NULL DEFAULT 3600,
+    created_at INT NOT NULL,
+    PRIMARY KEY (twitch_user_id)
 );
 
 CREATE TABLE IF NOT EXISTS system_metrics (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    server_name VARCHAR(255),
-    cpu_percent FLOAT,
-    ram_percent FLOAT,
-    ram_used FLOAT,
-    ram_total FLOAT,
-    disk_percent FLOAT,
-    disk_used FLOAT,
-    disk_total FLOAT,
-    net_sent FLOAT,
-    net_recv FLOAT,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    id INT NOT NULL AUTO_INCREMENT,
+    server_name VARCHAR(255) NOT NULL,
+    cpu_percent FLOAT NOT NULL,
+    ram_percent FLOAT NOT NULL,
+    ram_used FLOAT NOT NULL,
+    ram_total FLOAT NOT NULL,
+    disk_percent FLOAT NOT NULL,
+    disk_used FLOAT NOT NULL,
+    disk_total FLOAT NOT NULL,
+    net_sent FLOAT NOT NULL,
+    net_recv FLOAT NOT NULL,
+    last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_server (server_name)
 );
 
 CREATE TABLE IF NOT EXISTS timezones (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255)
+    id INT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS twitch_bot_access (
-    twitch_user_id VARCHAR(255) PRIMARY KEY,
-    twitch_access_token VARCHAR(255)
+    twitch_user_id VARCHAR(255) NOT NULL,
+    twitch_access_token VARCHAR(255) NOT NULL,
+    PRIMARY KEY (twitch_user_id)
 );
 
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50),
-    twitch_display_name VARCHAR(50),
-    twitch_user_id VARCHAR(255),
+    id INT NOT NULL AUTO_INCREMENT,
+    username VARCHAR(50) NOT NULL,
+    twitch_display_name VARCHAR(50) DEFAULT NULL,
+    twitch_user_id VARCHAR(255) NOT NULL,
     access_token VARCHAR(255) DEFAULT NULL,
     refresh_token VARCHAR(255) DEFAULT NULL,
-    api_key VARCHAR(32),
-    is_admin TINYINT(1) DEFAULT 0,
-    beta_access TINYINT(1) DEFAULT 0,
-    is_technical TINYINT(1) DEFAULT 0,
-    signup_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    profile_image VARCHAR(255) DEFAULT 'https://cdn.botofthespecter.com/noimage.png',
+    api_key VARCHAR(32) NOT NULL,
+    is_admin TINYINT(1) NOT NULL DEFAULT 0,
+    beta_access TINYINT(1) NOT NULL DEFAULT 0,
+    is_technical TINYINT(1) NOT NULL DEFAULT 0,
+    signup_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    profile_image VARCHAR(255) NOT NULL DEFAULT 'https://cdn.botofthespecter.com/noimage.png',
     email VARCHAR(255) DEFAULT NULL,
     app_password VARCHAR(50) DEFAULT NULL,
-    language VARCHAR(5) DEFAULT 'EN'
-);
-
--- custom_bots: Stores any user-created/custom bot entries
-CREATE TABLE IF NOT EXISTS custom_bots (
-    channel_id VARCHAR(255) NOT NULL,
-    bot_username VARCHAR(255),
-    bot_channel_id VARCHAR(255),
-    access_token VARCHAR(255),
-    refresh_token VARCHAR(255),
-    token_expires DATETIME,
-    is_verified INT DEFAULT 0,
-    PRIMARY KEY (channel_id)
-);
-
--- feedback: User-submitted feedback/messages for the site & services
-CREATE TABLE IF NOT EXISTS feedback (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    twitch_user_id VARCHAR(64),
-    display_name VARCHAR(255),
-    message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    language VARCHAR(5) NOT NULL DEFAULT 'EN',
+    PRIMARY KEY (id),
+    UNIQUE KEY username (username),
+    UNIQUE KEY api_key (api_key),
+    KEY idx_twitch_user_id (twitch_user_id)
 );
 </code></pre>
 
