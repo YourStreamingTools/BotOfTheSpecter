@@ -129,16 +129,16 @@ while ($stmt->fetch()) {
 $stmt->close();
 
 // Load Twitch chat alerts settings from the database before rendering the form
-$chat_alerts = [];
 $default_chat_alerts = [
-    'follower_alert' => '',
-    'cheer_alert' => '',
-    'raid_alert' => '',
-    'subscription_alert' => '',
-    'gift_subscription_alert' => '',
-    'hype_train_start' => '',
-    'hype_train_end' => ''
+    'follower_alert' => 'Thank you (user) for following! Welcome to the channel!',
+    'cheer_alert' => 'Thank you (user) for (bits) bits! You\'ve given a total of (total-bits) bits.',
+    'raid_alert' => 'Incredible! (user) and (viewers) viewers have joined the party! Let\'s give them a warm welcome!',
+    'subscription_alert' => 'Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!',
+    'gift_subscription_alert' => 'Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!',
+    'hype_train_start' => 'The Hype Train has started! Starting at level: (level)',
+    'hype_train_end' => 'The Hype Train has ended at level (level)!'
 ];
+$chat_alerts = [];
 $stmt = $db->prepare("SELECT alert_type, alert_message FROM twitch_chat_alerts");
 $stmt->execute();
 $stmt->bind_result($alert_type, $alert_message);
@@ -146,6 +146,13 @@ while ($stmt->fetch()) {
     $chat_alerts[$alert_type] = $alert_message;
 }
 $stmt->close();
+
+// Merge with defaults - if database value is empty or not set, use default
+foreach ($default_chat_alerts as $type => $default_message) {
+    if (!isset($chat_alerts[$type]) || trim($chat_alerts[$type]) === '') {
+        $chat_alerts[$type] = $default_message;
+    }
+}
 
 // Load ignored games from the database before rendering the form
 $ignored_games = [];
