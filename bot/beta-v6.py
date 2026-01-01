@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.8"
+VERSION = "6.0"
 SYSTEM = "BETA"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -69,6 +69,7 @@ ADMIN_API_KEY = os.getenv('ADMIN_KEY')
 OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+BOT_ID = os.getenv('BOT_ID')
 TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
 TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
@@ -366,6 +367,47 @@ async def refresh_twitch_token(current_refresh_token):
     except Exception as e:
         twitch_logger.error(f"Twitch token refresh error: {e}")
     return time.time() + 3600  # Default retry time of 1 hour
+
+# Get or create Twitch EventSub Conduit
+async def get_or_create_conduit():
+    global CONDUIT_ID, CHANNEL_AUTH, CLIENT_ID
+    url = "https://api.twitch.tv/helix/eventsub/conduits"
+    headers = {
+        "Client-Id": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Content-Type": "application/json"
+    }
+    try:
+        async with httpClientSession() as session:
+            # Try to get existing conduits
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    conduits = data.get('data', [])
+                    if conduits:
+                        # Use the first available conduit
+                        CONDUIT_ID = conduits[0]['id']
+                        event_logger.info(f"Using existing conduit: {CONDUIT_ID}")
+                        return CONDUIT_ID
+                    # No conduits exist, create a new one
+                    event_logger.info("No existing conduits found. Creating new conduit...")
+                    async with session.post(url, headers=headers, json={"shard_count": 1}) as create_response:
+                        if create_response.status in (200, 201):
+                            create_data = await create_response.json()
+                            CONDUIT_ID = create_data['data'][0]['id']
+                            event_logger.info(f"Created new conduit: {CONDUIT_ID}")
+                            return CONDUIT_ID
+                        else:
+                            error_text = await create_response.text()
+                            event_logger.error(f"Failed to create conduit: HTTP {create_response.status} - {error_text}")
+                            return None
+                else:
+                    error_text = await response.text()
+                    event_logger.error(f"Failed to get conduits: HTTP {response.status} - {error_text}")
+                    return None
+    except Exception as e:
+        event_logger.error(f"Error getting or creating conduit: {e}")
+        return None
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
@@ -1749,17 +1791,19 @@ class SSHConnectionManager:
                 self._cleanup_connection(server_name)
             self.logger.info("All SSH connections closed")
 
-class TwitchBot(commands.Bot):
+class TwitchBot(commands.AutoBot):
     # Event Message to get the bot ready
-    def __init__(self, token, prefix, channel_name):
-        super().__init__(token=token, prefix=prefix, initial_channels=[channel_name], case_insensitive=True)
+    def __init__(self, token, prefix, channel_name, client_id, client_secret, bot_id):
+        super().__init__(token=token, prefix=prefix, initial_channels=[channel_name], case_insensitive=True, client_id=client_id, client_secret=client_secret, bot_id=bot_id)
         self.channel_name = channel_name
         self.running_commands = set()
 
     async def event_ready(self):
-        bot_logger.info(f'Logged in as "{self.nick}"')
+        bot_logger.info(f'Logged in as "{self.user.name}"')
         await update_version_control()
         await builtin_commands_creation()
+        # Get or create EventSub conduit before starting EventSub
+        await get_or_create_conduit()
         looped_tasks["check_stream_online"] = create_task(check_stream_online())
         create_task(known_users())
         create_task(channel_point_rewards())
@@ -9838,7 +9882,7 @@ async def midnight():
 async def reload_env_vars():
     # Load in all the globals
     global SQL_HOST, SQL_USER, SQL_PASSWORD, ADMIN_API_KEY
-    global OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET, TWITCH_GQL
+    global OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET, BOT_ID, TWITCH_GQL
     global SHAZAM_API, STEAM_API, EXCHANGE_RATE_API_KEY, HYPERATE_API_KEY, CHANNEL_AUTH
     global TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
     global OPENAI_API_KEY
@@ -9852,6 +9896,7 @@ async def reload_env_vars():
     OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
     CLIENT_ID = os.getenv('CLIENT_ID')
     CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+    BOT_ID = os.getenv('BOT_ID')
     TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
     TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
     TWITCH_GQL = os.getenv('TWITCH_GQL')
@@ -10565,7 +10610,10 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
 BOTS_TWITCH_BOT = TwitchBot(
     token=OAUTH_TOKEN,
     prefix='!',
-    channel_name=CHANNEL_NAME
+    channel_name=CHANNEL_NAME,
+    client_id=CLIENT_ID,
+    client_secret=CLIENT_SECRET,
+    bot_id=BOT_ID
 )
 
 # Initialize SSH Connection Manager
