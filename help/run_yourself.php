@@ -726,6 +726,95 @@ CREATE TABLE IF NOT EXISTS users (
     UNIQUE KEY api_key (api_key),
     KEY idx_twitch_user_id (twitch_user_id)
 );
+
+-- yourlinks: OPTIONAL - short links system (only if running your own short links domain)
+CREATE DATABASE IF NOT EXISTS yourlinks;
+USE yourlinks;
+
+CREATE TABLE IF NOT EXISTS users (
+    id INT NOT NULL AUTO_INCREMENT,
+    twitch_id VARCHAR(50) NOT NULL,
+    username VARCHAR(50) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    display_name VARCHAR(255) NOT NULL,
+    profile_image_url TEXT,
+    custom_domain VARCHAR(255) DEFAULT NULL,
+    domain_verified TINYINT(1) DEFAULT 0,
+    domain_verification_token VARCHAR(64) DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY twitch_id (twitch_id),
+    UNIQUE KEY username (username),
+    UNIQUE KEY custom_domain (custom_domain),
+    KEY idx_twitch_id (twitch_id),
+    KEY idx_username (username),
+    KEY idx_custom_domain (custom_domain),
+    KEY idx_domain_verified (domain_verified)
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+    id INT NOT NULL AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    color VARCHAR(7) DEFAULT '#3273dc',
+    icon VARCHAR(50) DEFAULT 'fas fa-tag',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_user_category (user_id, name),
+    KEY idx_user_id (user_id),
+    KEY idx_name (name),
+    CONSTRAINT categories_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS links (
+    id INT NOT NULL AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    link_name VARCHAR(100) NOT NULL,
+    original_url TEXT NOT NULL,
+    title VARCHAR(255) DEFAULT NULL,
+    category_id INT DEFAULT NULL,
+    expires_at DATETIME DEFAULT NULL,
+    expired_redirect_url TEXT,
+    expiration_behavior ENUM('inactive','redirect','custom_page') DEFAULT 'inactive',
+    expired_page_title VARCHAR(255) DEFAULT 'Link Expired',
+    expired_page_message TEXT,
+    deactivation_behavior ENUM('inactive','redirect','custom_page') DEFAULT 'inactive',
+    deactivated_redirect_url TEXT,
+    deactivated_page_title VARCHAR(255) DEFAULT 'Link Deactivated',
+    deactivated_page_message TEXT,
+    is_active TINYINT(1) DEFAULT 1,
+    clicks INT DEFAULT 0,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_user_link (user_id, link_name),
+    KEY idx_user_id (user_id),
+    KEY idx_category_id (category_id),
+    KEY idx_link_name (link_name),
+    KEY idx_expires_at (expires_at),
+    KEY idx_is_active (is_active),
+    CONSTRAINT links_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT links_ibfk_2 FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS link_clicks (
+    id INT NOT NULL AUTO_INCREMENT,
+    link_id INT NOT NULL,
+    ip_address VARCHAR(45) DEFAULT NULL,
+    user_agent TEXT,
+    referrer TEXT,
+    is_expired TINYINT(1) DEFAULT 0,
+    is_deactivated TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_link_id (link_id),
+    KEY idx_created_at (created_at),
+    KEY idx_ip_address (ip_address),
+    KEY idx_is_expired (is_expired),
+    KEY idx_is_deactivated (is_deactivated),
+    CONSTRAINT link_clicks_ibfk_1 FOREIGN KEY (link_id) REFERENCES links (id) ON DELETE CASCADE
+);
 </code></pre>
 
         <p class="mt-3">Then create your database user with access to all databases:</p>
