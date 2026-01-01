@@ -9,6 +9,7 @@ include_once "/var/www/config/ssh.php";
 $remoteVersionFile = "/home/botofthespecter/logs/version";
 $versionFilePath = "{$remoteVersionFile}/{$username}_version_control.txt";
 $betaVersionFilePath = "{$remoteVersionFile}/beta/{$username}_beta_version_control.txt";
+$v6VersionFilePath = "{$remoteVersionFile}/v6/{$username}_v6_version_control.txt";
 
 // Define the status script path
 $statusScriptPath = "/home/botofthespecter/status.py";
@@ -19,6 +20,9 @@ $botScriptPath = "/home/botofthespecter/bot.py";
 // Define script path for beta bot
 $BetaBotScriptPath = "/home/botofthespecter/beta.py";
 
+// Define script path for v6 bot
+$V6BotScriptPath = "/home/botofthespecter/beta-v6.py";
+
 // Fetch all versions from the API ONCE at the top
 $versionApiUrl = 'https://api.botofthespecter.com/versions';
 $versionApiData = @file_get_contents($versionApiUrl);
@@ -26,8 +30,9 @@ if ($versionApiData !== false) {
     $versionInfo = json_decode($versionApiData, true);
     $newVersion = $versionInfo['stable_version'] ?? 'N/A';
     $betaNewVersion = $versionInfo['beta_version'] ?? 'N/A';
+    $v6NewVersion = $versionInfo['v6_version'] ?? '6.0';
 } else {
-    $newVersion = $betaNewVersion = 'N/A';
+    $newVersion = $betaNewVersion = $v6NewVersion = 'N/A';
 }
 
 // Get bot status and check if it's running
@@ -36,11 +41,15 @@ try {
     $botSystemStatus = checkBotsRunning($statusScriptPath, $username, 'stable');
     $betaStatusOutput = getBotsStatus($statusScriptPath, $username, 'beta');
     $betaBotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'beta');
+    $v6StatusOutput = getBotsStatus($statusScriptPath, $username, 'v6');
+    $v6BotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'v6');
 } catch (Exception $e) {
     $statusOutput = "<div class='status-message error'>Status: SSH connection error</div>";
     $botSystemStatus = false;
     $betaStatusOutput = "<div class='status-message error'>Status: SSH connection error</div>";
     $betaBotSystemStatus = false;
+    $v6StatusOutput = "<div class='status-message error'>Status: SSH connection error</div>";
+    $v6BotSystemStatus = false;
 }
 
 // Define a timeout for bot shutdown
@@ -82,10 +91,27 @@ if (isset($_POST['killBetaBot'])) {
     $betaVersionRunning = "";
 }
 
+// Handle v6 bot actions
+if (isset($_POST['runV6Bot'])) {
+    $waited = 0;
+    while (checkBotsRunning($statusScriptPath, $username, 'v6') && $waited < $shutdownTimeoutSeconds) {
+        sleep(1);
+        $waited++;
+    }
+    if ($waited >= $shutdownTimeoutSeconds) { /* timeout warning */ }
+    $v6StatusOutput = handleTwitchBotAction('run', $V6BotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key);
+    $v6VersionRunning = getRunningVersion($v6VersionFilePath, $v6NewVersion, 'v6');
+}
+
+if (isset($_POST['killV6Bot'])) {
+    $v6StatusOutput = handleTwitchBotAction('kill', $V6BotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key);
+    $v6VersionRunning = "";
+}
+
 function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key) {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
     // Also get access to the version file paths and new versions for updating
-    global $versionFilePath, $newVersion, $betaVersionFilePath, $betaNewVersion;
+    global $versionFilePath, $newVersion, $betaVersionFilePath, $betaNewVersion, $v6VersionFilePath, $v6NewVersion;
     try {
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
@@ -304,7 +330,8 @@ function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refresh
     try {
         // Use connection manager for persistent SSH connection
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $pythonCmd = (strpos($botScriptPath, 'beta') !== false) ? '/home/botofthespecter/beta_env/bin/python' : 'python';
+        // V6 uses venv (beta-v6.py), beta and others use regular python
+        $pythonCmd = (strpos($botScriptPath, 'beta-v6') !== false) ? '/home/botofthespecter/beta_env/bin/python' : 'python';
         $command = "$pythonCmd $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key &";
     $output = SSHConnectionManager::executeCommand($connection, $command);
     if ($output === false || $output === null) { throw new Exception('SSH command execution failed'); }
@@ -322,6 +349,10 @@ if ($botSystemStatus) {
 
 if ($betaBotSystemStatus) {
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
+}
+
+if ($v6BotSystemStatus) {
+    $v6VersionRunning = getRunningVersion($v6VersionFilePath, $v6NewVersion, 'v6');
 }
 
 function getRunningVersion($versionFilePath, $newVersion, $type = '') {

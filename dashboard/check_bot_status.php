@@ -23,7 +23,7 @@ if (!isset($_GET['bot'])) {
 }
 
 $bot = $_GET['bot'];
-if (!in_array($bot, ['stable', 'beta', 'custom'])) {
+if (!in_array($bot, ['stable', 'beta', 'v6', 'custom'])) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Invalid bot type']);
   exit();
@@ -52,12 +52,16 @@ if ($versionApiData !== false) {
     $latestVersion = $versionInfo['stable_version'] ?? '';
   } elseif ($bot === 'beta') {
     $latestVersion = $versionInfo['beta_version'] ?? '';
+  } elseif ($bot === 'v6') {
+    $latestVersion = $versionInfo['v6_version'] ?? '6.0';
   }
 } else {
   if ($bot === 'stable') {
-    $latestVersion = '5.4';
+    $latestVersion = '5.7.1';
   } elseif ($bot === 'beta') {
-    $latestVersion = '5.5';
+    $latestVersion = '5.8';
+  } elseif ($bot === 'v6') {
+    $latestVersion = '6.0';
   }
 }
 

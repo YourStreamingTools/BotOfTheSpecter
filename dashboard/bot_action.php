@@ -38,7 +38,7 @@ if (!in_array($action, ['run', 'stop', 'status'])) {
   exit();
 }
 
-if (!in_array($bot, ['stable', 'beta', 'custom'])) {
+if (!in_array($bot, ['stable', 'beta', 'custom', 'v6'])) {
   ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Invalid bot type']);
