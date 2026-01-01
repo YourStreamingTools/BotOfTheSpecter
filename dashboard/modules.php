@@ -992,12 +992,9 @@ ob_start();
                                                 <span class="is-size-7"><?php echo t('modules_var_user'); ?></span>
                                             </div>
                                             <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(viewers)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_viewers'); ?></span>
-                                            </div>
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(count)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_count'); ?></span>
+                                                <span class="tag is-warning is-small">(shoutout)</span>
+                                                <span class="is-size-7">Triggers a shoutout</span>
+                                                <span class="tag is-danger is-small ml-1">BETA ONLY</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1036,8 +1033,27 @@ ob_start();
                                                 <span class="is-size-7"><?php echo t('modules_var_months'); ?></span>
                                             </div>
                                             <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(count)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_count'); ?></span>
+                                            </div>
+                                            <div class="field mb-2">
                                                 <span class="tag is-primary is-small">(total-gifted)</span>
                                                 <span class="is-size-7"><?php echo t('modules_var_total_gifted'); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Raid Variables -->
+                                <div class="column is-4">
+                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">
+                                        <h4 class="title is-6 has-text-white mb-3">
+                                            <span class="icon mr-1"><i class="fas fa-people-group"></i></span>
+                                            Raid Events
+                                        </h4>
+                                        <div class="content has-text-white-ter">
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(viewers)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_viewers'); ?></span>
                                             </div>
                                         </div>
                                     </div>
