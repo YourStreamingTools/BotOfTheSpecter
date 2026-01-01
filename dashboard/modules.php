@@ -741,8 +741,8 @@ ob_start();
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="notification is-warning mb-4">
-                                                <p><strong>Ad Snoozed Message Issue:</strong> We are aware of an issue with the ad notices system. The snoozed message may not function as expected.</p>
+                                            <div class="notification is-info mb-4">
+                                                <p><strong>Note:</strong> The Ad Snoozed Message may be delayed in chat due to polling intervals. Additionally, there is a known issue where an extra warning message after the ad is snoozed does not post. This will be fixed in the next release.</p>
                                             </div>
                                             <div class="columns is-multiline">
                                                 <div class="column is-12">
