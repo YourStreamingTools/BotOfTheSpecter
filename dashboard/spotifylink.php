@@ -35,6 +35,30 @@ $message = '';
 $messageType = '';
 $spotifyUserInfo = [];
 
+// Fetch user's Spotify settings first to determine which credentials to use
+$spotifySTMT = $conn->prepare("SELECT access_token, has_access, own_client, client_id, client_secret FROM spotify_tokens WHERE user_id = ?");
+$spotifySTMT->bind_param("i", $user_id);
+$spotifySTMT->execute();
+$spotifyResult = $spotifySTMT->get_result();
+$own_client = 0;
+$user_client_id = '';
+$user_client_secret = '';
+
+if ($spotifyResult->num_rows > 0) {
+    $spotifyRow = $spotifyResult->fetch_assoc();
+    $own_client = $spotifyRow['own_client'];
+    $user_client_id = $spotifyRow['client_id'] ?? '';
+    $user_client_secret = $spotifyRow['client_secret'] ?? '';
+}
+
+// Determine effective client credentials
+$effective_client_id = $client_id;
+$effective_client_secret = $client_secret;
+if ($own_client == 1 && !empty($user_client_id) && !empty($user_client_secret)) {
+    $effective_client_id = $user_client_id;
+    $effective_client_secret = $user_client_secret;
+}
+
 // Check if we received a code from Spotify (callback handling)
 if (isset($_GET['code'])) {
     $auth_code = $_GET['code'];
@@ -103,25 +127,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateStmt->execute();
         $user_client_id = $client_id_input;
         $user_client_secret = $client_secret_input;
+        // Update effective credentials after saving
+        if ($own_client == 1 && !empty($user_client_id) && !empty($user_client_secret)) {
+            $effective_client_id = $user_client_id;
+            $effective_client_secret = $user_client_secret;
+        }
     }
 }
 
-// Fetch Spotify Profile Information if linked
+// Re-fetch Spotify Profile Information for display
 $spotifySTMT = $conn->prepare("SELECT access_token, has_access, own_client, client_id, client_secret FROM spotify_tokens WHERE user_id = ?");
 $spotifySTMT->bind_param("i", $user_id);
 $spotifySTMT->execute();
 $spotifyResult = $spotifySTMT->get_result();
 $connectionStatus = 'not-connected'; // default
-$spotifyUserInfo = [];
-$own_client = 0;
-$user_client_id = '';
-$user_client_secret = '';
 
 if ($spotifyResult->num_rows > 0) {
     // User has a token entry
     $spotifyRow = $spotifyResult->fetch_assoc();
     $spotifyAccessToken = $spotifyRow['access_token'];
     $hasAccess = $spotifyRow['has_access'];
+    // Update these from the latest fetch
     $own_client = $spotifyRow['own_client'];
     $user_client_id = $spotifyRow['client_id'] ?? '';
     $user_client_secret = $spotifyRow['client_secret'] ?? '';
@@ -159,15 +185,7 @@ if ($spotifyResult->num_rows > 0) {
     $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
 }
 
-// Determine effective client credentials
-$effective_client_id = $client_id;
-$effective_client_secret = $client_secret;
-if ($own_client == 1 && !empty($user_client_id) && !empty($user_client_secret)) {
-    $effective_client_id = $user_client_id;
-    $effective_client_secret = $user_client_secret;
-}
-
-// Update auth URL if needed
+// Update auth URL if needed to use effective client ID
 if ($authURL && strpos($authURL, 'client_id=') !== false) {
     $authURL = str_replace("client_id=$client_id", "client_id=$effective_client_id", $authURL);
 }
