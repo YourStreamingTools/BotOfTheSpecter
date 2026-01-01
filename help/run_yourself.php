@@ -612,8 +612,8 @@ python3 -m venv botofthespecter
     </div>
     <h3 class="title is-4 has-text-light">Step 4: Configure Environment Variables (All Servers)</h3>
     <div class="box has-background-dark has-text-light">
-        <p>Create a <code>.env</code> file in <code>/home/botofthespecter</code> with your configuration. Replace the database credentials with the username and password you created in Step 2:</p>
-    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code"># SQL Data
+        <p>Create a <code>.env</code> file in <code>/home/botofthespecter</code> with your configuration. Replace the placeholders with your actual values:</p>
+    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code># SQL Data
 SQL_HOST=
 SQL_USER=
 SQL_PASSWORD=
@@ -623,6 +623,7 @@ SHAZAM_API=
 WEATHER_API=
 STEAM_API=
 OPENAI_KEY=
+OPENAI_VECTOR_ID=
 STREAMELEMENTS_CLIENT_ID=
 STREAMELEMENTS_SECRET_KEY=
 HYPERATE_API_KEY=
@@ -637,6 +638,7 @@ TIMEZONE_API=
 EXCHANGE_RATE_API=
 SPOTIFY_CLIENT_ID=
 SPOTIFY_CLIENT_SECRET=
+BOT_ID=
 # Discord Bot
 DISCORD_TOKEN=
 DISCORD_PUBLIC_KEY=
@@ -663,7 +665,40 @@ WEB-HOST=
 BILLING-HOST=
 STREAM-AU-EAST-1-HOST=
 STREAM-US-EAST-1-HOST=
-STREAM-US-WEST-1-HOST=</code></pre>
+STREAM-US-WEST-1-HOST=
+# STMP Email Settings
+SMTP_HOST=
+SMTP_PORT=465
+SMTP_FROM_NAME=
+SMTP_USERNAME=
+SMTP_PASSWORD=
+# S3 Bucket Settings for Exports Only
+S3_ENDPOINT_HOSTNAME=
+S3_CUSTOM_DOMAIN=
+S3_BUCKET_NAME=
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+S3_ALWAYS_UPLOAD=True</code></pre>
+        <p class="mt-3"><strong>Required Variables:</strong></p>
+        <ul>
+            <li><strong>SQL_*:</strong> Database connection details (must match Server 4 configuration)</li>
+            <li><strong>CLIENT_ID & CLIENT_SECRET:</strong> Your Twitch application credentials</li>
+            <li><strong>OAUTH_TOKEN:</strong> Bot account OAuth token (get from <a href="https://twitchapps.com/tmi/" target="_blank" class="has-text-link">https://twitchapps.com/tmi/</a>)</li>
+            <li><strong>API_KEY:</strong> Generate a secure random API key for internal service authentication</li>
+        </ul>
+        <p class="mt-3"><strong>Optional Variables:</strong></p>
+        <ul>
+            <li><strong>WEATHER_API:</strong> For weather commands (get from <a href="https://openweathermap.org/api" target="_blank" class="has-text-link">OpenWeatherMap</a>)</li>
+            <li><strong>SPOTIFY_*:</strong> For Spotify integration (get from <a href="https://developer.spotify.com/" target="_blank" class="has-text-link">Spotify Developer Dashboard</a>)</li>
+            <li><strong>DISCORD_*:</strong> For Discord bot functionality (get from <a href="https://discord.com/developers/applications" target="_blank" class="has-text-link">Discord Developer Portal</a>)</li>
+            <li><strong>OPENAI_KEY:</strong> For AI features (get from <a href="https://platform.openai.com/" target="_blank" class="has-text-link">OpenAI</a>)</li>
+            <li><strong>S3_*:</strong> For user data exports to object storage (optional, exports can be local)</li>
+            <li><strong>SMTP_*:</strong> For email notifications (optional)</li>
+        </ul>
+        <p class="mt-3"><strong>Server Host Variables:</strong></p>
+        <ul>
+            <li><strong>API-HOST, WEBSOCKET-HOST, etc:</strong> Set these to the IP addresses or hostnames of your respective servers for inter-server communication</li>
+        </ul>
     </div>
     <h3 class="title is-4 has-text-light">Step 5: Set Up Python Environment (Server 3 - WebSocket)</h3>
     <div class="box has-background-dark has-text-light">
