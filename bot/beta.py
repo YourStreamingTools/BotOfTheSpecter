@@ -2216,19 +2216,7 @@ class TwitchBot(commands.Bot):
                             message_to_send = message_to_send.replace('(shoutout)', '')
                             user_id = messageAuthorID
                             user_to_shoutout = messageAuthor
-                            game = await get_latest_stream_game(user_id, user_to_shoutout)
-                            if not game:
-                                shoutout_message = (
-                                    f"Hey, huge shoutout to @{user_to_shoutout}! "
-                                    f"You should go give them a follow over at "
-                                    f"https://www.twitch.tv/{user_to_shoutout}"
-                                )
-                            else:
-                                shoutout_message = (
-                                    f"Hey, huge shoutout to @{user_to_shoutout}! "
-                                    f"You should go give them a follow over at "
-                                    f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-                                )
+                            shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
                         if message_to_send.strip():
                                 await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
@@ -5894,19 +5882,7 @@ class TwitchBot(commands.Bot):
                 await send_chat_message("Failed to fetch user information.")
                 return
             user_id = user_info[0].id
-            game = await get_latest_stream_game(user_id, user_to_shoutout)
-            if not game:
-                shoutout_message = (
-                    f"Hey, huge shoutout to @{user_to_shoutout}! "
-                    f"You should go give them a follow over at "
-                    f"https://www.twitch.tv/{user_to_shoutout}"
-                )
-            else:
-                shoutout_message = (
-                    f"Hey, huge shoutout to @{user_to_shoutout}! "
-                    f"You should go give them a follow over at "
-                    f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-                )
+            shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "command")
             chat_logger.info(shoutout_message)
             await send_chat_message(shoutout_message)
             await add_shoutout(user_to_shoutout, user_id)
@@ -8492,8 +8468,22 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 alert_message = result.get("alert_message")
             else:
                 alert_message = "Incredible! (user) and (viewers) viewers have joined the party! Let's give them a warm welcome!"
+            # Check if shoutout trigger is in the message
+            send_shoutout = False
+            shoutout_message = None
+            if "(shoutout)" in alert_message:
+                send_shoutout = True
+                alert_message = alert_message.replace("(shoutout)", "")
+                user_id = from_broadcaster_id
+                user_to_shoutout = from_broadcaster_name
+                shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "raid")
+            # Replace variables in the message
             alert_message = alert_message.replace("(user)", from_broadcaster_name).replace("(viewers)", str(viewer_count))
-            await send_chat_message(alert_message)
+            if alert_message.strip():
+                await send_chat_message(alert_message)
+            if send_shoutout and shoutout_message:
+                await add_shoutout(user_to_shoutout, user_id)
+                await send_chat_message(shoutout_message)
             marker_description = f"New Raid from {from_broadcaster_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -8537,8 +8527,19 @@ async def process_cheer_event(user_id, user_name, bits):
                     image = "cheer100.png"
                 else:
                     image = "cheer1000.png"
+            # Check if shoutout trigger is in the message
+            send_shoutout = False
+            shoutout_message = None
+            if "(shoutout)" in alert_message:
+                send_shoutout = True
+                alert_message = alert_message.replace("(shoutout)", "")
+                shoutout_message = await get_shoutout_message(user_id, user_name, "cheer")
             alert_message = alert_message.replace("(user)", user_name).replace("(bits)", str(bits)).replace("(total-bits)", str(total_bits))
-            await send_chat_message(alert_message)
+            if alert_message.strip():
+                await send_chat_message(alert_message)
+            if send_shoutout and shoutout_message:
+                await add_shoutout(user_name, user_id)
+                await send_chat_message(shoutout_message)
             # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
             # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
@@ -8645,6 +8646,13 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 alert_message = result.get("alert_message")
             else:
                 alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
+            # Check if shoutout trigger is in the message
+            send_shoutout = False
+            shoutout_message = None
+            if "(shoutout)" in alert_message:
+                send_shoutout = True
+                alert_message = alert_message.replace("(shoutout)", "")
+                shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
             alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
@@ -8653,7 +8661,11 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
             try:
-                await send_chat_message(alert_message)
+                if alert_message.strip():
+                    await send_chat_message(alert_message)
+                if send_shoutout and shoutout_message:
+                    await add_shoutout(user_name, user_id)
+                    await send_chat_message(shoutout_message)
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -8734,6 +8746,13 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 alert_message = result.get("alert_message")
             else:
                 alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
+            # Check if shoutout trigger is in the message
+            send_shoutout = False
+            shoutout_message = None
+            if "(shoutout)" in alert_message:
+                send_shoutout = True
+                alert_message = alert_message.replace("(shoutout)", "")
+                shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
             alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
@@ -8742,7 +8761,11 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
             try:
-                await send_chat_message(alert_message)
+                if alert_message.strip():
+                    await send_chat_message(alert_message)
+                if send_shoutout and shoutout_message:
+                    await add_shoutout(user_name, user_id)
+                    await send_chat_message(shoutout_message)
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -8834,8 +8857,19 @@ async def process_followers_event(user_id, user_name):
                 alert_message = result.get("alert_message")
             else:
                 alert_message = "Thank you (user) for following! Welcome to the channel!"
+            # Check if shoutout trigger is in the message
+            send_shoutout = False
+            shoutout_message = None
+            if "(shoutout)" in alert_message:
+                send_shoutout = True
+                alert_message = alert_message.replace("(shoutout)", "")
+                shoutout_message = await get_shoutout_message(user_id, user_name, "follow")
             alert_message = alert_message.replace("(user)", user_name)
-            await send_chat_message(alert_message)
+            if alert_message.strip():
+                await send_chat_message(alert_message)
+            if send_shoutout and shoutout_message:
+                await add_shoutout(user_name, user_id)
+                await send_chat_message(shoutout_message)
             create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
             marker_description = f"New Twitch Follower: {user_name}"
             if await make_stream_marker(marker_description):
@@ -10560,6 +10594,40 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
     except Exception as e:
         chat_logger.error(f"Error sending chat message: {e}")
         return False
+
+# Function to generate shoutout message with game info
+async def get_shoutout_message(user_id, user_name, action="command"):
+    game = await get_latest_stream_game(user_id, user_name)
+    # For raids, we know the user was just streaming, so always include game info
+    if action == "raid":
+        if game:
+            shoutout_message = (
+                f"Hey, huge shoutout to @{user_name}! "
+                f"You should go give them a follow over at "
+                f"https://www.twitch.tv/{user_name} where they were playing: {game}"
+            )
+        else:
+            # Fallback if game fetch fails for raid
+            shoutout_message = (
+                f"Hey, huge shoutout to @{user_name}! "
+                f"You should go give them a follow over at "
+                f"https://www.twitch.tv/{user_name}"
+            )
+    else:
+        # For other actions, check if game exists before including it
+        if game:
+            shoutout_message = (
+                f"Hey, huge shoutout to @{user_name}! "
+                f"You should go give them a follow over at "
+                f"https://www.twitch.tv/{user_name} where they were playing: {game}"
+            )
+        else:
+            shoutout_message = (
+                f"Hey, huge shoutout to @{user_name}! "
+                f"You should go give them a follow over at "
+                f"https://www.twitch.tv/{user_name}"
+            )
+    return shoutout_message
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
