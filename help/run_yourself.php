@@ -276,27 +276,27 @@ CREATE TABLE IF NOT EXISTS channel_mappings (
     channel_code VARCHAR(255) NOT NULL,
     guild_id VARCHAR(255) NOT NULL DEFAULT '',
     channel_id VARCHAR(255) NOT NULL DEFAULT '',
-    channel_name VARCHAR(255),
-    user_id VARCHAR(255),
-    username VARCHAR(255),
-    twitch_display_name VARCHAR(255),
-    twitch_user_id VARCHAR(255),
-    guild_name VARCHAR(255),
-    stream_alert_channel_id VARCHAR(255),
-    moderation_channel_id VARCHAR(255),
-    alert_channel_id VARCHAR(255),
+    channel_name VARCHAR(255) DEFAULT NULL,
+    user_id VARCHAR(255) DEFAULT NULL,
+    username VARCHAR(255) DEFAULT NULL,
+    twitch_display_name VARCHAR(255) DEFAULT NULL,
+    twitch_user_id VARCHAR(255) DEFAULT NULL,
+    guild_name VARCHAR(255) DEFAULT NULL,
+    stream_alert_channel_id VARCHAR(255) DEFAULT NULL,
+    moderation_channel_id VARCHAR(255) DEFAULT NULL,
+    alert_channel_id VARCHAR(255) DEFAULT NULL,
     online_text TEXT,
     offline_text TEXT,
     is_active TINYINT(1) DEFAULT 1,
     event_count INT DEFAULT 0,
-    last_event_type VARCHAR(255),
-    last_seen_at TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_event_type VARCHAR(255) DEFAULT NULL,
+    last_seen_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (channel_code),
     KEY idx_guild_id (guild_id),
-    KEY idx_channel_id (channel_id),
-    KEY idx_twitch_user_id (twitch_user_id)
+    KEY idx_is_active (is_active),
+    KEY idx_last_seen (last_seen_at)
 );
 
 -- live_notifications
@@ -304,49 +304,115 @@ CREATE TABLE IF NOT EXISTS live_notifications (
     guild_id VARCHAR(255) NOT NULL DEFAULT '',
     username VARCHAR(255) NOT NULL,
     stream_id VARCHAR(255) NOT NULL,
-    started_at DATETIME,
-    posted_at DATETIME,
-    PRIMARY KEY (guild_id, stream_id),
-    KEY idx_username (username)
+    started_at DATETIME NOT NULL,
+    posted_at DATETIME NOT NULL,
+    PRIMARY KEY (guild_id, username)
+);
+
+-- message_tracking_logs
+CREATE TABLE IF NOT EXISTS message_tracking_logs (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    server_id BIGINT NOT NULL,
+    channel_id BIGINT NOT NULL,
+    message_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    username VARCHAR(255) DEFAULT NULL,
+    action VARCHAR(50) DEFAULT NULL,
+    original_content LONGTEXT,
+    edited_content LONGTEXT,
+    tracked_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_server (server_id),
+    KEY idx_channel (channel_id),
+    KEY idx_user (user_id),
+    KEY idx_action (action),
+    KEY idx_tracked_at (tracked_at)
+);
+
+-- online_streams
+CREATE TABLE IF NOT EXISTS online_streams (
+    username VARCHAR(255) NOT NULL,
+    twitch_user_id VARCHAR(255) DEFAULT NULL,
+    stream_id VARCHAR(255) DEFAULT NULL,
+    started_at DATETIME DEFAULT NULL,
+    last_checked DATETIME DEFAULT NULL,
+    details TEXT,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (username),
+    KEY idx_online_last_checked (last_checked),
+    KEY idx_online_stream_id (stream_id)
+);
+
+-- role_history
+CREATE TABLE IF NOT EXISTS role_history (
+    id INT NOT NULL AUTO_INCREMENT,
+    server_id VARCHAR(255) NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    role_ids JSON NOT NULL COMMENT 'JSON array of role IDs',
+    last_checked TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last time we checked if user is in server',
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_server_user (server_id, user_id),
+    KEY idx_server_id (server_id),
+    KEY idx_user_id (user_id),
+    KEY idx_last_checked (last_checked)
 );
 
 -- role_selection_messages
 CREATE TABLE IF NOT EXISTS role_selection_messages (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    server_id VARCHAR(255),
-    channel_id VARCHAR(255),
-    message_id VARCHAR(255),
-    message_text TEXT,
-    mappings TEXT,
-    role_mappings JSON,
+    id INT NOT NULL AUTO_INCREMENT,
+    server_id VARCHAR(255) NOT NULL,
+    channel_id VARCHAR(255) NOT NULL,
+    message_id VARCHAR(255) NOT NULL,
+    message_text TEXT NOT NULL,
+    mappings TEXT NOT NULL,
+    role_mappings JSON NOT NULL,
     allow_multiple TINYINT(1) DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY server_id (server_id),
     KEY idx_server_id (server_id),
-    KEY idx_channel_id (channel_id),
     KEY idx_message_id (message_id)
+);
+
+-- role_tracking_logs
+CREATE TABLE IF NOT EXISTS role_tracking_logs (
+    id INT NOT NULL AUTO_INCREMENT,
+    server_id VARCHAR(255) NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    username VARCHAR(255) DEFAULT NULL,
+    action VARCHAR(50) NOT NULL COMMENT 'added or removed',
+    role_id VARCHAR(255) NOT NULL,
+    role_name VARCHAR(255) DEFAULT NULL,
+    changed_by VARCHAR(255) DEFAULT NULL COMMENT 'User who made the change, if available',
+    changed_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_server_id (server_id),
+    KEY idx_user_id (user_id),
+    KEY idx_changed_at (changed_at)
 );
 
 -- rules_messages
 CREATE TABLE IF NOT EXISTS rules_messages (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    server_id VARCHAR(255),
-    channel_id VARCHAR(255),
-    message_id VARCHAR(255),
+    id INT NOT NULL AUTO_INCREMENT,
+    server_id VARCHAR(255) NOT NULL,
+    channel_id VARCHAR(255) NOT NULL,
+    message_id VARCHAR(255) NOT NULL,
     title TEXT,
     rules_content TEXT,
-    color VARCHAR(7),
-    accept_role_id VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    KEY idx_server_id (server_id),
-    KEY idx_channel_id (channel_id),
+    color VARCHAR(7) DEFAULT NULL,
+    accept_role_id VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_server (server_id),
     KEY idx_message_id (message_id)
 );
 
 -- server_management
 CREATE TABLE IF NOT EXISTS server_management (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id INT NOT NULL AUTO_INCREMENT,
     server_id VARCHAR(255) NOT NULL,
     welcomeMessage TINYINT(1) DEFAULT 0,
     autoRole TINYINT(1) DEFAULT 0,
@@ -356,92 +422,134 @@ CREATE TABLE IF NOT EXISTS server_management (
     serverRoleManagement TINYINT(1) DEFAULT 0,
     userTracking TINYINT(1) DEFAULT 0,
     reactionRoles TINYINT(1) DEFAULT 0,
-    rulesConfiguration TINYINT(1) DEFAULT 0,
-    streamSchedule TINYINT(1) DEFAULT 0,
-    stream_schedule_configuration TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    welcome_message_configuration_channel VARCHAR(255),
-    welcome_message_configuration_message VARCHAR(50),
-    welcome_message_configuration_default INT,
+    rulesConfiguration TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Enable/disable rules configuration feature',
+    streamSchedule TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Enable/disable stream schedule feature',
+    stream_schedule_configuration TEXT COMMENT 'JSON configuration for stream schedule',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    welcome_message_configuration_channel VARCHAR(255) DEFAULT NULL,
+    welcome_message_configuration_message VARCHAR(50) DEFAULT NULL,
+    welcome_message_configuration_default INT DEFAULT NULL,
     welcome_message_configuration_embed TINYINT(1) DEFAULT 0,
     welcome_message_configuration_colour VARCHAR(7) DEFAULT '#00d1b2',
-    auto_role_assignment_configuration_role_id VARCHAR(255),
-    role_history_configuration_setting INT,
-    role_history_configuration_option VARCHAR(255),
-    message_tracking_configuration_channel VARCHAR(255),
-    message_tracking_configuration_message_edits INT,
-    message_tracking_configuration_message_delete INT,
-    role_tracking_configuration_channel VARCHAR(255),
-    role_tracking_configuration_role_added INT,
-    role_tracking_configuration_role_removed INT,
-    server_role_management_configuration_channel VARCHAR(255),
-    server_role_management_configuration_role_created INT,
-    server_role_management_configuration_role_deleted INT,
-    user_tracking_configuration_channel VARCHAR(255),
-    user_tracking_configuration_nickname INT,
-    user_tracking_configuration_avatar INT,
-    user_tracking_configuration_status INT,
-    reaction_roles_configuration JSON,
-    rules_configuration JSON,
-    KEY idx_server_id (server_id)
+    auto_role_assignment_configuration_role_id VARCHAR(255) DEFAULT NULL,
+    role_history_configuration_setting INT DEFAULT NULL,
+    role_history_configuration_option VARCHAR(255) DEFAULT NULL,
+    message_tracking_configuration_channel VARCHAR(255) DEFAULT NULL,
+    message_tracking_configuration_message_edits INT DEFAULT NULL,
+    message_tracking_configuration_message_delete INT DEFAULT NULL,
+    role_tracking_configuration_channel VARCHAR(255) DEFAULT NULL,
+    role_tracking_configuration_role_added INT DEFAULT NULL,
+    role_tracking_configuration_role_removed INT DEFAULT NULL,
+    server_role_management_configuration_channel VARCHAR(255) DEFAULT NULL,
+    server_role_management_configuration_role_created INT DEFAULT NULL,
+    server_role_management_configuration_role_deleted INT DEFAULT NULL,
+    user_tracking_configuration_channel VARCHAR(255) DEFAULT NULL,
+    user_tracking_configuration_nickname INT DEFAULT NULL,
+    user_tracking_configuration_avatar INT DEFAULT NULL,
+    user_tracking_configuration_status INT DEFAULT NULL,
+    reaction_roles_configuration JSON DEFAULT NULL,
+    rules_configuration JSON DEFAULT NULL COMMENT 'JSON configuration for rules: channel_id, title, rules, color',
+    role_history_configuration JSON DEFAULT NULL COMMENT 'JSON config for role history: {enabled: boolean, retention_days: int}',
+    role_tracking_configuration JSON DEFAULT NULL COMMENT 'JSON config for role tracking: {enabled: boolean, log_channel_id: string, track_additions: boolean, track_removals: boolean}',
+    server_role_management_configuration JSON DEFAULT NULL,
+    message_tracking_configuration JSON DEFAULT NULL,
+    user_tracking_configuration JSON DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_server (server_id),
+    KEY idx_server_id (server_id),
+    KEY idx_rules_configuration (rulesConfiguration)
 );
 
--- tickets
-CREATE TABLE IF NOT EXISTS tickets (
-    ticket_id INT AUTO_INCREMENT PRIMARY KEY,
-    guild_id VARCHAR(255) NOT NULL DEFAULT '',
-    user_id VARCHAR(255) NOT NULL DEFAULT '',
-    username VARCHAR(255),
-    channel_id VARCHAR(255),
-    issue TEXT,
-    status ENUM('open','closed') NOT NULL DEFAULT 'open',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    closed_at DATETIME NULL,
-    closed_by BIGINT NULL,
-    KEY idx_guild_id (guild_id),
-    KEY idx_user_id (user_id)
+-- server_role_management_logs
+CREATE TABLE IF NOT EXISTS server_role_management_logs (
+    id INT NOT NULL AUTO_INCREMENT,
+    server_id VARCHAR(255) NOT NULL,
+    role_id VARCHAR(255) NOT NULL,
+    role_name VARCHAR(255) DEFAULT NULL,
+    action VARCHAR(50) NOT NULL COMMENT 'created or deleted',
+    changed_by VARCHAR(255) DEFAULT NULL COMMENT 'User who made the change, if available',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_server_id (server_id),
+    KEY idx_created_at (created_at)
+);
+
+-- stream_schedule_messages
+CREATE TABLE IF NOT EXISTS stream_schedule_messages (
+    id INT NOT NULL AUTO_INCREMENT,
+    server_id VARCHAR(255) NOT NULL,
+    channel_id VARCHAR(255) NOT NULL,
+    message_id VARCHAR(255) NOT NULL,
+    schedule_data JSON DEFAULT NULL,
+    last_updated TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_server_message (server_id, message_id),
+    KEY idx_server_id (server_id),
+    KEY idx_message_id (message_id)
 );
 
 -- ticket_comments
 CREATE TABLE IF NOT EXISTS ticket_comments (
-    comment_id INT AUTO_INCREMENT PRIMARY KEY,
-    guild_id VARCHAR(255),
+    comment_id INT NOT NULL AUTO_INCREMENT,
+    guild_id VARCHAR(255) DEFAULT NULL,
     ticket_id INT NOT NULL,
-    user_id VARCHAR(255),
-    username VARCHAR(255),
+    user_id VARCHAR(255) DEFAULT NULL,
+    username VARCHAR(255) DEFAULT NULL,
     comment TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    timestamp TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (comment_id),
     KEY idx_ticket_id (ticket_id),
-    FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id) ON DELETE CASCADE
+    CONSTRAINT ticket_comments_ibfk_1 FOREIGN KEY (ticket_id) REFERENCES tickets (ticket_id) ON DELETE CASCADE
 );
 
 -- ticket_history
 CREATE TABLE IF NOT EXISTS ticket_history (
-    history_id INT AUTO_INCREMENT PRIMARY KEY,
+    history_id INT NOT NULL AUTO_INCREMENT,
     ticket_id INT NOT NULL,
-    user_id VARCHAR(255),
-    username VARCHAR(255),
-    action VARCHAR(100),
+    user_id VARCHAR(255) DEFAULT NULL,
+    username VARCHAR(255) DEFAULT NULL,
+    action VARCHAR(100) DEFAULT NULL,
     details TEXT,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    timestamp TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (history_id),
     KEY idx_ticket_id (ticket_id),
-    FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id) ON DELETE CASCADE
+    CONSTRAINT ticket_history_ibfk_1 FOREIGN KEY (ticket_id) REFERENCES tickets (ticket_id) ON DELETE CASCADE
 );
 
 -- ticket_settings
 CREATE TABLE IF NOT EXISTS ticket_settings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    guild_id VARCHAR(255),
-    owner_id VARCHAR(255),
-    info_channel_id VARCHAR(255),
-    category_id VARCHAR(255),
-    closed_category_id VARCHAR(255),
-    support_role_id VARCHAR(255),
-    mod_channel_id VARCHAR(255),
+    id INT NOT NULL AUTO_INCREMENT,
+    guild_id VARCHAR(255) DEFAULT NULL,
+    owner_id VARCHAR(255) DEFAULT NULL,
+    info_channel_id VARCHAR(255) DEFAULT NULL,
+    category_id VARCHAR(255) DEFAULT NULL,
+    closed_category_id VARCHAR(255) DEFAULT NULL,
+    support_role_id VARCHAR(255) DEFAULT NULL,
+    mod_channel_id VARCHAR(255) DEFAULT NULL,
     enabled TINYINT(1) DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_guild_id (guild_id)
+);
+
+-- tickets
+CREATE TABLE IF NOT EXISTS tickets (
+    ticket_id INT NOT NULL AUTO_INCREMENT,
+    guild_id VARCHAR(255) NOT NULL DEFAULT '',
+    user_id VARCHAR(255) NOT NULL DEFAULT '',
+    username VARCHAR(255) DEFAULT NULL,
+    channel_id VARCHAR(255) DEFAULT NULL,
+    issue TEXT,
+    status ENUM('open','closed') NOT NULL DEFAULT 'open',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    closed_at DATETIME DEFAULT NULL,
+    closed_by BIGINT DEFAULT NULL,
+    PRIMARY KEY (ticket_id),
+    KEY idx_guild_id (guild_id),
+    KEY idx_status (status)
 );
 
 -- website: core website tables (api metrics, users, tokens, settings)
