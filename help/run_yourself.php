@@ -239,33 +239,53 @@ USE roadmap;
 
 -- roadmap_items: Main roadmap items
 CREATE TABLE IF NOT EXISTS roadmap_items (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id INT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
-    description LONGTEXT,
+    description TEXT,
     category ENUM('REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED') NOT NULL DEFAULT 'REQUESTS',
-    subcategory ENUM('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE') NOT NULL,
+    subcategory ENUM('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER') NOT NULL,
     priority ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NOT NULL DEFAULT 'MEDIUM',
     website_type ENUM('DASHBOARD', 'OVERLAYS') DEFAULT NULL,
-    completed_date DATE,
-    created_by VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_category (category),
-    INDEX idx_subcategory (subcategory),
-    INDEX idx_priority (priority),
-    INDEX idx_created_at (created_at)
+    completed_date DATE DEFAULT NULL,
+    created_by VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_category (category),
+    KEY idx_subcategory (subcategory),
+    KEY idx_priority (priority),
+    KEY idx_created_at (created_at)
 );
 
 -- roadmap_comments: Comments on roadmap items
 CREATE TABLE IF NOT EXISTS roadmap_comments (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id INT NOT NULL AUTO_INCREMENT,
     item_id INT NOT NULL,
     username VARCHAR(255) NOT NULL,
     comment TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (item_id) REFERENCES roadmap_items(id) ON DELETE CASCADE,
-    INDEX idx_item_id (item_id),
-    INDEX idx_created_at (created_at)
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_item_id (item_id),
+    KEY idx_created_at (created_at),
+    CONSTRAINT roadmap_comments_ibfk_1 FOREIGN KEY (item_id) REFERENCES roadmap_items (id) ON DELETE CASCADE
+);
+
+-- roadmap_attachments: File attachments for roadmap items
+CREATE TABLE IF NOT EXISTS roadmap_attachments (
+    id INT NOT NULL AUTO_INCREMENT,
+    item_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(255) NOT NULL,
+    file_type VARCHAR(100) DEFAULT NULL,
+    file_size INT DEFAULT NULL,
+    is_image TINYINT(1) DEFAULT 0,
+    uploaded_by VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_item_id (item_id),
+    KEY idx_is_image (is_image),
+    KEY idx_created_at (created_at),
+    CONSTRAINT roadmap_attachments_ibfk_1 FOREIGN KEY (item_id) REFERENCES roadmap_items (id) ON DELETE CASCADE
 );
 
 -- specterdiscordbot: Discord bot
