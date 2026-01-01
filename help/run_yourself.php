@@ -224,12 +224,13 @@ sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
 
         <p class="mt-3">Run the following SQL commands to set up the database(s). The <strong>user-specific</strong> databases are created automatically on login; the following are the manual databases and tables you should create for core features:</p>
         <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">sudo mysql -u root -p
--- spam_patterns: stores spam regex/phrases for auto-ban
-CREATE DATABASE IF NOT EXISTS spam_patterns;
-USE spam_patterns;
+-- spam_pattern: stores spam regex/phrases for auto-ban
+CREATE DATABASE IF NOT EXISTS spam_pattern;
+USE spam_pattern;
 CREATE TABLE IF NOT EXISTS spam_patterns (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    spam_pattern TEXT NOT NULL
+    id INT NOT NULL AUTO_INCREMENT,
+    spam_pattern TEXT NOT NULL,
+    PRIMARY KEY (id)
 );
 
 -- roadmap: roadmap site schema
