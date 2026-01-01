@@ -716,7 +716,7 @@ S3_ALWAYS_UPLOAD=True</code></pre>
         <ul>
             <li><strong>SQL_*:</strong> Database connection details (must match Server 4 configuration)</li>
             <li><strong>CLIENT_ID & CLIENT_SECRET:</strong> Your Twitch application credentials</li>
-            <li><strong>OAUTH_TOKEN:</strong> Bot account OAuth token (get from <a href="https://twitchapps.com/tmi/" target="_blank" class="has-text-link">https://twitchapps.com/tmi/</a>)</li>
+            <li><strong>OAUTH_TOKEN:</strong> Bot account OAuth token (get from <a href="https://twitchtokengenerator.com/" target="_blank" class="has-text-link">https://twitchtokengenerator.com/</a>)</li>
             <li><strong>API_KEY:</strong> Generate a secure random API key for internal service authentication</li>
         </ul>
         <p class="mt-3"><strong>Optional Variables:</strong></p>
