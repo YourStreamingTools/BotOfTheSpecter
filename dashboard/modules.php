@@ -551,20 +551,6 @@ ob_start();
                             </span>
                         </header>
                         <div class="card-content">
-                            <!-- Beta Warning -->
-                            <div class="notification is-warning mb-4">
-                                <div class="columns is-vcentered">
-                                    <div class="column is-narrow">
-                                        <span class="icon is-large">
-                                            <i class="fas fa-exclamation-triangle fa-2x"></i>
-                                        </span>
-                                    </div>
-                                    <div class="column">
-                                        <p class="mb-2"><strong>Version 5.5 Beta Feature</strong></p>
-                                        <p>This feature is for Version 5.5 and is currently in the beta bot for testing.</p>
-                                    </div>
-                                </div>
-                            </div>
                             <!-- Configuration Note -->
                             <div class="notification is-info mb-4">
                                 <p class="has-text-dark">
