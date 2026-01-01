@@ -173,6 +173,15 @@ if (isset($_GET['ajax'])) {
         }
     }
     $data['botMessageCounts'] = $botMessageCountsAjax;
+    // Fetch signup data for AJAX
+    $totalUsersAjax = $conn->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
+    $usersByYearAjax = [];
+    $result = $conn->query("SELECT YEAR(signup_date) as year, COUNT(*) as count FROM users GROUP BY YEAR(signup_date) ORDER BY year DESC LIMIT 4");
+    while ($row = $result->fetch_assoc()) {
+        $usersByYearAjax[] = $row;
+    }
+    $data['totalUsers'] = $totalUsersAjax;
+    $data['usersByYear'] = $usersByYearAjax;
     $betaUsersAjax = [];
     $result = $conn->query("SELECT twitch_display_name FROM users WHERE beta_access = '1' AND twitch_display_name NOT IN ('BotOfTheSpecter', 'GamingForAustralia') ORDER BY id");
     while ($row = $result->fetch_assoc()) {
@@ -288,29 +297,29 @@ function checkServiceStatus($serviceName, $serviceData) {
             <div class="section" id="signups-section">
                 <h2>Number of Signups:</h2>
                 <div>
-                    <div class="info-item"><span class="has-text-weight-bold">Total:</span> <span><?php echo $totalUsers; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Total:</span> <span id="total-users"><?php echo $totalUsers; ?></span></div>
                     <h2>Signups by Year:</h2>
                     <div class="columns is-mobile">
                         <div class="column is-half">
                             <?php if (isset($usersByYear[0])): ?>
-                            <div class="info-item"><span class="has-text-weight-bold"><?php echo $usersByYear[0]['year']; ?>:</span> <span><?php echo $usersByYear[0]['count']; ?></span></div>
+                            <div class="info-item"><span class="has-text-weight-bold"><span id="year-0"><?php echo $usersByYear[0]['year']; ?></span>:</span> <span id="count-0"><?php echo $usersByYear[0]['count']; ?></span></div>
                             <?php endif; ?>
                         </div>
                         <div class="column is-half">
                             <?php if (isset($usersByYear[1])): ?>
-                            <div class="info-item"><span class="has-text-weight-bold"><?php echo $usersByYear[1]['year']; ?>:</span> <span><?php echo $usersByYear[1]['count']; ?></span></div>
+                            <div class="info-item"><span class="has-text-weight-bold"><span id="year-1"><?php echo $usersByYear[1]['year']; ?></span>:</span> <span id="count-1"><?php echo $usersByYear[1]['count']; ?></span></div>
                             <?php endif; ?>
                         </div>
                     </div>
                     <div class="columns is-mobile">
                         <div class="column is-half">
                             <?php if (isset($usersByYear[2])): ?>
-                            <div class="info-item"><span class="has-text-weight-bold"><?php echo $usersByYear[2]['year']; ?>:</span> <span><?php echo $usersByYear[2]['count']; ?></span></div>
+                            <div class="info-item"><span class="has-text-weight-bold"><span id="year-2"><?php echo $usersByYear[2]['year']; ?></span>:</span> <span id="count-2"><?php echo $usersByYear[2]['count']; ?></span></div>
                             <?php endif; ?>
                         </div>
                         <div class="column is-half">
                             <?php if (isset($usersByYear[3])): ?>
-                            <div class="info-item"><span class="has-text-weight-bold"><?php echo $usersByYear[3]['year']; ?>:</span> <span><?php echo $usersByYear[3]['count']; ?></span></div>
+                            <div class="info-item"><span class="has-text-weight-bold"><span id="year-3"><?php echo $usersByYear[3]['year']; ?></span>:</span> <span id="count-3"><?php echo $usersByYear[3]['count']; ?></span></div>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -453,6 +462,20 @@ function fetchAndUpdateStatus() {
                 document.getElementById('stable-messages').textContent = (data.botMessageCounts['twitch_stable'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['twitch_stable']);
                 document.getElementById('beta-messages').textContent = (data.botMessageCounts['twitch_beta'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['twitch_beta']);
                 document.getElementById('custom-messages').textContent = (data.botMessageCounts['twitch_custom'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['twitch_custom']);
+            }
+            // Update signup data if present
+            if (data.totalUsers !== undefined) {
+                document.getElementById('total-users').textContent = formatNumber(data.totalUsers);
+            }
+            if (data.usersByYear) {
+                data.usersByYear.forEach((yearData, index) => {
+                    const yearElement = document.getElementById('year-' + index);
+                    const countElement = document.getElementById('count-' + index);
+                    if (yearElement && countElement) {
+                        yearElement.textContent = yearData.year;
+                        countElement.textContent = formatNumber(yearData.count);
+                    }
+                });
             }
             // Update metrics if present
             if (data.metrics) {
