@@ -40,6 +40,8 @@ function checkBotRunning($username, $botType = 'stable') {
     $versionFilePath = "/home/botofthespecter/logs/version";
     if ($botType === 'beta') {
         $versionFilePath .= "/beta/{$username}_beta_version_control.txt";
+    } elseif ($botType === 'v6') {
+        $versionFilePath .= "/v6/{$username}_v6_version_control.txt";
     } elseif ($botType === 'custom') {
         $versionFilePath .= "/custom/{$username}_custom_version_control.txt";
     } else {
@@ -48,6 +50,8 @@ function checkBotRunning($username, $botType = 'stable') {
     // Choose the bot script based on type
     if ($botType === 'beta') {
         $botScriptPath = "/home/botofthespecter/beta.py";
+    } elseif ($botType === 'v6') {
+        $botScriptPath = "/home/botofthespecter/beta-v6.py";
     } elseif ($botType === 'custom') {
         $botScriptPath = "/home/botofthespecter/custom.py";
     } else {
@@ -163,6 +167,9 @@ function performBotAction($action, $botType, $params) {
     if ($botType === 'beta') {
         $botScriptPath = "/home/botofthespecter/beta.py";
         $versionFilePath = "/home/botofthespecter/logs/version/beta/{$username}_beta_version_control.txt";
+    } elseif ($botType === 'v6') {
+        $botScriptPath = "/home/botofthespecter/beta-v6.py";
+        $versionFilePath = "/home/botofthespecter/logs/version/v6/{$username}_v6_version_control.txt";
     } elseif ($botType === 'custom') {
         $botScriptPath = "/home/botofthespecter/custom.py";
         $versionFilePath = "/home/botofthespecter/logs/version/custom/{$username}_custom_version_control.txt";
@@ -180,6 +187,8 @@ function performBotAction($action, $botType, $params) {
             $newVersion = $versionInfo['stable_version'];
         } elseif ($botType === 'beta') {
             $newVersion = $versionInfo['beta_version'];
+        } elseif ($botType === 'v6') {
+            $newVersion = $versionInfo['v6_version'] ?? '6.0';
         } elseif ($botType === 'custom') {
             $newVersion = $versionInfo['custom_version'] ?? $versionInfo['stable_version'];
         } else {
@@ -219,8 +228,8 @@ function performBotAction($action, $botType, $params) {
         switch ($action) {
             case 'run':
                 // Before starting this bot, ensure any other bot types are stopped
-                // We check the full set ['stable','beta','custom'] and stop any that are running
-                $otherTypes = ['stable', 'beta', 'custom'];
+                // We check the full set ['stable','beta','custom','v6'] and stop any that are running
+                $otherTypes = ['stable', 'beta', 'custom', 'v6'];
                 $otherBotStoppedMessage = '';
                 foreach ($otherTypes as $ot) {
                     if ($ot === $botType) continue; // skip the bot we're about to start
@@ -305,7 +314,8 @@ function performBotAction($action, $botType, $params) {
                     }
                     // Construct proper bot start command with all required parameters - MAKE IT BACKGROUND
                     // Use escapeshellarg for safety on dynamic fields
-                    $pythonCmd = ($botType === 'beta') ? '/home/botofthespecter/beta_env/bin/python' : 'python';
+                    // V6 uses venv, beta and others use regular python
+                    $pythonCmd = ($botType === 'v6') ? '/home/botofthespecter/beta_env/bin/python' : 'python';
                     $startCommand = "nohup " . $pythonCmd . " " . escapeshellarg($botScriptPath) .
                                     " -channel " . escapeshellarg($username) .
                                     " -channelid " . escapeshellarg($twitchUserId) .

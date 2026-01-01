@@ -47,9 +47,11 @@ if (!$tokenData) {
 $pageTitle = t('bot_management_title');
 $statusOutput = '';
 $betaStatusOutput = '';
+$v6StatusOutput = '';
 $pid = '';
 $versionRunning = '';
 $betaVersionRunning = '';
+$v6VersionRunning = '';
 $customVersionRunning = '';
 $customNewVersion = '';
 $BotIsMod = false;
@@ -63,15 +65,15 @@ $stableLastRestartOutput = '';
 
 $selectedBot = $_GET['bot'] ?? null;
 if (isset($_GET['bot'])) {
-  if (in_array($_GET['bot'], ['stable', 'beta', 'custom'])) {
+  if (in_array($_GET['bot'], ['stable', 'beta', 'custom', 'v6'])) {
     setcookie('selectedBot', $_GET['bot'], time() + (86400 * 30), "/"); // Cookie for 30 days
   }
 }
-else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta', 'custom'])) {
+else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta', 'custom', 'v6'])) {
   $selectedBot = $_COOKIE['selectedBot'];
 }
 else { $selectedBot = 'stable'; }
-if (!in_array($selectedBot, ['stable', 'beta', 'custom'])) { $selectedBot = 'stable'; }
+if (!in_array($selectedBot, ['stable', 'beta', 'custom', 'v6'])) { $selectedBot = 'stable'; }
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
@@ -99,11 +101,17 @@ if (!isset($newVersion)) {
 if (!isset($betaNewVersion)) {
   $betaNewVersion = '';
 }
+if (!isset($v6NewVersion)) {
+  $v6NewVersion = '6.0';
+}
 if (!isset($versionFilePath)) {
   $versionFilePath = null;
 }
 if (!isset($betaVersionFilePath)) {
   $betaVersionFilePath = null;
+}
+if (!isset($v6VersionFilePath)) {
+  $v6VersionFilePath = null;
 }
 
 // Custom bot configuration defaults (ensure defined before use in the UI)
@@ -304,10 +312,11 @@ if ($selectedBot === 'custom') {
 // Check running status for all bots to prevent conflicts
 $stableRunning = false; // Will be determined by JavaScript
 $betaRunning = false;   // Will be determined by JavaScript
+$v6Running = false;     // Will be determined by JavaScript
 $customRunning = false; // Will be determined by JavaScript
 $runningBotCount = 0;
 $multiBotWarning = '';
-if ($stableRunning || $betaRunning || $customRunning) {
+if ($stableRunning || $betaRunning || $v6Running || $customRunning) {
   $multiBotWarning = '<div class="notification is-danger has-text-black has-text-weight-bold">'
     . t('bot_multi_bot_warning')
     . '</div>';
@@ -410,6 +419,12 @@ if ($selectedBot === 'stable') {
   $betaBotSystemStatus = strpos($betaStatusOutput, 'PID') !== false;
   if ($betaBotSystemStatus) {
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
+  }
+} elseif ($selectedBot === 'v6') {
+  $v6StatusOutput = getBotsStatus($statusScriptPath, $username, 'v6');
+  $v6BotSystemStatus = strpos($v6StatusOutput, 'PID') !== false;
+  if ($v6BotSystemStatus) {
+    $v6VersionRunning = getRunningVersion($v6VersionFilePath, $v6NewVersion, 'v6');
   }
 } elseif ($selectedBot === 'custom') {
   // Custom bot uses the same version controlling as stable.
@@ -594,6 +609,9 @@ ob_start();
               <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
                 <?php echo t('bot_beta_bot'); ?>
               </option>
+              <option value="v6" <?php if($selectedBot === 'v6') echo 'selected'; ?>>
+                Version 6
+              </option>
               <option value="custom" <?php if($selectedBot === 'custom') echo 'selected'; ?>>
                 Custom Bot
               </option>
@@ -616,6 +634,13 @@ ob_start();
           <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
             <?php echo t('bot_beta_description'); ?>
           </p>
+        <?php elseif ($selectedBot === 'v6'): ?>
+          <h3 class="title is-4 has-text-white has-text-centered mb-2">
+            Version 6 Controls (v<?php echo $v6NewVersion; ?>)
+          </h3>
+          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+            Version 6 is a complete rewrite and is currently in early development.
+          </p>
           <div class="notification is-danger has-text-black has-text-weight-bold has-text-centered mb-4">
             A complete rewrite has been started for version 6 and is not recommended to be running at this stage. A notice will be put out on Discord when version 6 is ready for testing.
           </div>
@@ -630,7 +655,7 @@ ob_start();
         <?php 
         // Only show bot status and controls if the bot is properly configured
         $showBotControls = false;
-        if ($selectedBot === 'stable' || $selectedBot === 'beta' || $selectedBot === 'custom') {
+        if ($selectedBot === 'stable' || $selectedBot === 'beta' || $selectedBot === 'v6' || $selectedBot === 'custom') {
           $showBotControls = true;
         } 
         ?>
@@ -644,6 +669,8 @@ ob_start();
                 $isRunning = $stableRunning;
               } elseif ($selectedBot === 'beta') {
                 $isRunning = $betaRunning;
+              } elseif ($selectedBot === 'v6') {
+                $isRunning = $v6Running;
               } elseif ($selectedBot === 'custom') {
                 $isRunning = $customRunning;
               }
@@ -920,15 +947,18 @@ ob_start();
 <script>
 const latestStableVersion = <?php echo json_encode($newVersion); ?>;
 const latestBetaVersion = <?php echo json_encode($betaNewVersion); ?>;
+const latestV6Version = <?php echo json_encode($v6NewVersion); ?>;
 const customBotVerified = <?php echo json_encode($customBotVerified); ?>;
 const customBotConfigured = <?php echo json_encode($customBotConfigured); ?>;
 // Make versions accessible globally for updates
 window.latestStableVersion = latestStableVersion;
 window.latestBetaVersion = latestBetaVersion;
+window.latestV6Version = latestV6Version;
 // Track which update notifications we've already shown to avoid duplicates
 window._seenUpdateNotifications = window._seenUpdateNotifications || new Set();
 const serverStableVersion = <?php echo json_encode($versionRunning); ?>;
 const serverBetaVersion = <?php echo json_encode($betaVersionRunning); ?>;
+const serverV6Version = <?php echo json_encode($v6VersionRunning); ?>;
 // Technical UI Enhancements
 const technicalCSS = `
   .technical-info-grid {
@@ -998,6 +1028,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const bot = getCurrentBotType();
         if (bot === 'stable') handleStableBotAction('stop');
         else if (bot === 'beta') handleBetaBotAction('stop');
+        else if (bot === 'v6') handleV6BotAction('stop');
         else if (bot === 'custom') handleCustomBotAction('stop');
       });
     }
@@ -1006,6 +1037,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const bot = getCurrentBotType();
         if (bot === 'stable') handleStableBotAction('run');
         else if (bot === 'beta') handleBetaBotAction('run');
+        else if (bot === 'v6') handleV6BotAction('run');
         else if (bot === 'custom') handleCustomBotAction('run');
       });
     }
@@ -1192,6 +1224,53 @@ document.addEventListener('DOMContentLoaded', function() {
           } else {
             if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
             showNotification(`Failed to ${action} custom bot: ${data.message}`, 'danger');
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
+          showNotification(`Error processing request: ${error}`, 'danger');
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+        });
+    }, 10);
+  }
+  function handleV6BotAction(action) {
+    if (action === 'run' && !isBotMod) {
+      showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
+      return;
+    }
+    const btn = action === 'stop' ? stopBotBtn : runBotBtn;
+    const originalContent = btn.innerHTML;
+    showNotification(`Version 6 bot ${action} command sent...`, 'info');
+    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
+    btn.disabled = true;
+    if (action === 'run') {
+      botRunOperationInProgress = true;
+      currentBotBeingStarted = 'v6';
+    }
+    setTimeout(() => {
+      fetchWithTimeout('bot_action.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=${encodeURIComponent(action)}&bot=v6`
+      }, 8000)
+        .then(response => response.json())
+        .then(data => {
+          console.log('V6 bot action response:', data);
+          if (data.success) {
+            const expectedRunning = (action === 'run');
+            updateUIOptimistically(expectedRunning, 'V6');
+            if (data.message) { showNotification(data.message, 'success'); }
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            startStatusVerification('v6', expectedRunning, 0);
+            if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
+          } else {
+            if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
+            showNotification(`Failed to ${action} v6 bot: ${data.message}`, 'danger');
             btn.innerHTML = originalContent;
             btn.disabled = false;
           }
@@ -1519,6 +1598,11 @@ document.addEventListener('DOMContentLoaded', function() {
           // Update the global variable
           window.latestBetaVersion = data.beta_version;
         }
+        if (data.v6_version && data.v6_version !== latestV6Version) {
+          console.log('V6 version updated from', latestV6Version, 'to', data.v6_version);
+          // Update the global variable
+          window.latestV6Version = data.v6_version;
+        }
         return data;
       })
       .catch(error => {
@@ -1609,7 +1693,7 @@ document.addEventListener('DOMContentLoaded', function() {
               lastRun: data.lastRun
             });
             // Check for version updates
-            const latestVersion = selectedBot === 'beta' ? window.latestBetaVersion : window.latestStableVersion;
+            const latestVersion = selectedBot === 'beta' ? window.latestBetaVersion : selectedBot === 'v6' ? window.latestV6Version : window.latestStableVersion;
             // Normalize versions to compare (strip whitespace / leading 'v')
             function normalizeVersion(v) {
               if (!v && v !== 0) return '';
@@ -2388,7 +2472,10 @@ For Stable Bot:
 python /home/botofthespecter/bot.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
 
 For Beta Bot:
-/home/botofthespecter/beta_env/bin/python /home/botofthespecter/beta.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
+python /home/botofthespecter/beta.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
+
+For Version 6 Bot:
+/home/botofthespecter/beta_env/bin/python /home/botofthespecter/beta-v6.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
 
 -->
 <?php
