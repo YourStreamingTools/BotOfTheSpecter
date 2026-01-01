@@ -867,6 +867,7 @@ ob_start();
             </div>
           </div>
         </div>
+        <?php if (false): // Streaming services disabled - hidden but code preserved for future use ?>
         <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4">
           <?php echo t('bot_streaming_service_status'); ?>
         </h4>
@@ -935,6 +936,7 @@ ob_start();
             </div>
           </div>
         </div>
+        <?php endif; // End streaming services section ?>
       </div>
     </div>
   </div>
