@@ -128,7 +128,6 @@ function uuidv4() {
                     </a>
                     <ul class="sidebar-submenu">
                         <li><a href="timed_messages.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-clock"></i></span><span class="sidebar-menu-text">Auto Messages</span></a></li>
-                        <li><a href="edit_counters.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-pen-to-square"></i></span><span class="sidebar-menu-text">Stream Counters</span></a></li>
                         <li><a href="bot_points.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-coins"></i></span><span class="sidebar-menu-text">Loyalty Points</span></a></li>
                         <li><a href="subathon.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-hourglass-half"></i></span><span class="sidebar-menu-text">Subathon</span></a></li>
                         <li><a href="known_users.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-users"></i></span><span class="sidebar-menu-text">Welcome Messages</span></a></li>
@@ -289,12 +288,6 @@ function uuidv4() {
                         <a href="timed_messages.php" class="sidebar-submenu-link">
                             <span class="sidebar-submenu-icon"><i class="fas fa-clock"></i></span>
                             <span class="sidebar-menu-text">Auto Messages</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="edit_counters.php" class="sidebar-submenu-link">
-                            <span class="sidebar-submenu-icon"><i class="fas fa-pen-to-square"></i></span>
-                            <span class="sidebar-menu-text">Stream Counters</span>
                         </a>
                     </li>
                     <li>

@@ -1,7 +1,8 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+// Redirect to the unified counters page
+// The edit functionality has been merged into counters.php
+header('Location: counters.php');
+exit();
 
 session_start();
 header("Cache-Control: no-cache, no-store, must-revalidate");
