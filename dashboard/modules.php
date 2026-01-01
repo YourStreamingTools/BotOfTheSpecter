@@ -1263,7 +1263,7 @@ ob_start();
                                 <!-- Save All Button -->
                                 <div class="field mt-6">
                                     <div class="control has-text-centered">
-                                        <button class="button is-success" type="submit" style="padding: 0.75rem 2rem; font-size: 1rem;">
+                                        <button id="save-all-btn" class="button is-success" type="submit" style="padding: 0.75rem 2rem; font-size: 1rem;">
                                             <span class="icon mr-2">
                                                 <i class="fas fa-save"></i>
                                             </span>
@@ -1572,6 +1572,17 @@ document.addEventListener('DOMContentLoaded', function() {
             updateCharCount(input);
         });
     }, 100);
+
+    // Save All button feedback
+    const saveAllBtn = document.getElementById('save-all-btn');
+    if (saveAllBtn) {
+        saveAllBtn.addEventListener('click', function(e) {
+            // Change button to loading state
+            this.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Saving...</span>';
+            this.disabled = true;
+            // Form will submit naturally since this is type="submit"
+        });
+    }
 
     // Add event listener for section save buttons
     document.querySelectorAll('.section-save-btn').forEach(function(button) {
