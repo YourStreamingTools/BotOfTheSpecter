@@ -842,6 +842,314 @@ CREATE TABLE IF NOT EXISTS link_clicks (
 GRANT ALL PRIVILEGES ON *.* TO 'your_username'@'%';
 FLUSH PRIVILEGES;</code></pre>
 
+        <div class="notification has-text-black has-background-danger mt-5">
+            <p class="has-text-weight-bold">⚠️ IMPORTANT: Per-User Databases Are Auto-Created</p>
+            <p><strong>DO NOT manually create user databases!</strong> The system automatically creates a dedicated database for each user on their first login.</p>
+            <p class="mt-2">When a user logs in for the first time, the bot automatically:</p>
+            <ul class="mt-2">
+                <li>Creates a new database named after their Twitch username</li>
+                <li>Sets up all necessary tables and initial configurations</li>
+                <li>Configures default settings and permissions</li>
+            </ul>
+            <p class="mt-2">The example below shows what the system automatically generates for a user named "botofthespecter":</p>
+        </div>
+
+        <p class="mt-3"><strong>Example: Auto-Generated User Database (botofthespecter)</strong></p>
+        <p class="subtitle is-6 has-text-grey-light">This database is created automatically by the system - you do not need to run these commands manually:</p>
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">-- User-specific database (auto-created on first login)
+CREATE DATABASE IF NOT EXISTS botofthespecter;
+USE botofthespecter;
+
+-- Core bot tables
+CREATE TABLE IF NOT EXISTS bot_settings (
+    id INT NOT NULL AUTO_INCREMENT,
+    timezone VARCHAR(255) DEFAULT 'America/New_York',
+    weather_location VARCHAR(255) DEFAULT NULL,
+    weather_api_key VARCHAR(255) DEFAULT NULL,
+    discord_server_id VARCHAR(255) DEFAULT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS everyone (
+    username TEXT NOT NULL,
+    status TEXT,
+    PRIMARY KEY (username(255))
+);
+
+CREATE TABLE IF NOT EXISTS seen_users (
+    id INT NOT NULL AUTO_INCREMENT,
+    username VARCHAR(255) NOT NULL,
+    display_name VARCHAR(255) DEFAULT NULL,
+    PRIMARY KEY (id)
+);
+
+-- Command tables
+CREATE TABLE IF NOT EXISTS builtin_commands (
+    command TEXT NOT NULL,
+    status TEXT,
+    permission TEXT,
+    PRIMARY KEY (command(255))
+);
+
+CREATE TABLE IF NOT EXISTS custom_commands (
+    command TEXT NOT NULL,
+    response TEXT,
+    status TEXT,
+    PRIMARY KEY (command(255))
+);
+
+CREATE TABLE IF NOT EXISTS custom_user_commands (
+    command TEXT NOT NULL,
+    response TEXT,
+    status TEXT,
+    PRIMARY KEY (command(255))
+);
+
+CREATE TABLE IF NOT EXISTS command_options (
+    command TEXT NOT NULL,
+    status TEXT,
+    PRIMARY KEY (command(255))
+);
+
+-- Points and engagement
+CREATE TABLE IF NOT EXISTS bot_points (
+    user_id VARCHAR(50) NOT NULL,
+    points INT DEFAULT 0,
+    PRIMARY KEY (user_id)
+);
+
+CREATE TABLE IF NOT EXISTS message_counts (
+    username TEXT NOT NULL,
+    count INT DEFAULT 0,
+    PRIMARY KEY (username(255))
+);
+
+CREATE TABLE IF NOT EXISTS seen_today (
+    user_id TEXT NOT NULL,
+    points_gained INT DEFAULT 0,
+    PRIMARY KEY (user_id(255))
+);
+
+-- Interaction counts
+CREATE TABLE IF NOT EXISTS hug_counts (
+    username TEXT NOT NULL,
+    hug_count INT DEFAULT 0,
+    PRIMARY KEY (username(255))
+);
+
+CREATE TABLE IF NOT EXISTS kiss_counts (
+    username TEXT NOT NULL,
+    kiss_count INT DEFAULT 0,
+    PRIMARY KEY (username(255))
+);
+
+CREATE TABLE IF NOT EXISTS highfive_counts (
+    username VARCHAR(255) NOT NULL,
+    highfive_count INT DEFAULT 0,
+    PRIMARY KEY (username)
+);
+
+-- Stream data
+CREATE TABLE IF NOT EXISTS followers_data (
+    id INT NOT NULL AUTO_INCREMENT,
+    follower_id VARCHAR(255) NOT NULL,
+    follower_name VARCHAR(255) NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS bits_data (
+    id INT NOT NULL AUTO_INCREMENT,
+    user_id VARCHAR(255) NOT NULL,
+    bits_used INT DEFAULT 0,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS raid_data (
+    id INT NOT NULL AUTO_INCREMENT,
+    raider_name VARCHAR(255) NOT NULL,
+    viewers INT DEFAULT 0,
+    raided_at DATETIME DEFAULT NULL,
+    PRIMARY KEY (id)
+);
+
+-- Channel rewards
+CREATE TABLE IF NOT EXISTS channel_point_rewards (
+    reward_id VARCHAR(255) NOT NULL,
+    reward_title VARCHAR(255) DEFAULT NULL,
+    status VARCHAR(50) DEFAULT 'enabled',
+    PRIMARY KEY (reward_id)
+);
+
+CREATE TABLE IF NOT EXISTS reward_counts (
+    id INT NOT NULL AUTO_INCREMENT,
+    reward_id VARCHAR(255) NOT NULL,
+    user VARCHAR(255) NOT NULL,
+    count INT DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY reward_id (reward_id, user)
+);
+
+CREATE TABLE IF NOT EXISTS reward_streaks (
+    reward_id VARCHAR(255) NOT NULL,
+    current_streak INT DEFAULT 0,
+    highest_streak INT DEFAULT 0,
+    PRIMARY KEY (reward_id)
+);
+
+-- Game features
+CREATE TABLE IF NOT EXISTS game_deaths (
+    game_name TEXT NOT NULL,
+    death_count INT DEFAULT 0,
+    PRIMARY KEY (game_name(255))
+);
+
+CREATE TABLE IF NOT EXISTS game_deaths_settings (
+    game_name VARCHAR(255) NOT NULL,
+    PRIMARY KEY (game_name)
+);
+
+CREATE TABLE IF NOT EXISTS per_stream_deaths (
+    game_name VARCHAR(255) NOT NULL,
+    death_count INT DEFAULT 0,
+    PRIMARY KEY (game_name)
+);
+
+-- Quotes and categories
+CREATE TABLE IF NOT EXISTS quotes (
+    id INT NOT NULL AUTO_INCREMENT,
+    quote TEXT,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS quote_category (
+    id INT NOT NULL AUTO_INCREMENT,
+    category_name VARCHAR(255) NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+    id INT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    PRIMARY KEY (id)
+);
+
+-- User management
+CREATE TABLE IF NOT EXISTS groups (
+    id INT NOT NULL AUTO_INCREMENT,
+    group_name VARCHAR(255) NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS custom_counts (
+    id INT NOT NULL AUTO_INCREMENT,
+    counter_name VARCHAR(255) NOT NULL,
+    count INT DEFAULT 0,
+    PRIMARY KEY (id)
+);
+
+-- Timers and lurk
+CREATE TABLE IF NOT EXISTS active_timers (
+    user_id BIGINT NOT NULL,
+    start_time DATETIME DEFAULT NULL,
+    PRIMARY KEY (user_id)
+);
+
+CREATE TABLE IF NOT EXISTS lurk_times (
+    user_id TEXT NOT NULL,
+    total_lurk_time INT DEFAULT 0,
+    PRIMARY KEY (user_id(255))
+);
+
+-- Protection and moderation
+CREATE TABLE IF NOT EXISTS protection (
+    url_blocking TEXT
+);
+
+CREATE TABLE IF NOT EXISTS link_whitelist (
+    link TEXT NOT NULL,
+    PRIMARY KEY (link(255))
+);
+
+CREATE TABLE IF NOT EXISTS link_blacklisting (
+    link TEXT NOT NULL,
+    PRIMARY KEY (link(255))
+);
+
+-- Polls and bingo
+CREATE TABLE IF NOT EXISTS poll_results (
+    poll_id TEXT,
+    title TEXT,
+    status TEXT,
+    started_at DATETIME DEFAULT NULL,
+    ended_at DATETIME DEFAULT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bingo_games (
+    game_id VARCHAR(255) NOT NULL,
+    started_at DATETIME DEFAULT NULL,
+    ended_at DATETIME DEFAULT NULL,
+    status VARCHAR(50) DEFAULT 'active',
+    PRIMARY KEY (game_id)
+);
+
+CREATE TABLE IF NOT EXISTS bingo_winners (
+    id INT NOT NULL AUTO_INCREMENT,
+    game_id VARCHAR(255) NOT NULL,
+    username VARCHAR(255) NOT NULL,
+    won_at DATETIME DEFAULT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT bingo_winners_ibfk_1 FOREIGN KEY (game_id) REFERENCES bingo_games (game_id) ON DELETE CASCADE
+);
+
+-- Profile and settings
+CREATE TABLE IF NOT EXISTS profile (
+    id INT NOT NULL AUTO_INCREMENT,
+    bio TEXT,
+    location VARCHAR(255) DEFAULT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS showobs (
+    status TEXT
+);
+
+CREATE TABLE IF NOT EXISTS chat_history (
+    author VARCHAR(255) NOT NULL,
+    message TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Module settings
+CREATE TABLE IF NOT EXISTS ad_notice_settings (
+    id INT NOT NULL AUTO_INCREMENT,
+    enabled TINYINT(1) DEFAULT 0,
+    message TEXT,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS joke_settings (
+    id INT NOT NULL AUTO_INCREMENT,
+    enabled TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS auto_record_settings (
+    id INT NOT NULL AUTO_INCREMENT,
+    enabled TINYINT(1) DEFAULT 0,
+    server_location VARCHAR(255) DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_server_location (server_location)
+);
+
+CREATE TABLE IF NOT EXISTS member_streams (
+    id INT NOT NULL AUTO_INCREMENT,
+    username VARCHAR(255) NOT NULL,
+    enabled TINYINT(1) DEFAULT 1,
+    PRIMARY KEY (id),
+    UNIQUE KEY username (username)
+);
+</code></pre>
+
         <p class="mt-3">Configure MySQL to accept connections from other servers by editing <code>/etc/mysql/mysql.conf.d/mysqld.cnf</code>:</p>
         <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">bind-address = 0.0.0.0</code></pre>
     </div>
