@@ -1735,6 +1735,10 @@ function loadTab(tabName) {
             button.classList.add('is-info');
         }
     });
+    // Update URL with tab parameter
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabName);
+    window.history.pushState({}, '', url);
     // Set cookie if consent given
     if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
         setCookie('preferred_tab', tabName, 30);
