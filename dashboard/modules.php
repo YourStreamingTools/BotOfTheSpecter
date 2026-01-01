@@ -167,6 +167,30 @@ $stmt->close();
 // Start output buffering for layout
 ob_start();
 ?>
+
+<!-- Module Variables Notification -->
+<div class="notification is-info mb-5">
+    <div class="columns is-vcentered">
+        <div class="column is-narrow">
+            <span class="icon is-large"><i class="fas fa-code fa-2x"></i></span>
+        </div>
+        <div class="column">
+            <p class="title is-6 mb-2">Variables for Modules</p>
+            <p class="mb-2">Use variables in your Welcome Messages, Ad Notices, and Twitch Chat Alerts to create dynamic, personalized messages for your community.</p>
+            <p class="mb-2"><strong>What are Module Variables?</strong>
+                            <br>Variables are placeholders that get replaced with real information when the message is sent.
+                            <br>For example, <code>(user)</code> becomes the viewer's username, and <code>(bits)</code> shows the number of bits cheered.
+            </p>
+            <p class="mb-2"><strong>Available Variables:</strong>
+                            <br>Each module has specific variables you can use - from usernames and viewer counts to subscription tiers and hype train levels.
+            </p>
+            <a href="https://help.botofthespecter.com/specter_module_variables.php" target="_blank" class="button is-primary is-small">
+                <span class="icon"><i class="fas fa-code"></i></span>
+                <span>View All Module Variables</span>
+            </a>
+        </div>
+    </div>
+</div>
 <div class="columns is-centered">
     <div class="column is-fullwidth">
         <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
@@ -300,52 +324,6 @@ ob_start();
                     </div>
     <div class="tab-content" id="welcome-messages">
         <div class="module-container">
-            <!-- Variables Information Card -->
-            <div class="columns is-desktop is-multiline is-centered mb-5">
-                <div class="column is-fullwidth" style="max-width: 1200px;">
-                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                            <span class="card-header-title is-size-5 has-text-white" style="font-weight:600;">
-                                <span class="icon mr-2"><i class="fas fa-code"></i></span>
-                                <?php echo t('modules_available_variables_title'); ?>
-                            </span>
-                        </header>
-                        <div class="card-content">
-                            <!-- Note -->
-                            <div class="notification is-info mb-4">
-                                <div class="columns is-vcentered">
-                                    <div class="column is-narrow">
-                                        <span class="icon is-large">
-                                            <i class="fas fa-hand-sparkles fa-2x"></i>
-                                        </span>
-                                    </div>
-                                    <div class="column">
-                                        <p class="mb-2"><strong><?php echo t('modules_custom_welcome_title'); ?></strong></p>
-                                        <p><?php echo t('modules_welcome_variable_info'); ?></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="columns is-multiline">
-                                <!-- User Variables -->
-                                <div class="column is-4">
-                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 160px;">
-                                        <h4 class="title is-6 has-text-white mb-3">
-                                            <span class="icon mr-1"><i class="fas fa-user"></i></span>
-                                            User Variables
-                                        </h4>
-                                        <div class="content has-text-white-ter">
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(user)</span>
-                                                <span class="is-size-7">Username of the person joining</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <!-- Welcome Messages Configuration Form -->
             <div class="columns is-desktop is-multiline is-centered">
                 <div class="column is-fullwidth" style="max-width: 1200px;">
@@ -607,58 +585,6 @@ ob_start();
     <!-- Ad Notices -->
     <div class="tab-content" id="ad-notices">
         <div class="module-container">
-            <!-- Variables Information Card -->
-            <div class="columns is-desktop is-multiline is-centered mb-5">
-                <div class="column is-fullwidth" style="max-width: 1200px;">
-                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                            <span class="card-header-title is-size-5 has-text-white" style="font-weight:600;">
-                                <span class="icon mr-2"><i class="fas fa-code"></i></span>
-                                <?php echo t('modules_available_variables_title'); ?>
-                            </span>
-                        </header>
-                        <div class="card-content">
-                            <!-- Note -->
-                            <div class="notification is-primary is-light mb-4">
-                                <p class="has-text-dark">
-                                    <span class="icon"><i class="fas fa-info-circle"></i></span>
-                                    <strong><?php echo t('modules_variables_note_prefix'); ?></strong> <?php echo t('modules_ad_notices_variables_note'); ?>
-                                </p>
-                            </div>
-                            <div class="columns is-multiline">
-                                <!-- Duration Variables -->
-                                <div class="column is-6">
-                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 140px;">                                        <h4 class="title is-6 has-text-white mb-3">
-                                            <span class="icon mr-1"><i class="fas fa-clock"></i></span>
-                                            <?php echo t('modules_variables_duration_title'); ?>
-                                        </h4>
-                                        <div class="content has-text-white-ter">
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(duration)</span><br>
-                                                <span class="is-size-7"><?php echo t('modules_ad_notices_duration_var'); ?></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Minutes Variables -->
-                                <div class="column is-6">
-                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 140px;">                                        <h4 class="title is-6 has-text-white mb-3">
-                                            <span class="icon mr-1"><i class="fas fa-stopwatch"></i></span>
-                                            <?php echo t('modules_variables_time_title'); ?>
-                                        </h4>
-                                        <div class="content has-text-white-ter">
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(minutes)</span><br>
-                                                <span class="is-size-7"><?php echo t('modules_ad_notices_minutes_var'); ?></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <!-- Ad Notices Configuration Form -->
             <div class="columns is-desktop is-multiline is-centered">
                 <div class="column is-fullwidth" style="max-width: 1200px;">
@@ -954,123 +880,6 @@ ob_start();
     <!-- Twitch Chat Alerts -->
     <div class="tab-content" id="twitch-chat-alerts">
         <div class="module-container">
-            <!-- Variables Information Card -->
-            <div class="columns is-desktop is-multiline is-centered mb-5">
-                <div class="column is-fullwidth" style="max-width: 1200px;">
-                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                            <span class="card-header-title is-size-5 has-text-white" style="font-weight:600;">
-                                <span class="icon mr-2"><i class="fas fa-code"></i></span>
-                                <?php echo t('modules_variables'); ?>
-                            </span>
-                        </header>
-                        <div class="card-content">
-                            <!-- Note -->
-                            <div class="notification is-info mb-4">
-                                <p class="has-text-dark">
-                                    <span class="icon"><i class="fas fa-info-circle"></i></span>
-                                    <strong><?php echo t('modules_variables_note_prefix'); ?></strong> <?php echo t('modules_variables_note'); ?>
-                                </p>
-                            </div>
-                            <div class="columns is-multiline">
-                                <!-- General Variables -->
-                                <div class="column is-4">
-                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">                                        <h4 class="title is-6 has-text-white mb-3">
-                                            <span class="icon mr-1"><i class="fas fa-users"></i></span>
-                                            <?php echo t('modules_variables_general_title'); ?>
-                                        </h4>
-                                        <div class="content has-text-white-ter">
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(user)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_user'); ?></span>
-                                            </div>
-                                            <div class="field mb-2">
-                                                <span class="tag is-warning is-small">(shoutout)</span>
-                                                <span class="is-size-7">Triggers a shoutout</span>
-                                                <span class="tag is-danger is-small ml-1">BETA ONLY</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Bits & Cheers Variables -->
-                                <div class="column is-4">
-                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">                                        <h4 class="title is-6 has-text-white mb-3">
-                                            <span class="icon mr-1"><i class="fas fa-gem"></i></span>
-                                            <?php echo t('modules_variables_bits_cheers_title'); ?>
-                                        </h4>
-                                        <div class="content has-text-white-ter">
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(bits)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_bits'); ?></span>
-                                            </div>
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(total-bits)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_total_bits'); ?></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Subscription Variables -->
-                                <div class="column is-4">
-                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">                                        <h4 class="title is-6 has-text-white mb-3">
-                                            <span class="icon mr-1"><i class="fas fa-star"></i></span>
-                                            <?php echo t('modules_variables_subscriptions_title'); ?> <span class="tag is-danger is-small">*</span>
-                                        </h4>
-                                        <div class="content has-text-white-ter">
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(tier)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_tier'); ?></span>
-                                            </div>
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(months)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_months'); ?></span>
-                                            </div>
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(count)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_count'); ?></span>
-                                            </div>
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(total-gifted)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_total_gifted'); ?></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Raid Variables -->
-                                <div class="column is-4">
-                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">
-                                        <h4 class="title is-6 has-text-white mb-3">
-                                            <span class="icon mr-1"><i class="fas fa-people-group"></i></span>
-                                            Raid Events
-                                        </h4>
-                                        <div class="content has-text-white-ter">
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(viewers)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_viewers'); ?></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Hype Train Variables -->
-                                <div class="column is-4">
-                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">
-                                        <h4 class="title is-6 has-text-white mb-3">
-                                            <span class="icon mr-1"><i class="fas fa-train"></i></span>
-                                            Hype Train Events
-                                        </h4>
-                                        <div class="content has-text-white-ter">
-                                            <div class="field mb-2">
-                                                <span class="tag is-primary is-small">(level)</span>
-                                                <span class="is-size-7"><?php echo t('modules_var_level'); ?></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <!-- Chat Alerts Configuration Form -->
             <div class="columns is-desktop is-multiline is-centered">
                 <div class="column is-fullwidth" style="max-width: 1200px;">
