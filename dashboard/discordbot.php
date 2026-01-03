@@ -2443,8 +2443,7 @@ ob_start();
     <!-- Individual Management Feature Cards -->
     <?php if ($hasEnabledFeatures && $is_linked && !$needs_relink && $hasGuildId): ?>
     <div class="columns is-multiline">
-      <?php if ($serverManagementSettings['welcomeMessage']): ?>
-      <div class="column is-6 is-flex" id="feature-box-welcomeMessage">
+      <div class="column is-6 is-flex" id="feature-box-welcomeMessage" style="display: <?php echo $serverManagementSettings['welcomeMessage'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2520,9 +2519,7 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
-      <?php if ($serverManagementSettings['autoRole']): ?>
-      <div class="column is-6 is-flex" id="feature-box-autoRole">
+      <div class="column is-6 is-flex" id="feature-box-autoRole" style="display: <?php echo $serverManagementSettings['autoRole'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2572,9 +2569,7 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
-      <?php if ($serverManagementSettings['roleHistory']): ?>
-      <div class="column is-6 is-flex" id="feature-box-roleHistory">
+      <div class="column is-6 is-flex" id="feature-box-roleHistory" style="display: <?php echo $serverManagementSettings['roleHistory'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2626,9 +2621,7 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
-      <?php if ($serverManagementSettings['messageTracking']): ?>
-      <div class="column is-6 is-flex" id="feature-box-messageTracking">
+      <div class="column is-6 is-flex" id="feature-box-messageTracking" style="display: <?php echo $serverManagementSettings['messageTracking'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2682,9 +2675,7 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
-      <?php if ($serverManagementSettings['roleTracking']): ?>
-      <div class="column is-6 is-flex" id="feature-box-roleTracking">
+      <div class="column is-6 is-flex" id="feature-box-roleTracking" style="display: <?php echo $serverManagementSettings['roleTracking'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2738,9 +2729,7 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
-      <?php if ($serverManagementSettings['serverRoleManagement']): ?>
-      <div class="column is-6 is-flex" id="feature-box-serverRoleManagement">
+      <div class="column is-6 is-flex" id="feature-box-serverRoleManagement" style="display: <?php echo $serverManagementSettings['serverRoleManagement'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2798,9 +2787,7 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
-      <?php if ($serverManagementSettings['userTracking']): ?>
-      <div class="column is-6 is-flex" id="feature-box-userTracking">
+      <div class="column is-6 is-flex" id="feature-box-userTracking" style="display: <?php echo $serverManagementSettings['userTracking'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2870,9 +2857,7 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
-      <?php if ($serverManagementSettings['reactionRoles']): ?>
-      <div class="column is-6 is-flex" id="feature-box-reactionRoles">
+      <div class="column is-6 is-flex" id="feature-box-reactionRoles" style="display: <?php echo $serverManagementSettings['reactionRoles'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -2946,9 +2931,7 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
-      <?php if ($serverManagementSettings['rulesConfiguration']): ?>
-      <div class="column is-6 is-flex" id="feature-box-rulesConfiguration">
+      <div class="column is-6 is-flex" id="feature-box-rulesConfiguration" style="display: <?php echo $serverManagementSettings['rulesConfiguration'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -3035,9 +3018,7 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
-      <?php if ($serverManagementSettings['streamSchedule']): ?>
-      <div class="column is-6 is-flex" id="feature-box-streamSchedule">
+      <div class="column is-6 is-flex" id="feature-box-streamSchedule" style="display: <?php echo $serverManagementSettings['streamSchedule'] ? 'block' : 'none'; ?>;">
         <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
@@ -3115,10 +3096,8 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
       <!-- Embed Builder Section -->
-      <?php if ($serverManagementSettings['embedBuilder']): ?>
-      <div class="column is-12">
+      <div class="column is-12" id="feature-box-embedBuilder" style="display: <?php echo $serverManagementSettings['embedBuilder'] ? 'block' : 'none'; ?>;">
         <div class="box" style="background: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; border: 1px solid #3a3a3a; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);">
           <div class="content">
             <h2 class="title is-4 has-text-white" style="border-bottom: 2px solid #9146ff; padding-bottom: 10px; margin-bottom: 20px;">
@@ -3152,7 +3131,6 @@ ob_start();
           </div>
         </div>
       </div>
-      <?php endif; ?>
     </div>
     <?php endif; ?>
   </div>
