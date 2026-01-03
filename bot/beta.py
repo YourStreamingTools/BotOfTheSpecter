@@ -2734,6 +2734,19 @@ class TwitchBot(commands.Bot):
                         websocket_status = "Connected" if is_websocket_connected() else "Disconnected"
                         chat_logger.info(f"{ctx.author.name} checked WebSocket status: {websocket_status}")
                         await send_chat_message(f"Internal system WebSocket status: {websocket_status}")
+                        # If disconnected, attempt reconnection
+                        if not is_websocket_connected():
+                            chat_logger.info(f"WebSocket disconnected, attempting reconnection...")
+                            await send_chat_message("WebSocket is disconnected. Attempting to reconnect...")
+                            try:
+                                await force_websocket_reconnect()
+                                # Check status after reconnection attempt
+                                new_status = "Connected" if is_websocket_connected() else "Still Disconnected"
+                                chat_logger.info(f"Reconnection attempt completed. Status: {new_status}")
+                                await send_chat_message(f"Reconnection attempt completed. Status: {new_status}")
+                            except Exception as reconnect_error:
+                                chat_logger.error(f"Failed to reconnect WebSocket: {reconnect_error}")
+                                await send_chat_message("Failed to reconnect. Please try again or contact support.")
                         # Record usage
                         add_usage('wsstatus', bucket_key, cooldown_bucket)
                     else:
