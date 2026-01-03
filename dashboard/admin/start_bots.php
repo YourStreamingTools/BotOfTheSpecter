@@ -1225,28 +1225,31 @@ window.restartAllBots = async function() {
     let successCount = 0;
     let failCount = 0;
 
-    // Show progress toast
-    Swal.fire({
+    // Create a persistent progress toast that we'll update
+    const progressToast = Swal.mixin({
         toast: true,
         position: 'top-end',
-        icon: 'info',
-        title: `Starting restart process for ${runningBots.length} bot(s)...`,
         showConfirmButton: false,
-        timer: 2000
+        timer: null,
+        timerProgressBar: false,
+        didOpen: (toast) => {
+            toast.style.cursor = 'default';
+        }
+    });
+
+    // Show initial progress toast
+    progressToast.fire({
+        icon: 'info',
+        title: `Starting restart process for ${runningBots.length} bot(s)...`
     });
 
     // Restart each bot sequentially
     for (let i = 0; i < botRestartTracking.length; i++) {
         const botInfo = botRestartTracking[i];
-        
-        // Show progress
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
+        // Update progress toast with current bot
+        progressToast.fire({
             icon: 'info',
-            title: `Restarting ${botInfo.username} (${i + 1}/${botRestartTracking.length})...`,
-            showConfirmButton: false,
-            timer: 1500
+            title: `Restarting ${botInfo.username} (${i + 1}/${botRestartTracking.length})...`
         });
 
         try {
@@ -1261,21 +1264,16 @@ window.restartAllBots = async function() {
                 method: 'POST',
                 body: formData
             });
-
             const data = await response.json();
-
             if (data.success) {
                 // Wait a moment for the bot to fully restart
                 await new Promise(resolve => setTimeout(resolve, 2000));
-
                 // Refresh bot status to get new PID
                 const statusResponse = await fetch('?get_running_bots=1');
                 const statusData = await statusResponse.json();
-
                 if (statusData.success) {
                     // Find the bot in the new list
                     const updatedBot = statusData.bots.find(b => b.username === botInfo.username);
-                    
                     if (updatedBot && updatedBot.pid) {
                         botInfo.newPid = updatedBot.pid;
                         // Check if PID changed
@@ -1301,7 +1299,6 @@ window.restartAllBots = async function() {
             failCount++;
             console.error(`Error restarting ${botInfo.username}:`, error);
         }
-
         // Small delay between restarts
         if (i < botRestartTracking.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -1316,6 +1313,8 @@ window.restartAllBots = async function() {
 
     // Refresh the bot status one final time
     await refreshBotStatus();
+    // Close the progress toast before showing final results
+    Swal.close();
 
     // Show final results
     if (failCount === 0) {
@@ -1324,7 +1323,7 @@ window.restartAllBots = async function() {
             title: 'All bots restarted!',
             html: `Successfully restarted ${successCount} bot(s).<br><br>` +
                   botRestartTracking.map(b => 
-                      `<strong>${b.username}</strong>: PID ${b.originalPid} → ${b.newPid || 'N/A'}`
+                      `<span class="has-text-weight-bold">${b.username}</span>: PID ${b.originalPid} → ${b.newPid || 'N/A'}`
                   ).join('<br>'),
             confirmButtonText: 'OK'
         });
@@ -1336,7 +1335,7 @@ window.restartAllBots = async function() {
                   `Failed: ${failCount}<br><br>` +
                   botRestartTracking.map(b => {
                       const status = b.restarted ? '✅' : '❌';
-                      return `${status} <strong>${b.username}</strong>: ${b.originalPid} → ${b.newPid || 'Failed'}`;
+                      return `${status} <span class="has-text-weight-bold">${b.username}</span>: ${b.originalPid} → ${b.newPid || 'Failed'}`;
                   }).join('<br>'),
             confirmButtonText: 'OK'
         });
