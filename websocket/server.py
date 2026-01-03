@@ -141,7 +141,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.database_manager = DatabaseManager(logger)
         self.settings_manager = SettingsManager(logger)
         self.tts_handler = TTSHandler(logger, self.ssh_manager)
-        self.event_handler = EventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid)
+        self.event_handler = EventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid, self.tts_handler)
         # OBS handler: dedicated OBS websocket event routing and state tracking
         self.obs_handler = ObsHandler(logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid)
         self.donation_handler = DonationEventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals)
@@ -549,6 +549,30 @@ class BotOfTheSpecter_WebsocketServer:
             await self.broadcast_event_with_globals(event, data, code)
         elif event == "TWITCH_SUB":
             await self.broadcast_event_with_globals(event, data, code)
+        elif event == "TWITCH_CHANNELPOINTS":
+            # Check if this is a TTS reward redemption
+            rewards_data = request.query.get("rewards")
+            if rewards_data:
+                try:
+                    import json
+                    rewards = json.loads(rewards_data)
+                    reward_title = rewards.get("reward", {}).get("title", "")
+                    user_input = rewards.get("user_input", "")
+                    if "TTS" in reward_title.upper() and user_input:
+                        # This is a TTS reward, add to TTS queue
+                        await self.tts_handler.add_tts_request(user_input, code, language_code, gender, voice_name)
+                        self.logger.info(f"TTS request from channel points added to queue: {user_input}")
+                        count = 1
+                    else:
+                        # Regular channel points event, just broadcast
+                        await self.broadcast_event_with_globals(event, data, code)
+                except Exception as e:
+                    self.logger.error(f"Error parsing channel points rewards data: {e}")
+                    # Still broadcast the event even if parsing fails
+                    await self.broadcast_event_with_globals(event, data, code)
+            else:
+                # No rewards data, just broadcast
+                await self.broadcast_event_with_globals(event, data, code)
         elif event == "TTS" and text:
             # Add TTS request to queue with additional parameters
             await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name)
