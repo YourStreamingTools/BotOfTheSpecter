@@ -7190,12 +7190,13 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.info(f"Successfully posted custom embed '{embed_name}' (Message ID: {message_id}) to #{channel.name}")
                 # Save to database
                 try:
-                    insert_query = """
-                        INSERT INTO custom_embed_messages (embed_id, server_id, channel_id, message_id)
-                        VALUES (%s, %s, %s, %s)
+                    # Use REPLACE to automatically handle existing records
+                    replace_query = """
+                        REPLACE INTO custom_embed_messages (embed_id, server_id, channel_id, message_id, sent_at)
+                        VALUES (%s, %s, %s, %s, NOW())
                     """
                     await self.mysql.execute(
-                        insert_query,
+                        replace_query,
                         params=(str(embed_id), str(server_id), str(channel_id), str(message_id)),
                         database_name='specterdiscordbot'
                     )
