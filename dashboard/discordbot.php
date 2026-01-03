@@ -3534,6 +3534,19 @@ function saveEmbed() {
 
 function sendEmbed(embedId) {
   currentSendEmbedId = embedId;
+  // Fetch the embed to get the channel_id
+  fetch(`get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.embed.channel_id) {
+        // Pre-populate the channel selector with the last used channel
+        const channelSelect = document.getElementById('send_embed_channel');
+        if (channelSelect) {
+          channelSelect.value = data.embed.channel_id;
+        }
+      }
+    })
+    .catch(error => console.error('Error fetching embed for channel pre-population:', error));
   document.getElementById('sendEmbedModal').classList.add('is-active');
 }
 
