@@ -1099,17 +1099,27 @@ try {
                             exit();
                         } else {
                             debug_log("Successfully sent websocket notification for custom embed");
-                            // Update the embed's last_channel_id to remember where it was posted
+                            // Update the embed's channel_id to remember where it was posted
+                            // Only if the column exists (wrapped in try-catch for safety)
                             try {
-                                $updateChannelStmt = $discord_conn->prepare("UPDATE custom_embeds SET last_channel_id = ? WHERE id = ? AND server_id = ?");
-                                if ($updateChannelStmt) {
-                                    $updateChannelStmt->bind_param("sis", $channel_id, $embed_id, $server_id);
-                                    $updateChannelStmt->execute();
-                                    $updateChannelStmt->close();
-                                    debug_log("Updated last_channel_id for embed {$embed_id} to {$channel_id}");
+                                // First check if column exists
+                                $checkColumn = $discord_conn->query("SHOW COLUMNS FROM custom_embeds LIKE 'channel_id'");
+                                if ($checkColumn && $checkColumn->num_rows > 0) {
+                                    $updateChannelStmt = $discord_conn->prepare("UPDATE custom_embeds SET channel_id = ? WHERE id = ? AND server_id = ?");
+                                    if ($updateChannelStmt) {
+                                        $updateChannelStmt->bind_param("sis", $channel_id, $embed_id, $server_id);
+                                        if ($updateChannelStmt->execute()) {
+                                            debug_log("Updated channel_id for embed {$embed_id} to {$channel_id}");
+                                        } else {
+                                            debug_log("Failed to update channel_id: " . $updateChannelStmt->error);
+                                        }
+                                        $updateChannelStmt->close();
+                                    }
+                                } else {
+                                    debug_log("channel_id column does not exist yet - run SQL migration: sql/add_channel_id_to_custom_embeds.sql");
                                 }
                             } catch (Exception $e) {
-                                debug_log("Failed to update last_channel_id: " . $e->getMessage());
+                                debug_log("Failed to update channel_id: " . $e->getMessage());
                             }
                             http_response_code(200);
                             header('Content-Type: application/json');
