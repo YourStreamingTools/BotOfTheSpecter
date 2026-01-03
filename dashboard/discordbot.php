@@ -3671,10 +3671,10 @@ function updateEmbedPreview() {
   if (authorName) {
     preview += `<div style="display: flex; align-items: center; margin-bottom: 8px;">`;
     if (authorIcon) preview += `<img src="${authorIcon}" style="width: 24px; height: 24px; border-radius: 50%; margin-right: 8px;" onerror="this.style.display='none'">`;
-    preview += `<span style="color: #fff; font-weight: 600;">${escapeHtml(authorName)}</span></div>`;
+    preview += `<span style="color: #fff; font-weight: 600;">${parseDiscordMarkdown(authorName)}</span></div>`;
   }
-  if (title) preview += `<div style="color: #fff; font-weight: 600; font-size: 16px; margin-bottom: 8px;">${escapeHtml(title)}</div>`;
-  if (description) preview += `<div style="color: #dcddde; font-size: 14px; margin-bottom: 8px; white-space: pre-wrap;">${escapeHtml(description)}</div>`;
+  if (title) preview += `<div style="color: #fff; font-weight: 600; font-size: 16px; margin-bottom: 8px;">${parseDiscordMarkdown(title)}</div>`;
+  if (description) preview += `<div style="color: #dcddde; font-size: 14px; margin-bottom: 8px; line-height: 1.4;">${parseDiscordMarkdown(description)}</div>`;
   // Fields
   const fields = [];
   document.querySelectorAll('.embed-field-item').forEach(item => {
@@ -3687,7 +3687,7 @@ function updateEmbedPreview() {
     preview += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px;">';
     fields.forEach(field => {
       const gridColumn = field.inline ? 'span 1' : 'span 3';
-      preview += `<div style="grid-column: ${gridColumn};"><div style="color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 4px;">${escapeHtml(field.name)}</div><div style="color: #dcddde; font-size: 14px;">${escapeHtml(field.value)}</div></div>`;
+      preview += `<div style="grid-column: ${gridColumn};"><div style="color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 4px;">${parseDiscordMarkdown(field.name)}</div><div style="color: #dcddde; font-size: 14px; line-height: 1.4;">${parseDiscordMarkdown(field.value)}</div></div>`;
     });
     preview += '</div>';
   }
@@ -3696,7 +3696,7 @@ function updateEmbedPreview() {
   if (footerText || timestamp) {
     preview += '<div style="display: flex; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #4a4a4a;">';
     if (footerIcon) preview += `<img src="${footerIcon}" style="width: 20px; height: 20px; border-radius: 50%; margin-right: 8px;" onerror="this.style.display='none'">`;
-    preview += `<span style="color: #72767d; font-size: 12px;">${escapeHtml(footerText)}`;
+    preview += `<span style="color: #72767d; font-size: 12px;">${parseDiscordMarkdown(footerText)}`;
     if (timestamp) preview += ` • ${new Date().toLocaleString()}`;
     preview += '</span></div>';
   }
@@ -3740,6 +3740,43 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+function parseDiscordMarkdown(text) {
+  if (!text) return '';
+  // Escape HTML first
+  text = escapeHtml(text);
+  // Headers (must come before other formatting)
+  text = text.replace(/^### (.+)$/gm, '<h3 style="color: #fff; font-size: 14px; font-weight: 600; margin: 8px 0 4px 0;">$1</h3>');
+  text = text.replace(/^## (.+)$/gm, '<h2 style="color: #fff; font-size: 16px; font-weight: 600; margin: 8px 0 4px 0;">$1</h2>');
+  text = text.replace(/^# (.+)$/gm, '<h1 style="color: #fff; font-size: 18px; font-weight: 600; margin: 8px 0 4px 0;">$1</h1>');
+  // Code blocks (triple backticks)
+  text = text.replace(/```(\w+)?\n([\s\S]+?)```/g, '<pre style="background-color: #2f3136; border: 1px solid #202225; border-radius: 4px; padding: 8px; margin: 4px 0; overflow-x: auto;"><code style="color: #dcddde; font-family: monospace; font-size: 13px;">$2</code></pre>');
+  // Inline code (single backticks)
+  text = text.replace(/`([^`]+)`/g, '<code style="background-color: #2f3136; color: #dcddde; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 13px;">$1</code>');
+  // Bold and italic combined (***text***)
+  text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  text = text.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
+  // Bold (**text** or __text__)
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  // Italic (*text* or _text_)
+  text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  text = text.replace(/_([^_]+)_/g, '<em>$1</em>');
+  // Strikethrough (~~text~~)
+  text = text.replace(/~~(.+?)~~/g, '<s>$1</s>');
+  // Underline (__text__ is already handled as bold)
+  text = text.replace(/__([^_]+)__/g, '<u>$1</u>');
+  // Links [text](url)
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #00b0f4; text-decoration: none;" target="_blank">$1</a>');
+  // Angle-bracketed URLs <url>
+  text = text.replace(/&lt;(https?:\/\/[^\s&]+)&gt;/g, '<a href="$1" style="color: #00b0f4; text-decoration: none;" target="_blank">$1</a>');
+  // Auto-link URLs
+  text = text.replace(/(?<!href="|src=")(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color: #00b0f4; text-decoration: none;" target="_blank">$1</a>');
+  // Line breaks
+  text = text.replace(/\n/g, '<br>');
+  return text;
+}
+
 
 // Load embeds list on page load if embed builder is enabled
 if (document.getElementById('embedsList')) {
