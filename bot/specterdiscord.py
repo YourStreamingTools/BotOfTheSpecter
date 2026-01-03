@@ -7100,6 +7100,37 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
                 return
             self.logger.info(f"Posting custom embed '{embed_name}' to #{channel.name} in {guild.name}")
+            # Check if this embed has already been sent to this channel
+            try:
+                check_query = """
+                    SELECT message_id FROM custom_embed_messages 
+                    WHERE embed_id = %s AND channel_id = %s
+                    ORDER BY sent_at DESC LIMIT 1
+                """
+                existing_message = await self.mysql.fetchone(
+                    check_query,
+                    params=(str(embed_id), str(channel_id)),
+                    database_name='specterdiscordbot'
+                )
+                if existing_message:
+                    old_message_id = existing_message[0]
+                    self.logger.info(f"Found existing message {old_message_id} for embed {embed_id} in channel {channel_id}, attempting to delete")
+                    try:
+                        old_message = await channel.fetch_message(int(old_message_id))
+                        await old_message.delete()
+                        self.logger.info(f"Deleted old message {old_message_id}")
+                    except discord.NotFound:
+                        self.logger.warning(f"Old message {old_message_id} not found, may have been manually deleted")
+                    except discord.Forbidden:
+                        self.logger.error(f"No permission to delete old message {old_message_id}")
+                    except Exception as e:
+                        self.logger.error(f"Error deleting old message: {e}")
+                    # Delete the old database record
+                    delete_query = "DELETE FROM custom_embed_messages WHERE message_id = %s"
+                    await self.mysql.execute(delete_query, params=(str(old_message_id),), database_name='specterdiscordbot')
+                    self.logger.info(f"Deleted old database record for message {old_message_id}")
+            except Exception as e:
+                self.logger.error(f"Error checking for existing message: {e}")
             try:
                 # Convert hex color to discord.Color
                 try:
