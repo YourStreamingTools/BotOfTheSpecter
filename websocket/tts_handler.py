@@ -57,6 +57,7 @@ class TTSHandler:
             self.logger.info("TTS queue processing stopped")
 
     async def add_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
+        self.logger.info(f"add_tts_request called with text='{text[:50]}...', code={code}, voice={voice_name}")
         await self.tts_queue.put({
             "text": text,
             "code": code,
@@ -64,7 +65,8 @@ class TTSHandler:
             "gender": gender,
             "voice_name": voice_name
         })
-        self.logger.info(f"TTS request added to queue: {text[:50]}...")
+        queue_size = self.tts_queue.qsize()
+        self.logger.info(f"TTS request added to queue. Text: '{text[:50]}...', Queue size: {queue_size}")
 
     async def process_tts_queue(self):
         batch_size = 3  # Process up to 3 TTS requests concurrently
