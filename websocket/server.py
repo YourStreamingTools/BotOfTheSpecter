@@ -363,9 +363,6 @@ class BotOfTheSpecter_WebsocketServer:
                 break
             else:
                 self.logger.info(f"SID [{sid}] not found in registered clients.")
-        # Log the current state of registered clients after disconnect
-        self.logger.info(f"Current registered clients: {self.registered_clients}")
-        self.logger.info(f"Current global listeners: {len(self.global_listeners)}")
 
     async def register(self, sid, data):
         # Handle the register event for SocketIO.
@@ -439,9 +436,6 @@ class BotOfTheSpecter_WebsocketServer:
         else:
             self.logger.warning("Code not provided and not a global listener during registration")
             await self.sio.emit("ERROR", {"message": "Registration failed: code missing and not global listener"}, to=sid)
-        # Log the current state of registered clients after registration
-        self.logger.info(f"Current registered clients: {self.registered_clients}")
-        self.logger.info(f"Current global listeners: {len(self.global_listeners)}")
 
     async def index(self, request):
         # Redirect to the main page
