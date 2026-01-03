@@ -678,6 +678,10 @@ ob_start();
             <span class="icon"><i class="fas fa-sync-alt"></i></span>
             <span>Refresh Status</span>
         </button>
+        <button class="button is-warning" id="restart-all-btn" onclick="restartAllBots()" disabled>
+            <span class="icon"><i class="fas fa-redo-alt"></i></span>
+            <span>Restart All Bots</span>
+        </button>
     </div>
     <div class="table-container">
         <table class="table is-fullwidth is-striped">
@@ -771,6 +775,11 @@ function refreshBotStatus() {
         .then(data => {
             if (data.success) {
                 runningBots = data.bots;
+                // Enable/disable Restart All button based on running bots count
+                const restartAllBtn = document.getElementById('restart-all-btn');
+                if (restartAllBtn) {
+                    restartAllBtn.disabled = runningBots.length === 0;
+                }
                 // Process all users and validate tokens
                 const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
                 let validateDelay = 0;
@@ -1169,6 +1178,169 @@ window.restartBot = function(username, botType, pid, element) {
             });
         }
     });
+};
+
+// Function to restart all running bots
+window.restartAllBots = async function() {
+    if (runningBots.length === 0) {
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'info',
+            title: 'No running bots to restart',
+            showConfirmButton: false,
+            timer: 2000
+        });
+        return;
+    }
+
+    // Confirm the action
+    const result = await Swal.fire({
+        title: 'Restart All Bots?',
+        text: `This will restart ${runningBots.length} running bot(s). Continue?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#aaa',
+        confirmButtonText: 'Yes, restart all!'
+    });
+
+    if (!result.isConfirmed) return;
+
+    // Disable the restart all button during the process
+    const restartAllBtn = document.getElementById('restart-all-btn');
+    if (restartAllBtn) {
+        restartAllBtn.disabled = true;
+        restartAllBtn.classList.add('is-loading');
+    }
+
+    // Store original PIDs for comparison
+    const botRestartTracking = runningBots.map(bot => ({
+        username: bot.username,
+        originalPid: bot.pid,
+        newPid: null,
+        restarted: false
+    }));
+
+    let successCount = 0;
+    let failCount = 0;
+
+    // Show progress toast
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: `Starting restart process for ${runningBots.length} bot(s)...`,
+        showConfirmButton: false,
+        timer: 2000
+    });
+
+    // Restart each bot sequentially
+    for (let i = 0; i < botRestartTracking.length; i++) {
+        const botInfo = botRestartTracking[i];
+        
+        // Show progress
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'info',
+            title: `Restarting ${botInfo.username} (${i + 1}/${botRestartTracking.length})...`,
+            showConfirmButton: false,
+            timer: 1500
+        });
+
+        try {
+            // Send restart request
+            const formData = new FormData();
+            formData.append('restart_bot', '1');
+            formData.append('username', botInfo.username);
+            formData.append('bot_type', 'stable');
+            formData.append('pid', botInfo.originalPid);
+
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Wait a moment for the bot to fully restart
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // Refresh bot status to get new PID
+                const statusResponse = await fetch('?get_running_bots=1');
+                const statusData = await statusResponse.json();
+
+                if (statusData.success) {
+                    // Find the bot in the new list
+                    const updatedBot = statusData.bots.find(b => b.username === botInfo.username);
+                    
+                    if (updatedBot && updatedBot.pid) {
+                        botInfo.newPid = updatedBot.pid;
+                        // Check if PID changed
+                        if (botInfo.newPid !== botInfo.originalPid) {
+                            botInfo.restarted = true;
+                            successCount++;
+                        } else {
+                            // PID didn't change, consider it a failure
+                            failCount++;
+                            console.warn(`Bot ${botInfo.username} has same PID after restart: ${botInfo.originalPid}`);
+                        }
+                    } else {
+                        // Bot not found in running list after restart
+                        failCount++;
+                        console.warn(`Bot ${botInfo.username} not found in running list after restart`);
+                    }
+                }
+            } else {
+                failCount++;
+                console.error(`Failed to restart ${botInfo.username}:`, data.message);
+            }
+        } catch (error) {
+            failCount++;
+            console.error(`Error restarting ${botInfo.username}:`, error);
+        }
+
+        // Small delay between restarts
+        if (i < botRestartTracking.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+
+    // Re-enable button
+    if (restartAllBtn) {
+        restartAllBtn.disabled = false;
+        restartAllBtn.classList.remove('is-loading');
+    }
+
+    // Refresh the bot status one final time
+    await refreshBotStatus();
+
+    // Show final results
+    if (failCount === 0) {
+        Swal.fire({
+            icon: 'success',
+            title: 'All bots restarted!',
+            html: `Successfully restarted ${successCount} bot(s).<br><br>` +
+                  botRestartTracking.map(b => 
+                      `<strong>${b.username}</strong>: PID ${b.originalPid} → ${b.newPid || 'N/A'}`
+                  ).join('<br>'),
+            confirmButtonText: 'OK'
+        });
+    } else {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Restart Complete with Issues',
+            html: `Successfully restarted: ${successCount}<br>` +
+                  `Failed: ${failCount}<br><br>` +
+                  botRestartTracking.map(b => {
+                      const status = b.restarted ? '✅' : '❌';
+                      return `${status} <strong>${b.username}</strong>: ${b.originalPid} → ${b.newPid || 'Failed'}`;
+                  }).join('<br>'),
+            confirmButtonText: 'OK'
+        });
+    }
 };
 </script>
 <?php
