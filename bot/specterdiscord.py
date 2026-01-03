@@ -7192,12 +7192,12 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 try:
                     # Use REPLACE to automatically handle existing records
                     replace_query = """
-                        REPLACE INTO custom_embed_messages (embed_id, server_id, channel_id, message_id)
-                        VALUES (%s, %s, %s, %s)
+                        REPLACE INTO custom_embed_messages (embed_id, embed_name, server_id, channel_id, message_id)
+                        VALUES (%s, %s, %s, %s, %s)
                     """
                     await self.mysql.execute(
                         replace_query,
-                        params=(str(embed_id), str(server_id), str(channel_id), str(message_id)),
+                        params=(str(embed_id), str(embed_name), str(server_id), str(channel_id), str(message_id)),
                         database_name='specterdiscordbot'
                     )
                     self.logger.info(f"Saved custom embed message to database: embed_id={embed_id}, channel_id={channel_id}, message_id={message_id}")
