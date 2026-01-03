@@ -863,7 +863,8 @@ $serverManagementSettings = [
   'userTracking' => false,
   'reactionRoles' => false,
   'rulesConfiguration' => false,
-  'streamSchedule' => false
+  'streamSchedule' => false,
+  'embedBuilder' => false
 ];
 
 if ($is_linked && $hasGuildId) {
@@ -883,7 +884,8 @@ if ($is_linked && $hasGuildId) {
         'userTracking' => (bool)$serverMgmtData['userTracking'],
         'reactionRoles' => (bool)$serverMgmtData['reactionRoles'],
         'rulesConfiguration' => (bool)$serverMgmtData['rulesConfiguration'],
-        'streamSchedule' => (bool)$serverMgmtData['streamSchedule']
+        'streamSchedule' => (bool)$serverMgmtData['streamSchedule'],
+        'embedBuilder' => (bool)$serverMgmtData['embedBuilder']
       ];
       // Override channel IDs with values from server_management table if they exist
       if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
@@ -2166,6 +2168,16 @@ ob_start();
                   <div class="toggle-status has-text-grey-light" data-for="streamSchedule">Disabled</div>
                 </div>
               </div>
+              <div class="toggle-item box">
+                <label for="embedBuilder" class="toggle-title has-text-white">Embed Builder</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="embedBuilder" type="checkbox" name="embedBuilder"<?php echo (!empty($serverManagementSettings['embedBuilder']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="embedBuilder">Disabled</div>
+                </div>
+              </div>
             </div>
           </div>
         </form>
@@ -3104,11 +3116,209 @@ ob_start();
         </div>
       </div>
       <?php endif; ?>
+      <!-- Embed Builder Section -->
+      <?php if ($serverManagementSettings['embedBuilder']): ?>
+      <div class="column is-12">
+        <div class="box" style="background: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; border: 1px solid #3a3a3a; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);">
+          <div class="content">
+            <h2 class="title is-4 has-text-white" style="border-bottom: 2px solid #9146ff; padding-bottom: 10px; margin-bottom: 20px;">
+              <span class="icon-text">
+                <span class="icon has-text-info"><i class="fas fa-comment-dots"></i></span>
+                <span>Custom Embed Builder</span>
+              </span>
+            </h2>
+            <p class="has-text-grey-light mb-4">Create, manage, and send custom Discord embeds to any channel in your server</p>
+            <!-- Existing Embeds List -->
+            <div class="box" style="background-color: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; margin-bottom: 20px;">
+              <h3 class="subtitle is-5 has-text-white mb-3">
+                <span class="icon-text">
+                  <span class="icon"><i class="fas fa-list"></i></span>
+                  <span>Your Custom Embeds</span>
+                </span>
+              </h3>
+              <div id="embedsList" style="max-height: 400px; overflow-y: auto;">
+                <!-- Embeds will be loaded here -->
+              </div>
+            </div>
+            <!-- Create New Embed Button -->
+            <div class="field">
+              <div class="control">
+                <button class="button is-primary is-fullwidth" type="button" onclick="createEmbed()" style="border-radius: 6px; font-weight: 600;">
+                  <span class="icon"><i class="fas fa-plus"></i></span>
+                  <span>Create New Embed</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
   </div>
 </div>
-
+<!-- Embed Builder Modal -->
+<div id="embedBuilderModal" class="modal">
+  <div class="modal-background"></div>
+  <div class="modal-content" style="width: 90%; max-width: 1200px;">
+    <div class="box" style="background-color: #2d2d2d; border-radius: 12px;">
+      <h2 class="title is-4 has-text-white mb-4" id="embedModalTitle">Create Custom Embed</h2>
+      <div class="columns">
+        <!-- Left Column: Embed Configuration -->
+        <div class="column is-7">
+          <div class="field">
+            <label class="label has-text-white">Embed Name</label>
+            <div class="control">
+              <input class="input" type="text" id="embed_name" placeholder="e.g., Welcome Message, Rules, Announcements" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+            </div>
+            <p class="help has-text-grey-light">Internal name to identify this embed (not shown in Discord)</p>
+          </div>
+          <div class="field">
+            <label class="label has-text-white">Embed Title</label>
+            <div class="control">
+              <input class="input" type="text" id="embed_title" placeholder="e.g., Welcome to Our Server!" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label has-text-white">Description</label>
+            <div class="control">
+              <textarea class="textarea" id="embed_description" rows="4" placeholder="Enter the main embed content..." style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;"></textarea>
+            </div>
+          </div>
+          <div class="columns">
+            <div class="column">
+              <div class="field">
+                <label class="label has-text-white">Embed Color</label>
+                <div class="control">
+                  <input class="input" type="color" id="embed_color" value="#5865f2" style="background-color: #3a3a3a; border-color: #5a5a5a; height: 50px;">
+                </div>
+              </div>
+            </div>
+            <div class="column">
+              <div class="field">
+                <label class="label has-text-white">URL (optional)</label>
+                <div class="control">
+                  <input class="input" type="url" id="embed_url" placeholder="https://example.com" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label has-text-white">Thumbnail URL (optional)</label>
+            <div class="control">
+              <input class="input" type="url" id="embed_thumbnail" placeholder="https://example.com/image.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label has-text-white">Image URL (optional)</label>
+            <div class="control">
+              <input class="input" type="url" id="embed_image" placeholder="https://example.com/image.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label has-text-white">Footer Text (optional)</label>
+            <div class="control">
+              <input class="input" type="text" id="embed_footer_text" placeholder="Footer text" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label has-text-white">Footer Icon URL (optional)</label>
+            <div class="control">
+              <input class="input" type="url" id="embed_footer_icon" placeholder="https://example.com/icon.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label has-text-white">Author Name (optional)</label>
+            <div class="control">
+              <input class="input" type="text" id="embed_author_name" placeholder="Author name" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label has-text-white">Author URL (optional)</label>
+            <div class="control">
+              <input class="input" type="url" id="embed_author_url" placeholder="https://example.com" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label has-text-white">Author Icon URL (optional)</label>
+            <div class="control">
+              <input class="input" type="url" id="embed_author_icon" placeholder="https://example.com/icon.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+            </div>
+          </div>
+          <div class="field">
+            <label class="checkbox has-text-white">
+              <input type="checkbox" id="embed_timestamp">
+              Include Timestamp
+            </label>
+          </div>
+          <!-- Fields Section -->
+          <div class="box" style="background-color: #3a3a3a; border: 1px solid #5a5a5a;">
+            <h4 class="subtitle is-6 has-text-white">Embed Fields</h4>
+            <div id="embedFieldsList"></div>
+            <button class="button is-small is-info" type="button" onclick="addEmbedField()">
+              <span class="icon"><i class="fas fa-plus"></i></span>
+              <span>Add Field</span>
+            </button>
+          </div>
+        </div>
+        <!-- Right Column: Preview -->
+        <div class="column is-5">
+          <div class="box" style="background-color: #36393f; border-radius: 8px; position: sticky; top: 20px;">
+            <h4 class="subtitle is-6 has-text-white mb-3">Preview</h4>
+            <div id="embedPreview" style="background-color: #2f3136; border-left: 4px solid #5865f2; border-radius: 4px; padding: 16px;">
+              <!-- Preview will be rendered here -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="field is-grouped mt-4">
+        <div class="control">
+          <button class="button is-success" onclick="saveEmbed()">
+            <span class="icon"><i class="fas fa-save"></i></span>
+            <span>Save Embed</span>
+          </button>
+        </div>
+        <div class="control">
+          <button class="button is-light" onclick="closeEmbedModal()">
+            <span class="icon"><i class="fas fa-times"></i></span>
+            <span>Cancel</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="modal-close is-large" aria-label="close" onclick="closeEmbedModal()"></button>
+</div>
+<!-- Send Embed Modal -->
+<div id="sendEmbedModal" class="modal">
+  <div class="modal-background"></div>
+  <div class="modal-content" style="width: 500px;">
+    <div class="box" style="background-color: #2d2d2d;">
+      <h3 class="title is-5 has-text-white">Send Embed to Channel</h3>
+      <div class="field">
+        <label class="label has-text-white">Select Channel</label>
+        <div class="control">
+          <?php echo generateChannelInput('send_embed_channel', 'send_embed_channel', '', 'Select channel to send embed', $useManualIds, $guildChannels, 'fas fa-hashtag', true); ?>
+        </div>
+      </div>
+      <div class="field is-grouped mt-4">
+        <div class="control">
+          <button class="button is-success" onclick="confirmSendEmbed()">
+            <span class="icon"><i class="fas fa-paper-plane"></i></span>
+            <span>Send</span>
+          </button>
+        </div>
+        <div class="control">
+          <button class="button is-light" onclick="closeSendEmbedModal()">
+            <span class="icon"><i class="fas fa-times"></i></span>
+            <span>Cancel</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="modal-close is-large" aria-label="close" onclick="closeSendEmbedModal()"></button>
+</div>
 <div id="savedStreamersModal" class="modal">
   <div class="modal-background"></div>
   <div class="modal-content" style="width: 50%;">
@@ -3188,8 +3398,388 @@ function removeStreamer(username) {
     }
   });
 }
-</script>
-<script>
+
+// Embed Builder Functions
+let currentEmbedId = 0;
+let embedFieldsCounter = 0;
+let currentSendEmbedId = 0;
+
+function loadEmbedsList() {
+  fetch(`get_custom_embeds.php?server_id=${getCurrentServerId()}`)
+    .then(response => response.json())
+    .then(data => {
+      const container = document.getElementById('embedsList');
+      if (data.success && data.embeds && data.embeds.length > 0) {
+        container.innerHTML = data.embeds.map(embed => `
+          <div class="box" style="background-color: #3a3a3a; border: 1px solid #5a5a5a; margin-bottom: 10px;">
+            <div class="level">
+              <div class="level-left">
+                <div class="level-item">
+                  <div>
+                    <p class="title is-6 has-text-white">${escapeHtml(embed.embed_name)}</p>
+                    <p class="subtitle is-7 has-text-grey-light">${embed.title ? escapeHtml(embed.title) : 'No title'}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="level-right">
+                <div class="level-item">
+                  <div class="buttons">
+                    <button class="button is-small is-info" onclick="editEmbed(${embed.id})">
+                      <span class="icon"><i class="fas fa-edit"></i></span>
+                    </button>
+                    <button class="button is-small is-success" onclick="sendEmbed(${embed.id})">
+                      <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                    </button>
+                    <button class="button is-small is-danger" onclick="deleteEmbed(${embed.id})">
+                      <span class="icon"><i class="fas fa-trash"></i></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        container.innerHTML = '<p class="has-text-grey-light has-text-centered">No custom embeds yet. Create one to get started!</p>';
+      }
+    })
+    .catch(error => {
+      console.error('Error loading embeds:', error);
+    });
+}
+
+function createEmbed() {
+  currentEmbedId = 0;
+  document.getElementById('embedModalTitle').textContent = 'Create Custom Embed';
+  clearEmbedForm();
+  document.getElementById('embedBuilderModal').classList.add('is-active');
+  updateEmbedPreview();
+}
+
+function editEmbed(embedId) {
+  currentEmbedId = embedId;
+  document.getElementById('embedModalTitle').textContent = 'Edit Custom Embed';
+  fetch(`get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const embed = data.embed;
+        document.getElementById('embed_name').value = embed.embed_name || '';
+        document.getElementById('embed_title').value = embed.title || '';
+        document.getElementById('embed_description').value = embed.description || '';
+        document.getElementById('embed_color').value = embed.color || '#5865f2';
+        document.getElementById('embed_url').value = embed.url || '';
+        document.getElementById('embed_thumbnail').value = embed.thumbnail_url || '';
+        document.getElementById('embed_image').value = embed.image_url || '';
+        document.getElementById('embed_footer_text').value = embed.footer_text || '';
+        document.getElementById('embed_footer_icon').value = embed.footer_icon_url || '';
+        document.getElementById('embed_author_name').value = embed.author_name || '';
+        document.getElementById('embed_author_url').value = embed.author_url || '';
+        document.getElementById('embed_author_icon').value = embed.author_icon_url || '';
+        document.getElementById('embed_timestamp').checked = embed.timestamp_enabled == 1;
+        // Load fields
+        const fieldsContainer = document.getElementById('embedFieldsList');
+        fieldsContainer.innerHTML = '';
+        embedFieldsCounter = 0;
+        if (embed.fields) {
+          const fields = JSON.parse(embed.fields);
+          fields.forEach(field => {
+            addEmbedField(field.name, field.value, field.inline);
+          });
+        }
+        document.getElementById('embedBuilderModal').classList.add('is-active');
+        updateEmbedPreview();
+      }
+    });
+}
+
+function saveEmbed() {
+  const embedName = document.getElementById('embed_name').value.trim();
+  if (!embedName) {
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'warning',
+      title: 'Embed name is required',
+      showConfirmButton: false,
+      timer: 3000
+    });
+    return;
+  }
+  const fields = [];
+  document.querySelectorAll('.embed-field-item').forEach(item => {
+    const name = item.querySelector('.field-name').value.trim();
+    const value = item.querySelector('.field-value').value.trim();
+    const inline = item.querySelector('.field-inline').checked;
+    if (name && value) {
+      fields.push({ name, value, inline });
+    }
+  });
+  const embedData = {
+    action: 'save_custom_embed',
+    server_id: getCurrentServerId(),
+    embed_id: currentEmbedId,
+    embed_name: embedName,
+    title: document.getElementById('embed_title').value.trim() || null,
+    description: document.getElementById('embed_description').value.trim() || null,
+    color: document.getElementById('embed_color').value,
+    url: document.getElementById('embed_url').value.trim() || null,
+    thumbnail_url: document.getElementById('embed_thumbnail').value.trim() || null,
+    image_url: document.getElementById('embed_image').value.trim() || null,
+    footer_text: document.getElementById('embed_footer_text').value.trim() || null,
+    footer_icon_url: document.getElementById('embed_footer_icon').value.trim() || null,
+    author_name: document.getElementById('embed_author_name').value.trim() || null,
+    author_url: document.getElementById('embed_author_url').value.trim() || null,
+    author_icon_url: document.getElementById('embed_author_icon').value.trim() || null,
+    timestamp_enabled: document.getElementById('embed_timestamp').checked,
+    fields: JSON.stringify(fields)
+  };
+  fetch('save_discord_channel_config.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(embedData)
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: currentEmbedId ? 'Embed Updated' : 'Embed Created',
+          showConfirmButton: false,
+          timer: 3000
+        });
+        closeEmbedModal();
+        loadEmbedsList();
+      } else {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'error',
+          title: data.message || 'Failed to save embed',
+          showConfirmButton: false,
+          timer: 3000
+        });
+      }
+    });
+}
+
+function sendEmbed(embedId) {
+  currentSendEmbedId = embedId;
+  document.getElementById('sendEmbedModal').classList.add('is-active');
+}
+
+function confirmSendEmbed() {
+  const channelId = document.getElementById('send_embed_channel').value.trim();
+  if (!channelId) {
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'warning',
+      title: 'Please select a channel',
+      showConfirmButton: false,
+      timer: 3000
+    });
+    return;
+  }
+  fetch('save_discord_channel_config.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'send_custom_embed',
+      server_id: getCurrentServerId(),
+      embed_id: currentSendEmbedId,
+      channel_id: channelId
+    })
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Embed sent successfully!',
+          showConfirmButton: false,
+          timer: 3000
+        });
+        closeSendEmbedModal();
+      } else {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'error',
+          title: data.message || 'Failed to send embed',
+          showConfirmButton: false,
+          timer: 3000
+        });
+      }
+    });
+}
+
+function deleteEmbed(embedId) {
+  Swal.fire({
+    title: 'Delete Embed?',
+    text: 'This action cannot be undone',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Yes, delete it'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      fetch('save_discord_channel_config.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_custom_embed',
+          server_id: getCurrentServerId(),
+          embed_id: embedId
+        })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            Swal.fire({
+              toast: true,
+              position: 'top-end',
+              icon: 'success',
+              title: 'Embed deleted',
+              showConfirmButton: false,
+              timer: 3000
+            });
+            loadEmbedsList();
+          }
+        });
+    }
+  });
+}
+
+function addEmbedField(name = '', value = '', inline = false) {
+  embedFieldsCounter++;
+  const fieldHtml = `
+    <div class="box embed-field-item" style="background-color: #2a2a2a; border: 1px solid #5a5a5a; margin-bottom: 10px;" data-field-id="${embedFieldsCounter}">
+      <div class="field">
+        <label class="label has-text-white is-small">Field Name</label>
+        <div class="control">
+          <input class="input is-small field-name" type="text" value="${escapeHtml(name)}" placeholder="Field name" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" onchange="updateEmbedPreview()">
+        </div>
+      </div>
+      <div class="field">
+        <label class="label has-text-white is-small">Field Value</label>
+        <div class="control">
+          <textarea class="textarea is-small field-value" placeholder="Field value" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" onchange="updateEmbedPreview()">${escapeHtml(value)}</textarea>
+        </div>
+      </div>
+      <div class="field">
+        <label class="checkbox has-text-white is-small">
+          <input type="checkbox" class="field-inline" ${inline ? 'checked' : ''} onchange="updateEmbedPreview()"> Inline
+        </label>
+        <button class="button is-small is-danger is-pulled-right" type="button" onclick="removeEmbedField(${embedFieldsCounter})">
+          <span class="icon"><i class="fas fa-trash"></i></span>
+        </button>
+      </div>
+    </div>
+  `;
+  document.getElementById('embedFieldsList').insertAdjacentHTML('beforeend', fieldHtml);
+  updateEmbedPreview();
+}
+
+function removeEmbedField(fieldId) {
+  document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`).remove();
+  updateEmbedPreview();
+}
+
+function updateEmbedPreview() {
+  const title = document.getElementById('embed_title').value;
+  const description = document.getElementById('embed_description').value;
+  const color = document.getElementById('embed_color').value;
+  const thumbnail = document.getElementById('embed_thumbnail').value;
+  const image = document.getElementById('embed_image').value;
+  const footerText = document.getElementById('embed_footer_text').value;
+  const footerIcon = document.getElementById('embed_footer_icon').value;
+  const authorName = document.getElementById('embed_author_name').value;
+  const authorIcon = document.getElementById('embed_author_icon').value;
+  const timestamp = document.getElementById('embed_timestamp').checked;
+  let preview = `<div style="border-left: 4px solid ${color}; background-color: #2f3136; border-radius: 4px; padding: 16px;">`;
+  if (authorName) {
+    preview += `<div style="display: flex; align-items: center; margin-bottom: 8px;">`;
+    if (authorIcon) preview += `<img src="${authorIcon}" style="width: 24px; height: 24px; border-radius: 50%; margin-right: 8px;" onerror="this.style.display='none'">`;
+    preview += `<span style="color: #fff; font-weight: 600;">${escapeHtml(authorName)}</span></div>`;
+  }
+  if (title) preview += `<div style="color: #fff; font-weight: 600; font-size: 16px; margin-bottom: 8px;">${escapeHtml(title)}</div>`;
+  if (description) preview += `<div style="color: #dcddde; font-size: 14px; margin-bottom: 8px; white-space: pre-wrap;">${escapeHtml(description)}</div>`;
+  // Fields
+  const fields = [];
+  document.querySelectorAll('.embed-field-item').forEach(item => {
+    const name = item.querySelector('.field-name').value;
+    const value = item.querySelector('.field-value').value;
+    const inline = item.querySelector('.field-inline').checked;
+    if (name && value) fields.push({ name, value, inline });
+  });
+  if (fields.length > 0) {
+    preview += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px;">';
+    fields.forEach(field => {
+      const gridColumn = field.inline ? 'span 1' : 'span 3';
+      preview += `<div style="grid-column: ${gridColumn};"><div style="color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 4px;">${escapeHtml(field.name)}</div><div style="color: #dcddde; font-size: 14px;">${escapeHtml(field.value)}</div></div>`;
+    });
+    preview += '</div>';
+  }
+  if (image) preview += `<img src="${image}" style="max-width: 100%; border-radius: 4px; margin-top: 16px;" onerror="this.style.display='none'">`;
+  if (thumbnail) preview += `<img src="${thumbnail}" style="max-width: 80px; float: right; border-radius: 4px;" onerror="this.style.display='none'">`;
+  if (footerText || timestamp) {
+    preview += '<div style="display: flex; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #4a4a4a;">';
+    if (footerIcon) preview += `<img src="${footerIcon}" style="width: 20px; height: 20px; border-radius: 50%; margin-right: 8px;" onerror="this.style.display='none'">`;
+    preview += `<span style="color: #72767d; font-size: 12px;">${escapeHtml(footerText)}`;
+    if (timestamp) preview += ` • ${new Date().toLocaleString()}`;
+    preview += '</span></div>';
+  }
+  preview += '</div>';
+  document.getElementById('embedPreview').innerHTML = preview;
+}
+
+function clearEmbedForm() {
+  document.getElementById('embed_name').value = '';
+  document.getElementById('embed_title').value = '';
+  document.getElementById('embed_description').value = '';
+  document.getElementById('embed_color').value = '#5865f2';
+  document.getElementById('embed_url').value = '';
+  document.getElementById('embed_thumbnail').value = '';
+  document.getElementById('embed_image').value = '';
+  document.getElementById('embed_footer_text').value = '';
+  document.getElementById('embed_footer_icon').value = '';
+  document.getElementById('embed_author_name').value = '';
+  document.getElementById('embed_author_url').value = '';
+  document.getElementById('embed_author_icon').value = '';
+  document.getElementById('embed_timestamp').checked = false;
+  document.getElementById('embedFieldsList').innerHTML = '';
+  embedFieldsCounter = 0;
+}
+
+function closeEmbedModal() {
+  document.getElementById('embedBuilderModal').classList.remove('is-active');
+}
+
+function closeSendEmbedModal() {
+  document.getElementById('sendEmbedModal').classList.remove('is-active');
+}
+
+function getCurrentServerId() {
+  return document.getElementById('guild_id').value;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Load embeds list on page load if embed builder is enabled
+if (document.getElementById('embedsList')) {
+  loadEmbedsList();
+}
+
   $(document).ready(function() {
     // Character counters for online/offline text
   function updateCharCounter(inputId, counterId) {
@@ -4413,7 +5003,8 @@ function removeStreamer(username) {
       'userTracking',
       'reactionRoles',
       'rulesConfiguration',
-      'streamSchedule'
+      'streamSchedule',
+      'embedBuilder'
     ];
     // Set initial toggle states based on saved settings
     settingToggles.forEach(settingName => {
