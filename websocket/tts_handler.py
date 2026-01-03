@@ -76,16 +76,19 @@ class TTSHandler:
             self.logger.info("TTS queue processing stopped")
 
     async def add_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
-        self.logger.info(f"add_tts_request called with text='{text[:50]}...', code={code}, voice={voice_name}")
+        import uuid
+        request_id = uuid.uuid4().hex[:8]
+        self.logger.info(f"[TTS-ADD-{request_id}] add_tts_request called with text='{text[:50]}...', code={code}, voice={voice_name}")
         await self.tts_queue.put({
             "text": text,
             "code": code,
             "language_code": language_code,
             "gender": gender,
-            "voice_name": voice_name
+            "voice_name": voice_name,
+            "request_id": request_id
         })
         queue_size = self.tts_queue.qsize()
-        self.logger.info(f"TTS request added to queue. Text: '{text[:50]}...', Queue size: {queue_size}")
+        self.logger.info(f"[TTS-ADD-{request_id}] TTS request added to queue. Text: '{text[:50]}...', Queue size: {queue_size}")
 
     async def process_tts_queue(self):
         batch_size = 3  # Process up to 3 TTS requests concurrently
@@ -116,7 +119,8 @@ class TTSHandler:
                 self.logger.error(f"Error processing TTS queue: {e}")
 
     async def process_tts_batch(self, batch):
-        self.logger.info(f"Processing batch of {len(batch)} TTS requests")
+        batch_ids = [req.get('request_id', 'unknown') for req in batch]
+        self.logger.info(f"[TTS-BATCH] Processing batch of {len(batch)} TTS requests. IDs: {batch_ids}")
         # Create tasks for concurrent API calls
         tasks = []
         for request_data in batch:
@@ -132,6 +136,8 @@ class TTSHandler:
         for i, (request_data, result) in enumerate(zip(batch, results)):
             text = request_data.get('text')
             code = request_data.get('code')
+            request_id = request_data.get('request_id', 'unknown')
+            self.logger.info(f"[TTS-PROCESS-{request_id}] Processing result for text: '{text[:30]}...'")
             if isinstance(result, Exception):
                 self.logger.error(f"Failed to generate TTS for batch item {i}: {result}")
                 continue
@@ -315,6 +321,7 @@ class TTSHandler:
             return None
 
     async def emit_tts_event(self, code, audio_filename, text):
+        self.logger.info(f"[TTS-EMIT] emit_tts_event called for code={code}, file={audio_filename}, text='{text[:30]}...'")
         if not self.sio or not self.get_clients:
             self.logger.warning("Cannot emit TTS event: socketio or get_clients not available")
             return
