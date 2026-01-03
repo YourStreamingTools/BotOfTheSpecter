@@ -3230,7 +3230,7 @@ ob_start();
         <div class="column is-5">
           <div class="box" style="background-color: #36393f; border-radius: 8px; position: sticky; top: 20px;">
             <h4 class="subtitle is-6 has-text-white mb-3">Preview</h4>
-            <div id="embedPreview" style="background-color: #2f3136; border-left: 4px solid #5865f2; border-radius: 4px; padding: 16px;">
+            <div id="embedPreview" style="background-color: #2f3136; border-radius: 4px; padding: 16px;">
               <!-- Preview will be rendered here -->
             </div>
           </div>
