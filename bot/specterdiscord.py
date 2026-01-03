@@ -7192,17 +7192,18 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 try:
                     # Use REPLACE to automatically handle existing records
                     replace_query = """
-                        REPLACE INTO custom_embed_messages (embed_id, server_id, channel_id, message_id, sent_at)
-                        VALUES (%s, %s, %s, %s, NOW())
+                        REPLACE INTO custom_embed_messages (embed_id, server_id, channel_id, message_id)
+                        VALUES (%s, %s, %s, %s)
                     """
                     await self.mysql.execute(
                         replace_query,
                         params=(str(embed_id), str(server_id), str(channel_id), str(message_id)),
                         database_name='specterdiscordbot'
                     )
-                    self.logger.info(f"Saved custom embed message to database: embed_id={embed_id}, message_id={message_id}")
+                    self.logger.info(f"Saved custom embed message to database: embed_id={embed_id}, channel_id={channel_id}, message_id={message_id}")
                 except Exception as e:
                     self.logger.error(f"Error saving custom embed message to database: {e}")
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
             except discord.HTTPException as e:
