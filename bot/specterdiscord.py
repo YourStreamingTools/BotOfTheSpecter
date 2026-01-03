@@ -574,6 +574,17 @@ class WebsocketListener:
                 await server_mgmt.post_stream_schedule_message(data)
             else:
                 self.logger.warning("ServerManagement cog not loaded, cannot handle stream schedule message")
+        # Event handler for posting custom embed message
+        @self.specterSocket.on('POST_CUSTOM_EMBED')
+        async def post_custom_embed(data):
+            self.logger.info("POST_CUSTOM_EMBED event handler called!")
+            # Forward to ServerManagement cog if loaded
+            server_mgmt = self.bot.get_cog('Server Management')
+            if server_mgmt:
+                self.logger.info("Forwarding to ServerManagement cog")
+                await server_mgmt.post_custom_embed(data)
+            else:
+                self.logger.warning("ServerManagement cog not loaded, cannot handle custom embed")
         # Log all other events generically
         @self.specterSocket.on('*')
         async def catch_all(event, data):
@@ -7052,6 +7063,123 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.error(f"Unexpected error sending stream schedule message: {e}")
         except Exception as e:
             self.logger.error(f"Error in post_stream_schedule_message: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+
+    async def post_custom_embed(self, data):
+        try:
+            self.logger.info(f"post_custom_embed called with data: {data}")
+            # Extract data
+            server_id = data.get('server_id')
+            channel_id = data.get('channel_id')
+            embed_id = data.get('embed_id')
+            embed_name = data.get('embed_name', 'Custom Embed')
+            title = data.get('title', '')
+            description = data.get('description', '')
+            color_hex = data.get('color', '#5865f2')
+            url = data.get('url', '')
+            thumbnail_url = data.get('thumbnail_url', '')
+            image_url = data.get('image_url', '')
+            footer_text = data.get('footer_text', '')
+            footer_icon_url = data.get('footer_icon_url', '')
+            author_name = data.get('author_name', '')
+            author_url = data.get('author_url', '')
+            author_icon_url = data.get('author_icon_url', '')
+            timestamp_enabled = data.get('timestamp_enabled', 0)
+            fields_json = data.get('fields', '[]')
+            if not server_id or not channel_id:
+                self.logger.error("Missing server_id or channel_id in custom embed data")
+                return
+            # Get guild
+            guild = self.bot.get_guild(int(server_id))
+            if not guild:
+                self.logger.error(f"Guild {server_id} not found")
+                return
+            # Get channel
+            channel = guild.get_channel(int(channel_id))
+            if not channel:
+                self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
+                return
+            self.logger.info(f"Posting custom embed '{embed_name}' to #{channel.name} in {guild.name}")
+            try:
+                # Convert hex color to discord.Color
+                try:
+                    color_int = int(color_hex.replace('#', ''), 16)
+                    embed_color = discord.Color(color_int)
+                except:
+                    embed_color = discord.Color.blurple()
+                # Create embed
+                embed = discord.Embed(color=embed_color)
+                # Set title and description
+                if title:
+                    if url:
+                        embed.title = title
+                        embed.url = url
+                    else:
+                        embed.title = title
+                if description:
+                    embed.description = description
+                # Set author
+                if author_name:
+                    author_kwargs = {'name': author_name}
+                    if author_url:
+                        author_kwargs['url'] = author_url
+                    if author_icon_url:
+                        author_kwargs['icon_url'] = author_icon_url
+                    embed.set_author(**author_kwargs)
+                # Set thumbnail
+                if thumbnail_url:
+                    embed.set_thumbnail(url=thumbnail_url)
+                # Set image
+                if image_url:
+                    embed.set_image(url=image_url)
+                # Add fields
+                try:
+                    fields = json.loads(fields_json) if isinstance(fields_json, str) else fields_json
+                    if fields and isinstance(fields, list):
+                        for field in fields:
+                            field_name = field.get('name', '')
+                            field_value = field.get('value', '')
+                            field_inline = field.get('inline', False)
+                            if field_name and field_value:
+                                embed.add_field(name=field_name, value=field_value, inline=field_inline)
+                except Exception as e:
+                    self.logger.error(f"Error parsing fields JSON: {e}")
+                # Set footer
+                if footer_text:
+                    footer_kwargs = {'text': footer_text}
+                    if footer_icon_url:
+                        footer_kwargs['icon_url'] = footer_icon_url
+                    embed.set_footer(**footer_kwargs)
+                # Set timestamp
+                if timestamp_enabled:
+                    embed.timestamp = datetime.now(timezone.utc)
+                # Send embed
+                message = await channel.send(embed=embed)
+                message_id = message.id
+                self.logger.info(f"Successfully posted custom embed '{embed_name}' (Message ID: {message_id}) to #{channel.name}")
+                # Save to database
+                try:
+                    insert_query = """
+                        INSERT INTO custom_embed_messages (embed_id, server_id, channel_id, message_id)
+                        VALUES (%s, %s, %s, %s)
+                    """
+                    await self.mysql.execute(
+                        insert_query,
+                        params=(str(embed_id), str(server_id), str(channel_id), str(message_id)),
+                        database_name='specterdiscordbot'
+                    )
+                    self.logger.info(f"Saved custom embed message to database: embed_id={embed_id}, message_id={message_id}")
+                except Exception as e:
+                    self.logger.error(f"Error saving custom embed message to database: {e}")
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to send messages in #{channel.name} (ID: {channel_id})")
+            except discord.HTTPException as e:
+                self.logger.error(f"Discord HTTP error sending custom embed: {e}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error sending custom embed: {e}")
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+        except Exception as e:
+            self.logger.error(f"Error in post_custom_embed: {e}")
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 
     @commands.Cog.listener()

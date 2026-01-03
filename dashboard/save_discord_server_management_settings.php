@@ -49,7 +49,8 @@ $allowed_settings = [
     'userTracking',
     'reactionRoles',
     'rulesConfiguration',
-    'streamSchedule'
+    'streamSchedule',
+    'embedBuilder'
 ];
 
 if (!in_array($setting, $allowed_settings)) {
