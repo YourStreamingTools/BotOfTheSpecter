@@ -3643,9 +3643,17 @@ function addEmbedField(name = '', value = '', inline = false) {
         <label class="checkbox has-text-white is-small">
           <input type="checkbox" class="field-inline" ${inline ? 'checked' : ''} onchange="updateEmbedPreview()"> Inline
         </label>
-        <button class="button is-small is-danger is-pulled-right" type="button" onclick="removeEmbedField(${embedFieldsCounter})">
-          <span class="icon"><i class="fas fa-trash"></i></span>
-        </button>
+        <div class="buttons is-pulled-right">
+          <button class="button is-small is-info" type="button" onclick="moveFieldUp(${embedFieldsCounter})" title="Move Up">
+            <span class="icon"><i class="fas fa-arrow-up"></i></span>
+          </button>
+          <button class="button is-small is-info" type="button" onclick="moveFieldDown(${embedFieldsCounter})" title="Move Down">
+            <span class="icon"><i class="fas fa-arrow-down"></i></span>
+          </button>
+          <button class="button is-small is-danger" type="button" onclick="removeEmbedField(${embedFieldsCounter})">
+            <span class="icon"><i class="fas fa-trash"></i></span>
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -3656,6 +3664,24 @@ function addEmbedField(name = '', value = '', inline = false) {
 function removeEmbedField(fieldId) {
   document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`).remove();
   updateEmbedPreview();
+}
+
+function moveFieldUp(fieldId) {
+  const field = document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`);
+  const previousField = field.previousElementSibling;
+  if (previousField && previousField.classList.contains('embed-field-item')) {
+    field.parentNode.insertBefore(field, previousField);
+    updateEmbedPreview();
+  }
+}
+
+function moveFieldDown(fieldId) {
+  const field = document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`);
+  const nextField = field.nextElementSibling;
+  if (nextField && nextField.classList.contains('embed-field-item')) {
+    field.parentNode.insertBefore(nextField, field);
+    updateEmbedPreview();
+  }
 }
 
 function updateEmbedPreview() {
