@@ -512,6 +512,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['make_bot_mod'])) {
     exit;
 }
 
+// Handle AJAX request to restart bot
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
+    require_once __DIR__ . '/../bot_control_functions.php';
+    while (ob_get_level()) ob_end_clean();
+    ob_start();
+    header('Content-Type: application/json');
+    $username = trim($_POST['username'] ?? '');
+    $originalBotType = trim($_POST['bot_type'] ?? 'stable');
+    $pid = intval($_POST['pid'] ?? 0);
+    // ALWAYS restart users as stable, regardless of what they were running
+    $botType = 'stable';
+    // Log the restart attempt
+    error_log("Bot restart request - Username: {$username}, Original Type: {$originalBotType}, Restarting as: {$botType}, PID: {$pid}");
+    $success = false;
+    $message = '';
+    if (empty($username)) {
+        $message = 'Username is required';
+    } else {
+        try {
+            // Get user data including refresh_token and api_key from users table
+            $stmt = $conn->prepare("SELECT twitch_user_id, refresh_token, api_key FROM users WHERE username = ?");
+            $stmt->bind_param("s", $username);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                $userData = $result->fetch_assoc();
+                $twitchUserId = $userData['twitch_user_id'];
+                $refreshToken = $userData['refresh_token'];
+                $apiKey = $userData['api_key'];
+                // Get bot access token from twitch_bot_access table
+                $stmt2 = $conn->prepare("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = ?");
+                $stmt2->bind_param("s", $twitchUserId);
+                $stmt2->execute();
+                $tokenResult = $stmt2->get_result();
+                if ($tokenResult->num_rows > 0) {
+                    $tokenData = $tokenResult->fetch_assoc();
+                    $botAccessToken = $tokenData['twitch_access_token'];
+                    error_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
+                    // Step 1: Stop the bot if it's running
+                    if ($pid > 0) {
+                        error_log("RESTART DEBUG - Stopping PID {$pid} (should be {$botType} bot)");
+                        try {
+                            $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+                            if ($connection) {
+                                SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
+                                error_log("RESTART DEBUG - Kill command sent for PID {$pid}");
+                                // Give it a moment to stop
+                                sleep(1);
+                            }
+                        } catch (Exception $e) {
+                            error_log("Error stopping bot during restart: " . $e->getMessage());
+                        }
+                    }
+                    // Step 2: Start the bot with correct tokens
+                    $params = [
+                        'username' => $username,
+                        'twitch_user_id' => $twitchUserId,
+                        'auth_token' => $botAccessToken,  // Bot token from twitch_bot_access
+                        'refresh_token' => $refreshToken,  // Refresh token from users table
+                        'api_key' => $apiKey
+                    ];
+                    error_log("RESTART DEBUG - Calling performBotAction('run', '{$botType}', ...) for {$username}");
+                    $result = performBotAction('run', $botType, $params);
+                    error_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
+                    $success = $result['success'];
+                    // Always clarify that stable was started
+                    $message = $result['message'] . " (Stable version)";
+                } else {
+                    $message = 'Bot access token not found for user';
+                }
+                $stmt2->close();
+            } else {
+                $message = 'User not found';
+            }
+            $stmt->close();
+        } catch (Exception $e) {
+            $message = 'Error restarting bot: ' . $e->getMessage();
+            error_log("Bot restart error: " . $e->getMessage());
+        }
+    }
+    $debug = ob_get_clean();
+    echo json_encode(['success' => $success, 'message' => $message, 'debug' => $debug]);
+    exit;
+}
+
 // Handle AJAX request to start bot for user
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
     // Clean any output that may have been generated and start a fresh buffer
@@ -654,6 +739,13 @@ ob_start();
                                 <span class="icon"><i class="fas fa-play"></i></span>
                                 <span>Start Bot</span>
                             </button>
+                            <button class="button is-warning restart-bot-btn" 
+                                    onclick="restartBot('<?php echo htmlspecialchars($user['username']); ?>', 'stable', 0, this)" 
+                                    style="display: none;" 
+                                    disabled>
+                                <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                                <span>Restart Bot</span>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -688,14 +780,24 @@ function refreshBotStatus() {
                     const isRunning = runningBots.find(b => b.username === uname);
                     const botTag = row.querySelector('.bot-status-tag');
                     const startBtn = row.querySelector('.start-bot-btn');
+                    const restartBtn = row.querySelector('.restart-bot-btn');
                     if (isRunning) {
                         // Show running status
                         if (botTag) {
                             botTag.className = 'tag is-success bot-status-tag';
                             botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running (PID: ' + isRunning.pid + ')</span>';
                         }
-                        // Disable start button for running bots
-                        if (startBtn) startBtn.disabled = true;
+                        // Show restart button and hide start button for running bots
+                        if (startBtn) {
+                            startBtn.disabled = true;
+                            startBtn.style.display = 'none';
+                        }
+                        if (restartBtn) {
+                            restartBtn.style.display = 'inline-flex';
+                            restartBtn.disabled = false;
+                            // Update restart button with correct PID
+                            restartBtn.setAttribute('onclick', `restartBot('${uname}', 'stable', ${isRunning.pid}, this)`);
+                        }
                         // Validate token to check mod status even for running bots
                         if (twitchId) {
                             setTimeout(() => validateUserToken(twitchId), validateDelay);
@@ -707,8 +809,15 @@ function refreshBotStatus() {
                             botTag.className = 'tag is-danger bot-status-tag';
                             botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>';
                         }
-                        // Ensure start button is enabled for admins to start bots (regardless of mod status)
-                        if (startBtn) startBtn.disabled = false;
+                        // Show start button and hide restart button for non-running bots
+                        if (startBtn) {
+                            startBtn.disabled = false;
+                            startBtn.style.display = 'inline-flex';
+                        }
+                        if (restartBtn) {
+                            restartBtn.style.display = 'none';
+                            restartBtn.disabled = true;
+                        }
                         // Validate token to check mod status
                         if (twitchId) {
                             setTimeout(() => validateUserToken(twitchId), validateDelay);
@@ -982,6 +1091,85 @@ async function startUserBot(username, twitchUserId) {
         }
     }
 }
+
+// Function to restart bot
+window.restartBot = function(username, botType, pid, element) {
+    Swal.fire({
+        title: 'Are you sure?',
+        text: 'Do you want to restart this bot? It will be stopped and started again.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#aaa',
+        confirmButtonText: 'Yes, restart it!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Log the restart details for debugging
+            console.log('Restarting bot:', {username: username, botType: botType, pid: pid});
+            
+            // Show loading toast
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'info',
+                title: 'Restarting ' + botType + ' bot...',
+                showConfirmButton: false,
+                timer: 2000
+            });
+            const formData = new FormData();
+            formData.append('restart_bot', '1');
+            formData.append('username', username);
+            formData.append('bot_type', botType);
+            formData.append('pid', pid);
+            // Log what we're sending
+            console.log('FormData contents:', {
+                restart_bot: '1',
+                username: username,
+                bot_type: botType,
+                pid: pid
+            });
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: data.message || 'Bot restarted successfully',
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                    // Refresh the bot status to update the display
+                    setTimeout(() => refreshBotStatus(), 1500);
+                } else {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'error',
+                        title: data.message || 'Failed to restart bot',
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error restarting bot:', error);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'error',
+                    title: 'Network error restarting bot',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+            });
+        }
+    });
+};
 </script>
 <?php
 $content = ob_get_clean();
