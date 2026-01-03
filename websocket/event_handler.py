@@ -43,23 +43,6 @@ class EventHandler:
         self.logger.info(f"Twitch Channel Points event from SID [{sid}]: {data}")
         # Get the channel code for this SID
         code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
-        # Check if this is a TTS reward redemption
-        rewards_str = data.get("rewards") if isinstance(data.get("rewards"), str) else None
-        if rewards_str:
-            try:
-                import json
-                rewards = json.loads(rewards_str)
-                reward_title = rewards.get("reward", {}).get("title", "")
-                user_input = rewards.get("user_input", "")
-                if "TTS" in reward_title.upper() and user_input:
-                    # This is a TTS reward, trigger TTS handler
-                    self.logger.info(f"TTS reward detected: '{reward_title}' with text: {user_input}")
-                    # We need access to tts_handler - will be injected in __init__
-                    if hasattr(self, 'tts_handler'):
-                        await self.tts_handler.add_tts_request(user_input, code, None, None, None)
-                        self.logger.info(f"TTS request from channel points added to queue: {user_input}")
-            except Exception as e:
-                self.logger.error(f"Error parsing channel points rewards data: {e}")
         # Broadcast the Channel Points event to clients and global listeners
         payload = {**(data or {}), "channel_code": code or "unknown"}
         await self.broadcast_with_globals("TWITCH_CHANNELPOINTS", payload, code)
