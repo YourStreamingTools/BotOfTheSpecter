@@ -6715,13 +6715,13 @@ class ServerManagement(commands.Cog, name='Server Management'):
             base_time_str = now_base.strftime("%H:%M %Z")
             # Build conversion string with base timezone first, then main timezones
             conversion_lines = [f"**{base_tz_display}**: {base_time_str}"]
-            # Add conversions for major timezones in order: UTC, US East, US West, US Central, US Mountain, London, Tokyo
+            # Add conversions for major timezones in order: UTC, US East, US Central, US Mountain, US West, London, Tokyo
             conversion_zones = [
                 ('UTC', 'UTC'),
                 ('America/New_York', 'US East'),
-                ('America/Los_Angeles', 'US West'),
                 ('America/Chicago', 'US Central'),
                 ('America/Denver', 'US Mountain'),
+                ('America/Los_Angeles', 'US West'),
                 ('Europe/London', 'London'),
                 ('Asia/Tokyo', 'Tokyo'),
             ]
