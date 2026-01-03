@@ -850,7 +850,6 @@ $debugData = json_encode([
   'existingOnlineText' => $existingOnlineText,
   'existingOfflineText' => $existingOfflineText
 ]);
-$consoleLogs[] = "console.log('Discord Data Debug for user_id $user_id:', " . $debugData . ");";
 
 // Fetch server management settings from Discord bot database
 $serverManagementSettings = [
@@ -975,7 +974,6 @@ if ($is_linked && $hasGuildId) {
             'has_mappings' => !empty($existingReactionRolesMappings),
             'allow_multiple' => $existingAllowMultipleReactions
           ]);
-          $consoleLogs[] = "console.log('Reaction Roles Configuration Debug for guild $existingGuildId:', " . $reactionRolesDebugData . ");";
         } else {
           $consoleLogs[] = "console.error('Failed to parse reaction_roles_configuration JSON for guild $existingGuildId');";
         }
@@ -1031,7 +1029,6 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token'])) {
       ];
     }, $userAdminGuilds)
   ]);
-  $consoleLogs[] = "console.log('Guild Fetch Debug for user_id $user_id:', " . $guildDebugData . ");";
 }
 
 // Fetch guild channels if user has a guild selected and is not using manual IDs
@@ -1044,7 +1041,6 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$us
     'text_channels_available' => !empty($guildChannels),
     'use_manual_ids' => $useManualIds
   ]);
-  $consoleLogs[] = "console.log('Text Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId:', " . $channelDebugData . ");";
 }
 
 // Fetch guild roles if user has a guild selected and is not using manual IDs
@@ -1057,7 +1053,6 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$us
     'roles_available' => !empty($guildRoles),
     'use_manual_ids' => $useManualIds
   ]);
-  $consoleLogs[] = "console.log('Role Fetch Debug for user_id $user_id, guild_id $existingGuildId:', " . $roleDebugData . ");";
 }
 
 // Fetch guild voice channels if user has a guild selected and is not using manual IDs
@@ -1070,7 +1065,6 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$us
     'voice_channels_available' => !empty($guildVoiceChannels),
     'use_manual_ids' => $useManualIds
   ]);
-  $consoleLogs[] = "console.log('Voice Channel Fetch Debug for user_id $user_id, guild_id $existingGuildId:', " . $voiceChannelDebugData . ");";
 }
 
 function updateExistingDiscordValues() {
@@ -1230,7 +1224,6 @@ function updateExistingDiscordValues() {
               'has_mappings' => !empty($existingReactionRolesMappings),
               'allow_multiple' => $existingAllowMultipleReactions
             ]);
-            $consoleLogs[] = "console.log('Reaction Roles Configuration Debug (refresh) for guild $existingGuildId:', " . $reactionRolesDebugData . ");";
           } else {
             $consoleLogs[] = "console.error('Failed to parse reaction_roles_configuration JSON (refresh) for guild $existingGuildId');";
           }
@@ -1418,8 +1411,6 @@ function fetchGuildChannels($access_token, $guild_id) {
       usort($text_channels, function($a, $b) {
         return ($a['position'] ?? 0) - ($b['position'] ?? 0);
       });
-      // Log successful channel fetch
-      $consoleLogs[] = "console.log('Discord API Success - fetchGuildChannels: Fetched " . count($text_channels) . " text channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token") . "');";
       return $text_channels;
     } else {
       $consoleLogs[] = "console.error('Discord API Error - fetchGuildChannels: Invalid JSON response for guild $guild_id');";
@@ -1463,8 +1454,6 @@ function fetchGuildVoiceChannels($access_token, $guild_id) {
       usort($voice_channels, function($a, $b) {
         return ($a['position'] ?? 0) - ($b['position'] ?? 0);
       });
-      // Log successful voice channel fetch
-      $consoleLogs[] = "console.log('Discord API Success - fetchGuildVoiceChannels: Fetched " . count($voice_channels) . " voice channels for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token") . "');";
       return $voice_channels;
     } else {
       $consoleLogs[] = "console.error('Discord API Error - fetchGuildVoiceChannels: Invalid JSON response for guild $guild_id');";
@@ -1510,8 +1499,6 @@ function fetchGuildRoles($guild_id, $access_token) {
       usort($assignable_roles, function($a, $b) {
         return ($b['position'] ?? 0) - ($a['position'] ?? 0);
       });
-      // Log successful role fetch
-      $consoleLogs[] = "console.log('Discord API Success - fetchGuildRoles: Fetched " . count($assignable_roles) . " roles for guild $guild_id using " . (!empty($bot_token) ? "bot token" : "user token") . "');";
       return $assignable_roles;
     } else {
       $consoleLogs[] = "console.error('Discord API Error - fetchGuildRoles: Invalid JSON response for guild $guild_id');";
@@ -3945,7 +3932,6 @@ document.addEventListener('DOMContentLoaded', function() {
       const timezoneElement = $('#stream_schedule_timezone');
       // Check if elements exist before trying to get values
       if (channelElement.length === 0 || titleElement.length === 0 || contentElement.length === 0 || timezoneElement.length === 0) {
-        console.log('Stream Schedule form elements not found, skipping validation');
         return;
       }
       const channelId = channelElement.val() || '';
@@ -3963,15 +3949,6 @@ document.addEventListener('DOMContentLoaded', function() {
       const hasTimezone = timezone !== '';
       const sendButton = $('#send_stream_schedule_message');
       const allValid = hasChannel && hasTitle && hasContent && hasTimezone;
-      console.log('%c=== STREAM SCHEDULE VALIDATION ===', 'background: #3273dc; color: white; padding: 5px; border-radius: 3px;');
-      console.log('Channel ID:', channelId, '| Has Channel:', hasChannel);
-      console.log('Title:', title, '| Has Title:', hasTitle);
-      console.log('Content length:', content.length, '| Has Content:', hasContent);
-      console.log('Timezone:', timezone, '| Has Timezone:', hasTimezone);
-      console.log('ALL VALID:', allValid);
-      console.log('Send Button Current State - Disabled:', sendButton.prop('disabled'));
-      console.log('Setting Send Button - Disabled:', !allValid);
-      console.log('%c=== END VALIDATION ===', 'background: #3273dc; color: white; padding: 5px; border-radius: 3px;');
       if (sendButton.length > 0) {
         if (allValid) {
           sendButton.prop('disabled', false);
@@ -4042,8 +4019,6 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateDiscordSetting(settingName, value) {
     const guildIdElement = document.getElementById('guild_id_config');
     const guildId = guildIdElement ? guildIdElement.value.trim() : '';
-    // Debug logging
-    console.log('UpdateDiscordSetting called:', { settingName, value, guildId });
     // Validate that we have a guild ID
     if (!guildId) {
       Swal.fire({
@@ -4074,15 +4049,12 @@ document.addEventListener('DOMContentLoaded', function() {
       })
     })
     .then(response => {
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       return response.json();
     })
     .then(data => {
-      console.log('Response data:', data);
       if (data.success) {
         // Show success notification
         Swal.fire({
@@ -4157,8 +4129,6 @@ document.addEventListener('DOMContentLoaded', function() {
   function saveChannelConfig(action, formData) {
     const guildIdElement = document.getElementById('guild_id_config');
     const guildId = guildIdElement ? guildIdElement.value.trim() : '';
-    // Debug logging
-    console.log('saveChannelConfig called with:', { action, formData, guildId });
     // Validate that we have a guild ID
     if (!guildId) {
       Swal.fire({
@@ -4184,14 +4154,10 @@ document.addEventListener('DOMContentLoaded', function() {
     })
     .then(async response => {
       const contentType = response.headers.get('content-type');
-      console.log('Response status:', response.status);
-      console.log('Response content-type:', contentType);
       let responseData;
       try {
         const text = await response.text();
-        console.log('Raw response text:', text);
         responseData = JSON.parse(text);
-        console.log('Successfully parsed JSON response:', responseData);
       } catch (jsonError) {
         console.error('Failed to parse JSON. Error:', jsonError);
         responseData = { success: false, message: 'Server returned non-JSON response' };
@@ -4206,15 +4172,6 @@ document.addEventListener('DOMContentLoaded', function() {
       return responseData;
     })
     .then(data => {
-      console.log('Server response:', data);
-      // Display debug logs if present
-      if (data.debug_logs && Array.isArray(data.debug_logs)) {
-        console.group('🔍 PHP Debug Logs from save_discord_channel_config.php');
-        data.debug_logs.forEach((log, index) => {
-          console.log(`[${index + 1}]`, log);
-        });
-        console.groupEnd();
-      }
       if (data.success) {
         // Show success notification
         Swal.fire({
@@ -4433,13 +4390,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const reactionRolesMessage = document.getElementById('reaction_roles_message').value;
     const reactionRolesMappings = document.getElementById('reaction_roles_mappings').value;
     const allowMultipleReactions = document.getElementById('allow_multiple_reactions').checked;
-    // Debug logging
-    console.log('saveReactionRoles called with:', {
-      reactionRolesChannelId,
-      reactionRolesMessage,
-      reactionRolesMappings,
-      allowMultipleReactions
-    });
     // Always require a channel
     if (!reactionRolesChannelId || reactionRolesChannelId === '') {
       Swal.fire({
@@ -4555,12 +4505,6 @@ document.addEventListener('DOMContentLoaded', function() {
       cancelButtonColor: '#6c757d'
     }).then((result) => {
       if (result.isConfirmed) {
-        console.log('Sending reaction roles message with data:', {
-          channel_id: reactionRolesChannelId,
-          message: reactionRolesMessage,
-          mappings: reactionRolesMappings,
-          allow_multiple: allowMultipleReactions
-        });
         saveChannelConfig('send_reaction_roles_message', {
           reaction_roles_channel_id: reactionRolesChannelId,
           reaction_roles_message: reactionRolesMessage,
@@ -4578,17 +4522,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const rulesColor = document.getElementById('rules_color').value;
     const assignRoleOnAccept = document.getElementById('rules_assign_role_on_accept').checked;
     const acceptRoleId = assignRoleOnAccept ? document.getElementById('rules_accept_role_id').value.trim() : '';
-    
-    // Debug logging
-    console.log('saveRules called with:', {
-      rulesChannelId,
-      rulesTitle,
-      rulesContent,
-      rulesColor,
-      assignRoleOnAccept,
-      acceptRoleId
-    });
-    
     // Always require a channel
     if (!rulesChannelId || rulesChannelId === '') {
       Swal.fire({
@@ -4728,13 +4661,6 @@ document.addEventListener('DOMContentLoaded', function() {
       cancelButtonColor: '#6c757d'
     }).then((result) => {
       if (result.isConfirmed) {
-        console.log('Sending rules message with data:', {
-          channel_id: rulesChannelId,
-          title: rulesTitle,
-          rules: rulesContent,
-          color: rulesColor,
-          accept_role_id: acceptRoleId
-        });
         saveChannelConfig('send_rules_message', {
           rules_channel_id: rulesChannelId,
           rules_title: rulesTitle,
@@ -4801,13 +4727,6 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    console.log('Saving stream schedule configuration with data:', {
-      channel_id: scheduleChannelId,
-      title: scheduleTitle,
-      content: scheduleContent,
-      color: scheduleColor,
-      timezone: scheduleTimezone
-    });
     saveChannelConfig('save_stream_schedule', {
       stream_schedule_channel_id: scheduleChannelId,
       stream_schedule_title: scheduleTitle,
@@ -4875,13 +4794,6 @@ document.addEventListener('DOMContentLoaded', function() {
       cancelButtonColor: '#6c757d'
     }).then((result) => {
       if (result.isConfirmed) {
-        console.log('Sending stream schedule message with data:', {
-          channel_id: scheduleChannelId,
-          title: scheduleTitle,
-          schedule: scheduleContent,
-          color: scheduleColor,
-          timezone: scheduleTimezone
-        });
         saveChannelConfig('send_stream_schedule_message', {
           stream_schedule_channel_id: scheduleChannelId,
           stream_schedule_title: scheduleTitle,
