@@ -30,10 +30,29 @@ class TTSHandler:
     def load_tts_config(self):
         config_path = "/home/botofthespecter/websocket_tts_config.json"
         try:
+            # Load base config from JSON file
             with open(config_path, 'r') as f:
                 config = json.load(f)
-                self.logger.info("TTS configuration loaded successfully")
-                return config
+            # Inject SSH credentials from environment variables
+            ssh_username = os.getenv('SSH_USERNAME')
+            ssh_password = os.getenv('SSH_PASSWORD')
+            if not ssh_username or not ssh_password:
+                self.logger.error("SSH_USERNAME or SSH_PASSWORD environment variables not set")
+                return None
+            # Update SSH config with credentials if ssh_config exists
+            if 'ssh_config' in config:
+                config['ssh_config']['username'] = ssh_username
+                config['ssh_config']['password'] = ssh_password
+                self.logger.info(f"TTS configuration loaded successfully with SSH credentials for user: {ssh_username}")
+            else:
+                self.logger.warning("ssh_config not found in TTS config file")
+            return config
+        except FileNotFoundError:
+            self.logger.error(f"TTS config file not found: {config_path}")
+            return None
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Failed to parse TTS config JSON: {e}")
+            return None
         except Exception as e:
             self.logger.error(f"Failed to load TTS config from {config_path}: {e}")
             return None
