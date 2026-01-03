@@ -1519,8 +1519,10 @@ function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder,
     $manualPlaceholder = $useManualIds ? "Text Channel ID (Right-click channel → Copy Channel ID)" : $placeholder;
     $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$manualPlaceholder\"" : '';
     return "
-      <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
-      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+      <div class=\"control has-icons-left\">
+        <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
+        <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>
+      </div>";
   } else {
     // Show dropdown with channels
     $options = "<option value=\"\"" . (empty($currentValue) ? ' selected' : '') . ">Select a channel...</option>\n";
@@ -1529,14 +1531,16 @@ function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder,
       $channelName = htmlspecialchars($channel['name']);
       $selected = ($currentValue === $channel['id']) ? ' selected' : '';
       $channelType = $channel['type'] ?? 0;
-      $prefix = $channelType === 5 ? '📢 ' : '#'; // Announcement channels get a megaphone emoji
+      $prefix = $channelType === 5 ? '📢 ' : ''; // Announcement channels get a megaphone emoji, regular channels have no prefix
       $options .= "<option value=\"$channelId\"$selected>$prefix$channelName</option>\n";
     }
     return "
-      <div class=\"select is-fullwidth\" style=\"width: 100%;\">
-        <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">$options</select>
-      </div>
-      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+      <div class=\"control has-icons-left\">
+        <div class=\"select is-fullwidth\" style=\"width: 100%;\">
+          <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">$options</select>
+        </div>
+        <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>
+      </div>";
   }
 }
 
@@ -3262,9 +3266,7 @@ ob_start();
       <h3 class="title is-5 has-text-white">Send Embed to Channel</h3>
       <div class="field">
         <label class="label has-text-white">Select Channel</label>
-        <div class="control">
-          <?php echo generateChannelInput('send_embed_channel', 'send_embed_channel', '', 'Select channel to send embed', $useManualIds, $guildChannels, 'fas fa-hashtag', true); ?>
-        </div>
+        <?php echo generateChannelInput('send_embed_channel', 'send_embed_channel', '', 'Select channel to send embed', $useManualIds, $guildChannels, 'fas fa-hashtag', true); ?>
       </div>
       <div class="field is-grouped mt-4">
         <div class="control">
