@@ -3147,20 +3147,20 @@ ob_start();
           <div class="field">
             <label class="label has-text-white">Embed Name</label>
             <div class="control">
-              <input class="input" type="text" id="embed_name" placeholder="e.g., Welcome Message, Rules, Announcements" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+              <input class="input" type="text" id="embed_name" placeholder="e.g., Welcome Message, Rules, Announcements" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
             <p class="help has-text-grey-light">Internal name to identify this embed (not shown in Discord)</p>
           </div>
           <div class="field">
             <label class="label has-text-white">Embed Title</label>
             <div class="control">
-              <input class="input" type="text" id="embed_title" placeholder="e.g., Welcome to Our Server!" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+              <input class="input" type="text" id="embed_title" placeholder="e.g., Welcome to Our Server!" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Description</label>
             <div class="control">
-              <textarea class="textarea" id="embed_description" rows="4" placeholder="Enter the main embed content..." style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;"></textarea>
+              <textarea class="textarea" id="embed_description" rows="4" placeholder="Enter the main embed content..." style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()"></textarea>
             </div>
           </div>
           <div class="columns">
@@ -3168,7 +3168,7 @@ ob_start();
               <div class="field">
                 <label class="label has-text-white">Embed Color</label>
                 <div class="control">
-                  <input class="input" type="color" id="embed_color" value="#5865f2" style="background-color: #3a3a3a; border-color: #5a5a5a; height: 50px;">
+                  <input class="input" type="color" id="embed_color" value="#5865f2" style="background-color: #3a3a3a; border-color: #5a5a5a; height: 50px;" oninput="updateEmbedPreview()">
                 </div>
               </div>
             </div>
@@ -3176,7 +3176,7 @@ ob_start();
               <div class="field">
                 <label class="label has-text-white">URL (optional)</label>
                 <div class="control">
-                  <input class="input" type="url" id="embed_url" placeholder="https://example.com" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+                  <input class="input" type="url" id="embed_url" placeholder="https://example.com" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
                 </div>
               </div>
             </div>
@@ -3184,48 +3184,48 @@ ob_start();
           <div class="field">
             <label class="label has-text-white">Thumbnail URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_thumbnail" placeholder="https://example.com/image.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+              <input class="input" type="url" id="embed_thumbnail" placeholder="https://example.com/image.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Image URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_image" placeholder="https://example.com/image.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+              <input class="input" type="url" id="embed_image" placeholder="https://example.com/image.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Footer Text (optional)</label>
             <div class="control">
-              <input class="input" type="text" id="embed_footer_text" placeholder="Footer text" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+              <input class="input" type="text" id="embed_footer_text" placeholder="Footer text" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Footer Icon URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_footer_icon" placeholder="https://example.com/icon.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+              <input class="input" type="url" id="embed_footer_icon" placeholder="https://example.com/icon.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Author Name (optional)</label>
             <div class="control">
-              <input class="input" type="text" id="embed_author_name" placeholder="Author name" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+              <input class="input" type="text" id="embed_author_name" placeholder="Author name" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Author URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_author_url" placeholder="https://example.com" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+              <input class="input" type="url" id="embed_author_url" placeholder="https://example.com" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Author Icon URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_author_icon" placeholder="https://example.com/icon.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;">
+              <input class="input" type="url" id="embed_author_icon" placeholder="https://example.com/icon.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="checkbox has-text-white">
-              <input type="checkbox" id="embed_timestamp">
+              <input type="checkbox" id="embed_timestamp" onchange="updateEmbedPreview()">
               Include Timestamp
             </label>
           </div>
@@ -3744,7 +3744,8 @@ function closeSendEmbedModal() {
 }
 
 function getCurrentServerId() {
-  return document.getElementById('guild_id').value;
+  const guildIdElement = document.getElementById('guild_id_config');
+  return guildIdElement ? guildIdElement.value : '';
 }
 
 function escapeHtml(text) {
@@ -3757,6 +3758,25 @@ function escapeHtml(text) {
 if (document.getElementById('embedsList')) {
   loadEmbedsList();
 }
+
+// Add event listeners for embed form fields to update preview in real-time
+document.addEventListener('DOMContentLoaded', function() {
+  const embedInputs = [
+    'embed_name', 'embed_title', 'embed_description', 'embed_color', 'embed_url',
+    'embed_thumbnail', 'embed_image', 'embed_footer_text', 'embed_footer_icon',
+    'embed_author_name', 'embed_author_url', 'embed_author_icon', 'embed_timestamp'
+  ];
+  embedInputs.forEach(inputId => {
+    const element = document.getElementById(inputId);
+    if (element) {
+      if (element.type === 'checkbox') {
+        element.addEventListener('change', updateEmbedPreview);
+      } else {
+        element.addEventListener('input', updateEmbedPreview);
+      }
+    }
+  });
+});
 
   $(document).ready(function() {
     // Character counters for online/offline text
