@@ -104,6 +104,9 @@ try {
         case 'clear_role_tracking':
         case 'clear_server_role_management':
         case 'clear_user_tracking':
+        case 'save_custom_embed':
+        case 'send_custom_embed':
+        case 'delete_custom_embed':
             // These are server management features that go to the Discord bot database
             // Connect to specterdiscordbot database
             $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
