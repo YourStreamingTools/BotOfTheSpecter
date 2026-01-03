@@ -1099,6 +1099,18 @@ try {
                             exit();
                         } else {
                             debug_log("Successfully sent websocket notification for custom embed");
+                            // Update the embed's last_channel_id to remember where it was posted
+                            try {
+                                $updateChannelStmt = $discord_conn->prepare("UPDATE custom_embeds SET last_channel_id = ? WHERE id = ? AND server_id = ?");
+                                if ($updateChannelStmt) {
+                                    $updateChannelStmt->bind_param("sis", $channel_id, $embed_id, $server_id);
+                                    $updateChannelStmt->execute();
+                                    $updateChannelStmt->close();
+                                    debug_log("Updated last_channel_id for embed {$embed_id} to {$channel_id}");
+                                }
+                            } catch (Exception $e) {
+                                debug_log("Failed to update last_channel_id: " . $e->getMessage());
+                            }
                             http_response_code(200);
                             header('Content-Type: application/json');
                             echo json_encode([
