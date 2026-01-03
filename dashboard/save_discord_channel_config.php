@@ -921,7 +921,13 @@ try {
                     $author_url = isset($input['author_url']) ? trim($input['author_url']) : null;
                     $author_icon_url = isset($input['author_icon_url']) ? trim($input['author_icon_url']) : null;
                     $timestamp_enabled = isset($input['timestamp_enabled']) ? (bool)$input['timestamp_enabled'] : false;
-                    $fields = isset($input['fields']) ? $input['fields'] : null;
+                    $fields = isset($input['fields']) ? $input['fields'] : '[]';
+                    // Ensure fields is JSON encoded if it's an array
+                    if (is_array($fields)) {
+                        $fields = json_encode($fields);
+                    } elseif (empty($fields)) {
+                        $fields = '[]';
+                    }
                     
                     if (empty($embed_name)) {
                         http_response_code(400);
