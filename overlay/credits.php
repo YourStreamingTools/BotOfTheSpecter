@@ -246,6 +246,23 @@ a, a:visited, a:active {
     max-width: 100vw;
     position: relative;
 }
+/* Responsive design for smaller screens */
+@media (max-width: 1400px) {
+    .scrolling-credits .columns {
+        flex-direction: column !important;
+        flex-wrap: wrap !important;
+        overflow-x: visible;
+        gap: 2rem;
+    }
+    .scrolling-credits .column {
+        min-width: 100%;
+        width: 100%;
+        max-width: 100%;
+    }
+    .scrolling-credits .scroll-area {
+        min-height: 200px;
+    }
+}
 .scrolling-credits .subtitle {
     margin-bottom: 1rem;
     color: #FFFFFF !important;
