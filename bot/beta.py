@@ -4336,10 +4336,15 @@ class TwitchBot(commands.Bot):
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                         if not await check_cooldown('ping', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
-                        # Using subprocess to run the ping command
-                        result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
+                        # Using asyncio subprocess to run the ping command
+                        process = await create_subprocess_exec(
+                            "ping", "-c", "1", "ping.botofthespecter.com",
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE
+                        )
+                        stdout, stderr = await process.communicate()
                         # Decode the result from bytes to string and search for the time
-                        output = result.stdout.decode('utf-8')
+                        output = stdout.decode('utf-8')
                         match = re.search(r"time=(\d+\.\d+) ms", output)
                         if match:
                             ping_time = match.group(1)
