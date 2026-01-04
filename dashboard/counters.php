@@ -686,6 +686,18 @@ if ($cookieConsent && isset($_COOKIE['preferred_data_type'])) {
   $defaultDataType = $_COOKIE['preferred_data_type'];
 }
 
+// Get the default mode - either from cookie or default to 'view'
+$defaultMode = 'view';
+if ($cookieConsent && isset($_COOKIE['preferred_mode'])) {
+  $defaultMode = $_COOKIE['preferred_mode'];
+}
+
+// Get the default edit tab - either from cookie or default to 'typos'
+$defaultEditTab = 'typos';
+if ($cookieConsent && isset($_COOKIE['preferred_edit_tab'])) {
+  $defaultEditTab = $_COOKIE['preferred_edit_tab'];
+}
+
 // Start output buffering for main content
 ob_start();
 ?>
@@ -1034,17 +1046,24 @@ ob_start();
 document.addEventListener('DOMContentLoaded', function() {
   // Set initial active button and load data
   const defaultType = '<?php echo $defaultDataType; ?>';
-  // Highlight the default button using data-type attribute
-  document.querySelectorAll('.buttons .button').forEach(button => {
-    if (button.getAttribute('data-type') === defaultType) {
-      button.classList.remove('is-info');
-      button.classList.add('is-primary');
-    } else {
-      button.classList.remove('is-primary');
-      button.classList.add('is-info');
-    }
-  });
-  loadData(defaultType);
+  const defaultMode = '<?php echo $defaultMode; ?>';
+  const defaultEditTab = '<?php echo $defaultEditTab; ?>';
+  // Restore last mode
+  if (defaultMode === 'edit') {
+    switchMode('edit', defaultEditTab);
+  } else {
+    // Highlight the default button using data-type attribute
+    document.querySelectorAll('.buttons .button').forEach(button => {
+      if (button.getAttribute('data-type') === defaultType) {
+        button.classList.remove('is-info');
+        button.classList.add('is-primary');
+      } else {
+        button.classList.remove('is-primary');
+        button.classList.add('is-info');
+      }
+    });
+    loadData(defaultType);
+  }
   // Wire up remove form confirmations
   wireRemoveForm('typo-remove-form', 'typo-username-remove', 'typo');
   wireRemoveForm('usercount-remove-form', 'usercount-user-remove', 'user count');
@@ -1246,11 +1265,14 @@ function setCookie(name, value, days) {
 }
 
 // Mode switching
-function switchMode(mode) {
+function switchMode(mode, editTab) {
   const viewMode = document.getElementById('view-mode');
   const editMode = document.getElementById('edit-mode');
   const tabs = document.querySelectorAll('.tabs li');
-  
+  // Store mode preference in cookie if consent is given
+  if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
+    setCookie('preferred_mode', mode, 30);
+  }
   if (mode === 'view') {
     viewMode.style.display = 'block';
     editMode.style.display = 'none';
@@ -1261,7 +1283,8 @@ function switchMode(mode) {
     editMode.style.display = 'block';
     tabs[0].classList.remove('is-active');
     tabs[1].classList.add('is-active');
-    showEditTab('typos');
+    // Use provided editTab or default to 'typos'
+    showEditTab(editTab || 'typos');
   }
 }
 
