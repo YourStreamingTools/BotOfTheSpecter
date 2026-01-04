@@ -357,6 +357,18 @@ if (isset($_SESSION['twitchUserId'])) {
 
 // Calculate total storage used and max storage using storage_used.php
 $username = $_SESSION['username'] ?? '';
+
+// Force refresh tier by calling check_subscription.php
+if (!isset($user['beta_access']) || $user['beta_access'] != 1) {
+    $checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/check_subscription.php";
+    $ch = curl_init($checkUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    curl_exec($ch);
+    curl_close($ch);
+}
+
 ob_start();
 include 'storage_used.php';
 ob_end_clean();
@@ -628,9 +640,50 @@ ob_start();
                 <span class="icon is-large mr-2">
                     <i class="fas fa-database fa-2x has-text-info"></i>
                 </span>
-                <div>
-                    <h2 class="title is-5 mb-0"><?php echo t('storage_usage_title'); ?></h2>
-                    <p class="help mb-0"><?php echo t('storage_usage_help'); ?></p>
+                <div style="flex-grow: 1;">
+                    <div class="is-flex is-align-items-center is-justify-content-space-between">
+                        <div>
+                            <h2 class="title is-5 mb-0"><?php echo t('storage_usage_title'); ?></h2>
+                            <p class="help mb-0"><?php echo t('storage_usage_help'); ?></p>
+                        </div>
+                        <div class="tags has-addons" style="margin-left: 10px;">
+                            <?php 
+                            // Check beta access
+                            $betaAccess = isset($user['beta_access']) ? ($user['beta_access'] == 1) : false;
+                            // Get tier from session or check subscription
+                            $tier = $_SESSION['tier'] ?? 'None';
+                            // Display tier tag if subscribed
+                            if ($tier !== 'None' && in_array($tier, ['1000', '2000', '3000'])):
+                                $tierLabel = match($tier) {
+                                    '1000' => 'Tier 1',
+                                    '2000' => 'Tier 2',
+                                    '3000' => 'Tier 3',
+                                    default => 'Tier'
+                                };
+                                $tierColor = match($tier) {
+                                    '1000' => 'is-info',
+                                    '2000' => 'is-warning',
+                                    '3000' => 'is-danger',
+                                    default => 'is-primary'
+                                };
+                            ?>
+                                <span class="tag <?php echo $tierColor; ?> is-medium">
+                                    <span class="icon is-small">
+                                        <i class="fas fa-crown"></i>
+                                    </span>
+                                    <span><?php echo $tierLabel; ?></span>
+                                </span>
+                            <?php endif; ?>
+                            <?php if ($betaAccess): ?>
+                                <span class="tag is-primary is-medium">
+                                    <span class="icon is-small">
+                                        <i class="fas fa-flask"></i>
+                                    </span>
+                                    <span>Beta</span>
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="mb-2">
