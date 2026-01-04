@@ -80,67 +80,51 @@ if (isset($twitchDisplayName) && !empty($twitchDisplayName)) {
     }
 }
 
-// Check Twitch subscription tier
+// Check Twitch subscription tier by calling check_subscription.php
 $currentPlan = 'free'; // Default to free
 $error_message = ''; // Initialize error message
 $subscription_message = ''; // Initialize subscription message
-// Always fetch subscription tier to show accurate status
-$twitchSubTier = fetchTwitchSubscriptionTier($access_token, $twitchUserId, $error_message);
-if ($twitchSubTier) {
-    // Ensure the tier is treated as a string for comparison
-    $twitchSubTierString = (string) $twitchSubTier;
-    if (array_key_exists($twitchSubTierString, $plans)) { 
-        $currentPlan = $twitchSubTierString;  
+
+// Make internal request to check subscription
+$checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/check_subscription.php";
+$ch = curl_init($checkUrl);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+$subResponse = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+if ($subResponse !== false && $httpCode === 200) {
+    $subData = json_decode($subResponse, true);
+    if (isset($subData['subscribed']) && $subData['subscribed'] === true) {
+        $twitchSubTierString = (string) $subData['tier'];
+        if (array_key_exists($twitchSubTierString, $plans)) { 
+            $currentPlan = $twitchSubTierString;
+            if ($betaAccess) { 
+                // Convert tier code to user-friendly name
+                $tierName = match($twitchSubTierString) {
+                    '1000' => 'Tier 1',
+                    '2000' => 'Tier 2', 
+                    '3000' => 'Tier 3',
+                    default => "Tier $twitchSubTierString"
+                };
+                $subscription_message = "You have beta access and are also subscribed at $tierName."; 
+            }
+        }
+    } else {
+        // No subscription found
         if ($betaAccess) { 
-            // Convert tier code to user-friendly name
-            $tierName = match($twitchSubTierString) {
-                '1000' => 'Tier 1',
-                '2000' => 'Tier 2', 
-                '3000' => 'Tier 3',
-                default => "Tier $twitchSubTierString"
-            };
-            $subscription_message = "You have beta access and are also subscribed at $tierName."; 
+            $subscription_message = "You have beta access but are not currently subscribed on Twitch."; 
+        } else { 
+            $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; 
         }
     }
 } else {
-    // Handle the case where no subscription was found or any error occurred
-    if ($betaAccess) { $subscription_message = "You have beta access but are not currently subscribed on Twitch."; }
-    else { $error_message = !empty($error_message) ? $error_message : "Unable to determine your subscription status."; }
-}
-// Updated fetch function to return both tier and check if it's a gift
-function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_message) {
-    // Validate input parameters
-    if (empty($access_token) || empty($twitchUserId)) { $error_message = "Missing required parameters for subscription check."; return false; }
-    $url = "https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id=$twitchUserId";
-    $headers = ["Authorization: Bearer $access_token","Client-ID: mrjucsmsnri89ifucl66jj1n35jkj8",];
-    $ch = curl_init();
-    if (!$ch) { $error_message = "Failed to initialize curl."; return false; }
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Add timeout
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5); // Add connection timeout
-    $response = curl_exec($ch);
-    // Check for cURL errors
-    if (curl_errno($ch)) { $error_message = "Connection error: " . curl_error($ch); curl_close($ch); return false; }
-    $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    // Validate response
-    if ($response === false) { $error_message = "Failed to get response from Twitch API."; return false; }
-    $data = json_decode($response, true);
-    // Check for JSON decode errors
-    if (json_last_error() !== JSON_ERROR_NONE) { $error_message = "Invalid response format from Twitch API."; return false; }
-    // Check if the HTTP status is 404 (user not subscribed)
-    if ($http_status == 404 && isset($data['message']) && strpos($data['message'], 'does not subscribe') !== false) {
-        $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; return false;
+    // API call failed
+    if (!$betaAccess) {
+        $error_message = "Unable to determine your subscription status.";
     }
-    // Check for other HTTP errors
-    if ($http_status >= 400) { $error_message = "API error (HTTP $http_status): " . ($data['message'] ?? 'Unknown error'); return false; }
-    // Check if there's a subscription
-    if (isset($data['data']) && is_array($data['data']) && count($data['data']) > 0) { return $data['data'][0]['tier']; } // Return the subscription tier
-    // Handle if no subscription found
-    $error_message = "You are not subscribed or we couldn't find a subscription on Twitch.";
-    return false;
 }
 
 // Start output buffering for layout

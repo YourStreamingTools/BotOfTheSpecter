@@ -33,6 +33,24 @@ if ($betaAccess) {
 } else {
     // Check tier for non-beta users
     $tier = $_SESSION['tier'] ?? "None";
+    // If tier is not set or None, check subscription via API
+    if ($tier === "None" || empty($tier)) {
+        // Make internal request to check subscription
+        $checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/check_subscription.php";
+        $ch = curl_init($checkUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        $subResponse = curl_exec($ch);
+        curl_close($ch);
+        if ($subResponse !== false) {
+            $subData = json_decode($subResponse, true);
+            if (isset($subData['tier'])) {
+                $tier = $subData['tier'];
+                $_SESSION['tier'] = $tier;
+            }
+        }
+    }
     switch ($tier) {
         case "1000":
             $max_storage_size = 50 * 1024 * 1024; // 50MB
