@@ -333,6 +333,8 @@ return [
     'edit_counters_remove_typo_btn' => 'Typo-Eintrag entfernen',
     'edit_counters_command_label' => 'Befehl:',
     'edit_counters_select_command' => 'Befehl auswählen',
+    'edit_counters_remove_user_count' => 'Benutzerdefinierten Zähler entfernen',
+    'edit_counters_remove_btn' => 'Zähler entfernen',
     'edit_counters_new_command_count' => 'Neuer Befehlszähler:',
     'edit_counters_remove_custom_counter' => 'Benutzerdefinierten Zähler entfernen',
     'edit_counters_update_command_btn' => 'Befehlszähler aktualisieren',
