@@ -916,7 +916,7 @@ function loadData(type) {
       additionalColumnName = <?php echo json_encode(t('counters_count_column')); ?>;
       break;
     case 'rewardCounts':
-      data = <?php echo json_encode($rewardCounts); ?>;
+      data = <?php echo json_encode($rewardCountsData); ?>;
       countColumnVisible = true;
       title = <?php echo json_encode(t('counters_reward_counts')); ?>;
       infoColumn = <?php echo json_encode(t('counters_reward_name_column')); ?>;
@@ -924,7 +924,7 @@ function loadData(type) {
       additionalColumnName = <?php echo json_encode(t('counters_count_column')); ?>;
       break;
     case 'rewardStreaks':
-      data = <?php echo json_encode($rewardStreaks); ?>;
+      data = <?php echo json_encode($rewardStreaksData); ?>;
       countColumnVisible = true;
       title = <?php echo json_encode(t('counters_reward_streaks')); ?>;
       infoColumn = <?php echo json_encode(t('counters_reward_column')); ?>;
@@ -932,7 +932,7 @@ function loadData(type) {
       additionalColumnName = <?php echo json_encode(t('counters_streak_column')); ?>;
       break;
     case 'rewardUsage':
-      data = <?php echo json_encode($rewardUsage); ?>;
+      data = <?php echo json_encode($rewardUsageData); ?>;
       title = <?php echo json_encode(t('counters_reward_usage')); ?>;
       dataColumn = <?php echo json_encode(t('counters_usage_count_column')); ?>;
       infoColumn = <?php echo json_encode(t('counters_reward_name_column')); ?>;
