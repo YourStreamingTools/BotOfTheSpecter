@@ -56,6 +56,7 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
     $column_html = "<div class='column has-text-centered'>";
     $column_html .= "<h2 class='subtitle has-text-white'>$section_name</h2>";
     $column_html .= "<div class='scroll-area'><ul class='content has-text-white'>";
+    $has_data = false;
     if ($clean_data) {
         // For followers, only get distinct usernames
         if ($stmt = $user_db->prepare("SELECT DISTINCT username FROM stream_credits WHERE event = ? ORDER BY username ASC")) {
@@ -63,6 +64,7 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
             $stmt->execute();
             $result = $stmt->get_result();
             if ($result->num_rows > 0) {
+                $has_data = true;
                 while ($row = $result->fetch_assoc()) {
                     $column_html .= "<li>" . sanitize_input($row['username']) . "</li>";
                 }
@@ -76,6 +78,7 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
             $stmt->execute();
             $result = $stmt->get_result();
             if ($result->num_rows > 0) {
+                $has_data = true;
                 while ($row = $result->fetch_assoc()) {
                     $data = sanitize_input($row['data']);
                     $column_html .= "<li>" . sanitize_input($row['username']) . " - " . $data . "</li>";
@@ -83,6 +86,10 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
             }
             $stmt->close();
         }
+    }
+    // Add placeholder message if no data
+    if (!$has_data) {
+        $column_html .= "<li>No " . $section_name . " today</li>";
     }
     $column_html .= "</ul></div>";
     $column_html .= "</div>";
@@ -93,15 +100,21 @@ function build_chatters_column($user_db) {
     $column_html = "<div class='column has-text-centered'>";
     $column_html .= "<h2 class='subtitle has-text-white'>Chatters</h2>";
     $column_html .= "<div class='scroll-area'><ul class='content has-text-white'>";
+    $has_data = false;
     if ($stmt = $user_db->prepare("SELECT DISTINCT username FROM seen_today ORDER BY username ASC")) {
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result->num_rows > 0) {
+            $has_data = true;
             while ($row = $result->fetch_assoc()) {
                 $column_html .= "<li>" . sanitize_input($row['username']) . "</li>";
             }
         }
         $stmt->close();
+    }
+    // Add placeholder message if no data
+    if (!$has_data) {
+        $column_html .= "<li>No Chatters today</li>";
     }
     $column_html .= "</ul></div>";
     $column_html .= "</div>";
@@ -169,7 +182,7 @@ $buildStatus = $status;
 <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.4/css/bulma.min.css">
 <style>
-body {
+body, html {
     background: transparent !important;
 }
 .container.is-fluid {
@@ -221,7 +234,6 @@ a, a:visited, a:active {
     display: flex;
     justify-content: center;
     z-index: 10;
-    background: rgba(24, 26, 27, 0.85);
     color: #FFFFFF !important;
     margin-top: 2rem;
     margin-bottom: 2rem;
@@ -260,7 +272,7 @@ a, a:visited, a:active {
         max-width: 100%;
     }
     .scrolling-credits .scroll-area {
-        min-height: 200px;
+        min-height: auto;
     }
 }
 .scrolling-credits .subtitle {
@@ -272,12 +284,12 @@ a, a:visited, a:active {
 .scrolling-credits .scroll-area {
     position: relative;
     width: 100%;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    overflow: hidden;
-    min-height: 300px;
+    overflow: visible;
+    min-height: auto;
 }
 .scrolling-credits ul {
     list-style-type: none;
