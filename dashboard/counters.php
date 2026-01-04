@@ -527,14 +527,69 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Location: counters.php');
             exit();
             break;
-            
+        case 'add_quote':
+            $quoteText = $_POST['quote_text'] ?? '';
+            if ($quoteText) {
+                $stmt = $db->prepare("INSERT INTO quotes (quote, added) VALUES (?, NOW())");
+                if ($stmt) {
+                    $stmt->bind_param('s', $quoteText);
+                    if ($stmt->execute()) {
+                        $_SESSION['status'] = "Quote added successfully.";
+                        $_SESSION['notification_status'] = "is-success";
+                    } else {
+                        $_SESSION['status'] = "Error: " . $stmt->error;
+                        $_SESSION['notification_status'] = "is-danger";
+                    }
+                    $stmt->close();
+                }
+            }
+            header('Location: counters.php');
+            exit();
+            break;
+        case 'update_quote':
+            $quoteId = $_POST['quote_id'] ?? '';
+            $quoteText = $_POST['quote_text'] ?? '';
+            if ($quoteId && $quoteText) {
+                $stmt = $db->prepare("UPDATE quotes SET quote = ? WHERE id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('si', $quoteText, $quoteId);
+                    if ($stmt->execute()) {
+                        $_SESSION['status'] = "Quote updated successfully.";
+                        $_SESSION['notification_status'] = "is-success";
+                    } else {
+                        $_SESSION['status'] = "Error: " . $stmt->error;
+                        $_SESSION['notification_status'] = "is-danger";
+                    }
+                    $stmt->close();
+                }
+            }
+            header('Location: counters.php');
+            exit();
+            break;
+        case 'remove_quote':
+            $quoteId = $_POST['quote_id'] ?? '';
+            if ($quoteId) {
+                $stmt = $db->prepare("DELETE FROM quotes WHERE id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('i', $quoteId);
+                    if ($stmt->execute()) {
+                        $_SESSION['status'] = "Quote removed successfully.";
+                        $_SESSION['notification_status'] = "is-success";
+                    } else {
+                        $_SESSION['status'] = "Error: " . $stmt->error;
+                        $_SESSION['notification_status'] = "is-danger";
+                    }
+                    $stmt->close();
+                }
+            }
+            header('Location: counters.php');
+            exit();
+            break;
         case 'update_reward_streak':
         case 'remove_reward_streak':
         case 'update_reward_usage':
         case 'remove_reward_usage':
-        case 'update_quote':
-        case 'remove_quote':
-            // Handle reward streaks, usage, and quotes (implementation same as edit_counters.php)
+            // Handle reward streaks and usage (to be implemented)
             $_SESSION['status'] = "Action {$action} processed.";
             $_SESSION['notification_status'] = "is-info";
             header('Location: counters.php');
@@ -878,7 +933,92 @@ ob_start();
             </div>
           </div>
           <div id="edit-tab-quotes" class="edit-tab-content" style="display:none;">
-            <p class="has-text-centered has-text-white">Quotes Edit Forms (to be implemented)</p>
+            <div class="columns is-desktop is-multiline">
+              <!-- Add New Quote -->
+              <div class="column is-12">
+                <div class="box has-background-dark">
+                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_add_quote'); ?></h4>
+                  <form action="" method="post">
+                    <input type="hidden" name="action" value="add_quote">
+                    <div class="field">
+                      <label class="label has-text-white"><?php echo t('edit_counters_quote_text'); ?></label>
+                      <div class="control">
+                        <textarea class="textarea" name="quote_text" rows="3" required placeholder="<?php echo t('edit_counters_quote_placeholder'); ?>"></textarea>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="control">
+                        <button type="submit" class="button is-success"><?php echo t('edit_counters_add_quote_btn'); ?></button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              <!-- Edit Existing Quote -->
+              <div class="column is-6">
+                <div class="box has-background-dark">
+                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_quote'); ?></h4>
+                  <form action="" method="post">
+                    <input type="hidden" name="action" value="update_quote">
+                    <div class="field">
+                      <label class="label has-text-white"><?php echo t('edit_counters_select_quote'); ?></label>
+                      <div class="control">
+                        <div class="select is-fullwidth">
+                          <select id="quote-id" name="quote_id" required onchange="updateQuoteText(this.value); enableButton('quote-id','quote-edit-btn');">
+                            <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
+                            <?php foreach ($quotesData as $quote): ?>
+                              <option value="<?php echo htmlspecialchars($quote['id']); ?>">
+                                #<?php echo htmlspecialchars($quote['id']); ?> - <?php echo htmlspecialchars(substr($quote['quote'], 0, 50)); ?><?php echo strlen($quote['quote']) > 50 ? '...' : ''; ?>
+                              </option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="label has-text-white"><?php echo t('edit_counters_quote_text'); ?></label>
+                      <div class="control">
+                        <textarea class="textarea" id="quote_text_edit" name="quote_text" rows="3" required></textarea>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="control">
+                        <button type="submit" class="button is-primary" id="quote-edit-btn" disabled><?php echo t('edit_counters_update_quote_btn'); ?></button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              <!-- Remove Quote -->
+              <div class="column is-6">
+                <div class="box has-background-dark">
+                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_quote'); ?></h4>
+                  <form action="" method="post" id="quote-remove-form">
+                    <input type="hidden" name="action" value="remove_quote">
+                    <div class="field">
+                      <label class="label has-text-white"><?php echo t('edit_counters_select_quote'); ?></label>
+                      <div class="control">
+                        <div class="select is-fullwidth">
+                          <select id="quote-id-remove" name="quote_id" required onchange="enableButton('quote-id-remove','quote-remove-btn');">
+                            <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
+                            <?php foreach ($quotesData as $quote): ?>
+                              <option value="<?php echo htmlspecialchars($quote['id']); ?>">
+                                #<?php echo htmlspecialchars($quote['id']); ?> - <?php echo htmlspecialchars(substr($quote['quote'], 0, 50)); ?><?php echo strlen($quote['quote']) > 50 ? '...' : ''; ?>
+                              </option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="control">
+                        <button type="submit" class="button is-danger" id="quote-remove-btn" disabled><?php echo t('edit_counters_remove_quote_btn'); ?></button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -908,6 +1048,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Wire up remove form confirmations
   wireRemoveForm('typo-remove-form', 'typo-username-remove', 'typo');
   wireRemoveForm('usercount-remove-form', 'usercount-user-remove', 'user count');
+  wireRemoveForm('quote-remove-form', 'quote-id-remove', 'quote');
 });
 
 function formatWatchTime(seconds) {
@@ -1159,6 +1300,7 @@ const kissCounts = <?php echo json_encode(array_column($kissData, 'kiss_count', 
 const highfiveCounts = <?php echo json_encode(array_column($highfiveData, 'highfive_count', 'username')); ?>;
 const userCountUsersByCommand = <?php echo json_encode($userCountUsersByCommand); ?>;
 const userCountData = <?php echo json_encode($userCountArr); ?>;
+const quotesData = <?php echo json_encode($quotesData); ?>;
 
 function updateCurrentCount(type, value) {
   let count = 0;
@@ -1265,6 +1407,18 @@ function updateUserCountValue() {
     if (entry) {
       document.getElementById('usercount_count').value = entry.count;
     }
+  }
+}
+
+// Quote functions
+function updateQuoteText(quoteId) {
+  if (quoteId) {
+    const quote = quotesData.find(q => q.id == quoteId);
+    if (quote) {
+      document.getElementById('quote_text_edit').value = quote.quote;
+    }
+  } else {
+    document.getElementById('quote_text_edit').value = '';
   }
 }
 </script>
