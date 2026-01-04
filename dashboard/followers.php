@@ -144,26 +144,22 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
     if ($follower['followed_at'] >= $thisMonthStart) $newThisMonth++;
     if ($follower['followed_at'] >= $thisYearStart) $newThisYear++;
   }
-  // Calculate chart data for follower growth - current year only, monthly
-  $currentYear = date('Y');
+  // Calculate chart data for follower growth - all time, monthly
   $chartData = [];
   $monthlyData = [];
-  // Only track current year by month
+  // Group all followers by year-month
   foreach ($updatedFollowers as $follower) {
     $year = date('Y', strtotime($follower['followed_at']));
     $month = date('m', strtotime($follower['followed_at']));
-    if ($year == $currentYear) {
-      $monthKey = $year . '-' . $month;
-      if (!isset($monthlyData[$monthKey])) {
-        $monthlyData[$monthKey] = 0;
-      }
-      $monthlyData[$monthKey]++;
+    $monthKey = $year . '-' . $month;
+    if (!isset($monthlyData[$monthKey])) {
+      $monthlyData[$monthKey] = 0;
     }
+    $monthlyData[$monthKey]++;
   }
-  // Build chart data points - cumulative growth for current year only
+  // Build chart data points - cumulative growth from first follower to most recent
   $cumulative = 0;
-  // Add monthly points for current year
-  ksort($monthlyData);
+  ksort($monthlyData); // Sort by date ascending
   foreach ($monthlyData as $monthKey => $count) {
     $cumulative += $count;
     // Get the last day of the month
