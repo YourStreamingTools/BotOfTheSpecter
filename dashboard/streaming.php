@@ -15,7 +15,7 @@ $pageTitle = t('streaming_settings_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-$billing_conn = new mysqli($servername, $username, $password, "fossbilling");
+// $billing_conn = new mysqli($servername, $username, $password, "fossbilling");
 include_once "/var/www/config/ssh.php";
 include "/var/www/config/object_storage.php";
 include '/var/www/config/twitch.php';
@@ -32,6 +32,7 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+/* SERVICE TERMINATED - Database operations disabled
 // Check connection
 if ($billing_conn->connect_error) {
     die("Billing connection failed: " . $billing_conn->connect_error);
@@ -73,7 +74,9 @@ if (isset($email)) {
     $stmt->close();
 }
 $billing_conn->close();
+*/
 
+/* SERVICE TERMINATED - Form handling disabled
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Check if this is the auto-record form submission
@@ -117,7 +120,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 }
+*/
 
+/* SERVICE TERMINATED - Settings queries disabled
 // Fetch current settings using MySQLi
 $stmt = $db->prepare("SELECT twitch_key, forward_to_twitch FROM streaming_settings WHERE id = 1");
 if ($stmt === false) {
@@ -146,7 +151,9 @@ if ($auto_record_stmt) {
     }
     $auto_record_stmt->close();
 }
+*/
 
+/* SERVICE TERMINATED - File retrieval disabled
 // Function to get files from the storage server
 function getStorageFiles($server_host, $server_username, $server_password, $user_dir, $api_key, $recording_dir) {
     $files = [];
@@ -261,7 +268,9 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
     closedir($sftp_stream);
     return $files;
 }
+*/
 
+/* SERVICE TERMINATED - All operations below disabled
 // Include S3-compatible API library
 require_once '/var/www/vendor/aws-autoloader.php';
 
@@ -386,6 +395,8 @@ if ($selected_server == 'au-east-1') {
 } else {
     $storage_error = "Invalid server selected.";
 }
+*/
+
 
 // Start output buffering for layout
 ob_start();
