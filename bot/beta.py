@@ -298,6 +298,7 @@ async def get_spam_patterns():
         await cursor.execute("SELECT spam_pattern FROM spam_patterns")
         results = await cursor.fetchall()
     connection.close()
+    await connection.wait_closed()
     compiled_patterns = [re.compile(re.escape(row["spam_pattern"]), re.IGNORECASE) for row in results if row["spam_pattern"]]
     return compiled_patterns
 
@@ -354,7 +355,8 @@ async def refresh_twitch_token(current_refresh_token):
                         except Exception as e:
                             twitch_logger.error(f"Database update failed: {e}")
                         finally:
-                            await connection.ensure_closed()
+                            connection.close()
+                            await connection.wait_closed()
                         return next_refresh_time
                     else:
                         twitch_logger.error("Token refresh failed: 'access_token' not found in response.")
@@ -534,7 +536,8 @@ async def connect_to_tipping_services():
     except MySQLError as err:
         event_logger.error(f"Database error while fetching tipping service tokens: {err}")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 async def streamelements_connection_manager():
     global streamelements_token
@@ -756,7 +759,8 @@ async def process_tipping_message(data, source):
             except MySQLError as err:
                 event_logger.error(f"Database error saving tip: {err}")
             finally:
-                await connection.ensure_closed()
+                connection.close()
+                await connection.wait_closed()
     except Exception as e:
         event_logger.error(f"Error processing tipping message: {e}")
 
@@ -1164,7 +1168,8 @@ async def process_twitch_eventsub_message(message):
     except Exception as e:
         event_logger.error(f"Error processing EventSub message: {e}")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Connect and manage reconnection for Internal Socket Server
 async def specter_websocket():
@@ -1404,7 +1409,8 @@ async def hyperate_websocket_persistent():
                     await cursor.execute('SELECT heartrate_code FROM profile')
                     heartrate_code_data = await cursor.fetchone()
             finally:
-                await connection.ensure_closed()
+                connection.close()
+                await connection.wait_closed()
             if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
                 bot_logger.info("HypeRate info: No Heart Rate Code found in database. Stopping websocket connection.")
                 HEARTRATE = None
@@ -1513,7 +1519,8 @@ async def stream_bingo_websocket():
                     if result:
                         stream_bingo_api_key = result.get('stream_bounty_api_key')
             finally:
-                await connection.ensure_closed()
+                connection.close()
+                await connection.wait_closed()
             if not stream_bingo_api_key:
                 await sleep(300)  # Wait 5 minutes before checking again
                 continue
@@ -1804,7 +1811,8 @@ class TwitchBot(commands.Bot):
                         return
             finally:
                 if connection:
-                    await connection.ensure_closed()
+                    connection.close()
+                    await connection.wait_closed()
             bot_logger.error(f"Command '{command}' was not found in the bot or custom commands.")
         else:
             bot_logger.error(f"Command: '{command}', Error: {type(error).__name__}, Details: {error}")
@@ -2112,7 +2120,8 @@ class TwitchBot(commands.Bot):
                     bot_logger.error(f"An error occurred in event_message: {e}")
             finally:
                 await cursor.close()
-                await connection.ensure_closed()
+                connection.close()
+                await connection.wait_closed()
                 await self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser, messageContent)
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
@@ -2227,7 +2236,8 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
             await self.user_points(messageAuthor, messageAuthorID)
             await self.user_grouping(messageAuthor, messageAuthorID)
             await handle_chat_message(messageAuthor, messageContent)
@@ -2272,7 +2282,8 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in user_points: {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
         connection = None
@@ -2326,7 +2337,8 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             bot_logger.error(f"An error occurred in user_grouping: {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     async def call_command(self, command_name, ctx):
         if command_name in self.running_commands:
@@ -2668,7 +2680,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
             await send_chat_message("An error occurred while fetching the twitch_commands. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='bot')
     async def bot_command(self, ctx):
@@ -2705,7 +2718,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the bot command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='wsstatus')
     async def websocket_status_command(self, ctx):
@@ -2756,7 +2770,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in websocket_status_command: {e}")
             await send_chat_message("An error occurred while checking WebSocket status.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
@@ -2795,7 +2810,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in forceonline_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='forceoffline')
     async def forceoffline_command(self, ctx):
@@ -2836,7 +2852,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in forceoffline_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='version')
     async def version_command(self, ctx):
@@ -2907,7 +2924,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the version command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
@@ -2943,7 +2961,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the roadmap command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='weather')
     async def weather_command(self, ctx, *, location: str = None) -> None:
@@ -2995,7 +3014,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the weather command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='points')
     async def points_command(self, ctx):
@@ -3047,7 +3067,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the points command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='addpoints')
     async def addpoints_command(self, ctx, user: str, points_to_add: int):
@@ -3095,7 +3116,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of addpoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='removepoints')
     async def removepoints_command(self, ctx, user: str, points_to_remove: int):
@@ -3139,7 +3161,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of removepoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='time')
     async def time_command(self, ctx, *, timezone: str = None) -> None:
@@ -3233,7 +3256,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the time command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='joke')
     async def joke_command(self, ctx):
@@ -3290,7 +3314,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the joke command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
@@ -3339,7 +3364,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the quote command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='quoteadd')
     async def quoteadd_command(self, ctx, *, quote):
@@ -3377,7 +3403,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the quoteadd command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='removequote')
     async def quoteremove_command(self, ctx, number: int = None):
@@ -3421,7 +3448,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the removequote command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='permit')
     async def permit_command(self, ctx, permit_user: str = None):
@@ -3462,7 +3490,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the permit command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='settitle')
     async def settitle_command(self, ctx, *, title: str = None) -> None:
@@ -3503,7 +3532,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the settitle command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='setgame')
     async def setgame_command(self, ctx, *, game: str = None) -> None:
@@ -3549,7 +3579,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the setgame command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='song')
     async def song_command(self, ctx):
@@ -3622,7 +3653,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the song command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='songrequest', aliases=['sr'])
     async def songrequest_command(self, ctx):
@@ -3802,7 +3834,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the songrequest command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='skipsong', aliases=['skip'])
     async def skipsong_command(self, ctx):
@@ -3873,7 +3906,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the skipsong command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
     async def songqueue_command(self, ctx):
@@ -3958,7 +3992,8 @@ class TwitchBot(commands.Bot):
             await send_chat_message("Something went wrong while fetching the song queue. Please try again later.")
             api_logger.error(f"Error in songqueue_command: {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='timer')
     async def timer_command(self, ctx):
@@ -4014,7 +4049,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='stoptimer')
     async def stoptimer_command(self, ctx):
@@ -4056,7 +4092,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the stoptimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='checktimer')
     async def checktimer_command(self, ctx):
@@ -4100,7 +4137,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the checktimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='hug')
     async def hug_command(self, ctx, mentioned_username: str = None):
@@ -4170,7 +4208,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in hug command: {e}")
             await send_chat_message("An error occurred while processing the command.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='highfive')
     async def highfive_command(self, ctx, mentioned_username: str = None):
@@ -4240,7 +4279,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in highfive command: {e}")
             await send_chat_message("An error occurred while processing the command.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='kiss')
     async def kiss_command(self, ctx, mentioned_username: str = None):
@@ -4310,7 +4350,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in kiss command: {e}")
             await send_chat_message("An error occurred while processing the command.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='ping')
     async def ping_command(self, ctx):
@@ -4363,7 +4404,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in ping_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='translate')
     async def translate_command(self, ctx):
@@ -4417,7 +4459,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in translate_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='cheerleader', aliases=['bitsleader'])
     async def cheerleader_command(self, ctx):
@@ -4473,7 +4516,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in cheerleader_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='mybits')
     async def mybits_command(self, ctx):
@@ -4557,7 +4601,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in mybits_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='lurk')
     async def lurk_command(self, ctx):
@@ -4630,7 +4675,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in lurk_command: {e}")
             await send_chat_message(f"Thanks for lurking! See you soon.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='lurking')
     async def lurking_command(self, ctx):
@@ -4681,7 +4727,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in lurking_command: {e}")
             await send_chat_message(f"Oops, something went wrong while trying to check your lurk time.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='lurklead', aliases=['lurkleader'])
     async def lurklead_command(self, ctx):
@@ -4743,7 +4790,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in lurklead_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check the command status.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(self, ctx):
@@ -4813,7 +4861,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
             await send_chat_message("Oops, something went wrong with the unlurk command.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='userslurking')
     async def userslurking_command(self, ctx):
@@ -4855,7 +4904,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in userslurking_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check the number of lurkers.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='clip')
     async def clip_command(self, ctx):
@@ -4916,7 +4966,8 @@ class TwitchBot(commands.Bot):
             twitch_logger.error(f"Error in clip_command: {e}")
             await send_chat_message("An error occurred while executing the clip command.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
@@ -4957,7 +5008,8 @@ class TwitchBot(commands.Bot):
             twitch_logger.error(f"Error in marker_command: {e}")
             await send_chat_message("An error occurred while executing the marker command.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
@@ -5023,7 +5075,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the subscription command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
@@ -5093,7 +5146,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the uptime command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='typo')
     async def typo_command(self, ctx, mentioned_username: str = None):
@@ -5147,7 +5201,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
             await send_chat_message(f"An error occurred while trying to add to your typo count.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, mentioned_username: str = None):
@@ -5193,7 +5248,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to check typos.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
@@ -5263,7 +5319,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
@@ -5311,7 +5368,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to remove typos.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='steam')
     async def steam_command(self, ctx):
@@ -5379,7 +5437,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in steam_command: {e}")
             await send_chat_message("An error occurred while trying to check the Steam store.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
@@ -5437,7 +5496,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in deaths_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(self, ctx, deaths: int = 1):
@@ -5506,7 +5566,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Unexpected error in deathadd_command: {e}")
             await send_chat_message(f"An unexpected error occurred: {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(self, ctx, deaths: int = 1):
@@ -5568,7 +5629,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Unexpected error in deathremove_command: {e}")
             await send_chat_message(f"An unexpected error occurred: {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='game')
     async def game_command(self, ctx):
@@ -5603,7 +5665,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in game_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to retrieve the game information.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='followage')
     async def followage_command(self, ctx, mentioned_username: str = None):
@@ -5698,7 +5761,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the followage command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
@@ -5801,7 +5865,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the schedule command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='checkupdate')
     async def checkupdate_command(self, ctx):
@@ -5856,7 +5921,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in checkupdate_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check for updates.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
@@ -5910,7 +5976,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='addcommand')
     async def addcommand_command(self, ctx):
@@ -5954,7 +6021,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the addcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='editcommand')
     async def editcommand_command(self, ctx):
@@ -5998,7 +6066,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the editcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='removecommand')
     async def removecommand_command(self, ctx):
@@ -6042,7 +6111,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the removecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='enablecommand')
     async def enablecommand_command(self, ctx):
@@ -6102,7 +6172,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='disablecommand')
     async def disablecommand_command(self, ctx):
@@ -6162,7 +6233,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='slots')
     async def slots_command(self, ctx):
@@ -6235,7 +6307,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the slots command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='kill')
     async def kill_command(self, ctx, mention: str = None):
@@ -6301,7 +6374,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the kill command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name="roulette")
     async def roulette_command(self, ctx):
@@ -6364,7 +6438,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the roulette command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name="rps")
     async def rps_command(self, ctx):
@@ -6414,7 +6489,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the RPS command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name="gamble")
     async def gamble_command(self, ctx):
@@ -6532,7 +6608,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the gamble command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name="story")
     async def story_command(self, ctx):
@@ -6579,7 +6656,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the story command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name="convert")
     async def convert_command(self, ctx, *args):
@@ -6656,7 +6734,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An unexpected error occurred during the execution of the convert command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='todo')
     async def todo_command(self, ctx: commands.Context):
@@ -6721,7 +6800,8 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             bot_logger.error(f"An error occurred in todo_command: {e}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name="subathon")
     async def subathon_command(self, ctx, action: str = None, minutes: int = None):
@@ -6777,7 +6857,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred during the execution of the subathon command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='heartrate')
     async def heartrate_command(self, ctx):
@@ -6828,7 +6909,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='watchtime')
     async def watchtime_command(self, ctx):
@@ -6900,7 +6982,8 @@ class TwitchBot(commands.Bot):
             bot_logger.error(f"Error fetching watch time for {username}: {e}")
             await send_chat_message(f"@{username}, an error occurred while fetching your watch time.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='startlotto')
     async def startlotto_command(self, ctx):
@@ -6937,7 +7020,8 @@ class TwitchBot(commands.Bot):
             bot_logger.error(f"Error in starting lotto game: {e}")
             await send_chat_message("There was an error generating the lotto numbers.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='drawlotto')
     async def drawlotto_command(self, ctx):
@@ -7048,7 +7132,8 @@ class TwitchBot(commands.Bot):
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
     @commands.command(name='obs')
     async def obs_command(self, ctx):
@@ -7098,7 +7183,8 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in obs_command: {e}")
             await send_chat_message("An error occurred while sending OBS event.")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
 # Functions for all the commands
 ##
@@ -7310,7 +7396,8 @@ async def user_is_seen(username):
     except Exception as e:
         bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to fetch custom API responses
 async def fetch_api_response(url, json_flag=False):
@@ -7362,7 +7449,8 @@ async def update_custom_count(command, count):
         chat_logger.error(f"Error updating count for command '{command}': {e}")
         await connection.rollback()
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 async def get_custom_count(command):
     connection = await mysql_connection()
@@ -7381,7 +7469,8 @@ async def get_custom_count(command):
         chat_logger.error(f"Error retrieving count for command '{command}': {e}")
         return 0
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to update user counts
 async def update_user_count(command, user, count):
@@ -7404,7 +7493,8 @@ async def update_user_count(command, user, count):
         chat_logger.error(f"Error updating user count for command '{command}' and user '{user}': {e}")
         await connection.rollback()
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 async def get_user_count(command, user):
     connection = await mysql_connection()
@@ -7423,7 +7513,8 @@ async def get_user_count(command, user):
         chat_logger.error(f"Error retrieving user count for command '{command}' and user '{user}': {e}")
         return 0
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Functions for weather
 async def get_streamer_weather():
@@ -7439,7 +7530,8 @@ async def get_streamer_weather():
             else:
                 return None
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to udpate the stream title
 async def trigger_twitch_title_update(new_title):
@@ -7549,7 +7641,8 @@ async def trigger_twitch_shoutout(user_to_shoutout, user_id):
         await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
         result = await cursor.fetchone()
         bot_auth = result.get('twitch_access_token')
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
             "Authorization": f"Bearer {bot_auth}",
@@ -7864,7 +7957,8 @@ async def process_stream_online_websocket():
             await cursor.execute("UPDATE stream_status SET status = %s", ("True",))
             await connection.commit()
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
@@ -7890,7 +7984,8 @@ async def process_stream_offline_websocket():
             await cursor.execute("UPDATE stream_status SET status = %s", ("False",))
             await connection.commit()
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to clear both tables if the stream remains offline after 5 minutes
 async def delayed_clear_tables():
@@ -7929,7 +8024,8 @@ async def clear_seen_today():
     except MySQLOtherErrors as err:
         bot_logger.error(f'Failed to clear seen today table: {err}')
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to clear the ending credits table at the end of stream
 async def clear_credits_data():
@@ -7943,7 +8039,8 @@ async def clear_credits_data():
     except MySQLOtherErrors as err:
         bot_logger.error(f'Failed to clear stream credits table: {err}')
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to clear the death count per stream
 async def clear_per_stream_deaths():
@@ -7957,7 +8054,8 @@ async def clear_per_stream_deaths():
     except MySQLOtherErrors as err:
         bot_logger.error(f'Failed to clear Per Stream Death Count: {err}')
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to clear the lotto numbers at the end of stream
 async def clear_lotto_numbers():
@@ -7973,7 +8071,8 @@ async def clear_lotto_numbers():
     except MySQLOtherErrors as err:
         bot_logger.error(f'Failed to clear Lotto Numbers: {err}')
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function for timed messages
 async def timed_message():
@@ -8058,7 +8157,8 @@ async def update_timed_messages():
     except Exception as e:
         bot_logger.error(f"Error in update_timed_messages: {e}")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 async def start_timed_message(message_id, row):
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, chat_line_count
@@ -8208,7 +8308,8 @@ async def get_spotify_access_token():
         api_logger.error(f"Error retrieving Spotify access token: {e}")
         return None
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to get the song via Spotify
 async def get_spotify_current_song():
@@ -8356,6 +8457,7 @@ async def shazam_detect_song(raw_audio_b64):
                         await cursor.execute("UPDATE api_counts SET count=%s WHERE type=%s", (requests_left, "shazam"))
                         await connection.commit()
                         connection.close()
+                        await connection.wait_closed()
                     if int(requests_left) == 0:
                         return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
                 return await response.json()
@@ -8513,7 +8615,8 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function for BITS
 async def process_cheer_event(user_id, user_name, bits):
@@ -8599,7 +8702,8 @@ async def process_cheer_event(user_id, user_name, bits):
                 sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function for Subscriptions
 async def process_subscription_event(user_id, user_name, sub_plan, event_months):
@@ -8699,7 +8803,8 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
     except Exception as e:
         event_logger.error(f"Error processing subscription event for user {user_name} ({user_id}): {e}")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function for Resubscriptions with Messages
 async def process_subscription_message_event(user_id, user_name, sub_plan, event_months):
@@ -8799,7 +8904,8 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
     except Exception as e:
         event_logger.error(f"Error processing subscription message event for user {user_name} ({user_id}): {e}")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function for Gift Subscriptions
 async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted):
@@ -8832,7 +8938,8 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name):
@@ -8900,7 +9007,8 @@ async def process_followers_event(user_id, user_name):
                 sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to ban a user
 async def ban_user(username, user_id, use_streamer=False):
@@ -8938,7 +9046,8 @@ async def ban_user(username, user_id, use_streamer=False):
                         error_text = await response.text()
                         twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}, Response: {error_text}")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Unified function to connect to the websocket server and push notices
 async def websocket_notice(
@@ -9068,10 +9177,12 @@ async def websocket_notice(
         try:
             if connection:
                 connection.close()
+                await connection.wait_closed()
         except Exception:
             pass
         if connection:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():
@@ -9121,7 +9232,8 @@ async def builtin_commands_creation():
     except MySQLOtherErrors as e:
         bot_logger.error(f"builtin_commands_creation function error: {e}")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to tell the website what version of the bot is currently running
 async def update_version_control():
@@ -9210,7 +9322,8 @@ async def check_stream_online():
                         bot_logger.info(f"Bot Starting, Stream is online.")
                 await connection.commit()
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 async def get_current_game():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, current_game
@@ -9265,7 +9378,8 @@ async def convert_currency(amount, from_currency, to_currency):
                     except Exception as e:
                         api_logger.error(f"Error updating API count: {e}")
                     finally:
-                        await connection.ensure_closed()
+                        connection.close()
+                        await connection.wait_closed()
                     return converted_amount
                 else:
                     error_message = data.get('error-type', 'Unknown error')
@@ -9422,7 +9536,8 @@ async def process_channel_point_rewards(event_data, event_type):
         except Exception as e:
             event_logger.error(f"An error occurred while processing the reward: {str(e)}")
         finally:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
 async def channel_point_rewards():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
@@ -9473,7 +9588,9 @@ async def channel_point_rewards():
     finally:
         if connection:
             connection.close()
-            await connection.ensure_closed()
+            await connection.wait_closed()
+            connection.close()
+            await connection.wait_closed()
 
 async def generate_winning_lotto_numbers():
     connection = None
@@ -9497,7 +9614,8 @@ async def generate_winning_lotto_numbers():
                 (winning_numbers, supplementary_numbers)
                 )
             await connection.commit()
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
         return True
     except MySQLOtherErrors as e:
         api_logger.error(f"An error occurred in generate_winning_lotto_numbers: {str(e)}")
@@ -9722,7 +9840,8 @@ async def start_subathon(ctx):
                     await send_chat_message(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
         await cursor.close()
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to stop subathon timer
 async def stop_subathon(ctx):
@@ -9741,7 +9860,8 @@ async def stop_subathon(ctx):
                 await send_chat_message(f"No subathon active.")
     finally:
         await cursor.close()
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to pause subathon
 async def pause_subathon(ctx):
@@ -9762,7 +9882,8 @@ async def pause_subathon(ctx):
                 await send_chat_message("No subathon is active or it's already paused!")
     finally:
         await cursor.close()
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to resume subathon
 async def resume_subathon(ctx):
@@ -9782,7 +9903,8 @@ async def resume_subathon(ctx):
                 create_task(websocket_notice(event="SUBATHON_RESUME", additional_data=additional_data))
     finally:
         await cursor.close()
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to Add Time to subathon
 async def addtime_subathon(ctx, minutes):
@@ -9803,7 +9925,8 @@ async def addtime_subathon(ctx, minutes):
                 await send_chat_message("No subathon is active or it's paused!")
     finally:
         await cursor.close()
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to get the current subathon status
 async def subathon_status(ctx):
@@ -9833,7 +9956,8 @@ async def subathon_countdown():
                         await connection.commit()
                 finally:
                     await cursor.close()
-                    await connection.ensure_closed()
+                    connection.close()
+                    await connection.wait_closed()
             break
         await sleep(60)  # Check every minute
 
@@ -9847,7 +9971,8 @@ async def get_subathon_state():
             return await cursor.fetchone()
     finally:
         await cursor.close()
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to run at midnight each night
 async def midnight():
@@ -9965,7 +10090,8 @@ async def get_point_settings():
         return None
     finally:
         await cursor.close()
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 async def known_users():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
@@ -10013,7 +10139,8 @@ async def known_users():
     except Exception as e:
         bot_logger.error(f"An error occurred in known_users: {e}")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 async def check_premium_feature(user):
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, CHANNEL_NAME, bot_owner
@@ -10051,7 +10178,8 @@ async def check_premium_feature(user):
         return 0
     finally:
         if connection:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
 # Make a Stream Marker for events
 async def make_stream_marker(description: str):
@@ -10179,7 +10307,8 @@ async def track_watch_time(active_users):
     except Exception as e:
         bot_logger.error(f"Error in track_watch_time: {e}", exc_info=True)
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to periodically check the queue
 async def check_song_requests():
@@ -10233,7 +10362,8 @@ async def return_the_action_back(ctx, author, action):
                 count = result[column]
                 await send_chat_message(f"Thanks for the {display_action}, {author}! I've given you a {display_action} too, you have been {display_action} {count} times!")
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function to remove the temp user from the shoutout_user dict
 async def remove_shoutout_user(username: str, delay: int):
@@ -10309,7 +10439,8 @@ async def get_ad_settings():
         ad_settings_cache_time = current_time
         return ad_settings_cache
     finally:
-        await connection.ensure_closed()
+        connection.close()
+        await connection.wait_closed()
 
 # Function for AD BREAK
 async def handle_ad_break_start(duration_seconds):
@@ -10564,7 +10695,8 @@ async def track_chat_message():
         chat_logger.error(f"Error tracking message for {bot_system}: {e}")
     finally:
         if connection:
-            await connection.ensure_closed()
+            connection.close()
+            await connection.wait_closed()
 
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
