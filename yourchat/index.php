@@ -265,6 +265,16 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 <input type="checkbox" id="notify-joins-checkbox">&nbsp;Show join/leave notifications
             </label>
         </div>
+        <div class="settings-panel">
+            <h3>Nickname Management</h3>
+            <p class="settings-description">Set custom nicknames for chatters. Nicknames are tied to user IDs and persist even if they change their username.</p>
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <input type="text" id="nickname-username" class="filter-input" placeholder="Enter Twitch username" style="flex:1;">
+                <input type="text" id="nickname-value" class="filter-input" placeholder="Enter nickname" style="flex:1;">
+                <button onclick="addNickname()" style="padding:10px 20px; background:#9147ff; color:white; border:none; border-radius:8px; cursor:pointer;">Add Nickname</button>
+            </div>
+            <div id="nickname-list" class="filter-list"></div>
+        </div>
         </div>
         <div class="chat-overlay" id="chat-overlay">
             <button class="fullscreen-exit-btn" id="fullscreen-exit" onclick="toggleFullscreen()" title="Exit Fullscreen (ESC)">
