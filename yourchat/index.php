@@ -92,6 +92,63 @@ if (isset($_GET['action']) && $_GET['action'] === 'expire_session') {
     exit;
 }
 
+// Handle settings load
+if (isset($_GET['action']) && $_GET['action'] === 'load_settings') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $settingsFile = __DIR__ . '/user-settings/' . $userId . '.json';
+    if (file_exists($settingsFile)) {
+        $settings = json_decode(file_get_contents($settingsFile), true);
+        echo json_encode(['success' => true, 'settings' => $settings]);
+    } else {
+        // Return empty settings structure
+        echo json_encode([
+            'success' => true,
+            'settings' => [
+                'filters_usernames' => [],
+                'filters_messages' => [],
+                'nicknames' => [],
+                'presence_enabled' => false
+            ]
+        ]);
+    }
+    exit;
+}
+
+// Handle settings save
+if (isset($_GET['action']) && $_GET['action'] === 'save_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $settingsDir = __DIR__ . '/user-settings';
+    $settingsFile = $settingsDir . '/' . $userId . '.json';
+    // Create directory if it doesn't exist
+    if (!is_dir($settingsDir)) {
+        mkdir($settingsDir, 0755, true);
+    }
+    // Get JSON data from request body
+    $jsonData = file_get_contents('php://input');
+    $settings = json_decode($jsonData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(['success' => false, 'error' => 'Invalid JSON']);
+        exit;
+    }
+    // Save settings to file
+    if (file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT))) {
+        echo json_encode(['success' => true, 'message' => 'Settings saved']);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Failed to save settings']);
+    }
+    exit;
+}
+
 $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
 
 // Cache busting for CSS file using file modification time
@@ -293,16 +350,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let presenceBackoffAttempts = 0;
             const PRESENCE_MAX_BACKOFF_MS = 5 * 60 * 1000;
             function loadPresenceSetting() {
-                try {
-                    if (window.localStorage) {
-                        presenceEnabled = localStorage.getItem(PRESENCE_JOIN_KEY) === '1';
-                        return presenceEnabled;
-                    }
-                } catch (e) {}
-                return false;
+                return userSettings.presence_enabled || false;
             }
             function savePresenceSetting(enabled) {
-                try { if (window.localStorage) localStorage.setItem(PRESENCE_JOIN_KEY, enabled ? '1' : '0'); } catch (e) {}
+                userSettings.presence_enabled = enabled;
+                saveSettingsToServer();
             }
             function showSystemMessage(text, kind) {
                 const overlay = document.getElementById('chat-overlay');
@@ -574,33 +626,64 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 presenceBackoffAttempts = 0;
                 presenceCurrentInterval = presenceBaseInterval;
             }
+            // Server-side settings management
+            let userSettings = {
+                filters_usernames: [],
+                filters_messages: [],
+                nicknames: {},
+                presence_enabled: false
+            };
+            async function loadSettingsFromServer() {
+                try {
+                    const response = await fetch('index.php?action=load_settings');
+                    const data = await response.json();
+                    if (data.success && data.settings) {
+                        userSettings = data.settings;
+                        // Ensure all keys exist
+                        if (!userSettings.filters_usernames) userSettings.filters_usernames = [];
+                        if (!userSettings.filters_messages) userSettings.filters_messages = [];
+                        if (!userSettings.nicknames) userSettings.nicknames = {};
+                        if (userSettings.presence_enabled === undefined) userSettings.presence_enabled = false;
+                        return true;
+                    }
+                    return false;
+                } catch (e) {
+                    console.error('Failed to load settings from server:', e);
+                    return false;
+                }
+            }
+            async function saveSettingsToServer() {
+                try {
+                    const response = await fetch('index.php?action=save_settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(userSettings)
+                    });
+                    const data = await response.json();
+                    if (!data.success) {
+                        console.error('Failed to save settings:', data.error);
+                    }
+                } catch (e) {
+                    console.error('Failed to save settings to server:', e);
+                }
+            }
             // Load filters from cookies
             // Filters storage: separate username and message filters
             function loadFiltersUsernames() {
-                try {
-                    if (window.localStorage && localStorage.getItem('chat_filters_usernames')) {
-                        return JSON.parse(localStorage.getItem('chat_filters_usernames'));
-                    }
-                } catch (e) {}
-                const fromCookie = getCookie('chat_filters_usernames');
-                return fromCookie ? JSON.parse(fromCookie) : [];
+                return userSettings.filters_usernames || [];
             }
             function saveFiltersUsernames(list) {
-                try { if (window.localStorage) localStorage.setItem('chat_filters_usernames', JSON.stringify(list)); } catch (e) {}
-                try { setCookie('chat_filters_usernames', JSON.stringify(list), 365); } catch (e) {}
+                userSettings.filters_usernames = list;
+                saveSettingsToServer();
             }
             function loadFiltersMessages() {
-                try {
-                    if (window.localStorage && localStorage.getItem('chat_filters_messages')) {
-                        return JSON.parse(localStorage.getItem('chat_filters_messages'));
-                    }
-                } catch (e) {}
-                const fromCookie = getCookie('chat_filters_messages');
-                return fromCookie ? JSON.parse(fromCookie) : [];
+                return userSettings.filters_messages || [];
             }
             function saveFiltersMessages(list) {
-                try { if (window.localStorage) localStorage.setItem('chat_filters_messages', JSON.stringify(list)); } catch (e) {}
-                try { setCookie('chat_filters_messages', JSON.stringify(list), 365); } catch (e) {}
+                userSettings.filters_messages = list;
+                saveSettingsToServer();
             }
             // Migrate legacy combined filters (cookie/localStorage key 'chat_filters')
             function migrateOldFilters() {
@@ -625,6 +708,120 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 } catch (e) {
                     console.warn('Failed to migrate old chat_filters', e);
                 }
+            }
+            // Nickname management
+            function loadNicknames() {
+                try {
+                    const stored = localStorage.getItem('chat_nicknames');
+                    return stored ? JSON.parse(stored) : {};
+                } catch (e) {
+                    console.error('Failed to load nicknames:', e);
+                    return {};
+                }
+            }
+            function saveNicknames(nicknames) {
+                try {
+                    localStorage.setItem('chat_nicknames', JSON.stringify(nicknames));
+                } catch (e) {
+                    console.error('Failed to save nicknames:', e);
+                }
+            }
+            function renderNicknames() {
+                const nicknames = loadNicknames();
+                const container = document.getElementById('nickname-list');
+                if (!container) return;
+                container.innerHTML = '';
+                Object.entries(nicknames).forEach(([userId, data]) => {
+                    const tag = document.createElement('div');
+                    tag.className = 'filter-tag';
+                    tag.innerHTML = `
+                        <span>${escapeHtml(data.username)} \u2192 ${escapeHtml(data.nickname)}</span>
+                        <button onclick="removeNickname('${userId}')" title="Remove nickname">\u2715</button>
+                    `;
+                    container.appendChild(tag);
+                });
+            }
+            async function addNickname() {
+                const usernameInput = document.getElementById('nickname-username');
+                const nicknameInput = document.getElementById('nickname-value');
+                const username = usernameInput.value.trim().toLowerCase();
+                const nickname = nicknameInput.value.trim();
+                if (!username || !nickname) {
+                    Toastify({
+                        text: "Please enter both username and nickname",
+                        duration: 3000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
+                    }).showToast();
+                    return;
+                }
+                // Fetch user ID from Twitch API
+                try {
+                    const response = await fetch(`https://api.twitch.tv/helix/users?login=${username}`, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Client-Id': '<?php echo $clientID; ?>'
+                        }
+                    });
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch user data');
+                    }
+                    const data = await response.json();
+                    if (!data.data || data.data.length === 0) {
+                        Toastify({
+                            text: "User not found on Twitch",
+                            duration: 3000,
+                            gravity: "top",
+                            position: "right",
+                            backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
+                        }).showToast();
+                        return;
+                    }
+                    const userId = data.data[0].id;
+                    const nicknames = loadNicknames();
+                    nicknames[userId] = {
+                        username: username,
+                        nickname: nickname
+                    };
+                    saveNicknames(nicknames);
+                    renderNicknames();
+                    usernameInput.value = '';
+                    nicknameInput.value = '';
+                    Toastify({
+                        text: `Nickname set for ${username}`,
+                        duration: 3000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
+                    }).showToast();
+                } catch (error) {
+                    console.error('Error adding nickname:', error);
+                    Toastify({
+                        text: "Failed to add nickname. Please try again.",
+                        duration: 3000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
+                    }).showToast();
+                }
+            }
+            function removeNickname(userId) {
+                const nicknames = loadNicknames();
+                delete nicknames[userId];
+                saveNicknames(nicknames);
+                renderNicknames();
+                Toastify({
+                    text: "Nickname removed",
+                    duration: 2000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
+                }).showToast();
+            }
+            function getNickname(userId) {
+                const nicknames = loadNicknames();
+                return nicknames[userId]?.nickname || null;
             }
             // Save chat history to localStorage (fallback to cookies for older browsers)
             function saveChatHistory() {
@@ -1238,6 +1435,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     });
                     badgesHtml += '</span>';
                 }
+                // Check for nickname
+                const userId = event.chatter_user_id;
+                const nickname = getNickname(userId);
+                const displayName = nickname || event.chatter_user_name;
+                const nicknameIndicator = nickname ? '<span style="color:#ffd700; font-size:11px; margin-left:4px;" title="Using custom nickname">\u2605</span>' : '';
                 // Build message HTML with emotes support
                 let messageHtml = event.message.text;
                 if (event.message.fragments) {
@@ -1256,7 +1458,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     `<span class="shared-chat-indicator">[from ${event.source_broadcaster_user_name}]</span>` : '';
                 messageDiv.innerHTML = `
                     ${badgesHtml}
-                    <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(event.chatter_user_name)}:</span>
+                    <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>${nicknameIndicator}
                     <span class="chat-text">${messageHtml}</span>
                     ${sharedChatIndicator}
                 `;
@@ -1537,30 +1739,38 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             // Initialize
             loadChatHistory();
-            migrateOldFilters();
-            renderFilters();
-            initFilterCollapse();
-            initImportExportUI();
-            fetchBadges(); // Fetch badge data
-            connectWebSocket();
-            updateTokenTimer();
-            // Initialize presence checkbox and state (API-only)
-            try {
-                const checkbox = document.getElementById('notify-joins-checkbox');
-                presenceEnabled = loadPresenceSetting();
-                if (checkbox) {
-                    checkbox.checked = presenceEnabled;
-                    checkbox.addEventListener('change', (e) => {
-                        presenceEnabled = !!e.target.checked;
-                        savePresenceSetting(presenceEnabled);
-                        if (presenceEnabled) startPresenceAPI(); else stopPresenceAPI();
-                    });
+            async function initializeApp() {
+                // Load settings from server first
+                await loadSettingsFromServer();
+                // Then initialize UI with server settings
+                loadChatHistory();
+                renderFilters();
+                renderNicknames();
+                initFilterCollapse();
+                initImportExportUI();
+                fetchBadges(); // Fetch badge data
+                connectWebSocket();
+                updateTokenTimer();
+                // Initialize presence checkbox and state (API-only)
+                try {
+                    const checkbox = document.getElementById('notify-joins-checkbox');
+                    presenceEnabled = loadPresenceSetting();
+                    if (checkbox) {
+                        checkbox.checked = presenceEnabled;
+                        checkbox.addEventListener('change', (e) => {
+                            presenceEnabled = !!e.target.checked;
+                            savePresenceSetting(presenceEnabled);
+                            if (presenceEnabled) startPresenceAPI(); else stopPresenceAPI();
+                        });
+                    }
+                    // Start polling immediately if setting enabled
+                    if (presenceEnabled) startPresenceAPI();
+                } catch (e) {
+                    console.error('Error initializing presence setting', e);
                 }
-                // Start polling immediately if setting enabled
-                if (presenceEnabled) startPresenceAPI();
-            } catch (e) {
-                console.error('Error initializing presence setting', e);
             }
+            // Start initialization
+            initializeApp();
             // Update token timer every second
             setInterval(updateTokenTimer, 1000);
         </script>
@@ -1568,3 +1778,4 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     </div>
 </body>
 </html>
+
