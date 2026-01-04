@@ -99,6 +99,7 @@ docs/5.8.md
 /bot/export_queue
 # This will be added later to the commits, for now, we're ignoring it.
 /ghostbot
+/yourchat/user-settings
 
 # Python Cache files
 bot/__pycache__/

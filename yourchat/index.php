@@ -111,7 +111,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'load_settings') {
             'settings' => [
                 'filters_usernames' => [],
                 'filters_messages' => [],
-                'nicknames' => [],
+                'nicknames' => new stdClass(),
                 'presence_enabled' => false
             ]
         ]);
@@ -126,26 +126,56 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_settings' && $_SERVER['R
         echo json_encode(['success' => false, 'error' => 'Not authenticated']);
         exit;
     }
+    
     $userId = $_SESSION['user_id'];
     $settingsDir = __DIR__ . '/user-settings';
     $settingsFile = $settingsDir . '/' . $userId . '.json';
+    
     // Create directory if it doesn't exist
     if (!is_dir($settingsDir)) {
-        mkdir($settingsDir, 0755, true);
+        if (!mkdir($settingsDir, 0755, true)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to create settings directory']);
+            exit;
+        }
     }
+    
     // Get JSON data from request body
     $jsonData = file_get_contents('php://input');
-    $settings = json_decode($jsonData, true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        echo json_encode(['success' => false, 'error' => 'Invalid JSON']);
+    if (empty($jsonData)) {
+        echo json_encode(['success' => false, 'error' => 'No data received']);
         exit;
     }
-    // Save settings to file
-    if (file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT))) {
-        echo json_encode(['success' => true, 'message' => 'Settings saved']);
-    } else {
-        echo json_encode(['success' => false, 'error' => 'Failed to save settings']);
+    
+    $settings = json_decode($jsonData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(['success' => false, 'error' => 'Invalid JSON: ' . json_last_error_msg()]);
+        exit;
     }
+    
+    // Ensure nicknames is an object, not an array
+    if (isset($settings['nicknames']) && is_array($settings['nicknames']) && empty($settings['nicknames'])) {
+        $settings['nicknames'] = new stdClass();
+    }
+    
+    // Save settings to file with JSON_FORCE_OBJECT for empty arrays in nicknames
+    $jsonOutput = json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    if ($jsonOutput === false) {
+        echo json_encode(['success' => false, 'error' => 'Failed to encode settings: ' . json_last_error_msg()]);
+        exit;
+    }
+    
+    // Fix empty arrays to empty objects for nicknames field only
+    $decoded = json_decode($jsonOutput, true);
+    if (isset($decoded['nicknames']) && is_array($decoded['nicknames']) && empty($decoded['nicknames'])) {
+        $jsonOutput = str_replace('"nicknames": []', '"nicknames": {}', $jsonOutput);
+    }
+    
+    if (file_put_contents($settingsFile, $jsonOutput) === false) {
+        echo json_encode(['success' => false, 'error' => 'Failed to write file. Check permissions.']);
+        exit;
+    }
+    
+    echo json_encode(['success' => true, 'message' => 'Settings saved']);
     exit;
 }
 
@@ -649,10 +679,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const data = await response.json();
                     if (data.success && data.settings) {
                         userSettings = data.settings;
-                        // Ensure all keys exist
+                        // Ensure all keys exist with correct types
                         if (!userSettings.filters_usernames) userSettings.filters_usernames = [];
                         if (!userSettings.filters_messages) userSettings.filters_messages = [];
-                        if (!userSettings.nicknames) userSettings.nicknames = {};
+                        // Ensure nicknames is always an object, never an array
+                        if (!userSettings.nicknames || Array.isArray(userSettings.nicknames)) {
+                            userSettings.nicknames = {};
+                        }
                         if (userSettings.presence_enabled === undefined) userSettings.presence_enabled = false;
                         return true;
                     }
@@ -673,10 +706,25 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     });
                     const data = await response.json();
                     if (!data.success) {
-                        console.error('Failed to save settings:', data.error);
+                        console.error('Failed to save settings:', data.error || 'Unknown error');
+                        // Show user-friendly error notification
+                        Toastify({
+                            text: 'Failed to save settings: ' + (data.error || 'Unknown error'),
+                            duration: 5000,
+                            gravity: 'top',
+                            position: 'right',
+                            backgroundColor: 'linear-gradient(to right, #ff416c, #ff4b2b)',
+                        }).showToast();
                     }
                 } catch (e) {
                     console.error('Failed to save settings to server:', e);
+                    Toastify({
+                        text: 'Network error saving settings',
+                        duration: 5000,
+                        gravity: 'top',
+                        position: 'right',
+                        backgroundColor: 'linear-gradient(to right, #ff416c, #ff4b2b)',
+                    }).showToast();
                 }
             }
             // Load filters from cookies
@@ -721,20 +769,19 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             // Nickname management
             function loadNicknames() {
-                try {
-                    const stored = localStorage.getItem('chat_nicknames');
-                    return stored ? JSON.parse(stored) : {};
-                } catch (e) {
-                    console.error('Failed to load nicknames:', e);
-                    return {};
+                // Ensure nicknames is always an object, never an array
+                if (!userSettings.nicknames || Array.isArray(userSettings.nicknames)) {
+                    userSettings.nicknames = {};
                 }
+                return userSettings.nicknames;
             }
             function saveNicknames(nicknames) {
-                try {
-                    localStorage.setItem('chat_nicknames', JSON.stringify(nicknames));
-                } catch (e) {
-                    console.error('Failed to save nicknames:', e);
+                // Ensure nicknames is always an object
+                if (Array.isArray(nicknames)) {
+                    nicknames = {};
                 }
+                userSettings.nicknames = nicknames;
+                saveSettingsToServer();
             }
             function renderNicknames() {
                 const nicknames = loadNicknames();
@@ -1754,6 +1801,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 await loadSettingsFromServer();
                 // Then initialize UI with server settings
                 loadChatHistory();
+                migrateOldFilters();
                 renderFilters();
                 renderNicknames();
                 initFilterCollapse();
