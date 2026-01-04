@@ -135,7 +135,7 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
   $now = new DateTime();
   $today = $now->format('Y-m-d');
   $thisWeekStart = (new DateTime())->modify('-7 days')->format('Y-m-d H:i:s');
-  $thisMonthStart = (new DateTime())->modify('-30 days')->format('Y-m-d H:i:s');
+  $thisMonthStart = date('Y-m-01 00:00:00'); // Start of current month
   $thisYearStart = date('Y-01-01 00:00:00');
   foreach ($updatedFollowers as $follower) {
     $followedDate = new DateTime($follower['followed_at']);
