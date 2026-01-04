@@ -335,6 +335,8 @@ return [
     'edit_counters_remove_typo_btn' => 'Supprimer l\'entrée de faute',
     'edit_counters_command_label' => 'Commande :',
     'edit_counters_select_command' => 'Sélectionner une commande',
+    'edit_counters_remove_user_count' => 'Supprimer le compteur utilisateur',
+    'edit_counters_remove_btn' => 'Supprimer le compteur',
     'edit_counters_new_command_count' => 'Nouveau compteur de commande :',
     'edit_counters_remove_custom_counter' => 'Supprimer le compteur personnalisé',
     'edit_counters_remove_command_btn' => 'Supprimer la commande',

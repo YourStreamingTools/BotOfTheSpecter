@@ -796,7 +796,86 @@ ob_start();
             <p class="has-text-centered has-text-white">High-fives Edit Forms (to be implemented)</p>
           </div>
           <div id="edit-tab-userCounts" class="edit-tab-content" style="display:none;">
-            <p class="has-text-centered has-text-white">User Counts Edit Forms (to be implemented)</p>
+            <div class="columns is-desktop is-multiline">
+              <div class="column is-6">
+                <div class="box has-background-dark">
+                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_user_counts'); ?></h4>
+                  <form action="" method="post">
+                    <input type="hidden" name="action" value="update">
+                    <div class="field">
+                      <label class="label has-text-white"><?php echo t('edit_counters_command_label'); ?></label>
+                      <div class="control">
+                        <div class="select is-fullwidth">
+                          <select id="usercount-command" name="usercount-command" required onchange="updateUserCountUsers(this.value); enableButton('usercount-command','usercount-edit-btn');">
+                            <option value=""><?php echo t('edit_counters_select_command'); ?></option>
+                            <?php foreach ($userCountCommands as $cmd): ?>
+                              <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
+                      <div class="control">
+                        <div class="select is-fullwidth">
+                          <select id="usercount-user" name="usercount-user" required onchange="updateUserCountValue(); enableButton('usercount-user','usercount-edit-btn');">
+                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="label has-text-white"><?php echo t('edit_counters_new_count'); ?></label>
+                      <div class="control">
+                        <input class="input" type="number" id="usercount_count" name="usercount_count" min="0" required>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="control">
+                        <button type="submit" class="button is-primary" id="usercount-edit-btn" disabled><?php echo t('edit_counters_update_btn'); ?></button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              <div class="column is-6">
+                <div class="box has-background-dark">
+                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_user_count'); ?></h4>
+                  <form action="" method="post" id="usercount-remove-form">
+                    <input type="hidden" name="action" value="remove">
+                    <div class="field">
+                      <label class="label has-text-white"><?php echo t('edit_counters_command_label'); ?></label>
+                      <div class="control">
+                        <div class="select is-fullwidth">
+                          <select id="usercount-command-remove" name="usercount-command-remove" required onchange="updateUserCountUsersRemove(this.value); enableButton('usercount-command-remove','usercount-remove-btn');">
+                            <option value=""><?php echo t('edit_counters_select_command'); ?></option>
+                            <?php foreach ($userCountCommands as $cmd): ?>
+                              <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
+                      <div class="control">
+                        <div class="select is-fullwidth">
+                          <select id="usercount-user-remove" name="usercount-user-remove" required onchange="enableButton('usercount-user-remove','usercount-remove-btn');">
+                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="control">
+                        <button type="submit" class="button is-danger" id="usercount-remove-btn" disabled><?php echo t('edit_counters_remove_btn'); ?></button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
           </div>
           <div id="edit-tab-quotes" class="edit-tab-content" style="display:none;">
             <p class="has-text-centered has-text-white">Quotes Edit Forms (to be implemented)</p>
@@ -826,6 +905,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   loadData(defaultType);
+  // Wire up remove form confirmations
+  wireRemoveForm('typo-remove-form', 'typo-username-remove', 'typo');
+  wireRemoveForm('usercount-remove-form', 'usercount-user-remove', 'user count');
 });
 
 function formatWatchTime(seconds) {
@@ -1075,6 +1157,8 @@ const deathCounts = <?php echo json_encode(array_column($deathData, 'death_count
 const hugCounts = <?php echo json_encode(array_column($hugData, 'hug_count', 'username')); ?>;
 const kissCounts = <?php echo json_encode(array_column($kissData, 'kiss_count', 'username')); ?>;
 const highfiveCounts = <?php echo json_encode(array_column($highfiveData, 'highfive_count', 'username')); ?>;
+const userCountUsersByCommand = <?php echo json_encode($userCountUsersByCommand); ?>;
+const userCountData = <?php echo json_encode($userCountArr); ?>;
 
 function updateCurrentCount(type, value) {
   let count = 0;
@@ -1137,6 +1221,51 @@ function wireRemoveForm(formId, selectId, type) {
       }
     });
   });
+}
+
+// User count functions
+function updateUserCountUsers(command) {
+  const userSelect = document.getElementById('usercount-user');
+  userSelect.innerHTML = '<option value="">Select User</option>';
+  if (command && userCountUsersByCommand[command]) {
+    userCountUsersByCommand[command].forEach(user => {
+      const option = document.createElement('option');
+      option.value = user;
+      option.textContent = user;
+      userSelect.appendChild(option);
+    });
+  }
+  // Reset count and disable button
+  document.getElementById('usercount_count').value = '';
+  const btn = document.getElementById('usercount-edit-btn');
+  if (btn) btn.disabled = true;
+}
+
+function updateUserCountUsersRemove(command) {
+  const userSelect = document.getElementById('usercount-user-remove');
+  userSelect.innerHTML = '<option value="">Select User</option>';
+  if (command && userCountUsersByCommand[command]) {
+    userCountUsersByCommand[command].forEach(user => {
+      const option = document.createElement('option');
+      option.value = user;
+      option.textContent = user;
+      userSelect.appendChild(option);
+    });
+  }
+  // Disable button
+  const btn = document.getElementById('usercount-remove-btn');
+  if (btn) btn.disabled = true;
+}
+
+function updateUserCountValue() {
+  const command = document.getElementById('usercount-command').value;
+  const user = document.getElementById('usercount-user').value;
+  if (command && user) {
+    const entry = userCountData.find(item => item.command === command && item.user === user);
+    if (entry) {
+      document.getElementById('usercount_count').value = entry.count;
+    }
+  }
 }
 </script>
 <?php

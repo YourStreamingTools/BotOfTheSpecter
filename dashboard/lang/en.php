@@ -392,6 +392,8 @@ return [
     'edit_counters_remove_typo_btn' => 'Remove Typo Record',
     'edit_counters_command_label' => 'Command:',
     'edit_counters_select_command' => 'Select a command',
+    'edit_counters_remove_user_count' => 'Remove User Counter',
+    'edit_counters_remove_btn' => 'Remove Counter',
     'edit_counters_new_command_count' => 'New Command Count:',
     'edit_counters_remove_custom_counter' => 'Remove Custom Counter',
     'edit_counters_remove_command_btn' => 'Remove Command',
