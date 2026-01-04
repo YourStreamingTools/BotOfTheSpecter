@@ -56,21 +56,33 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
     $column_html = "<div class='column has-text-centered'>";
     $column_html .= "<h2 class='subtitle has-text-white'>$section_name</h2>";
     $column_html .= "<div class='scroll-area'><ul class='content has-text-white'>";
-    if ($stmt = $user_db->prepare("SELECT username, event, data FROM stream_credits WHERE event = ?")) {
-        $stmt->bind_param("s", $event);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $data = sanitize_input($row['data']);
-                if ($clean_data) {
+    if ($clean_data) {
+        // For followers, only get distinct usernames
+        if ($stmt = $user_db->prepare("SELECT DISTINCT username FROM stream_credits WHERE event = ? ORDER BY username ASC")) {
+            $stmt->bind_param("s", $event);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                while ($row = $result->fetch_assoc()) {
                     $column_html .= "<li>" . sanitize_input($row['username']) . "</li>";
-                } else {
+                }
+            }
+            $stmt->close();
+        }
+    } else {
+        // For raids, bits, subscriptions - get username and data, group by username to avoid duplicates
+        if ($stmt = $user_db->prepare("SELECT username, MAX(data) as data FROM stream_credits WHERE event = ? GROUP BY username ORDER BY username ASC")) {
+            $stmt->bind_param("s", $event);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                while ($row = $result->fetch_assoc()) {
+                    $data = sanitize_input($row['data']);
                     $column_html .= "<li>" . sanitize_input($row['username']) . " - " . $data . "</li>";
                 }
             }
+            $stmt->close();
         }
-        $stmt->close();
     }
     $column_html .= "</ul></div>";
     $column_html .= "</div>";
@@ -81,7 +93,7 @@ function build_chatters_column($user_db) {
     $column_html = "<div class='column has-text-centered'>";
     $column_html .= "<h2 class='subtitle has-text-white'>Chatters</h2>";
     $column_html .= "<div class='scroll-area'><ul class='content has-text-white'>";
-    if ($stmt = $user_db->prepare("SELECT username FROM seen_today")) {
+    if ($stmt = $user_db->prepare("SELECT DISTINCT username FROM seen_today ORDER BY username ASC")) {
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result->num_rows > 0) {
@@ -246,16 +258,16 @@ a, a:visited, a:active {
     flex: 1 1 auto;
     display: flex;
     justify-content: center;
-    align-items: flex-end;
+    align-items: flex-start;
     overflow: hidden;
+    min-height: 300px;
 }
 .scrolling-credits ul {
     list-style-type: none;
     padding: 0;
     margin: 0;
     width: 100%;
-    position: absolute;
-    left: 0;
+    position: relative;
     will-change: transform;
     color: #FFFFFF !important;
 }
@@ -308,35 +320,45 @@ a, a:visited, a:active {
             </div>
         </section>
     </div>
-
     <script>
     // Scroll each column's list independently, always centered, never above the title
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.scrolling-credits .scroll-area').forEach(function(area) {
             const ul = area.querySelector('ul');
             if (!ul) return;
-            // Duplicate the list for seamless looping
-            ul.innerHTML += ul.innerHTML;
-            let listHeight = ul.scrollHeight / 2;
+            // Check if list has content
+            const listItems = ul.querySelectorAll('li');
+            if (listItems.length === 0) return;
+            // Make sure list is visible initially
+            ul.style.position = 'relative';
+            ul.style.transform = 'translateY(0)';
+            // Check initial height
+            let initialHeight = ul.scrollHeight;
             let areaHeight = area.clientHeight;
-            let duration = Math.max(20, listHeight / 40 * 5); // 5s per 40px, min 20s
-            // Set initial position at bottom
-            let start = null;
-            function animateScroll(ts) {
-                if (!start) start = ts;
-                let elapsed = (ts - start) / 1000;
-                let progress = (elapsed % duration) / duration;
-                let translateY = (1 - progress) * listHeight;
-                ul.style.transform = `translateY(${translateY}px)`;
+            // Only duplicate and animate if list is tall enough (needs more than area height to scroll)
+            if (initialHeight > areaHeight && listItems.length > 3) {
+                // Duplicate the list for seamless looping
+                ul.innerHTML += ul.innerHTML;
+                let listHeight = ul.scrollHeight / 2;
+                ul.style.position = 'absolute';
+                let duration = Math.max(20, listHeight / 40 * 5); // 5s per 40px, min 20s
+                let start = null;
+                function animateScroll(ts) {
+                    if (!start) start = ts;
+                    let elapsed = (ts - start) / 1000;
+                    let progress = (elapsed % duration) / duration;
+                    let translateY = (1 - progress) * listHeight;
+                    ul.style.transform = `translateY(${translateY}px)`;
+                    requestAnimationFrame(animateScroll);
+                }
                 requestAnimationFrame(animateScroll);
             }
-            // Center the scroll area vertically in the column
+            // Set scroll area height
             area.style.display = 'flex';
             area.style.flexDirection = 'column';
-            area.style.justifyContent = 'flex-end';
+            area.style.justifyContent = 'flex-start';
             area.style.alignItems = 'center';
             area.style.height = `calc(100% - ${area.previousElementSibling ? area.previousElementSibling.offsetHeight : 0}px)`;
-            requestAnimationFrame(animateScroll);
         });
     });
     </script>
