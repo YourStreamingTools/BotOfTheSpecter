@@ -423,6 +423,22 @@ body {
     font-style: normal;
     font-weight: 500;
 }
+.system-message.sub-notification {
+    border-left: 4px solid #9147ff; /* subscription purple */
+    background: rgba(145, 70, 255, 0.15);
+    font-style: normal;
+    font-weight: 500;
+}
+.sub-icon {
+    margin-right: 6px;
+    font-size: 16px;
+}
+.sub-user-message {
+    margin-top: 6px;
+    padding-left: 22px;
+    font-style: italic;
+    color: #ddd;
+}
 
 .chat-message {
     margin-bottom: 12px;

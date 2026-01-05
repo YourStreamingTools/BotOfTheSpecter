@@ -1415,6 +1415,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             handleBitsEvent(payload.event);
                         } else if (payload.subscription.type === 'channel.chat.message_delete') {
                             handleMessageDelete(payload.event);
+                        } else if (payload.subscription.type === 'channel.chat.notification') {
+                            handleChatNotification(payload.event);
                         }
                         break;
                     case 'session_reconnect':
@@ -1485,6 +1487,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     },
                     {
                         type: 'channel.chat.message_delete',
+                        version: '1',
+                        condition: {
+                            broadcaster_user_id: CONFIG.USER_ID,
+                            user_id: CONFIG.USER_ID
+                        }
+                    },
+                    {
+                        type: 'channel.chat.notification',
                         version: '1',
                         condition: {
                             broadcaster_user_id: CONFIG.USER_ID,
@@ -1635,8 +1645,17 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         }
                     });
                 }
-                // Format timestamp from event created_at
-                const messageDate = new Date(event.created_at);
+                // Format timestamp from event created_at with fallback to current time
+                let messageDate;
+                if (event.created_at) {
+                    messageDate = new Date(event.created_at);
+                    // Check if date is valid
+                    if (isNaN(messageDate.getTime())) {
+                        messageDate = new Date();
+                    }
+                } else {
+                    messageDate = new Date();
+                }
                 const hours = messageDate.getHours().toString().padStart(2, '0');
                 const minutes = messageDate.getMinutes().toString().padStart(2, '0');
                 const seconds = messageDate.getSeconds().toString().padStart(2, '0');
@@ -1667,7 +1686,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const messageId = event.message_id;
                 const overlay = document.getElementById('chat-overlay');
                 const messageElement = overlay.querySelector(`[data-message-id="${messageId}"]`);
-                
                 if (messageElement) {
                     // Add deleted class to strike through the message
                     messageElement.classList.add('deleted');
@@ -1675,6 +1693,53 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     // Save updated history
                     saveChatHistory();
                 }
+            }
+            // Handle chat notifications (subs, resubs, sub gifts, etc.)
+            function handleChatNotification(event) {
+                // Only show subscription-related notifications
+                const subNoticeTypes = [
+                    'sub', 'resub', 'sub_gift', 'community_sub_gift', 
+                    'gift_paid_upgrade', 'prime_paid_upgrade', 'pay_it_forward'
+                ];
+                if (!subNoticeTypes.includes(event.notice_type)) {
+                    return; // Ignore non-subscription notifications
+                }
+                const overlay = document.getElementById('chat-overlay');
+                // Clear placeholder text
+                if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
+                    overlay.innerHTML = '';
+                }
+                const notificationDiv = document.createElement('div');
+                notificationDiv.className = 'system-message sub-notification';
+                notificationDiv.setAttribute('data-message-id', event.message_id);
+                // Format timestamp
+                const now = new Date();
+                const hours = now.getHours().toString().padStart(2, '0');
+                const minutes = now.getMinutes().toString().padStart(2, '0');
+                const seconds = now.getSeconds().toString().padStart(2, '0');
+                const timestamp = `${hours}:${minutes}:${seconds}`;
+                // Use system_message as the main text
+                const systemMessage = event.system_message || '';
+                // Add any user message if they included one
+                let userMessage = '';
+                if (event.message && event.message.text) {
+                    userMessage = `<div class="sub-user-message">${escapeHtml(event.message.text)}</div>`;
+                }
+                notificationDiv.innerHTML = `
+                    <span class="chat-timestamp" style="margin-right: 8px;">${timestamp}</span>
+                    <span class="sub-icon">⭐</span>
+                    ${escapeHtml(systemMessage)}
+                    ${userMessage}
+                `;
+                overlay.appendChild(notificationDiv);
+                // Auto-scroll to bottom
+                overlay.scrollTop = overlay.scrollHeight;
+                // Limit messages to prevent memory issues
+                if (overlay.children.length > 100) {
+                    overlay.removeChild(overlay.firstChild);
+                }
+                // Save chat history
+                saveChatHistory();
             }
             function escapeHtml(text) {
                 const div = document.createElement('div');
