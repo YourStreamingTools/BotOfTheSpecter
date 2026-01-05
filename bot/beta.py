@@ -9727,7 +9727,7 @@ async def process_channel_point_rewards(event_data, event_type):
                                 if streak_row:
                                     current_user_from_db = streak_row['current_user']
                                     current_streak = streak_row['streak']
-                                    if current_user_from_db.lower() == user_name.lower():
+                                    if current_user_from_db and current_user_from_db.lower() == user_name.lower():
                                         current_user = user_name
                                         current_streak += 1
                                     else:
@@ -10540,7 +10540,7 @@ async def track_watch_time(active_users):
                 await cursor.executemany("UPDATE watch_time SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s WHERE user_id = %s", updates)
             # Execute batch inserts
             if inserts:
-                await cursor.executemany("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE total_watch_time_live = total_watch_time_live + VALUES(total_watch_time_live), total_watch_time_offline = total_watch_time_offline + VALUES(total_watch_time_offline), last_active = VALUES(last_active), username = VALUES(username)", inserts)
+                await cursor.executemany("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s) AS new ON DUPLICATE KEY UPDATE total_watch_time_live = total_watch_time_live + new.total_watch_time_live, total_watch_time_offline = total_watch_time_offline + new.total_watch_time_offline, last_active = new.last_active, username = new.username", inserts)
             await connection.commit()
     except Exception as e:
         bot_logger.error(f"Error in track_watch_time: {e}", exc_info=True)
