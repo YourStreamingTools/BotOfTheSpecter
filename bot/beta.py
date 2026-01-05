@@ -171,6 +171,7 @@ def time_right_now(tz=None):
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 scheduled_tasks = set()                                 # Set for scheduled tasks
 shoutout_queue = Queue()                                # Queue for shoutouts
+recent_shoutouts = {}                                   # Dictionary for recent shoutouts
 permitted_users = {}                                    # Dictionary for permitted users
 connected = set()                                       # Set for connected users
 pending_removals = {}                                   # Dictionary for pending removals
@@ -1816,6 +1817,7 @@ class TwitchBot(commands.Bot):
         bot_logger.info(f'Logged in as "{self.nick}"')
         await update_version_control()
         await builtin_commands_creation()
+        await load_automated_shoutout_tracking()
         looped_tasks["check_stream_online"] = create_task(check_stream_online())
         create_task(known_users())
         create_task(channel_point_rewards())
@@ -2272,7 +2274,7 @@ class TwitchBot(commands.Bot):
                         if message_to_send.strip():
                                 await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
-                            await add_shoutout(user_to_shoutout, user_id)
+                            await add_shoutout(user_to_shoutout, user_id, is_automated=True)
                             await send_chat_message(shoutout_message)
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
                         create_task(self.safe_walkon(messageAuthor))
@@ -6049,7 +6051,7 @@ class TwitchBot(commands.Bot):
             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "command")
             chat_logger.info(shoutout_message)
             await send_chat_message(shoutout_message)
-            await add_shoutout(user_to_shoutout, user_id)
+            await add_shoutout(user_to_shoutout, user_id, is_automated=False)
             # Record usage
             add_usage('shoutout', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -7666,16 +7668,87 @@ async def update_twitch_game(game_name: str):
                 error_message = await twitch_response.text()
                 raise GameUpdateFailedException(f"Failed to update stream game: {error_message}")
 
+# Helper function to check if user has received automated shoutout today
+async def get_automated_shoutout_cooldown():
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT cooldown_minutes FROM automated_shoutout_settings LIMIT 1")
+            result = await cursor.fetchone()
+            if result:
+                return max(60, int(result['cooldown_minutes']))  # Enforce minimum of 60 minutes
+    except Exception as e:
+        twitch_logger.error(f"Error fetching automated shoutout cooldown: {e}")
+    return 60  # Default to 60 minutes
+
+# Helper function to check if user is within automated shoutout cooldown
+async def has_automated_shoutout_cooldown(user_id):
+    if user_id not in recent_shoutouts:
+        return False
+    last_shoutout_time = recent_shoutouts[user_id]
+    cooldown_minutes = await get_automated_shoutout_cooldown()
+    cooldown_duration = timedelta(minutes=cooldown_minutes)
+    time_since_shoutout = time_right_now() - last_shoutout_time
+    return time_since_shoutout < cooldown_duration
+
+# Helper function to record automated shoutout
+async def record_automated_shoutout(user_id, user_name):
+    now = time_right_now()
+    recent_shoutouts[user_id] = now
+    twitch_logger.info(f"Recorded automated shoutout for {user_name} (user_id: {user_id}) at {now}")
+    # Store in database
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(
+                """INSERT INTO automated_shoutout_tracking (user_id, user_name, shoutout_time) 
+                   VALUES (%s, %s, %s) 
+                   ON DUPLICATE KEY UPDATE user_name = %s, shoutout_time = %s""",
+                (user_id, user_name, now, user_name, now)
+            )
+            await connection.commit()
+    except Exception as e:
+        twitch_logger.error(f"Error storing automated shoutout in database: {e}")
+
+# Helper function to load automated shoutout tracking from database
+async def load_automated_shoutout_tracking():
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT user_id, shoutout_time FROM automated_shoutout_tracking")
+            results = await cursor.fetchall()
+            for row in results:
+                recent_shoutouts[row['user_id']] = row['shoutout_time']
+            twitch_logger.info(f"Loaded {len(results)} automated shoutout tracking entries from database")
+    except Exception as e:
+        twitch_logger.error(f"Error loading automated shoutout tracking: {e}")
+
+# Helper function to clear automated shoutout tracking
+async def clear_automated_shoutout_tracking():
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("DELETE FROM automated_shoutout_tracking")
+            await connection.commit()
+        recent_shoutouts.clear()
+        twitch_logger.info("Cleared automated shoutout tracking")
+    except Exception as e:
+        twitch_logger.error(f"Error clearing automated shoutout tracking: {e}")
+
 # Enqueue shoutout requests
-async def add_shoutout(user_to_shoutout, user_id):
-    await shoutout_queue.put((user_to_shoutout, user_id))
+async def add_shoutout(user_to_shoutout, user_id, is_automated=True):
+    if is_automated and await has_automated_shoutout_cooldown(user_id):
+        cooldown_minutes = await get_automated_shoutout_cooldown()
+        twitch_logger.info(f"Skipping automated shoutout for {user_to_shoutout} (user_id: {user_id}) - still within {cooldown_minutes} minute cooldown.")
+        return
+    await shoutout_queue.put((user_to_shoutout, user_id, is_automated))
     twitch_logger.info(f"Added shoutout request for {user_to_shoutout} to the queue.")
 
 # Worker to process shoutout queue
 async def shoutout_worker():
     global last_shoutout_time
     while True:
-        user_to_shoutout, user_id = await shoutout_queue.get()
+        user_to_shoutout, user_id, is_automated = await shoutout_queue.get()
         now = time_right_now()
         # Check global cooldown
         if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
@@ -7694,6 +7767,9 @@ async def shoutout_worker():
         twitch_logger.info(f"Shoutout sent for {user_to_shoutout}.")
         shoutout_user[user_to_shoutout] = {"timestamp": time.time()}
         create_task(remove_shoutout_user(user_to_shoutout, 60))
+        # Record automated shoutout
+        if is_automated:
+            await record_automated_shoutout(user_id, user_to_shoutout)
         # Update cooldown trackers
         last_shoutout_time = time_right_now()
         shoutout_tracker[user_id] = last_shoutout_time
@@ -8036,6 +8112,8 @@ async def process_stream_offline_websocket():
         looped_tasks["hyperate_websocket"].cancel()
     if 'scheduled_clear_task' in globals() and scheduled_clear_task:
         scheduled_clear_task.cancel()
+    # Clear automated shoutout tracking
+    await clear_automated_shoutout_tracking()
     # Schedule the clearing task with a 5-minute delay
     scheduled_clear_task = create_task(delayed_clear_tables())
     bot_logger.info("Scheduled task to clear tables if stream remains offline for 5 minutes.")
@@ -8651,7 +8729,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
-                await add_shoutout(user_to_shoutout, user_id)
+                await add_shoutout(user_to_shoutout, user_id, is_automated=True)
                 await send_chat_message(shoutout_message)
             marker_description = f"New Raid from {from_broadcaster_name}"
             if await make_stream_marker(marker_description):
@@ -8706,7 +8784,7 @@ async def process_cheer_event(user_id, user_name, bits):
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
-                await add_shoutout(user_name, user_id)
+                await add_shoutout(user_name, user_id, is_automated=True)
                 await send_chat_message(shoutout_message)
             # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
@@ -8831,7 +8909,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 if alert_message.strip():
                     await send_chat_message(alert_message)
                 if send_shoutout and shoutout_message:
-                    await add_shoutout(user_name, user_id)
+                    await add_shoutout(user_name, user_id, is_automated=True)
                     await send_chat_message(shoutout_message)
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
@@ -8930,7 +9008,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 if alert_message.strip():
                     await send_chat_message(alert_message)
                 if send_shoutout and shoutout_message:
-                    await add_shoutout(user_name, user_id)
+                    await add_shoutout(user_name, user_id, is_automated=True)
                     await send_chat_message(shoutout_message)
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
@@ -9032,7 +9110,7 @@ async def process_followers_event(user_id, user_name):
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
-                await add_shoutout(user_name, user_id)
+                await add_shoutout(user_name, user_id, is_automated=True)
                 await send_chat_message(shoutout_message)
             create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
             marker_description = f"New Twitch Follower: {user_name}"

@@ -485,7 +485,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         echo json_encode(['success' => true, 'section' => $section]);
         exit();
     }
-
+    // Handle Automated Shoutout Settings Update
+    elseif (isset($_POST['cooldown_minutes'])) {
+        $activeTab = "automated-shoutouts";
+        $cooldown_minutes = max(60, intval($_POST['cooldown_minutes'])); // Enforce minimum of 60
+        $stmt = $db->prepare("INSERT INTO automated_shoutout_settings (id, cooldown_minutes) VALUES (1, ?) ON DUPLICATE KEY UPDATE cooldown_minutes = ?");
+        $stmt->bind_param('ii', $cooldown_minutes, $cooldown_minutes);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Automated shoutout cooldown updated to $cooldown_minutes minutes.";
+        } else {
+            $_SESSION['update_message'] = "Error updating automated shoutout cooldown: " . $stmt->error;
+        }
+        $stmt->close();
+    }
+    // Handle Remove Automated Shoutout Cooldown
+    elseif (isset($_POST['remove_shoutout_cooldown'])) {
+        $activeTab = "automated-shoutouts";
+        $user_id = $_POST['remove_shoutout_cooldown'];
+        $stmt = $db->prepare("DELETE FROM automated_shoutout_tracking WHERE user_id = ?");
+        $stmt->bind_param('s', $user_id);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Automated shoutout cooldown removed for user.";
+        } else {
+            $_SESSION['update_message'] = "Error removing cooldown: " . $stmt->error;
+        }
+        $stmt->close();
+    }
+    // Handle Clear All Automated Shoutout Cooldowns
+    elseif (isset($_POST['clear_all_shoutout_cooldowns'])) {
+        $activeTab = "automated-shoutouts";
+        $stmt = $db->prepare("DELETE FROM automated_shoutout_tracking");
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "All automated shoutout cooldowns have been cleared.";
+        } else {
+            $_SESSION['update_message'] = "Error clearing cooldowns: " . $stmt->error;
+        }
+        $stmt->close();
+    }
     // For non-AJAX requests, redirect back to the modules page with the active tab
     if (empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) != 'xmlhttprequest') {
         header("Location: modules.php?tab=" . $activeTab);
