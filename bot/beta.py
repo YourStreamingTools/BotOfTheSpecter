@@ -9754,6 +9754,7 @@ async def process_channel_point_rewards(event_data, event_type):
 async def channel_point_rewards():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     # Check the broadcaster's type
+    rewards_processed = 0
     user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
     headers = {"Client-Id": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}"}
     try:
