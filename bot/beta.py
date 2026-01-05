@@ -22,7 +22,7 @@ from aiohttp import ClientSession as httpClientSession
 from aiohttp import ClientError as aiohttpClientError
 from aiohttp import ClientTimeout
 from socketio import AsyncClient
-from aiomysql import connect as sql_connect
+from aiomysql import connect as sql_connect, create_pool
 from aiomysql import IntegrityError as MySQLIntegrityError
 from socketio.exceptions import ConnectionError as ConnectionExecptionError
 from aiomysql import DictCursor, MySQLError
@@ -282,61 +282,127 @@ async def async_signal_cleanup():
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C as well
 
-# MySQL Connection Handler Class
+# MySQL Connection Wrapper Class - Must be defined BEFORE MySQLHandler
+class PoolConnectionWrapper:
+    def __init__(self, connection, pool):
+        self._connection = connection
+        self._pool = pool
+    
+    def cursor(self, *args, **kwargs):
+        return self._connection.cursor(*args, **kwargs)
+    
+    async def commit(self):
+        if self._connection:
+            await self._connection.commit()
+    
+    async def rollback(self):
+        if self._connection:
+            await self._connection.rollback()
+    
+    def __del__(self):
+        if self._connection:
+            # Schedule the release for the next event loop iteration
+            try:
+                loop = get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._pool.release(self._connection))
+            except:
+                pass  # If event loop is closed, pool cleanup will handle it
+
+# MySQL Connection Handler Class with Connection Pooling
 class MySQLHandler:
     def __init__(self):
-        self.connections = {}
-        self.connection_times = {}  # Track when each connection was established
-        self.last_connection_attempt = {}  # Track last connection attempt time
+        self.pools = {}
+        self.pool_times = {}  # Track when each pool was created
 
     async def get_connection(self, db_name=None):
         global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
         if db_name is None:
             db_name = CHANNEL_NAME
-        # Check if connection exists and is still valid
-        if db_name in self.connections:
+        # Get or create pool for this database
+        pool = await self._get_or_create_pool(db_name)
+        # Acquire connection from pool with health check
+        connection = await pool.acquire()
+        try:
+            # Test connection is alive
+            async with connection.cursor() as test_cursor:
+                await test_cursor.execute("SELECT 1")
+        except (MySQLError, MySQLOtherErrors):
+            # Connection is dead, release it and get a new one
+            await pool.release(connection)
+            connection = await pool.acquire()
+        # Return a wrapper with pre-acquired connection
+        return PoolConnectionWrapper(connection, pool)
+
+    async def _get_or_create_pool(self, db_name):
+        global SQL_HOST, SQL_USER, SQL_PASSWORD
+        # Return existing pool if available
+        if db_name in self.pools:
+            pool = self.pools[db_name]
+            # Check if pool is still healthy
+            if not pool._closed:
+                return pool
+            else:
+                # Pool was closed, remove it
+                del self.pools[db_name]
+                if db_name in self.pool_times:
+                    del self.pool_times[db_name]
+        # Create new pool with retry logic
+        max_retries = 3
+        retry_delay = 1  # Start with 1 second
+        for attempt in range(max_retries):
             try:
-                # Test if connection is still alive
-                async with self.connections[db_name].cursor() as cursor:
-                    await cursor.execute("SELECT 1")
-                return self.connections[db_name]
-            except:
-                # Connection is dead, remove it
-                try:
-                    self.connections[db_name].close()
-                except:
-                    pass
-                del self.connections[db_name]
-        # Create new connection
-        self.connections[db_name] = await sql_connect(
-            host=SQL_HOST,
-            user=SQL_USER,
-            password=SQL_PASSWORD,
-            db=db_name
-        )
-        self.connection_times[db_name] = time.time()  # Track connection time
-        self.last_connection_attempt[db_name] = time.time()
-        return self.connections[db_name]
+                pool = await create_pool(
+                    host=SQL_HOST,
+                    user=SQL_USER,
+                    password=SQL_PASSWORD,
+                    db=db_name,
+                    minsize=1,
+                    maxsize=10,
+                    pool_recycle=18000,  # 5 hours in seconds
+                    connect_timeout=10,
+                    autocommit=False
+                )
+                # Store pool and creation time
+                self.pools[db_name] = pool
+                self.pool_times[db_name] = time.time()
+                bot_logger.info(f"Created connection pool for database: {db_name}")
+                return pool
+            except (MySQLError, MySQLOtherErrors) as e:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                    bot_logger.warning(f"Failed to create pool for {db_name} (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
+                    await sleep(wait_time)
+                else:
+                    bot_logger.error(f"Failed to create connection pool for {db_name} after {max_retries} attempts: {e}")
+                    raise
 
     async def close_all(self):
-        for connection in self.connections.values():
+        for db_name, pool in list(self.pools.items()):
             try:
-                connection.close()
-            except:
-                pass
-        self.connections.clear()
-        self.connection_times.clear()
-        self.last_connection_attempt.clear()
+                pool.close()
+                await pool.wait_closed()
+                bot_logger.info(f"Closed connection pool for database: {db_name}")
+            except Exception as e:
+                bot_logger.error(f"Error closing pool for {db_name}: {e}")
+        self.pools.clear()
+        self.pool_times.clear()
 
-    def get_connection_status(self, db_name=None):
+    def get_pool_status(self, db_name=None):
         if db_name is None:
             db_name = CHANNEL_NAME
-        status = {
-            'connected': db_name in self.connections,
-            'db_name': db_name,
-            'connection_time': self.connection_times.get(db_name),
-            'last_attempt': self.last_connection_attempt.get(db_name)
-        }
+        if db_name in self.pools and not self.pools[db_name]._closed:
+            status = {
+                'connected': True,
+                'db_name': db_name,
+                'last_connected': self.pool_times.get(db_name)
+            }
+        else:
+            status = {
+                'connected': False,
+                'db_name': db_name,
+                'last_connected': self.pool_times.get(db_name)
+            }
         return status
 
 # Initialize global MySQL handler
