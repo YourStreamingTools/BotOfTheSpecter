@@ -43,9 +43,9 @@ $default_mod_welcome_message = isset($preferences['default_mod_welcome_message']
 $new_default_mod_welcome_message = isset($preferences['new_default_mod_welcome_message']) ? $preferences['new_default_mod_welcome_message'] : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!";
 
 // Fetch ad notice settings from the database
-$stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice FROM ad_notice_settings WHERE id = 1");
+$stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message FROM ad_notice_settings WHERE id = 1");
 $stmt->execute();
-$stmt->bind_result($ad_upcoming_message_db, $ad_start_message_db, $ad_end_message_db, $ad_snoozed_message_db, $enable_ad_notice);
+$stmt->bind_result($ad_upcoming_message_db, $ad_start_message_db, $ad_end_message_db, $ad_snoozed_message_db, $enable_ad_notice, $enable_upcoming_ad_message, $enable_start_ad_message, $enable_end_ad_message, $enable_snoozed_ad_message);
 $stmt->fetch();
 $stmt->close();
 
@@ -60,12 +60,21 @@ if ($ad_upcoming_message_db !== null) {
     $ad_start_message = !empty($ad_start_message_db) ? $ad_start_message_db : $default_ad_start_message;
     $ad_end_message = !empty($ad_end_message_db) ? $ad_end_message_db : $default_ad_end_message;
     $ad_snoozed_message = !empty($ad_snoozed_message_db) ? $ad_snoozed_message_db : $default_ad_snoozed_message;
+    // Granular enables - default to 1 if not set in DB for some reason, though DB default should handle it
+    $enable_upcoming_ad_message = $enable_upcoming_ad_message ?? 1;
+    $enable_start_ad_message = $enable_start_ad_message ?? 1;
+    $enable_end_ad_message = $enable_end_ad_message ?? 1;
+    $enable_snoozed_ad_message = $enable_snoozed_ad_message ?? 1;
 } else {
     $ad_upcoming_message = $default_ad_upcoming_message;
     $ad_start_message = $default_ad_start_message;
     $ad_end_message = $default_ad_end_message;
     $ad_snoozed_message = $default_ad_snoozed_message;
     $enable_ad_notice = 1;
+    $enable_upcoming_ad_message = 1;
+    $enable_start_ad_message = 1;
+    $enable_end_ad_message = 1;
+    $enable_snoozed_ad_message = 1;
 }
 
 // Fetch Twitch Chat Alert messages from the database
@@ -112,5 +121,8 @@ foreach ($soundAlerts as $alert) {
 
 // Get the sound files
 $soundalert_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
-function formatFileName($fileName) { return basename($fileName, '.mp3'); }
+function formatFileName($fileName)
+{
+    return basename($fileName, '.mp3');
+}
 ?>
