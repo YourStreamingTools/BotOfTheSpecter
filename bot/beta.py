@@ -391,19 +391,27 @@ class MySQLHandler:
     def get_pool_status(self, db_name=None):
         if db_name is None:
             db_name = CHANNEL_NAME
+        pool_time = self.pool_times.get(db_name)
         if db_name in self.pools and not self.pools[db_name]._closed:
             status = {
                 'connected': True,
                 'db_name': db_name,
-                'last_connected': self.pool_times.get(db_name)
+                'last_connected': pool_time,
+                'connection_time': pool_time,  # Backward compatibility
+                'last_attempt': pool_time  # Backward compatibility
             }
         else:
             status = {
                 'connected': False,
                 'db_name': db_name,
-                'last_connected': self.pool_times.get(db_name)
+                'last_connected': pool_time,
+                'connection_time': pool_time,  # Backward compatibility
+                'last_attempt': pool_time  # Backward compatibility
             }
         return status
+
+    def get_connection_status(self, db_name=None):
+        return self.get_pool_status(db_name)
 
 # Initialize global MySQL handler
 mysql_handler = MySQLHandler()
