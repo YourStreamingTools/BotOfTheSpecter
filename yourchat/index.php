@@ -119,6 +119,46 @@ if (isset($_GET['action']) && $_GET['action'] === 'load_settings') {
     exit;
 }
 
+// Handle raw chat log
+if (isset($_GET['action']) && $_GET['action'] === 'log_raw_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $logsDir = __DIR__ . '/chat-logs';
+    $logFile = $logsDir . '/' . $userId . '_raw_chat.log';
+    // Create directory if it doesn't exist
+    if (!is_dir($logsDir)) {
+        if (!mkdir($logsDir, 0755, true)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to create logs directory']);
+            exit;
+        }
+    }
+    // Get JSON data from request body
+    $jsonData = file_get_contents('php://input');
+    if (empty($jsonData)) {
+        echo json_encode(['success' => false, 'error' => 'No data received']);
+        exit;
+    }
+    // Validate JSON
+    $data = json_decode($jsonData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(['success' => false, 'error' => 'Invalid JSON: ' . json_last_error_msg()]);
+        exit;
+    }
+    // Append to log file with timestamp
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "[{$timestamp}] " . json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n" . str_repeat('-', 80) . "\n";
+    if (file_put_contents($logFile, $logEntry, FILE_APPEND | LOCK_EX) === false) {
+        echo json_encode(['success' => false, 'error' => 'Failed to write to log file']);
+        exit;
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
 // Handle settings save
 if (isset($_GET['action']) && $_GET['action'] === 'save_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -1500,8 +1540,24 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     updateStatus(false, 'Subscription Failed');
                 }
             }
+            // Log raw chat event data to server for debugging
+            async function logRawChatData(event) {
+                try {
+                    await fetch('?action=log_raw_chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(event)
+                    });
+                } catch (error) {
+                    // Silent - log only on server
+                }
+            }
             // Chat message handling
             function handleChatMessage(event) {
+                // Log raw event data for debugging streaks and other features
+                logRawChatData(event);
                 // Check if message should be filtered
                 if (isMessageFiltered(event)) {
                     return;
