@@ -11,6 +11,8 @@ trigger: always_on
 - **Read Before Write**: Always read a file before modifying it.
 - **Import Safety**: Check existing imports before adding new ones to avoid duplicates.
 - **Thinking**: Always think before answering.
+- **No Extra Spaces**: Avoid unnecessary blank lines and extra spacing in code. Keep code compact and clean.
+- **No Function Docstrings**: Do NOT add docstrings or multi-line comments to functions. Code should be self-explanatory through clear naming and structure.
 
 ## 🚀 Deployment & Workflow
 
