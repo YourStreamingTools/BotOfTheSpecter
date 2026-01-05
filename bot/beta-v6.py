@@ -22,7 +22,7 @@ from aiohttp import ClientSession as httpClientSession
 from aiohttp import ClientError as aiohttpClientError
 from aiohttp import ClientTimeout
 from socketio import AsyncClient
-from aiomysql import connect as sql_connect
+from aiomysql import connect as sql_connect, create_pool
 from aiomysql import IntegrityError as MySQLIntegrityError
 from socketio.exceptions import ConnectionError as ConnectionExecptionError
 from aiomysql import DictCursor, MySQLError
@@ -206,6 +206,7 @@ streamlabs_token = None                                 # StreamLabs access toke
 ad_settings_cache = None                                # Global cache for ad settings
 ad_settings_cache_time = 0                              # Last time the ad settings were cached
 CACHE_DURATION = 60                                     # 1 minute (matches ad check interval)
+ad_upcoming_notified = False                            # Flag to prevent duplicate ad upcoming notifications
 
 SPOTIFY_ERROR_MESSAGES = {
     400: "It looks like something went wrong with the request. Please try again.",
@@ -282,62 +283,136 @@ async def async_signal_cleanup():
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C as well
 
-# MySQL Connection Handler Class
+# MySQL Connection Wrapper Class - Must be defined BEFORE MySQLHandler
+class PoolConnectionWrapper:
+    def __init__(self, connection, pool):
+        self._connection = connection
+        self._pool = pool
+    
+    def cursor(self, *args, **kwargs):
+        return self._connection.cursor(*args, **kwargs)
+    
+    async def commit(self):
+        if self._connection:
+            await self._connection.commit()
+    
+    async def rollback(self):
+        if self._connection:
+            await self._connection.rollback()
+    
+    def __del__(self):
+        if self._connection:
+            # Schedule the release for the next event loop iteration
+            try:
+                loop = get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._pool.release(self._connection))
+            except:
+                pass  # If event loop is closed, pool cleanup will handle it
+
+# MySQL Connection Handler Class with Connection Pooling
 class MySQLHandler:
     def __init__(self):
-        self.connections = {}
-        self.connection_times = {}  # Track when each connection was established
-        self.last_connection_attempt = {}  # Track last connection attempt time
+        self.pools = {}
+        self.pool_times = {}  # Track when each pool was created
 
     async def get_connection(self, db_name=None):
         global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
         if db_name is None:
             db_name = CHANNEL_NAME
-        # Check if connection exists and is still valid
-        if db_name in self.connections:
+        # Get or create pool for this database
+        pool = await self._get_or_create_pool(db_name)
+        # Acquire connection from pool with health check
+        connection = await pool.acquire()
+        try:
+            # Test connection is alive
+            async with connection.cursor() as test_cursor:
+                await test_cursor.execute("SELECT 1")
+        except (MySQLError, MySQLOtherErrors):
+            # Connection is dead, release it and get a new one
+            await pool.release(connection)
+            connection = await pool.acquire()
+        # Return a wrapper with pre-acquired connection
+        return PoolConnectionWrapper(connection, pool)
+
+    async def _get_or_create_pool(self, db_name):
+        global SQL_HOST, SQL_USER, SQL_PASSWORD
+        # Return existing pool if available
+        if db_name in self.pools:
+            pool = self.pools[db_name]
+            # Check if pool is still healthy
+            if not pool._closed:
+                return pool
+            else:
+                # Pool was closed, remove it
+                del self.pools[db_name]
+                if db_name in self.pool_times:
+                    del self.pool_times[db_name]
+        # Create new pool with retry logic
+        max_retries = 3
+        retry_delay = 1  # Start with 1 second
+        for attempt in range(max_retries):
             try:
-                # Test if connection is still alive
-                async with self.connections[db_name].cursor() as cursor:
-                    await cursor.execute("SELECT 1")
-                return self.connections[db_name]
-            except:
-                # Connection is dead, remove it
-                try:
-                    self.connections[db_name].close()
-                except:
-                    pass
-                del self.connections[db_name]
-        # Create new connection
-        self.connections[db_name] = await sql_connect(
-            host=SQL_HOST,
-            user=SQL_USER,
-            password=SQL_PASSWORD,
-            db=db_name
-        )
-        self.connection_times[db_name] = time.time()  # Track connection time
-        self.last_connection_attempt[db_name] = time.time()
-        return self.connections[db_name]
+                pool = await create_pool(
+                    host=SQL_HOST,
+                    user=SQL_USER,
+                    password=SQL_PASSWORD,
+                    db=db_name,
+                    minsize=1,
+                    maxsize=10,
+                    pool_recycle=18000,  # 5 hours in seconds
+                    connect_timeout=10,
+                    autocommit=False
+                )
+                # Store pool and creation time
+                self.pools[db_name] = pool
+                self.pool_times[db_name] = time.time()
+                bot_logger.info(f"Created connection pool for database: {db_name}")
+                return pool
+            except (MySQLError, MySQLOtherErrors) as e:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                    bot_logger.warning(f"Failed to create pool for {db_name} (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
+                    await sleep(wait_time)
+                else:
+                    bot_logger.error(f"Failed to create connection pool for {db_name} after {max_retries} attempts: {e}")
+                    raise
 
     async def close_all(self):
-        for connection in self.connections.values():
+        for db_name, pool in list(self.pools.items()):
             try:
-                connection.close()
-            except:
-                pass
-        self.connections.clear()
-        self.connection_times.clear()
-        self.last_connection_attempt.clear()
+                pool.close()
+                await pool.wait_closed()
+                bot_logger.info(f"Closed connection pool for database: {db_name}")
+            except Exception as e:
+                bot_logger.error(f"Error closing pool for {db_name}: {e}")
+        self.pools.clear()
+        self.pool_times.clear()
 
-    def get_connection_status(self, db_name=None):
+    def get_pool_status(self, db_name=None):
         if db_name is None:
             db_name = CHANNEL_NAME
-        status = {
-            'connected': db_name in self.connections,
-            'db_name': db_name,
-            'connection_time': self.connection_times.get(db_name),
-            'last_attempt': self.last_connection_attempt.get(db_name)
-        }
+        pool_time = self.pool_times.get(db_name)
+        if db_name in self.pools and not self.pools[db_name]._closed:
+            status = {
+                'connected': True,
+                'db_name': db_name,
+                'last_connected': pool_time,
+                'connection_time': pool_time,  # Backward compatibility
+                'last_attempt': pool_time  # Backward compatibility
+            }
+        else:
+            status = {
+                'connected': False,
+                'db_name': db_name,
+                'last_connected': pool_time,
+                'connection_time': pool_time,  # Backward compatibility
+                'last_attempt': pool_time  # Backward compatibility
+            }
         return status
+
+    def get_connection_status(self, db_name=None):
+        return self.get_pool_status(db_name)
 
 # Initialize global MySQL handler
 mysql_handler = MySQLHandler()
@@ -509,9 +584,7 @@ async def subscribe_to_events(session_id):
         # v1 topics
         {"type": "stream.online", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "stream.offline", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
-        {"type": "channel.subscribe", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
-        {"type": "channel.subscription.gift", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
-        {"type": "channel.subscription.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.chat.notification", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         {"type": "channel.bits.use", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.raid", "version": "1", "condition": {"to_broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.ad_break.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
@@ -882,38 +955,140 @@ async def process_twitch_eventsub_message(message):
                         event_data["user_id"],
                         event_data["user_name"]
                     ))
-                # Subscription Event
-                elif event_type == "channel.subscribe":
-                    tier = event_data["tier"]
-                    tier_name = tier_mapping.get(tier, tier)
-                    create_task(process_subscription_event(
-                        event_data["user_id"],
-                        event_data["user_name"],
-                        tier_name,
-                        event_data.get("cumulative_months", 1)
-                    ))
-                # Subscription Message Event
-                elif event_type == "channel.subscription.message":
-                    tier = event_data["tier"]
-                    tier_name = tier_mapping.get(tier, tier)
-                    subscription_message = event_data.get("message", {}).get("text", "")
-                    create_task(process_subscription_message_event(
-                        event_data["user_id"],
-                        event_data["user_name"],
-                        tier_name,
-                        event_data.get("cumulative_months", 1)
-                    ))
-                # Subscription Gift Event
-                elif event_type == "channel.subscription.gift":
-                    tier = event_data["tier"]
-                    tier_name = tier_mapping.get(tier, tier)
-                    create_task(process_giftsub_event(
-                        event_data["user_name"],
-                        tier_name,
-                        event_data["total"],
-                        event_data.get("is_anonymous", False),
-                        event_data.get("cumulative_total")
-                    ))
+                # Chat Notification Event (handles sub, resub, sub_gift, etc.)
+                elif event_type == "channel.chat.notification":
+                    notice_type = event_data.get("notice_type")
+                    if notice_type == "sub":
+                        sub_data = event_data.get("sub", {})
+                        tier = sub_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        create_task(process_subscription_event(
+                            event_data["chatter_user_id"],
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1  # New sub is always month 1
+                        ))
+                    elif notice_type == "resub":
+                        resub_data = event_data.get("resub", {})
+                        tier = resub_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        cumulative_months = resub_data.get("cumulative_months", 1)
+                        subscription_message = resub_data.get("sub_message", {}).get("text", "")
+                        if subscription_message:
+                            create_task(process_subscription_message_event(
+                                event_data["chatter_user_id"],
+                                event_data["chatter_user_name"],
+                                tier_name,
+                                cumulative_months
+                            ))
+                        else:
+                            create_task(process_subscription_event(
+                                event_data["chatter_user_id"],
+                                event_data["chatter_user_name"],
+                                tier_name,
+                                cumulative_months
+                            ))
+                    elif notice_type == "sub_gift":
+                        sub_gift_data = event_data.get("sub_gift", {})
+                        tier = sub_gift_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        create_task(process_giftsub_event(
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1,  # Single gift
+                            event_data.get("chatter_is_anonymous", False),
+                            sub_gift_data.get("cumulative_total")
+                        ))
+                    elif notice_type == "community_sub_gift":
+                        community_gift_data = event_data.get("community_sub_gift", {})
+                        tier = community_gift_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        create_task(process_giftsub_event(
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            community_gift_data.get("count", 0),
+                            event_data.get("chatter_is_anonymous", False),
+                            community_gift_data.get("cumulative_total")
+                        ))
+                    elif notice_type == "pay_it_forward":
+                        pay_it_forward_data = event_data.get("pay_it_forward", {})
+                        tier = pay_it_forward_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        gifter_user_name = pay_it_forward_data.get("gifter_user_name")
+                        # Fetch pay it forward message from database
+                        await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("pay_it_forward",))
+                        result = await cursor.fetchone()
+                        if result and result.get("alert_message"):
+                            pif_message = result.get("alert_message")
+                        else:
+                            if gifter_user_name:
+                                pif_message = "Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!"
+                            else:
+                                pif_message = "Thank you (user) for paying it forward with a (tier) subscription!"
+                        # Replace placeholders
+                        pif_message = pif_message.replace("(user)", event_data['chatter_user_name'])
+                        pif_message = pif_message.replace("(tier)", tier_name)
+                        if gifter_user_name:
+                            pif_message = pif_message.replace("(gifter)", gifter_user_name)
+                        await send_chat_message(pif_message)
+                        # Process the gift subscription (skip alert since we already sent custom message)
+                        create_task(process_giftsub_event(
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1,  # Pay it forward is a single gift
+                            event_data.get("chatter_is_anonymous", False),
+                            None,
+                            skip_alert=True  # Skip duplicate alert
+                        ))
+                        event_logger.info(f"Pay it forward: {event_data['chatter_user_name']} paid forward a {tier_name} subscription (received from {gifter_user_name})")
+                    elif notice_type == "gift_paid_upgrade":
+                        gift_paid_upgrade_data = event_data.get("gift_paid_upgrade", {})
+                        tier = gift_paid_upgrade_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        # Fetch upgrade message from database
+                        await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("gift_paid_upgrade",))
+                        result = await cursor.fetchone()
+                        if result and result.get("alert_message"):
+                            upgrade_message = result.get("alert_message")
+                        else:
+                            upgrade_message = "Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!"
+                        # Replace placeholders
+                        upgrade_message = upgrade_message.replace("(user)", event_data['chatter_user_name'])
+                        upgrade_message = upgrade_message.replace("(tier)", tier_name)
+                        await send_chat_message(upgrade_message)
+                        # Process the subscription data
+                        create_task(process_subscription_event(
+                            event_data["chatter_user_id"],
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1,  # Gift paid upgrade starts their own subscription at month 1
+                            is_upgrade=True  # Skip sending duplicate subscription alert
+                        ))
+                        event_logger.info(f"Gift paid upgrade: {event_data['chatter_user_name']} upgraded from Gifted Sub to paid {tier_name} subscription")
+                    elif notice_type == "prime_paid_upgrade":
+                        prime_paid_upgrade_data = event_data.get("prime_paid_upgrade", {})
+                        tier = prime_paid_upgrade_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        # Fetch upgrade message from database
+                        await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("prime_paid_upgrade",))
+                        result = await cursor.fetchone()
+                        if result and result.get("alert_message"):
+                            upgrade_message = result.get("alert_message")
+                        else:
+                            upgrade_message = "Thank you (user) for upgrading from Prime Gaming to a paid (tier) subscription!"
+                        # Replace placeholders
+                        upgrade_message = upgrade_message.replace("(user)", event_data['chatter_user_name'])
+                        upgrade_message = upgrade_message.replace("(tier)", tier_name)
+                        await send_chat_message(upgrade_message)
+                        # Process the subscription data
+                        create_task(process_subscription_event(
+                            event_data["chatter_user_id"],
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1,  # Prime paid upgrade starts their own subscription at month 1
+                            is_upgrade=True  # Skip sending duplicate subscription alert
+                        ))
+                        event_logger.info(f"Prime paid upgrade: {event_data['chatter_user_name']} upgraded from Prime Gaming to paid {tier_name} subscription")
                 # Cheer Event
                 elif event_type == "channel.bits.use":
                     create_task(process_cheer_event(
@@ -8874,7 +9049,7 @@ async def process_cheer_event(user_id, user_name, bits):
         pass
 
 # Function for Subscriptions
-async def process_subscription_event(user_id, user_name, sub_plan, event_months):
+async def process_subscription_event(user_id, user_name, sub_plan, event_months, is_upgrade=False):
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8928,21 +9103,22 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 else:
                     sub_add_time = 0  # Default to 0 if no matching tier
                 await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
-            # Send notification messages
-            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
-            result = await cursor.fetchone()
-            if result and result.get("alert_message"):
-                alert_message = result.get("alert_message")
-            else:
-                alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
-            # Check if shoutout trigger is in the message
-            send_shoutout = False
-            shoutout_message = None
-            if "(shoutout)" in alert_message:
-                send_shoutout = True
-                alert_message = alert_message.replace("(shoutout)", "")
-                shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
-            alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
+            # Send notification messages (skip for upgrades since they send their own message)
+            if not is_upgrade:
+                await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
+                result = await cursor.fetchone()
+                if result and result.get("alert_message"):
+                    alert_message = result.get("alert_message")
+                else:
+                    alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
+                # Check if shoutout trigger is in the message
+                send_shoutout = False
+                shoutout_message = None
+                if "(shoutout)" in alert_message:
+                    send_shoutout = True
+                    alert_message = alert_message.replace("(shoutout)", "")
+                    shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
+                alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -8973,7 +9149,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
         pass
 
 # Function for Resubscriptions with Messages
-async def process_subscription_message_event(user_id, user_name, sub_plan, event_months):
+async def process_subscription_message_event(user_id, user_name, sub_plan, event_months, is_upgrade=False):
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9027,21 +9203,22 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 else:
                     sub_add_time = 0  # Default to 0 if no matching tier
                 await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
-            # Send notification messages
-            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
-            result = await cursor.fetchone()
-            if result and result.get("alert_message"):
-                alert_message = result.get("alert_message")
-            else:
-                alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
-            # Check if shoutout trigger is in the message
-            send_shoutout = False
-            shoutout_message = None
-            if "(shoutout)" in alert_message:
-                send_shoutout = True
-                alert_message = alert_message.replace("(shoutout)", "")
-                shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
-            alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
+            # Send notification messages (skip for upgrades since they send their own message)
+            if not is_upgrade:
+                await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
+                result = await cursor.fetchone()
+                if result and result.get("alert_message"):
+                    alert_message = result.get("alert_message")
+                else:
+                    alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
+                # Check if shoutout trigger is in the message
+                send_shoutout = False
+                shoutout_message = None
+                if "(shoutout)" in alert_message:
+                    send_shoutout = True
+                    alert_message = alert_message.replace("(shoutout)", "")
+                    shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
+                alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -9072,34 +9249,36 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
         pass
 
 # Function for Gift Subscriptions
-async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted):
+async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted, skip_alert=False):
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (gifter_user_name, "Gift Subscriptions", f"{number_gifts} - GIFT SUBSCRIPTIONS"))
             await connection.commit()
-            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("gift_subscription_alert",))
-            result = await cursor.fetchone()
-            if result and result.get("alert_message"):
-                alert_message = result.get("alert_message")
-            else:
-                alert_message = "Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!"
-            if anonymous:
-                giftsubfrom = "Anonymous"
-            else:
-                giftsubfrom = gifter_user_name
-            alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
-            await send_chat_message(alert_message)
-            marker_description = f"New Gift Subs from {giftsubfrom}"
-            if await make_stream_marker(marker_description):
-                twitch_logger.info(f"A stream marker was created: {marker_description}.")
-            else:
-                twitch_logger.info("Failed to create a stream marker.")
-            await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Gift Subscription",))
-            result = await cursor.fetchone()
-            if result and result.get("sound_mapping"):
-                sound_file = "twitch/" + result.get("sound_mapping")
-                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+            # Skip alert message for special cases like pay_it_forward (which sends its own message)
+            if not skip_alert:
+                await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("gift_subscription_alert",))
+                result = await cursor.fetchone()
+                if result and result.get("alert_message"):
+                    alert_message = result.get("alert_message")
+                else:
+                    alert_message = "Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!"
+                if anonymous:
+                    giftsubfrom = "Anonymous"
+                else:
+                    giftsubfrom = gifter_user_name
+                alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
+                await send_chat_message(alert_message)
+                marker_description = f"New Gift Subs from {giftsubfrom}"
+                if await make_stream_marker(marker_description):
+                    twitch_logger.info(f"A stream marker was created: {marker_description}.")
+                else:
+                    twitch_logger.info("Failed to create a stream marker.")
+                await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Gift Subscription",))
+                result = await cursor.fetchone()
+                if result and result.get("sound_mapping"):
+                    sound_file = "twitch/" + result.get("sound_mapping")
+                    create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         pass
 
@@ -9683,6 +9862,7 @@ async def process_channel_point_rewards(event_data, event_type):
 async def channel_point_rewards():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     # Check the broadcaster's type
+    rewards_processed = 0
     user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
     headers = {"Client-Id": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}"}
     try:
@@ -9708,6 +9888,7 @@ async def channel_point_rewards():
                         data = await response.json()
                         rewards = data.get("data", [])
                         for reward in rewards:
+                            rewards_processed += 1
                             reward_id = reward.get("id")
                             reward_title = reward.get("title")
                             reward_cost = reward.get("cost")
@@ -9718,8 +9899,7 @@ async def channel_point_rewards():
                                 "ON DUPLICATE KEY UPDATE reward_title = new.reward_title, reward_cost = new.reward_cost",
                                 (reward_id, reward_title, reward_cost)
                             )
-                            api_logger.info(f"Processed reward: {reward_id}, {reward_title}, {reward_cost}")
-                        api_logger.info("Rewards processed successfully.")
+                        api_logger.info(f"Rewards processed successfully. {rewards_processed} rewards processed.")
                     else:
                         api_logger.error(f"Failed to fetch rewards: {response.status} {response.reason}")
         if connection:
