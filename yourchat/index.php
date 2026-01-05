@@ -335,6 +335,23 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let badgeCache = {}; // Cache for badge URLs
             // Recent redemptions cache to deduplicate matching chat messages
             let recentRedemptions = [];
+            // Recent chat messages cache for bidirectional deduplication
+            let recentChatMessages = [];
+            function addRecentChatMessage(user_login, user_name, user_id, text) {
+                const entry = {
+                    user_login: user_login ? String(user_login).toLowerCase() : null,
+                    user_name: user_name ? String(user_name).toLowerCase() : null,
+                    user_id: user_id ? String(user_id) : null,
+                    text: text ? String(text).trim() : '',
+                    ts: Date.now()
+                };
+                console.log('Added chat message to cache:', entry);
+                recentChatMessages.push(entry);
+                // Trim entries older than 10s
+                const cutoff = Date.now() - 10000;
+                recentChatMessages = recentChatMessages.filter(e => e.ts >= cutoff);
+                console.log('Recent chat messages cache now has', recentChatMessages.length, 'entries');
+            }
             function addRecentRedemption(user_login, user_name, user_id, text) {
                 const entry = {
                     user_login: user_login ? String(user_login).toLowerCase() : null,
@@ -376,6 +393,34 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     }
                 }
                 console.log('No matching redemption found');
+                return false;
+            }
+            function consumeMatchingChatMessage(user_login, user_name, user_id, text) {
+                if (!text) return false;
+                const t = String(text).trim();
+                const login = user_login ? String(user_login).toLowerCase() : null;
+                const name = user_name ? String(user_name).toLowerCase() : null;
+                const id = user_id ? String(user_id) : null;
+                const now = Date.now();
+                console.log('Looking for matching chat message:', {login, name, id, text: t, cacheSize: recentChatMessages.length});
+                // Consider matches within last 5 seconds
+                for (let i = 0; i < recentChatMessages.length; i++) {
+                    const e = recentChatMessages[i];
+                    if (now - e.ts > 5000) continue;
+                    console.log('Checking chat message against:', e, 'age:', (now - e.ts) + 'ms');
+                    // Match if text is identical AND any of: login, name, or id matches
+                    if (e.text === t && (
+                        (login && e.user_login === login) || 
+                        (name && e.user_name === name) ||
+                        (id && e.user_id === id)
+                    )) {
+                        // remove this entry and return true
+                        console.log('FOUND MATCHING CHAT MESSAGE! Redemption is duplicate, will not show');
+                        recentChatMessages.splice(i, 1);
+                        return true;
+                    }
+                }
+                console.log('No matching chat message found');
                 return false;
             }
             // Presence settings (API-only)
@@ -1484,6 +1529,17 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 } catch (e) {
                     console.error('Error checking recent redemptions cache', e);
                 }
+                // Cache this chat message for bidirectional deduplication (in case redemption arrives after)
+                try {
+                    addRecentChatMessage(
+                        event.chatter_user_login || null,
+                        event.chatter_user_name || event.chatter_user_display_name || null,
+                        event.chatter_user_id || null,
+                        chatTextForMatch
+                    );
+                } catch (e) {
+                    console.error('Error caching chat message', e);
+                }
                 const overlay = document.getElementById('chat-overlay');
                 // Clear placeholder text
                 if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
@@ -1655,6 +1711,27 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         messageHtml = escapeHtml(event.message.text);
                     }
                 }
+                // Check if there's a recent chat message that matches this redemption (bidirectional deduplication)
+                try {
+                    if (consumeMatchingChatMessage(
+                        event.user_login || null,
+                        event.user_name || null,
+                        event.user_id || null,
+                        redemptionText
+                    )) {
+                        console.log('Suppressed redemption because matching chat message was already shown:', redemptionText);
+                        // Don't show the redemption, just cache it in case another chat message arrives
+                        addRecentRedemption(
+                            event.user_login || null,
+                            event.user_name || null,
+                            event.user_id || null,
+                            redemptionText
+                        );
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Error checking for matching chat message', e);
+                }
                 // Record this redemption so a near-simultaneous chat message from the same user with the same text can be ignored
                 try {
                     addRecentRedemption(
@@ -1701,8 +1778,29 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 } else if (event.reward && event.reward.default_image && event.reward.default_image.url_1x) {
                     imageHtml = `<img src="${event.reward.default_image.url_1x}" class="reward-image" alt="${escapeHtml(event.reward.title)}">`;
                 }
-                // Record this redemption in cache so matching chat messages can be suppressed
+                // Check if there's a recent chat message that matches this redemption (bidirectional deduplication)
                 const redemptionText = extractTextFromEvent(event) || (event.user_input ? String(event.user_input).trim() : '');
+                try {
+                    if (consumeMatchingChatMessage(
+                        event.user_login || null,
+                        event.user_name || null,
+                        event.user_id || null,
+                        redemptionText
+                    )) {
+                        console.log('Suppressed custom redemption because matching chat message was already shown:', redemptionText);
+                        // Don't show the redemption, just cache it in case another chat message arrives
+                        addRecentRedemption(
+                            event.user_login || null,
+                            event.user_name || null,
+                            event.user_id || null,
+                            redemptionText
+                        );
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Error checking for matching chat message', e);
+                }
+                // Record this redemption in cache so matching chat messages can be suppressed
                 try {
                     addRecentRedemption(
                         event.user_login || null, 
