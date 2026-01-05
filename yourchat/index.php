@@ -335,10 +335,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let badgeCache = {}; // Cache for badge URLs
             // Recent redemptions cache to deduplicate matching chat messages
             let recentRedemptions = [];
-            function addRecentRedemption(user_login, user_name, text) {
+            function addRecentRedemption(user_login, user_name, user_id, text) {
                 const entry = {
                     user_login: user_login ? String(user_login).toLowerCase() : null,
                     user_name: user_name ? String(user_name).toLowerCase() : null,
+                    user_id: user_id ? String(user_id) : null,
                     text: text ? String(text).trim() : '',
                     ts: Date.now()
                 };
@@ -349,19 +350,25 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 recentRedemptions = recentRedemptions.filter(e => e.ts >= cutoff);
                 console.log('Recent redemptions cache now has', recentRedemptions.length, 'entries');
             }
-            function consumeMatchingRedemption(chatter_login, chatter_name, text) {
+            function consumeMatchingRedemption(chatter_login, chatter_name, chatter_id, text) {
                 if (!text) return false;
                 const t = String(text).trim();
                 const login = chatter_login ? String(chatter_login).toLowerCase() : null;
                 const name = chatter_name ? String(chatter_name).toLowerCase() : null;
+                const id = chatter_id ? String(chatter_id) : null;
                 const now = Date.now();
-                console.log('Looking for matching redemption:', {login, name, text: t, cacheSize: recentRedemptions.length});
+                console.log('Looking for matching redemption:', {login, name, id, text: t, cacheSize: recentRedemptions.length});
                 // Consider matches within last 5 seconds
                 for (let i = 0; i < recentRedemptions.length; i++) {
                     const e = recentRedemptions[i];
                     if (now - e.ts > 5000) continue;
                     console.log('Checking against:', e, 'age:', (now - e.ts) + 'ms');
-                    if (e.text === t && ((login && e.user_login === login) || (name && e.user_name === name))) {
+                    // Match if text is identical AND any of: login, name, or id matches
+                    if (e.text === t && (
+                        (login && e.user_login === login) || 
+                        (name && e.user_name === name) ||
+                        (id && e.user_id === id)
+                    )) {
                         // remove this entry and return true
                         console.log('FOUND MATCH! Consuming redemption and suppressing chat message');
                         recentRedemptions.splice(i, 1);
@@ -1465,7 +1472,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 // Deduplicate: if a recent redemption from same user with identical text exists, skip showing this chat message
                 const chatTextForMatch = extractTextFromEvent(event) || (event.message && event.message.text) || '';
                 try {
-                    if (consumeMatchingRedemption(event.chatter_user_login || event.chatter_user_id || null, event.chatter_user_name || event.chatter_user_display_name || null, chatTextForMatch)) {
+                    if (consumeMatchingRedemption(
+                        event.chatter_user_login || null, 
+                        event.chatter_user_name || event.chatter_user_display_name || null, 
+                        event.chatter_user_id || null,
+                        chatTextForMatch
+                    )) {
                         console.log('Suppressed chat message because a matching recent redemption was recorded:', chatTextForMatch);
                         return;
                     }
@@ -1645,7 +1657,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
                 // Record this redemption so a near-simultaneous chat message from the same user with the same text can be ignored
                 try {
-                    addRecentRedemption(event.user_login || event.user_id || null, event.user_name || null, redemptionText);
+                    addRecentRedemption(
+                        event.user_login || null, 
+                        event.user_name || null, 
+                        event.user_id || null,
+                        redemptionText
+                    );
                 } catch (e) {
                     console.error('Error adding redemption to cache', e);
                 }
@@ -1687,7 +1704,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 // Record this redemption in cache so matching chat messages can be suppressed
                 const redemptionText = extractTextFromEvent(event) || (event.user_input ? String(event.user_input).trim() : '');
                 try {
-                    addRecentRedemption(event.user_login || event.user_id || null, event.user_name || null, redemptionText);
+                    addRecentRedemption(
+                        event.user_login || null, 
+                        event.user_name || null, 
+                        event.user_id || null,
+                        redemptionText
+                    );
                 } catch (e) {
                     console.error('Error adding custom redemption to cache', e);
                 }
