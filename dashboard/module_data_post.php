@@ -74,27 +74,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 new_default_vip_welcome_message = ?,
                 new_default_mod_welcome_message = ?";
         $update_stmt = $db->prepare($update_sql);
-        $update_stmt->bind_param('issssssissssss', 
-            $send_welcome_messages, 
-            $default_welcome_message, 
-            $default_vip_welcome_message, 
-            $default_mod_welcome_message, 
-            $new_default_welcome_message, 
-            $new_default_vip_welcome_message, 
+        $update_stmt->bind_param(
+            'issssssissssss',
+            $send_welcome_messages,
+            $default_welcome_message,
+            $default_vip_welcome_message,
+            $default_mod_welcome_message,
+            $new_default_welcome_message,
+            $new_default_vip_welcome_message,
             $new_default_mod_welcome_message,
-            $send_welcome_messages, 
-            $default_welcome_message, 
-            $default_vip_welcome_message, 
-            $default_mod_welcome_message, 
-            $new_default_welcome_message, 
-            $new_default_vip_welcome_message, 
+            $send_welcome_messages,
+            $default_welcome_message,
+            $default_vip_welcome_message,
+            $default_mod_welcome_message,
+            $new_default_welcome_message,
+            $new_default_vip_welcome_message,
             $new_default_mod_welcome_message
         );
         $update_stmt->execute();
         $update_stmt->close();
         // Set success message for welcome messages update in session
         $_SESSION['update_message'] = "Welcome message settings updated successfully.";
-    }    
+    }
     // Handle channel point reward mapping for twitch sound alerts
     elseif (isset($_POST['sound_file']) && isset($_POST['twitch_alert_id'])) {
         $activeTab = "twitch-audio-alerts";
@@ -113,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = ? WHERE sound_mapping = ?");
                 $updateMapping->bind_param('ss', $rewardId, $soundFile);
                 if (!$updateMapping->execute()) {
-                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>"; 
+                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>";
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
                 }
@@ -122,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $deleteMapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
                 $deleteMapping->bind_param('s', $soundFile);
                 if (!$deleteMapping->execute()) {
-                    $status .= "Failed to remove mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>"; 
+                    $status .= "Failed to remove mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>";
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been removed.<br>";
                 }
@@ -133,13 +134,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (?, ?)");
                 $insertMapping->bind_param('ss', $soundFile, $rewardId);
                 if (!$insertMapping->execute()) {
-                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>"; 
+                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>";
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
                 }
-            } 
+            }
         }
-        
         // Commit transaction
         $db->commit();
         $_SESSION['update_message'] = $status;
@@ -152,28 +152,44 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $ad_end_message = $_POST['ad_end_message'];
         $ad_snoozed_message = $_POST['ad_snoozed_message'];
         $enable_ad_notice = isset($_POST['enable_ad_notice']) ? 1 : 0;
+        $enable_upcoming_ad_message = isset($_POST['enable_upcoming_ad_message']) ? 1 : 0;
+        $enable_start_ad_message = isset($_POST['enable_start_ad_message']) ? 1 : 0;
+        $enable_end_ad_message = isset($_POST['enable_end_ad_message']) ? 1 : 0;
+        $enable_snoozed_ad_message = isset($_POST['enable_snoozed_ad_message']) ? 1 : 0;
         $update_sql = "INSERT INTO ad_notice_settings 
-            (id, ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice)
-            VALUES (1, ?, ?, ?, ?, ?)
+            (id, ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
                 ad_upcoming_message = ?,
                 ad_start_message = ?,
                 ad_end_message = ?,
                 ad_snoozed_message = ?,
-                enable_ad_notice = ?";
-                
+                enable_ad_notice = ?,
+                enable_upcoming_ad_message = ?,
+                enable_start_ad_message = ?,
+                enable_end_ad_message = ?,
+                enable_snoozed_ad_message = ?";
         $update_stmt = $db->prepare($update_sql);
-        $update_stmt->bind_param('ssssissssi', 
-            $ad_upcoming_message, 
-            $ad_start_message, 
-            $ad_end_message, 
+        $update_stmt->bind_param(
+            'ssssgiiiissssiiiii',
+            $ad_upcoming_message,
+            $ad_start_message,
+            $ad_end_message,
             $ad_snoozed_message,
             $enable_ad_notice,
-            $ad_upcoming_message, 
-            $ad_start_message, 
-            $ad_end_message, 
+            $enable_upcoming_ad_message,
+            $enable_start_ad_message,
+            $enable_end_ad_message,
+            $enable_snoozed_ad_message,
+            $ad_upcoming_message,
+            $ad_start_message,
+            $ad_end_message,
             $ad_snoozed_message,
-            $enable_ad_notice
+            $enable_ad_notice,
+            $enable_upcoming_ad_message,
+            $enable_start_ad_message,
+            $enable_end_ad_message,
+            $enable_snoozed_ad_message
         );
         $update_stmt->execute();
         $update_stmt->close();
@@ -190,8 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $insert_stmt->close();
             $_SESSION['update_message'] = "Game '" . htmlspecialchars($game_name) . "' added to ignored list.";
         }
-    }
-    elseif (isset($_POST['remove_ignored_game'])) {
+    } elseif (isset($_POST['remove_ignored_game'])) {
         $activeTab = "game-deaths";
         $game_name = $_POST['remove_ignored_game'];
         $delete_stmt = $db->prepare("DELETE FROM game_deaths_settings WHERE game_name = ?");
@@ -202,17 +217,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     // Handle chat alerts settings update
     elseif (
-            isset($_POST['follower_alert']) || isset($_POST['cheer_alert']) || isset($_POST['raid_alert']) || isset($_POST['subscription_alert'])
-            || isset($_POST['gift_subscription_alert']) || isset($_POST['hype_train_start']) || isset($_POST['hype_train_end'])
-        ) {
+        isset($_POST['follower_alert']) || isset($_POST['cheer_alert']) || isset($_POST['raid_alert']) || isset($_POST['subscription_alert'])
+        || isset($_POST['gift_subscription_alert']) || isset($_POST['hype_train_start']) || isset($_POST['hype_train_end'])
+    ) {
         $activeTab = "twitch-chat-alerts";
         $alertTypes = [
-            'follower_alert', 
-            'cheer_alert', 
-            'raid_alert', 
-            'subscription_alert', 
-            'gift_subscription_alert', 
-            'hype_train_start', 
+            'follower_alert',
+            'cheer_alert',
+            'raid_alert',
+            'subscription_alert',
+            'gift_subscription_alert',
+            'hype_train_start',
             'hype_train_end'
         ];
         foreach ($alertTypes as $alertType) {
@@ -239,11 +254,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!isset($max_storage_size)) {
             $tier = $_SESSION['tier'] ?? "None";
             switch ($tier) {
-                case "1000": $max_storage_size = 50 * 1024 * 1024; break;
-                case "2000": $max_storage_size = 100 * 1024 * 1024; break;
-                case "3000": $max_storage_size = 200 * 1024 * 1024; break;
-                case "4000": $max_storage_size = 500 * 1024 * 1024; break;
-                default: $max_storage_size = 20 * 1024 * 1024; break;
+                case "1000":
+                    $max_storage_size = 50 * 1024 * 1024;
+                    break;
+                case "2000":
+                    $max_storage_size = 100 * 1024 * 1024;
+                    break;
+                case "3000":
+                    $max_storage_size = 200 * 1024 * 1024;
+                    break;
+                case "4000":
+                    $max_storage_size = 500 * 1024 * 1024;
+                    break;
+                default:
+                    $max_storage_size = 20 * 1024 * 1024;
+                    break;
             }
         }
         // Recalculate current storage used to ensure accuracy
@@ -251,14 +276,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $videoalert_path = "/var/www/videoalerts/" . $username;
         $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path, $twitch_sound_alert_path]);
         foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
-            if (empty($tmp_name)) continue;
+            if (empty($tmp_name))
+                continue;
             $fileName = $_FILES["filesToUpload"]["name"][$key];
             $fileSize = $_FILES["filesToUpload"]["size"][$key];
             $fileError = $_FILES["filesToUpload"]["error"][$key];
             // Check file size with accurate storage used calculation
             if ($current_storage_used + $fileSize > $max_storage_size) {
-                $status .= "Failed to upload " . htmlspecialchars($fileName) . ". Storage limit exceeded. Using " . 
-                    round($current_storage_used / 1024 / 1024, 2) . "MB of " . 
+                $status .= "Failed to upload " . htmlspecialchars($fileName) . ". Storage limit exceeded. Using " .
+                    round($current_storage_used / 1024 / 1024, 2) . "MB of " .
                     round($max_storage_size / 1024 / 1024, 2) . "MB.<br>";
                 continue;
             }
@@ -297,9 +323,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
             header('Content-Type: application/json');
             $responseData = [
-                'status' => $status, 
-                'success' => strpos($status, 'Failed to upload') === false, 
-                'storage_used' => $current_storage_used, 
+                'status' => $status,
+                'success' => strpos($status, 'Failed to upload') === false,
+                'storage_used' => $current_storage_used,
                 'max_storage' => $max_storage_size,
                 'storage_percentage' => $storage_percentage,
                 'tier' => $_SESSION['tier'] ?? 'None'
@@ -336,7 +362,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $status .= "The file " . htmlspecialchars($file_name) . " has been deleted.<br>";
                     // Update storage used
                     $current_storage_used -= $fileSize;
-                    if ($current_storage_used < 0) $current_storage_used = 0;
+                    if ($current_storage_used < 0)
+                        $current_storage_used = 0;
                     $totalFreed += $fileSize;
                 } else {
                     $status .= "Failed to delete " . htmlspecialchars($file_name) . ".<br>";
@@ -361,15 +388,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $fieldsToUpdate = [];
         if ($section === 'general') {
-            if (isset($_POST['follower_alert'])) $fieldsToUpdate['follower_alert'] = $_POST['follower_alert'];
-            if (isset($_POST['cheer_alert'])) $fieldsToUpdate['cheer_alert'] = $_POST['cheer_alert'];
-            if (isset($_POST['raid_alert'])) $fieldsToUpdate['raid_alert'] = $_POST['raid_alert'];
+            if (isset($_POST['follower_alert']))
+                $fieldsToUpdate['follower_alert'] = $_POST['follower_alert'];
+            if (isset($_POST['cheer_alert']))
+                $fieldsToUpdate['cheer_alert'] = $_POST['cheer_alert'];
+            if (isset($_POST['raid_alert']))
+                $fieldsToUpdate['raid_alert'] = $_POST['raid_alert'];
         } elseif ($section === 'subscription') {
-            if (isset($_POST['subscription_alert'])) $fieldsToUpdate['subscription_alert'] = $_POST['subscription_alert'];
-            if (isset($_POST['gift_subscription_alert'])) $fieldsToUpdate['gift_subscription_alert'] = $_POST['gift_subscription_alert'];
+            if (isset($_POST['subscription_alert']))
+                $fieldsToUpdate['subscription_alert'] = $_POST['subscription_alert'];
+            if (isset($_POST['gift_subscription_alert']))
+                $fieldsToUpdate['gift_subscription_alert'] = $_POST['gift_subscription_alert'];
         } elseif ($section === 'hype-train') {
-            if (isset($_POST['hype_train_start'])) $fieldsToUpdate['hype_train_start'] = $_POST['hype_train_start'];
-            if (isset($_POST['hype_train_end'])) $fieldsToUpdate['hype_train_end'] = $_POST['hype_train_end'];
+            if (isset($_POST['hype_train_start']))
+                $fieldsToUpdate['hype_train_start'] = $_POST['hype_train_start'];
+            if (isset($_POST['hype_train_end']))
+                $fieldsToUpdate['hype_train_end'] = $_POST['hype_train_end'];
         } elseif ($section === 'regular-members') {
             // Handle regular members welcome messages
             $db_name_local = isset($_SESSION['username']) ? $_SESSION['username'] : null;
@@ -379,8 +413,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 exit();
             }
             $fieldsToUpdate = [];
-            if (isset($_POST['new_default_welcome_message'])) $fieldsToUpdate['new_default_welcome_message'] = $_POST['new_default_welcome_message'];
-            if (isset($_POST['default_welcome_message'])) $fieldsToUpdate['default_welcome_message'] = $_POST['default_welcome_message'];
+            if (isset($_POST['new_default_welcome_message']))
+                $fieldsToUpdate['new_default_welcome_message'] = $_POST['new_default_welcome_message'];
+            if (isset($_POST['default_welcome_message']))
+                $fieldsToUpdate['default_welcome_message'] = $_POST['default_welcome_message'];
             if (!empty($fieldsToUpdate)) {
                 $updateParts = [];
                 $params = [];
@@ -408,8 +444,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 exit();
             }
             $fieldsToUpdate = [];
-            if (isset($_POST['new_default_vip_welcome_message'])) $fieldsToUpdate['new_default_vip_welcome_message'] = $_POST['new_default_vip_welcome_message'];
-            if (isset($_POST['default_vip_welcome_message'])) $fieldsToUpdate['default_vip_welcome_message'] = $_POST['default_vip_welcome_message'];
+            if (isset($_POST['new_default_vip_welcome_message']))
+                $fieldsToUpdate['new_default_vip_welcome_message'] = $_POST['new_default_vip_welcome_message'];
+            if (isset($_POST['default_vip_welcome_message']))
+                $fieldsToUpdate['default_vip_welcome_message'] = $_POST['default_vip_welcome_message'];
             if (!empty($fieldsToUpdate)) {
                 $updateParts = [];
                 $params = [];
@@ -437,9 +475,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 exit();
             }
             $fieldsToUpdate = [];
-            if (isset($_POST['new_default_mod_welcome_message'])) $fieldsToUpdate['new_default_mod_welcome_message'] = $_POST['new_default_mod_welcome_message'];
-            if (isset($_POST['default_mod_welcome_message'])) $fieldsToUpdate['default_mod_welcome_message'] = $_POST['default_mod_welcome_message'];
-            if (isset($_POST['send_welcome_messages'])) $fieldsToUpdate['send_welcome_messages'] = $_POST['send_welcome_messages'];
+            if (isset($_POST['new_default_mod_welcome_message']))
+                $fieldsToUpdate['new_default_mod_welcome_message'] = $_POST['new_default_mod_welcome_message'];
+            if (isset($_POST['default_mod_welcome_message']))
+                $fieldsToUpdate['default_mod_welcome_message'] = $_POST['default_mod_welcome_message'];
+            if (isset($_POST['send_welcome_messages']))
+                $fieldsToUpdate['send_welcome_messages'] = $_POST['send_welcome_messages'];
             if (!empty($fieldsToUpdate)) {
                 $updateParts = [];
                 $params = [];
