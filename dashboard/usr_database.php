@@ -517,6 +517,20 @@ try {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE (username, task_id),
                 INDEX idx_username (username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'automated_shoutout_settings' => "
+            CREATE TABLE IF NOT EXISTS automated_shoutout_settings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                cooldown_minutes INT NOT NULL DEFAULT 60,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CHECK (cooldown_minutes >= 60)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'automated_shoutout_tracking' => "
+            CREATE TABLE IF NOT EXISTS automated_shoutout_tracking (
+                user_id VARCHAR(255) PRIMARY KEY,
+                user_name VARCHAR(255) NOT NULL,
+                shoutout_time DATETIME NOT NULL,
+                INDEX idx_shoutout_time (shoutout_time)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)
@@ -695,6 +709,10 @@ try {
     }
     if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default ad_notice_settings options ensured.');
+    }
+    // Ensure default options for automated shoutout settings
+    if ($usrDBconn->query("INSERT INTO automated_shoutout_settings (cooldown_minutes) SELECT 60 WHERE NOT EXISTS (SELECT 1 FROM automated_shoutout_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default automated_shoutout_settings options ensured.');
     }
     // Ensure default options for working_study_overlay_settings
     if ($usrDBconn->query("INSERT INTO working_study_overlay_settings (focus_minutes, micro_break_minutes, recharge_break_minutes) SELECT 60, 5, 30 WHERE NOT EXISTS (SELECT 1 FROM working_study_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {

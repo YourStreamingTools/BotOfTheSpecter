@@ -164,6 +164,24 @@ while ($stmt->fetch()) {
 }
 $stmt->close();
 
+// Load automated shoutout settings from the database
+$automated_shoutout_cooldown = 60; // Default
+$stmt = $db->prepare("SELECT cooldown_minutes FROM automated_shoutout_settings LIMIT 1");
+$stmt->execute();
+$stmt->bind_result($automated_shoutout_cooldown);
+$stmt->fetch();
+$stmt->close();
+
+// Load automated shoutout tracking from the database
+$automated_shoutout_tracking = [];
+$stmt = $db->prepare("SELECT user_id, user_name, shoutout_time FROM automated_shoutout_tracking ORDER BY shoutout_time DESC");
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    $automated_shoutout_tracking[] = $row;
+}
+$stmt->close();
+
 // Start output buffering for layout
 ob_start();
 ?>
@@ -233,6 +251,10 @@ ob_start();
                     <button class="button is-info" onclick="loadTab('twitch-chat-alerts')">
                         <span class="icon"><i class="fas fa-comment-dots"></i></span>
                         <span><?php echo t('modules_tab_twitch_chat_alerts'); ?></span>
+                    </button>
+                    <button class="button is-info" onclick="loadTab('automated-shoutouts')">
+                        <span class="icon"><i class="fas fa-bullhorn"></i></span>
+                        <span>Automated Shoutouts</span>
                     </button>
                 </div>
                 <style>.tab-content { display: none; }</style>
@@ -1073,6 +1095,114 @@ ob_start();
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+    <!-- Automated Shoutouts -->
+    <div class="tab-content" id="automated-shoutouts">
+        <div class="module-container">
+            <div class="columns is-vcentered mb-4">
+                <div class="column">
+                    <h2 class="title is-4 has-text-white mb-2">
+                        <span class="icon has-text-info"><i class="fas fa-bullhorn"></i></span>
+                        Automated Shoutouts
+                    </h2>
+                    <p class="subtitle is-6 has-text-grey-light">Manage cooldown settings for automated shoutouts triggered by raids, follows, cheers, subs, and welcome messages.</p>
+                </div>
+            </div>
+            <form method="POST" action="module_data_post.php">
+                <!-- Cooldown Settings -->
+                <div class="box has-background-grey-dark has-text-white mb-4">
+                    <h3 class="title is-5 has-text-white mb-4">
+                        <span class="icon has-text-warning"><i class="fas fa-clock"></i></span>
+                        Cooldown Settings
+                    </h3>
+                    <div class="field">
+                        <label class="label has-text-white">Automated Shoutout Cooldown (minutes)</label>
+                        <div class="control">
+                            <input class="input" type="number" name="cooldown_minutes" 
+                                   value="<?php echo htmlspecialchars($automated_shoutout_cooldown); ?>" 
+                                   min="60" required>
+                        </div>
+                        <p class="help has-text-grey-light">Minimum 60 minutes due to Twitch API rate limits. This prevents the same user from receiving multiple automated shoutouts within the cooldown period.</p>
+                    </div>
+                    <div class="field">
+                        <div class="control">
+                            <button type="submit" class="button is-success">
+                                <span class="icon"><i class="fas fa-save"></i></span>
+                                <span>Save Cooldown Settings</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+            <!-- Active Cooldowns -->
+            <div class="box has-background-grey-dark has-text-white">
+                <h3 class="title is-5 has-text-white mb-4">
+                    <span class="icon has-text-danger"><i class="fas fa-hourglass-half"></i></span>
+                    Users on Cooldown
+                </h3>
+                <p class="subtitle is-6 has-text-grey-light mb-4">These users recently received an automated shoutout and are currently in the cooldown period. The cooldown resets when the stream goes offline or the timer above is reached.</p>
+                <?php if (empty($automated_shoutout_tracking)): ?>
+                    <div class="notification is-info">
+                        <span class="icon"><i class="fas fa-info-circle"></i></span>
+                        No users are currently on automated shoutout cooldown.
+                    </div>
+                <?php else: ?>
+                    <div class="table-container">
+                        <table class="table is-fullwidth is-hoverable has-background-grey-dark has-text-white">
+                            <thead>
+                                <tr>
+                                    <th class="has-text-white">User</th>
+                                    <th class="has-text-white">Last Shoutout</th>
+                                    <th class="has-text-white">Cooldown Remaining</th>
+                                    <th class="has-text-white">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($automated_shoutout_tracking as $tracking): 
+                                    $shoutout_time = new DateTime($tracking['shoutout_time'], new DateTimeZone($timezone));
+                                    $now = new DateTime('now', new DateTimeZone($timezone));
+                                    $diff = $now->getTimestamp() - $shoutout_time->getTimestamp();
+                                    $cooldown_seconds = $automated_shoutout_cooldown * 60;
+                                    $remaining_seconds = max(0, $cooldown_seconds - $diff);
+                                    $remaining_minutes = ceil($remaining_seconds / 60);
+                                    $is_expired = $remaining_seconds <= 0;
+                                ?>
+                                    <tr<?php echo $is_expired ? ' class="has-text-grey"' : ''; ?>>
+                                        <td><?php echo htmlspecialchars($tracking['user_name']); ?></td>
+                                        <td><?php echo $shoutout_time->format('Y-m-d H:i:s'); ?></td>
+                                        <td>
+                                            <?php if ($is_expired): ?>
+                                                <span class="tag is-success">Ready</span>
+                                            <?php else: ?>
+                                                <span class="tag is-warning"><?php echo $remaining_minutes; ?> min</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <form method="POST" action="module_data_post.php" style="display: inline;">
+                                                <input type="hidden" name="remove_shoutout_cooldown" value="<?php echo htmlspecialchars($tracking['user_id']); ?>">
+                                                <button type="submit" class="button is-small is-danger" 
+                                                        onclick="return confirm('Remove cooldown for <?php echo htmlspecialchars($tracking['user_name']); ?>?');">
+                                                    <span class="icon"><i class="fas fa-times"></i></span>
+                                                    <span>Remove</span>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <form method="POST" action="module_data_post.php" class="mt-4">
+                        <input type="hidden" name="clear_all_shoutout_cooldowns" value="1">
+                        <button type="submit" class="button is-danger" 
+                                onclick="return confirm('Clear all automated shoutout cooldowns? This will allow all users to receive automated shoutouts again immediately.');">
+                            <span class="icon"><i class="fas fa-trash-alt"></i></span>
+                            <span>Clear All Cooldowns</span>
+                        </button>
+                    </form>
+                <?php endif; ?>
             </div>
         </div>
     </div>
