@@ -260,9 +260,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 <div class="status-indicator">
                     <span class="token-wrapper"><span class="token-label hide-on-narrow">Token:</span> <span id="token-timer">--:--</span></span>
                 </div>
-                <div class="status-indicator" title="Last message received">
-                    <span class="last-msg-wrapper"><span class="last-msg-label hide-on-narrow">Last Msg:</span> <span id="last-message-time">--</span></span>
-                </div>
                 <div class="compact-actions" aria-hidden="false">
                     <button class="clear-history-btn" onclick="clearChatHistory()" title="Clear Chat History" aria-label="Clear chat history">🗑️</button>
                     <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen" aria-label="Toggle fullscreen"><span id="fullscreen-icon">⛶</span></button>
@@ -367,7 +364,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let keepaliveTimeoutHandle = null;
             let keepaliveTimeoutSeconds = 10; // Default, will be updated from session
             let badgeCache = {}; // Cache for badge URLs
-            let lastMessageTimestamp = null; // Track last message time
             // Recent redemptions cache to deduplicate matching chat messages
             let recentRedemptions = [];
             // Recent chat messages cache for bidirectional deduplication
@@ -476,28 +472,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let presenceCurrentInterval = presenceBaseInterval;
             let presenceBackoffAttempts = 0;
             const PRESENCE_MAX_BACKOFF_MS = 5 * 60 * 1000;
-            // Update last message time display
-            function updateLastMessageTime() {
-                const element = document.getElementById('last-message-time');
-                if (!element) return;
-                if (!lastMessageTimestamp) {
-                    element.textContent = '--';
-                    return;
-                }
-                const now = Date.now();
-                const diff = Math.floor((now - lastMessageTimestamp) / 1000); // seconds
-                if (diff < 60) {
-                    element.textContent = `${diff}s ago`;
-                } else if (diff < 3600) {
-                    const minutes = Math.floor(diff / 60);
-                    element.textContent = `${minutes}m ago`;
-                } else {
-                    const hours = Math.floor(diff / 3600);
-                    element.textContent = `${hours}h ago`;
-                }
-            }
-            // Update last message time every second
-            setInterval(updateLastMessageTime, 1000);
             function loadPresenceSetting() {
                 return userSettings.presence_enabled || false;
             }
@@ -1575,9 +1549,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             function handleChatMessage(event) {
                 // Log raw event data for debugging streaks and other features
                 logRawChatData(event);
-                // Update last message timestamp
-                lastMessageTimestamp = Date.now();
-                updateLastMessageTime();
                 // Check if message should be filtered
                 if (isMessageFiltered(event)) {
                     return;
@@ -1653,6 +1624,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         }
                     });
                 }
+                // Format timestamp from event created_at
+                const messageDate = new Date(event.created_at);
+                const hours = messageDate.getHours().toString().padStart(2, '0');
+                const minutes = messageDate.getMinutes().toString().padStart(2, '0');
+                const seconds = messageDate.getSeconds().toString().padStart(2, '0');
+                const timestamp = `${hours}:${minutes}:${seconds}`;
                 // Check if it's a shared chat message
                 const isSharedChat = event.source_broadcaster_user_id !== null;
                 const sharedChatIndicator = isSharedChat ? 
@@ -1660,6 +1637,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 messageDiv.innerHTML = `
                     ${badgesHtml}
                     <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>${nicknameIndicator}
+                    <span class="chat-timestamp">${timestamp}</span>
                     <span class="chat-text">${messageHtml}</span>
                     ${sharedChatIndicator}
                 `;
