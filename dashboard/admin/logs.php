@@ -8,7 +8,7 @@ include '/var/www/config/twitch.php';
 
 // Always use SSH config and log reading function for log retrieval
 include_once "/var/www/config/ssh.php";
-function read_bot_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
+function read_bot_log_over_ssh($remote_path) {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
     if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect($bots_ssh_host, 22);
@@ -21,24 +21,18 @@ function read_bot_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
     $exists = trim(stream_get_contents($stream));
     fclose($stream);
     if ($exists !== "1") { return ['error' => 'not_found']; }
-    // Count total lines
-    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
-    $stream = ssh2_exec($connection, $cmd_count);
-    stream_set_blocking($stream, true);
-    $linesTotal = (int)trim(stream_get_contents($stream));
-    fclose($stream);
-    if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
-    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
-    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
+    // Read entire file
+    $cmd = "cat " . escapeshellarg($remote_path);
     $stream = ssh2_exec($connection, $cmd);
     stream_set_blocking($stream, true);
     $logContent = stream_get_contents($stream);
     fclose($stream);
-    return ['linesTotal' => $linesTotal,'logContent' => $logContent];
+    if (trim($logContent) === '') { return ['logContent' => '','empty' => true]; }
+    return ['logContent' => $logContent];
 }
 
 // Function to read Apache2 logs via SSH to localhost using server credentials
-function read_apache2_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
+function read_apache2_log_over_ssh($remote_path) {
     global $server_username, $server_password;
     if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect('localhost', 22);
@@ -51,24 +45,18 @@ function read_apache2_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 
     $exists = trim(stream_get_contents($stream));
     fclose($stream);
     if ($exists !== "1") { return ['error' => 'not_found']; }
-    // Count total lines
-    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
-    $stream = ssh2_exec($connection, $cmd_count);
-    stream_set_blocking($stream, true);
-    $linesTotal = (int)trim(stream_get_contents($stream));
-    fclose($stream);
-    if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
-    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
-    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
+    // Read entire file
+    $cmd = "cat " . escapeshellarg($remote_path);
     $stream = ssh2_exec($connection, $cmd);
     stream_set_blocking($stream, true);
     $logContent = stream_get_contents($stream);
     fclose($stream);
-    return ['linesTotal' => $linesTotal,'logContent' => $logContent];
+    if (trim($logContent) === '') { return ['logContent' => '','empty' => true]; }
+    return ['logContent' => $logContent];
 }
 
 // Function to read API server logs via SSH
-function read_api_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
+function read_api_log_over_ssh($remote_path) {
     global $api_server_host, $api_server_username, $api_server_password;
     if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect($api_server_host, 22);
@@ -81,24 +69,18 @@ function read_api_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
     $exists = trim(stream_get_contents($stream));
     fclose($stream);
     if ($exists !== "1") { return ['error' => 'not_found']; }
-    // Count total lines
-    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
-    $stream = ssh2_exec($connection, $cmd_count);
-    stream_set_blocking($stream, true);
-    $linesTotal = (int)trim(stream_get_contents($stream));
-    fclose($stream);
-    if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
-    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
-    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
+    // Read entire file
+    $cmd = "cat " . escapeshellarg($remote_path);
     $stream = ssh2_exec($connection, $cmd);
     stream_set_blocking($stream, true);
     $logContent = stream_get_contents($stream);
     fclose($stream);
-    return ['linesTotal' => $linesTotal,'logContent' => $logContent];
+    if (trim($logContent) === '') { return ['logContent' => '','empty' => true]; }
+    return ['logContent' => $logContent];
 }
 
 // Function to read WebSocket server logs via SSH
-function read_websocket_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
+function read_websocket_log_over_ssh($remote_path) {
     global $websocket_server_host, $websocket_server_username, $websocket_server_password;
     if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect($websocket_server_host, 22);
@@ -111,24 +93,18 @@ function read_websocket_log_over_ssh($remote_path, $lines = 200, $skip_from_end 
     $exists = trim(stream_get_contents($stream));
     fclose($stream);
     if ($exists !== "1") { return ['error' => 'not_found']; }
-    // Count total lines
-    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
-    $stream = ssh2_exec($connection, $cmd_count);
-    stream_set_blocking($stream, true);
-    $linesTotal = (int)trim(stream_get_contents($stream));
-    fclose($stream);
-    if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
-    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
-    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
+    // Read entire file
+    $cmd = "cat " . escapeshellarg($remote_path);
     $stream = ssh2_exec($connection, $cmd);
     stream_set_blocking($stream, true);
     $logContent = stream_get_contents($stream);
     fclose($stream);
-    return ['linesTotal' => $linesTotal,'logContent' => $logContent];
+    if (trim($logContent) === '') { return ['logContent' => '','empty' => true]; }
+    return ['logContent' => $logContent];
 }
 
 // Function to read MySQL server logs via SSH to database server
-function read_mysql_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0) {
+function read_mysql_log_over_ssh($remote_path) {
     global $sql_server_host, $sql_server_username, $sql_server_password;
     if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect($sql_server_host, 22);
@@ -141,20 +117,14 @@ function read_mysql_log_over_ssh($remote_path, $lines = 200, $skip_from_end = 0)
     $exists = trim(stream_get_contents($stream));
     fclose($stream);
     if ($exists !== "1") { return ['error' => 'not_found']; }
-    // Count total lines
-    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
-    $stream = ssh2_exec($connection, $cmd_count);
-    stream_set_blocking($stream, true);
-    $linesTotal = (int)trim(stream_get_contents($stream));
-    fclose($stream);
-    if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
-    $startLine = max(0, $linesTotal - $skip_from_end - $lines);
-    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
+    // Read entire file
+    $cmd = "cat " . escapeshellarg($remote_path);
     $stream = ssh2_exec($connection, $cmd);
     stream_set_blocking($stream, true);
     $logContent = stream_get_contents($stream);
     fclose($stream);
-    return ['linesTotal' => $linesTotal,'logContent' => $logContent];
+    if (trim($logContent) === '') { return ['logContent' => '','empty' => true]; }
+    return ['logContent' => $logContent];
 }
 
 function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
@@ -302,22 +272,20 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     header('Content-Type: application/json');
     $selectedUser = $_GET['admin_log_user'];
     $logType = $_GET['admin_log_type'];
-    $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
     $logPath = "/home/botofthespecter/logs/logs/$logType/$selectedUser.txt";
-    $result = read_bot_log_over_ssh($logPath, 200, $since);
+    $result = read_bot_log_over_ssh($logPath);
     if (isset($result['error'])) {
         if ($result['error'] === 'not_found') { echo json_encode(['error' => 'not_found']); }
         else { echo json_encode(['error' => 'connection_failed']); }
         exit();
     }
     if (isset($result['empty']) && $result['empty']) {
-        echo json_encode(['last_line' => 0, 'data' => '', 'empty' => true]);
+        echo json_encode(['data' => '', 'empty' => true]);
         exit();
     }
     $logContent = $result['logContent'];
-    $linesTotal = $result['linesTotal'];
     $logContent = highlight_log_dates($logContent);
-    echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
+    echo json_encode(['data' => $logContent]);
     exit();
 }
 
@@ -364,7 +332,7 @@ function read_local_log($filePath, $lines = 200, $startLine = null) {
 if (isset($_GET['admin_system_log_type'])) {
     header('Content-Type: application/json');
     $logType = $_GET['admin_system_log_type'];
-    $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;    // Determine log path and read method based on log type
+    // Determine log path and read method based on log type
     switch ($logType) {        // Standard Apache2 Logs
         case 'apache2-access':
             $logPath = "/var/log/apache2/access.log";
@@ -510,12 +478,11 @@ if (isset($_GET['admin_system_log_type'])) {
         exit();
     }
     if (isset($result['empty']) && $result['empty']) {
-        echo json_encode(['last_line' => 0, 'data' => '', 'empty' => true]);
+        echo json_encode(['data' => '', 'empty' => true]);
         exit();
     }
     // Safely access array keys with default values
     $logContent = isset($result['logContent']) ? $result['logContent'] : '';
-    $linesTotal = isset($result['linesTotal']) ? $result['linesTotal'] : 0;
     // Apply appropriate highlighting based on log type
     if (strpos($logType, 'apache2-') === 0 || strpos($logType, '_access') !== false || strpos($logType, '_error') !== false || $logType === 'other_vhosts_access') {
         // This is an Apache2 log, use specialized highlighting
@@ -524,7 +491,7 @@ if (isset($_GET['admin_system_log_type'])) {
         // This is a MySQL log, use MySQL-specific highlighting
         $logContent = highlight_mysql_logs($logContent);
     } else { $logContent = highlight_log_dates($logContent); }
-    echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
+    echo json_encode(['data' => $logContent]);
     exit();
 }
 
@@ -532,7 +499,6 @@ if (isset($_GET['admin_system_log_type'])) {
 if (isset($_GET['admin_token_log_type'])) {
     header('Content-Type: application/json');
     $logType = $_GET['admin_token_log_type'];
-    $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
     $map = [
         'spotify_refresh' => '/home/botofthespecter/logs/spotify_refresh.log',
         'refresh_streamelements_tokens' => '/home/botofthespecter/logs/refresh_streamelements_tokens.log',
@@ -545,7 +511,7 @@ if (isset($_GET['admin_token_log_type'])) {
         exit();
     }
     $logPath = $map[$logType];
-    $result = read_bot_log_over_ssh($logPath, 200, $since);
+    $result = read_bot_log_over_ssh($logPath);
     if ($result === null || !is_array($result)) { echo json_encode(['error' => 'invalid_log_type']); exit(); }
     if (isset($result['error'])) {
         if ($result['error'] === 'not_found') { echo json_encode(['error' => 'not_found']); }
@@ -553,11 +519,10 @@ if (isset($_GET['admin_token_log_type'])) {
         else { echo json_encode(['error' => 'connection_failed']); }
         exit();
     }
-    if (isset($result['empty']) && $result['empty']) { echo json_encode(['last_line' => 0, 'data' => '', 'empty' => true]); exit(); }
+    if (isset($result['empty']) && $result['empty']) { echo json_encode(['data' => '', 'empty' => true]); exit(); }
     $logContent = isset($result['logContent']) ? $result['logContent'] : '';
-    $linesTotal = isset($result['linesTotal']) ? $result['linesTotal'] : 0;
     $logContent = highlight_log_dates($logContent);
-    echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
+    echo json_encode(['data' => $logContent]);
     exit();
 }
 
@@ -692,9 +657,6 @@ ob_start();
                     <button class="button is-link" id="admin-log-reload" disabled>Reload</button>
                 </div>
                 <div class="control">
-                    <button class="button is-primary" id="admin-log-load-more" disabled>Load More</button>
-                </div>
-                <div class="control">
                     <button class="button is-light" id="admin-log-auto-refresh" disabled>
                         <span class="icon">
                             <i class="fas fa-play"></i>
@@ -706,7 +668,7 @@ ob_start();
         </div>
     </div>
     <div class="table-container">
-        <div id="admin-log-textarea" class="admin-log-content" contenteditable="false" style="max-height: 600px; min-height: 600px; font-family: monospace; white-space: pre-wrap; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: auto; overflow-y: auto;"></div>
+        <div id="admin-log-textarea" class="admin-log-content" contenteditable="false" style="max-height: 400px; min-height: 200px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"></div>
     </div>
 </div>
 <?php
@@ -724,7 +686,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const systemLogTypeControl = document.getElementById('system-log-type-control');
     const systemTypeSelect = document.getElementById('admin-system-log-type-select');
     const reloadBtn = document.getElementById('admin-log-reload');
-    const loadMoreBtn = document.getElementById('admin-log-load-more');
     const logTextarea = document.getElementById('admin-log-textarea');
     const categorySelect = document.getElementById('admin-log-category-select');
     const tokenLogTypeControl = document.getElementById('token-log-type-control');
@@ -734,8 +695,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let adminLogCategory = '';
     let adminLogUser = '';
     let adminLogType = '';
-    let adminLogLoaded = 0;
-    let adminLogLastLine = 0;
     let autoRefreshInterval = null;
     let isAutoRefreshActive = false;
     categorySelect.addEventListener('change', function() {
@@ -749,7 +708,6 @@ document.addEventListener('DOMContentLoaded', function() {
         typeSelect.disabled = true;
         tokenTypeSelect.disabled = true;
         reloadBtn.disabled = true;
-        loadMoreBtn.disabled = true;
         autoRefreshBtn.disabled = true; // Reset auto refresh button
         if (adminLogCategory === 'user') {
             userSelectControl.style.display = '';
@@ -802,7 +760,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!adminLogUser) {
                 typeSelect.value = '';
                 reloadBtn.disabled = true;
-                loadMoreBtn.disabled = true;
                 autoRefreshBtn.disabled = true; // Disable auto refresh when no user selected
             }
         }
@@ -813,11 +770,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (adminLogType) {
             fetchSystemLog();
             reloadBtn.disabled = false;
-            loadMoreBtn.disabled = false;
             autoRefreshBtn.disabled = false;
         } else {
             reloadBtn.disabled = true;
-            loadMoreBtn.disabled = true;
             autoRefreshBtn.disabled = true;
         }
     });
@@ -827,11 +782,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (adminLogType) {
             fetchTokenLog();
             reloadBtn.disabled = false;
-            loadMoreBtn.disabled = false;
             autoRefreshBtn.disabled = false;
         } else {
             reloadBtn.disabled = true;
-            loadMoreBtn.disabled = true;
             autoRefreshBtn.disabled = true;
         }
     });
@@ -840,12 +793,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (adminLogUser && adminLogType) {
             fetchAdminLog();
             reloadBtn.disabled = false;
-            loadMoreBtn.disabled = false;
             autoRefreshBtn.disabled = false;
         } else {
             resetLogContent();
             reloadBtn.disabled = true;
-            loadMoreBtn.disabled = true;
             autoRefreshBtn.disabled = true;
         }
     });
@@ -858,15 +809,6 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchTokenLog();
         }
     });
-    loadMoreBtn.addEventListener('click', function() {
-        if (adminLogCategory === 'user') {
-            fetchAdminLog(true);
-        } else if (adminLogCategory === 'system') {
-            fetchSystemLog(true);
-        } else if (adminLogCategory === 'token') {
-            fetchTokenLog(true);
-        }
-    });
     autoRefreshBtn.addEventListener('click', function() {
         if (isAutoRefreshActive) {
             stopAutoRefresh();
@@ -876,8 +818,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     function resetLogContent() {
         logTextarea.innerHTML = '';
-        adminLogLoaded = 0;
-        adminLogLastLine = 0;
         stopAutoRefresh(); // Stop auto refresh when resetting content
     }
     function startAutoRefresh() {
@@ -921,12 +861,10 @@ document.addEventListener('DOMContentLoaded', function() {
             text.textContent = 'Auto Refresh';
         }
     }
-    async function fetchAdminLog(loadMore = false) {
+    async function fetchAdminLog() {
         if (!adminLogUser || !adminLogType) return;
-        let since = loadMore ? adminLogLoaded : 0;
-        if (loadMore && adminLogLoaded >= adminLogLastLine) return;
         try {
-            const resp = await fetch(`logs.php?admin_log_user=${encodeURIComponent(adminLogUser)}&admin_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
+            const resp = await fetch(`logs.php?admin_log_user=${encodeURIComponent(adminLogUser)}&admin_log_type=${encodeURIComponent(adminLogType)}`);
             const json = await resp.json();
             if (json.error) {
                 if (json.error === "not_found") {
@@ -938,28 +876,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return;
             }
-            adminLogLastLine = json.last_line;
             if (json.empty) {
                 logTextarea.innerHTML = "(log file is empty)";
             } else if (!json.data || json.data.trim() === "") {
                 logTextarea.innerHTML = "(log is empty or not found)";
-            } else if (loadMore) {
-                logTextarea.innerHTML = json.data + logTextarea.innerHTML;
             } else {
                 logTextarea.innerHTML = json.data;
             }
-            adminLogLoaded += 200;
         } catch (e) {
             logTextarea.innerHTML = "Unable to connect to the logging system.";
             console.error(e);
         }
     }
-    async function fetchSystemLog(loadMore = false) {
+    async function fetchSystemLog() {
         if (!adminLogType) return;
-        let since = loadMore ? adminLogLoaded : 0;
-        if (loadMore && adminLogLoaded >= adminLogLastLine) return;
         try {
-            const resp = await fetch(`logs.php?admin_system_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
+            const resp = await fetch(`logs.php?admin_system_log_type=${encodeURIComponent(adminLogType)}`);
             const json = await resp.json();
             if (json.error) {
                 if (json.error === "not_found") {
@@ -973,28 +905,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return;
             }
-            adminLogLastLine = json.last_line;
             if (json.empty) {
                 logTextarea.innerHTML = "(system log file is empty)";
             } else if (!json.data || json.data.trim() === "") {
                 logTextarea.innerHTML = "(system log is empty or not found)";
-            } else if (loadMore) {
-                logTextarea.innerHTML = json.data + logTextarea.innerHTML;
             } else {
                 logTextarea.innerHTML = json.data;
             }
-            adminLogLoaded += 200;
         } catch (e) {
             logTextarea.innerHTML = "Unable to connect to the logging system.";
             console.error(e);
         }
     }
-    async function fetchTokenLog(loadMore = false) {
+    async function fetchTokenLog() {
         if (!adminLogType) return;
-        let since = loadMore ? adminLogLoaded : 0;
-        if (loadMore && adminLogLoaded >= adminLogLastLine) return;
         try {
-            const resp = await fetch(`logs.php?admin_token_log_type=${encodeURIComponent(adminLogType)}&since=${since}`);
+            const resp = await fetch(`logs.php?admin_token_log_type=${encodeURIComponent(adminLogType)}`);
             const json = await resp.json();
             if (json.error) {
                 if (json.error === "not_found") {
@@ -1008,17 +934,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return;
             }
-            adminLogLastLine = json.last_line;
             if (json.empty) {
                 logTextarea.innerHTML = "(token log file is empty)";
             } else if (!json.data || json.data.trim() === "") {
                 logTextarea.innerHTML = "(token log is empty or not found)";
-            } else if (loadMore) {
-                logTextarea.innerHTML = json.data + logTextarea.innerHTML;
             } else {
                 logTextarea.innerHTML = json.data;
             }
-            adminLogLoaded += 200;
         } catch (e) {
             logTextarea.innerHTML = "Unable to connect to the logging system.";
             console.error(e);
