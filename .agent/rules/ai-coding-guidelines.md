@@ -13,6 +13,7 @@ trigger: always_on
 - **Thinking**: Always think before answering.
 - **No Extra Spaces**: Avoid unnecessary blank lines and extra spacing in code. Keep code compact and clean.
 - **No Function Docstrings**: Do NOT add docstrings or multi-line comments to functions. Code should be self-explanatory through clear naming and structure.
+- **Plan Before Edit**: Always propose and explain your planned changes before implementing them. Wait for explicit user confirmation (e.g., "ready for edits", "proceed", "go ahead") before making any code modifications. Never jump straight to editing without user approval.
 
 ## 🚀 Deployment & Workflow
 
