@@ -127,7 +127,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'log_raw_chat' && $_SERVER['RE
         exit;
     }
     $userId = $_SESSION['user_id'];
-    $logsDir = __DIR__ . '/chat-logs';
+    $logsDir = '/var/www/yourchat/chat-logs';
     $logFile = $logsDir . '/' . $userId . '_raw_chat.log';
     // Create directory if it doesn't exist
     if (!is_dir($logsDir)) {
@@ -1557,15 +1557,19 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Log raw chat event data to server for debugging
             async function logRawChatData(event) {
                 try {
-                    await fetch('?action=log_raw_chat', {
+                    const response = await fetch('?action=log_raw_chat', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify(event)
                     });
+                    const result = await response.json();
+                    if (!result.success) {
+                        console.error('Failed to log raw chat data:', result.error);
+                    }
                 } catch (error) {
-                    // Silent - log only on server
+                    console.error('Error logging raw chat data:', error);
                 }
             }
             // Chat message handling
@@ -1635,7 +1639,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const userId = event.chatter_user_id;
                 const nickname = getNickname(userId);
                 const displayName = nickname || event.chatter_user_name;
-                const nicknameIndicator = nickname ? '<span style="color:#ffd700; font-size:11px; margin-left:4px;" title="Using custom nickname">\u2605</span>' : '';
                 // Build message HTML with emotes support
                 let messageHtml = event.message.text;
                 if (event.message.fragments) {
@@ -1669,7 +1672,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     `<span class="shared-chat-indicator">[from ${event.source_broadcaster_user_name}]</span>` : '';
                 messageDiv.innerHTML = `
                     ${badgesHtml}
-                    <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>${nicknameIndicator}
+                    <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
                     <span class="chat-timestamp">${timestamp}</span>
                     <span class="chat-text">${messageHtml}</span>
                     ${sharedChatIndicator}
