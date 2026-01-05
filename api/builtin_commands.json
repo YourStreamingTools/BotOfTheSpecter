@@ -221,6 +221,10 @@
 			"description": "This command will check and display the WebSocket server connection status for the channel instance.",
 			"force_level": "mod"
 		},
+		"dbstatus": {
+			"description": "This command will check and display the database connection status, including connection uptime or last connection attempt time.",
+			"force_level": "mod"
+		},
 		"obs": {
 			"description": "This command is used to interact with the OBS Connector app for BotOfTheSpecter.",
 			"force_level": "mod"

@@ -69,6 +69,7 @@
 		"startlotto": "This command will initiate a lottery among chat participants.",
 		"drawlotto": "This command will draw and announce the lottery winner(s).",
 		"wsstatus": "This command will check and display the WebSocket server connection status for the channel instance.",
+		"dbstatus": "This command will check and display the database connection status, including connection uptime or last connection attempt time.",
 		"obs": "This command is used to interact with the OBS Connector app for BotOfTheSpecter."
 	}
 }
