@@ -2030,6 +2030,9 @@ class TwitchBot(commands.AutoBot):
         self.channel_name = channel_name
         self.running_commands = set()
 
+    async def setup_hook(self) -> None:
+        self.add_component(TwitchBotCommnads(self))
+
     async def event_ready(self):
         bot_logger.info(f'Logged in as "{self.user.name}"')
         await update_version_control()
@@ -2893,6 +2896,10 @@ class TwitchBot(commands.AutoBot):
         else:
             api_logger.info("AI access denied due to lack of premium.")
             return False
+
+class TwitchBotCommnads(commands.Component):
+    def __init__(self, bot: Bot) -> None:
+        self.bot = bot
 
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
