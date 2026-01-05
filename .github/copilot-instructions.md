@@ -1,97 +1,87 @@
 # BotOfTheSpecter AI Coding Guidelines
 
-## Architecture Overview
+## 🚨 Critical Operational Rules
+*   **NO Documentation Files**: Do NOT create `.md`, `.txt`, or other documentation/note files unless explicitly requested.
+*   **No "Thought" Files**: Do not create files to track your internal thought process or todos in the workspace.
+*   **Read Before Write**: Always read a file before modifying it.
+*   **Import Safety**: Check existing imports before adding new ones to avoid duplicates.
+*   **Thinking**: Always think before answering.
 
-BotOfTheSpecter is a multi-service Twitch bot system with the following components:
+## 🚀 Deployment & Workflow
+*   **Remote Testing Only**: The local machine (Windows/Mac/Linux) is for development only. **Testing must be done on the dev server**.
+*   **Debug Checks**: Only syntax/linting or basic debug checks should be run locally.
+*   **Upload to Test**: Always assume code needs to be uploaded to the dev server to function correctly.
 
-- **bot/**: Core Python bot using twitchio for Twitch IRC/chat handling, command processing, and external integrations (Discord, Spotify, StreamElements).
-- **api/**: FastAPI server providing REST endpoints for webhooks, weather data, quotes, and bot management.
-- **dashboard/**: PHP web dashboard for remote configuration, analytics, and user management.
-- **websocket/**: SocketIO server for real-time communication between services and live updates.
-- **config/**: PHP configuration files for database connections, API keys, and service settings.
+## 🛠️ Tech Stack & Environment
+*   **OS**: Windows (Local Dev Environment) / Linux (Target Server)
+*   **Core Languages**:
+    *   **Python 3.10+**: `asyncio` (REQUIRED for I/O), `twitchio`, `fastapi`, `aiohttp`, `aiomysql`.
+    *   **PHP 8.0+**: Web dashboard and configs.
+    *   **JavaScript**: `socket.io-client` for real-time updates.
+*   **Database**: MySQL (Async access via `aiomysql`).
+*   **Secrets**: Environment variables loaded via `python-dotenv`.
 
-Data flows from Twitch events → bot processing → API storage → dashboard/app display, with WebSocket enabling real-time updates.
+## 📂 Project Structure
+```text
+BotOfTheSpecter/
+├── api/             # FastAPI server (webhooks, data endpoints)
+│   └── api.py       # Main API entry point
+├── bot/             # Core Twitch Bot
+│   ├── bot.py       # Main Bot entry point
+│   └── beta.py      # Beta Bot entry point
+├── config/          # PHP Configuration files
+│   └── main.php     # Core constants
+├── dashboard/       # PHP Web Dashboard
+│   └── dashboard.php
+├── websocket/       # Real-time communication
+│   └── server.py    # SocketIO Server
+└── app/             # Desktop App
+    └── app.py
+```
 
-## Conventions
+## 🔄 Architecture & Data Flow
+1.  **Twitch Events** (Chat/Subs) -> **Bot Service**
+2.  **Bot Service** -> **API** (Storage/Lookups)
+3.  **API** -> **Database** (User-specific DBs)
+4.  **Webhooks** (Patreon/Ko-fi) -> **API** -> **WebSocket**
+5.  **WebSocket** -> **Dashboard/Overlay** (Real-time alerts)
 
-### Async Programming
-- Use `asyncio` throughout Python code for all I/O operations
-- Import pattern: `import asyncio`, `from asyncio import ...`
-- Database operations use `aiomysql` for async MySQL connections
-- HTTP requests use `aiohttp` for async calls
+## 📝 Code Conventions
 
-### Configuration Management
-- PHP configs loaded with `require_once "/var/www/config/<file>.php"`
-- Environment variables for secrets (loaded via `python-dotenv`)
-- Database connections: `await mysql_connection(db_name)` for user-specific DBs
+### Python (Async is King)
+*   **I/O**: MUST be `async`. Use `aiohttp` for requests, `aiomysql` for DB.
+*   **Error Handling**: Wrap async blocks in `try/except`. Log errors explicitly.
+*   **Imports**: `import asyncio`, `from asyncio import ...`.
 
-### Error Handling
-- Try/catch blocks around async operations
-- Log errors with dedicated loggers (e.g., `bot_logger.error()`)
-- HTTP exceptions in API with `raise HTTPException(status_code=..., detail=...)`
+### PHP
+*   **Config**: `require_once "/var/www/config/<file>.php"`
+*   **DB**: Standard PDO or project-specific wrappers.
 
-### Database Patterns
-- User-specific databases (one per Twitch channel)
-- Tables: custom_commands, builtin_commands, bot_points, etc.
-- Queries use parameterized statements to prevent SQL injection
+## 🧱 Common Implementation Patterns
 
-### WebSocket Communication
-- Events prefixed by service (e.g., "WEATHER_DATA", "STREAM_ONLINE")
-- Payloads include API keys for verification
-- Real-time updates for weather, TTS, walk-ons, deaths
+### 1. Command Permissions
+```python
+if not await command_permissions(level, user):
+    return
+```
 
-### Version Control
-- Versions stored in `versions.json`, `version_control.txt`
-- Update via `update_version_control()` function
-- Semantic versioning: major.minor.micro
+### 2. Verify API Key
+```python
+username = await verify_api_key(api_key)
+if not username:
+    raise HTTPException(status_code=403, detail="Invalid API Key")
+```
 
-## Integration Points
+### 3. Database Connection (Async)
+```python
+async with aiomysql.create_pool(**db_config) as pool:
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT * FROM custom_commands WHERE ...")
+```
 
-### External APIs
-- Twitch: twitchio for chat, aiohttp for Helix API
-- Discord: discord.py for bot integration
-- Spotify: OAuth2 token refresh via `refresh_spotify_tokens.py`
-- Weather: OpenWeatherMap API with rate limiting
-- StreamElements/StreamLabs: WebSocket for donation events
-
-### Webhooks
-- Patreon, Ko-fi, FourthWall: POST endpoints in API server
-- Forward to WebSocket for processing
-
-### File Storage
-- Logs: Rotating file handlers in `logs/` with channel-specific subdirs
-- Static assets: CDN-hosted files referenced by URL
-- User uploads: Stored in database or object storage
-
-## Key Files to Reference
-
-- `bot/bot.py`: Main bot event loop and command handling
-- `api/api.py`: FastAPI endpoints and webhook processing  
-- `dashboard/dashboard.php`: Web interface structure
-- `config/main.php`: Core configuration constants
-- `websocket/server.py`: SocketIO event handling
-- `app/app.py`: Desktop app UI and controls
-
-## Common Patterns
-
-- Command permissions: Check `await command_permissions(level, user)` before execution
-- API key verification: `await verify_api_key(api_key)` returns username or None
-- Premium features: Check `await check_premium_feature()` for subscription-gated functionality
-- Timezone handling: Use `pytz` for user-specific timezone conversions
-- Unit conversions: `pint.UnitRegistry` for measurements in commands
-
-## Security Notes
-
-- API keys validated on every request
-- SSH connections for server management (use `paramiko`)
-- Environment variables for all secrets
-- Input sanitization for custom commands and user messages
-
-## AI Assistant Guidelines
-
-- **ABSOLUTELY NO** markdown or text files for notes/documentation outside of explicit user request
-- **DO NOT** create `.md`, `.txt`, or any documentation files for tracking work, progress, or summaries unless the user explicitly asks
-- Do not create notes about changes, todos, or implementation details in the workspace
-- Always think before answering
-- Always read the file before making any helpful changes
-- Be aware of any imports for Python files before adding imports, ensure that we don't already have it covered
+## 🔌 Integration Points
+*   **Twitch**: `twitchio` (Chat), `aiohttp` (Helix API).
+*   **Discord**: `discord.py` independent bot instance.
+*   **Spotify**: OAuth2 token management via `refresh_spotify_tokens.py`.
+*   **Weather**: OpenWeatherMap API.
