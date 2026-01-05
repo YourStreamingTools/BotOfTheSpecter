@@ -1323,12 +1323,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Display expiry message
             const overlay = document.getElementById('chat-overlay');
             overlay.innerHTML = `
-                                                            <div class="expired-message">
-                                                                <h3>Session Expired</h3>
-                                                                <p>Unable to refresh your session. Please refresh the page to log in again.</p>
-                                                                <p style="margin-top: 10px; font-size: 14px;">Refresh the page to start a new session.</p>
-                                                            </div>
-                                                        `;
+                                                                        <div class="expired-message">
+                                                                            <h3>Session Expired</h3>
+                                                                            <p>Unable to refresh your session. Please refresh the page to log in again.</p>
+                                                                            <p style="margin-top: 10px; font-size: 14px;">Refresh the page to start a new session.</p>
+                                                                        </div>
+                                                                    `;
         }
         // Logout action: destroy PHP session and reload to show login button
         async function logoutUser() {
@@ -1684,12 +1684,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const sharedChatIndicator = isSharedChat ?
                 `<span class="shared-chat-indicator">[from ${event.source_broadcaster_user_name}]</span>` : '';
             messageDiv.innerHTML = `
-                                                            <span class="chat-timestamp">${timestamp}</span>
-                                                            ${badgesHtml}
-                                                            <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
-                                                            <span class="chat-text">${messageHtml}</span>
-                                                            ${sharedChatIndicator}
-                                                        `;
+                        <span class="chat-timestamp">${timestamp}</span>
+                        ${badgesHtml}
+                        <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
+                        <span class="chat-text">${messageHtml}</span>
+                        ${sharedChatIndicator}
+                    `;
             overlay.appendChild(messageDiv);
             // Auto-scroll to bottom
             overlay.scrollTop = overlay.scrollHeight;
@@ -1745,11 +1745,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 userMessage = `<div class="sub-user-message">${escapeHtml(event.message.text)}</div>`;
             }
             notificationDiv.innerHTML = `
-                                                            <span class="chat-timestamp">${timestamp}</span>
-                                                            <span class="sub-icon">⭐</span>
-                                                            ${escapeHtml(systemMessage)}
-                                                            ${userMessage}
-                                                        `;
+                                                                        <span class="chat-timestamp">${timestamp}</span>
+                                                                        <span class="sub-icon">⭐</span>
+                                                                        ${escapeHtml(systemMessage)}
+                                                                        ${userMessage}
+                                                                    `;
             overlay.appendChild(notificationDiv);
             // Auto-scroll to bottom
             overlay.scrollTop = overlay.scrollHeight;
@@ -1907,15 +1907,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.error('Error adding redemption to cache', e);
             }
             rewardDiv.innerHTML = `
-                                                            <div class="reward-header">
-                                                                <span class="reward-icon">⭐</span>
-                                                                <span class="reward-user">${escapeHtml(event.user_name)}</span>
-                                                                <span class="reward-text">redeemed</span>
-                                                                <span class="reward-name">${escapeHtml(rewardName)}</span>
-                                                                <span class="reward-cost">(${event.reward.channel_points} pts)</span>
-                                                            </div>
-                                                            ${messageHtml ? `<div class="reward-message-text">${messageHtml}</div>` : ''}
-                                                        `;
+                                                                        <div class="reward-header">
+                                                                            <span class="reward-icon">⭐</span>
+                                                                            <span class="reward-user">${escapeHtml(event.user_name)}</span>
+                                                                            <span class="reward-text">redeemed</span>
+                                                                            <span class="reward-name">${escapeHtml(rewardName)}</span>
+                                                                            <span class="reward-cost">(${event.reward.channel_points} pts)</span>
+                                                                        </div>
+                                                                        ${messageHtml ? `<div class="reward-message-text">${messageHtml}</div>` : ''}
+                                                                    `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
             // Limit messages
@@ -1975,17 +1975,17 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.error('Error adding custom redemption to cache', e);
             }
             rewardDiv.innerHTML = `
-                                                        <div class="reward-header">
-                                                            ${imageHtml}
-                                                            <span class="reward-icon">🎁</span>
-                                                            <span class="reward-user">${escapeHtml(event.user_name)}</span>
-                                                            <span class="reward-text">redeemed</span>
-                                                            <span class="reward-name">${escapeHtml(event.reward.title)}</span>
-                                                            <span class="reward-cost">(${event.reward.cost} pts)</span>
-                                                        </div>
-                                                        ${event.reward.prompt ? `<div class="reward-prompt">${escapeHtml(event.reward.prompt)}</div>` : ''}
-                                                        ${event.user_input ? `<div class="reward-message-text">${escapeHtml(event.user_input)}</div>` : ''}
-                                                    `;
+                                                                    <div class="reward-header">
+                                                                        ${imageHtml}
+                                                                        <span class="reward-icon">🎁</span>
+                                                                        <span class="reward-user">${escapeHtml(event.user_name)}</span>
+                                                                        <span class="reward-text">redeemed</span>
+                                                                        <span class="reward-name">${escapeHtml(event.reward.title)}</span>
+                                                                        <span class="reward-cost">(${event.reward.cost} pts)</span>
+                                                                    </div>
+                                                                    ${event.reward.prompt ? `<div class="reward-prompt">${escapeHtml(event.reward.prompt)}</div>` : ''}
+                                                                    ${event.user_input ? `<div class="reward-message-text">${escapeHtml(event.user_input)}</div>` : ''}
+                                                                `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
             // Limit messages
@@ -2006,10 +2006,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             raidDiv.className = 'system-message raid';
             const viewerText = event.viewers === 1 ? 'viewer' : 'viewers';
             raidDiv.innerHTML = `
-                                                <span style="font-weight: bold; color: #ff6b6b;">🎯 RAID!</span>
-                                                <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.from_broadcaster_user_name)}</span>
-                                                is raiding with <span style="font-weight: bold; color: #ffd700;">${event.viewers.toLocaleString()}</span> ${viewerText}!
-                                            `;
+                                                            <span style="font-weight: bold; color: #ff6b6b;">🎯 RAID!</span>
+                                                            <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.from_broadcaster_user_name)}</span>
+                                                            is raiding with <span style="font-weight: bold; color: #ffd700;">${event.viewers.toLocaleString()}</span> ${viewerText}!
+                                                        `;
             overlay.appendChild(raidDiv);
             overlay.scrollTop = overlay.scrollHeight;
             // Limit messages
@@ -2052,10 +2052,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     break;
             }
             let messageHtml = `
-                                 <span style="font-weight: bold; color: #9146ff;">${emoji} BITS!</span>
-                                 <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.user_name)}</span>
-                                 ${bitsText}
-                                `;
+                                             <span style="font-weight: bold; color: #9146ff;">${emoji} BITS!</span>
+                                             <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.user_name)}</span>
+                                             ${bitsText}
+                                            `;
             // Add the message content if it's a cheer
             if (event.type === 'cheer' && event.message && event.message.text) {
                 messageHtml += `<div style="margin-top: 4px; font-style: italic; color: #e6e6e6;">${escapeHtml(event.message.text)}</div>`;
