@@ -70,6 +70,7 @@ OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 BOT_ID = os.getenv('BOT_ID')
+OWNER_ID = os.getenv('OWNER_ID')
 TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
 TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
@@ -2025,8 +2026,17 @@ class SSHConnectionManager:
 
 class TwitchBot(commands.AutoBot):
     # Event Message to get the bot ready
-    def __init__(self, token, prefix, channel_name, client_id, client_secret, bot_id):
-        super().__init__(token=token, prefix=prefix, initial_channels=[channel_name], case_insensitive=True, client_id=client_id, client_secret=client_secret, bot_id=bot_id)
+    def __init__(self, token, prefix, channel_name, client_id, client_secret, bot_id, owner_id):
+        super().__init__(
+                token=token,
+                prefix=prefix,
+                initial_channels=[channel_name],
+                case_insensitive=True,
+                client_id=client_id,
+                client_secret=client_secret,
+                bot_id=bot_id,
+                owner_id=owner_id
+            )
         self.channel_name = channel_name
         self.running_commands = set()
 
@@ -2059,7 +2069,7 @@ class TwitchBot(commands.AutoBot):
         bot_logger.info(f"Joined channel: {channel.name}")
 
     # Errors
-    async def event_command_error(self, ctx, error: Exception) -> None:
+    async def event_command_error(ctx: commands.Context, error: Exception) -> None:
         command = ctx.message.content.split()[0][1:]
         if isinstance(error, commands.CommandOnCooldown):
             retry_after = max(1, math.ceil(error.retry_after))
@@ -2902,7 +2912,7 @@ class TwitchBotCommnads(commands.Component):
         self.bot = bot
 
     @commands.command(name='commands', aliases=['cmds'])
-    async def commands_command(self, ctx):
+    async def commands_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -2948,7 +2958,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='bot')
-    async def bot_command(self, ctx):
+    async def bot_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -2985,7 +2995,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='wsstatus')
-    async def websocket_status_command(self, ctx):
+    async def websocket_status_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3036,7 +3046,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='dbstatus')
-    async def database_status_command(self, ctx):
+    async def database_status_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3094,7 +3104,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='forceonline')
-    async def forceonline_command(self, ctx):
+    async def forceonline_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3133,7 +3143,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='forceoffline')
-    async def forceoffline_command(self, ctx):
+    async def forceoffline_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3174,7 +3184,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='version')
-    async def version_command(self, ctx):
+    async def version_command(ctx: commands.Context):
         global bot_owner, bot_started
         connection = await mysql_handler.get_connection()
         try:
@@ -3245,7 +3255,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='roadmap')
-    async def roadmap_command(self, ctx):
+    async def roadmap_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3281,7 +3291,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='weather')
-    async def weather_command(self, ctx, *, location: str = None) -> None:
+    async def weather_command(ctx: commands.Context, *, location: str = None) -> None:
         global bot_owner, CHANNEL_NAME
         connection = await mysql_handler.get_connection()
         try:
@@ -3333,7 +3343,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='points')
-    async def points_command(self, ctx):
+    async def points_command(ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
@@ -3385,7 +3395,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='addpoints')
-    async def addpoints_command(self, ctx, user: str, points_to_add: int):
+    async def addpoints_command(ctx: commands.Context, user: str, points_to_add: int):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3433,7 +3443,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='removepoints')
-    async def removepoints_command(self, ctx, user: str, points_to_remove: int):
+    async def removepoints_command(ctx: commands.Context, user: str, points_to_remove: int):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3477,7 +3487,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='time')
-    async def time_command(self, ctx, *, timezone: str = None) -> None:
+    async def time_command(ctx: commands.Context, *, timezone: str = None) -> None:
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3571,7 +3581,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='joke')
-    async def joke_command(self, ctx):
+    async def joke_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3628,7 +3638,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='quote')
-    async def quote_command(self, ctx, number: int = None):
+    async def quote_command(ctx: commands.Context, number: int = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3677,7 +3687,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='quoteadd')
-    async def quoteadd_command(self, ctx, *, quote):
+    async def quoteadd_command(ctx: commands.Context, *, quote):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3715,7 +3725,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='removequote')
-    async def quoteremove_command(self, ctx, number: int = None):
+    async def quoteremove_command(ctx: commands.Context, number: int = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3759,7 +3769,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='permit')
-    async def permit_command(self, ctx, permit_user: str = None):
+    async def permit_command(ctx: commands.Context, permit_user: str = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3800,7 +3810,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='settitle')
-    async def settitle_command(self, ctx, *, title: str = None) -> None:
+    async def settitle_command(ctx: commands.Context, *, title: str = None) -> None:
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3841,7 +3851,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='setgame')
-    async def setgame_command(self, ctx, *, game: str = None) -> None:
+    async def setgame_command(ctx: commands.Context, *, game: str = None) -> None:
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3898,7 +3908,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='song')
-    async def song_command(self, ctx):
+    async def song_command(ctx: commands.Context):
         global stream_online, song_requests, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3971,7 +3981,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='songrequest', aliases=['sr'])
-    async def songrequest_command(self, ctx):
+    async def songrequest_command(ctx: commands.Context):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4151,7 +4161,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='skipsong', aliases=['skip'])
-    async def skipsong_command(self, ctx):
+    async def skipsong_command(ctx: commands.Context):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4222,7 +4232,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
-    async def songqueue_command(self, ctx):
+    async def songqueue_command(ctx: commands.Context):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4313,7 +4323,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='timer')
-    async def timer_command(self, ctx):
+    async def timer_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4369,7 +4379,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='stoptimer')
-    async def stoptimer_command(self, ctx):
+    async def stoptimer_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4411,7 +4421,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='checktimer')
-    async def checktimer_command(self, ctx):
+    async def checktimer_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4455,7 +4465,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='hug')
-    async def hug_command(self, ctx, mentioned_username: str = None):
+    async def hug_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4525,7 +4535,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='highfive')
-    async def highfive_command(self, ctx, mentioned_username: str = None):
+    async def highfive_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4595,7 +4605,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='kiss')
-    async def kiss_command(self, ctx, mentioned_username: str = None):
+    async def kiss_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4665,7 +4675,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='ping')
-    async def ping_command(self, ctx):
+    async def ping_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4718,7 +4728,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='translate')
-    async def translate_command(self, ctx):
+    async def translate_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4772,7 +4782,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='cheerleader', aliases=['bitsleader'])
-    async def cheerleader_command(self, ctx):
+    async def cheerleader_command(ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = await mysql_handler.get_connection()
         try:
@@ -4828,7 +4838,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='mybits')
-    async def mybits_command(self, ctx):
+    async def mybits_command(ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = await mysql_handler.get_connection()
         try:
@@ -4912,7 +4922,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='lurk')
-    async def lurk_command(self, ctx):
+    async def lurk_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -4985,7 +4995,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='lurking')
-    async def lurking_command(self, ctx):
+    async def lurking_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5036,7 +5046,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='lurklead', aliases=['lurkleader'])
-    async def lurklead_command(self, ctx):
+    async def lurklead_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5098,7 +5108,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='unlurk', aliases=('back',))
-    async def unlurk_command(self, ctx):
+    async def unlurk_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5168,7 +5178,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='userslurking')
-    async def userslurking_command(self, ctx):
+    async def userslurking_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5210,7 +5220,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='clip')
-    async def clip_command(self, ctx):
+    async def clip_command(ctx: commands.Context):
         global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
         connection = await mysql_handler.get_connection()
         try:
@@ -5271,7 +5281,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='marker')
-    async def marker_command(self, ctx, *, description: str):
+    async def marker_command(ctx: commands.Context, *, description: str):
         global stream_online, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5312,7 +5322,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='subscription', aliases=['mysub'])
-    async def subscription_command(self, ctx):
+    async def subscription_command(ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
         connection = await mysql_handler.get_connection()
         try:
@@ -5378,7 +5388,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='uptime')
-    async def uptime_command(self, ctx):
+    async def uptime_command(ctx: commands.Context):
         global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
         connection = await mysql_handler.get_connection()
         try:
@@ -5448,7 +5458,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='typo')
-    async def typo_command(self, ctx, mentioned_username: str = None):
+    async def typo_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5502,7 +5512,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='typos', aliases=('typocount',))
-    async def typos_command(self, ctx, mentioned_username: str = None):
+    async def typos_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5548,7 +5558,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='edittypos', aliases=('edittypo',))
-    async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
+    async def edittypo_command(ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5618,7 +5628,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='removetypos', aliases=('removetypo',))
-    async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
+    async def removetypos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5666,7 +5676,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='steam')
-    async def steam_command(self, ctx):
+    async def steam_command(ctx: commands.Context):
         global current_game, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5734,7 +5744,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='deaths')
-    async def deaths_command(self, ctx):
+    async def deaths_command(ctx: commands.Context):
         global current_game, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5792,7 +5802,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='deathadd', aliases=['death+'])
-    async def deathadd_command(self, ctx, deaths: int = 1):
+    async def deathadd_command(ctx: commands.Context, deaths: int = 1):
         global current_game, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5872,7 +5882,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='deathremove', aliases=['death-'])
-    async def deathremove_command(self, ctx, deaths: int = 1):
+    async def deathremove_command(ctx: commands.Context, deaths: int = 1):
         global current_game, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5945,7 +5955,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='game')
-    async def game_command(self, ctx):
+    async def game_command(ctx: commands.Context):
         global current_game, bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5980,7 +5990,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='followage')
-    async def followage_command(self, ctx, mentioned_username: str = None):
+    async def followage_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = await mysql_handler.get_connection()
         try:
@@ -6075,7 +6085,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='schedule')
-    async def schedule_command(self, ctx):
+    async def schedule_command(ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = await mysql_handler.get_connection()
         try:
@@ -6178,7 +6188,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='checkupdate')
-    async def checkupdate_command(self, ctx):
+    async def checkupdate_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6233,7 +6243,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='shoutout', aliases=('so',))
-    async def shoutout_command(self, ctx, user_to_shoutout: str = None):
+    async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
         global bot_owner, shoutout_user
         connection = await mysql_handler.get_connection()
         try:
@@ -6287,7 +6297,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='addcommand')
-    async def addcommand_command(self, ctx):
+    async def addcommand_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6331,7 +6341,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='editcommand')
-    async def editcommand_command(self, ctx):
+    async def editcommand_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6375,7 +6385,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='removecommand')
-    async def removecommand_command(self, ctx):
+    async def removecommand_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6419,7 +6429,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='enablecommand')
-    async def enablecommand_command(self, ctx):
+    async def enablecommand_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6479,7 +6489,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='disablecommand')
-    async def disablecommand_command(self, ctx):
+    async def disablecommand_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6539,7 +6549,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='slots')
-    async def slots_command(self, ctx):
+    async def slots_command(ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
@@ -6619,7 +6629,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='kill')
-    async def kill_command(self, ctx, mention: str = None):
+    async def kill_command(ctx: commands.Context, mention: str = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6685,7 +6695,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name="roulette")
-    async def roulette_command(self, ctx):
+    async def roulette_command(ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
@@ -6748,7 +6758,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name="rps")
-    async def rps_command(self, ctx):
+    async def rps_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6798,7 +6808,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name="gamble")
-    async def gamble_command(self, ctx):
+    async def gamble_command(ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
@@ -6916,7 +6926,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name="story")
-    async def story_command(self, ctx):
+    async def story_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6963,7 +6973,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name="convert")
-    async def convert_command(self, ctx, *args):
+    async def convert_command(ctx: commands.Context, *args):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -7051,7 +7061,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='todo')
-    async def todo_command(self, ctx: commands.Context):
+    async def todo_command(ctx: commands.Context: commands.Context):
         global bot_owner
         message_content = ctx.message.content.strip()
         user = ctx.author
@@ -7116,7 +7126,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name="subathon")
-    async def subathon_command(self, ctx, action: str = None, minutes: int = None):
+    async def subathon_command(ctx: commands.Context, action: str = None, minutes: int = None):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -7172,7 +7182,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='heartrate')
-    async def heartrate_command(self, ctx):
+    async def heartrate_command(ctx: commands.Context):
         global bot_owner, HEARTRATE, hyperate_task
         connection = await mysql_handler.get_connection()
         try:
@@ -7223,7 +7233,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='watchtime')
-    async def watchtime_command(self, ctx):
+    async def watchtime_command(ctx: commands.Context):
         global bot_owner
         user_id = ctx.author.id
         username = ctx.author.name
@@ -7295,7 +7305,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='startlotto')
-    async def startlotto_command(self, ctx):
+    async def startlotto_command(ctx: commands.Context):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7332,7 +7342,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='drawlotto')
-    async def drawlotto_command(self, ctx):
+    async def drawlotto_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -7443,7 +7453,7 @@ class TwitchBotCommnads(commands.Component):
             pass
 
     @commands.command(name='obs')
-    async def obs_command(self, ctx):
+    async def obs_command(ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
