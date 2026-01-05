@@ -10826,8 +10826,6 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                                         api_logger.error(f"Exception while sending 5-minute ad notification: {e}")
                                 else:
                                     api_logger.debug("Ad upcoming notification disabled by settings")
-                                except Exception as e:
-                                    api_logger.error(f"Exception while sending 5-minute ad notification: {e}")
                                 last_notification_time = next_ad_at
                                 ad_upcoming_notified = True
                     except Exception as e:
