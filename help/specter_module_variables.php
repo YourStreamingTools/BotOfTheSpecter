@@ -241,6 +241,84 @@
             </div>
         </div>
     </div>
+    <div class="column is-4">
+        <div class="card has-background-dark has-shadow mb-4">
+            <div class="card-content has-background-dark has-text-light" style="height: 300px; word-break: break-word;">
+                <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(gifter)</span> <span class="tag is-danger is-small">BETA ONLY</span><br>
+                The username of the original gifter (for pay it forward events).<br>
+                <span class="has-text-weight-bold">Example:</span><br>
+                <code>Thank you (user) for paying it forward! They received a gift from (gifter).</code>
+                <br><span class="has-text-weight-bold">In Chat:</span><br>
+                <code>Thank you BotOfTheSpecter for paying it forward! They received a gift from gfaUnDead.</code>
+            </div>
+        </div>
+    </div>
+</div>
+<h3 class="title is-5 has-text-light mt-4 mb-3">Subscription Upgrade Variables <span class="tag is-danger is-small">BETA ONLY</span></h3>
+<div class="columns is-desktop is-multiline">
+    <div class="column is-4">
+        <div class="card has-background-dark has-shadow mb-4">
+            <div class="card-content has-background-dark has-text-light" style="height: 300px; word-break: break-word;">
+                <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(user)</span><br>
+                The username of the person who upgraded their subscription.<br>
+                <span class="has-text-weight-bold">Example:</span><br>
+                <code>Thank you (user) for upgrading to a paid subscription!</code>
+                <br><span class="has-text-weight-bold">In Chat:</span><br>
+                <code>Thank you BotOfTheSpecter for upgrading to a paid subscription!</code>
+            </div>
+        </div>
+    </div>
+    <div class="column is-4">
+        <div class="card has-background-dark has-shadow mb-4">
+            <div class="card-content has-background-dark has-text-light" style="height: 300px; word-break: break-word;">
+                <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(tier)</span><br>
+                The subscription tier they upgraded to (Tier 1, Tier 2, or Tier 3).<br>
+                <span class="has-text-weight-bold">Example:</span><br>
+                <code>Thank you for upgrading to a (tier) subscription!</code>
+                <br><span class="has-text-weight-bold">In Chat:</span><br>
+                <code>Thank you for upgrading to a Tier 1 subscription!</code>
+            </div>
+        </div>
+    </div>
+    <div class="column is-4">
+        <div class="card has-background-dark has-shadow mb-4">
+            <div class="card-content has-background-dark has-text-light" style="height: 300px; word-break: break-word;">
+                <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(gifter)</span> <span class="tag is-danger is-small">BETA ONLY</span><br>
+                The username of the original gifter (for pay it forward events).<br>
+                <span class="has-text-weight-bold">Example:</span><br>
+                <code>Thank you (user) for paying it forward! They received a gift from (gifter).</code>
+                <br><span class="has-text-weight-bold">In Chat:</span><br>
+                <code>Thank you BotOfTheSpecter for paying it forward! They received a gift from gfaUnDead.</code>
+            </div>
+        </div>
+    </div>
+</div>
+<h3 class="title is-5 has-text-light mt-4 mb-3">Subscription Upgrade Variables <span class="tag is-danger is-small">BETA ONLY</span></h3>
+<div class="columns is-desktop is-multiline">
+    <div class="column is-4">
+        <div class="card has-background-dark has-shadow mb-4">
+            <div class="card-content has-background-dark has-text-light" style="height: 300px; word-break: break-word;">
+                <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(user)</span><br>
+                The username of the person who upgraded their subscription.<br>
+                <span class="has-text-weight-bold">Example:</span><br>
+                <code>Thank you (user) for upgrading to a paid subscription!</code>
+                <br><span class="has-text-weight-bold">In Chat:</span><br>
+                <code>Thank you BotOfTheSpecter for upgrading to a paid subscription!</code>
+            </div>
+        </div>
+    </div>
+    <div class="column is-4">
+        <div class="card has-background-dark has-shadow mb-4">
+            <div class="card-content has-background-dark has-text-light" style="height: 300px; word-break: break-word;">
+                <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(tier)</span><br>
+                The subscription tier they upgraded to (Tier 1, Tier 2, or Tier 3).<br>
+                <span class="has-text-weight-bold">Example:</span><br>
+                <code>Thank you for upgrading to a (tier) subscription!</code>
+                <br><span class="has-text-weight-bold">In Chat:</span><br>
+                <code>Thank you for upgrading to a Tier 1 subscription!</code>
+            </div>
+        </div>
+    </div>
 </div>
 <h3 class="title is-5 has-text-light mt-4 mb-3">Hype Train Variables</h3>
 <div class="columns is-desktop is-multiline">
