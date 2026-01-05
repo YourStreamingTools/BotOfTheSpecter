@@ -1047,17 +1047,6 @@ async def process_twitch_eventsub_message(message):
                             is_upgrade=True  # Skip sending duplicate subscription alert
                         ))
                         event_logger.info(f"Prime paid upgrade: {event_data['chatter_user_name']} upgraded from Prime Gaming to paid {tier_name} subscription")
-                # Subscription Gift Event (Legacy - fallback)
-                elif event_type == "channel.subscription.gift":
-                    tier = event_data["tier"]
-                    tier_name = tier_mapping.get(tier, tier)
-                    create_task(process_giftsub_event(
-                        event_data["user_name"],
-                        tier_name,
-                        event_data["total"],
-                        event_data.get("is_anonymous", False),
-                        event_data.get("cumulative_total")
-                    ))
                 # Cheer Event
                 elif event_type == "channel.bits.use":
                     create_task(process_cheer_event(
