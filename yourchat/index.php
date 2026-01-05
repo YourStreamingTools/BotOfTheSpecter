@@ -166,11 +166,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_settings' && $_SERVER['R
         echo json_encode(['success' => false, 'error' => 'Not authenticated']);
         exit;
     }
-    
     $userId = $_SESSION['user_id'];
     $settingsDir = __DIR__ . '/user-settings';
     $settingsFile = $settingsDir . '/' . $userId . '.json';
-    
     // Create directory if it doesn't exist
     if (!is_dir($settingsDir)) {
         if (!mkdir($settingsDir, 0755, true)) {
@@ -178,43 +176,36 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_settings' && $_SERVER['R
             exit;
         }
     }
-    
     // Get JSON data from request body
     $jsonData = file_get_contents('php://input');
     if (empty($jsonData)) {
         echo json_encode(['success' => false, 'error' => 'No data received']);
         exit;
     }
-    
     $settings = json_decode($jsonData, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
         echo json_encode(['success' => false, 'error' => 'Invalid JSON: ' . json_last_error_msg()]);
         exit;
     }
-    
     // Ensure nicknames is an object, not an array
     if (isset($settings['nicknames']) && is_array($settings['nicknames']) && empty($settings['nicknames'])) {
         $settings['nicknames'] = new stdClass();
     }
-    
     // Save settings to file with JSON_FORCE_OBJECT for empty arrays in nicknames
     $jsonOutput = json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     if ($jsonOutput === false) {
         echo json_encode(['success' => false, 'error' => 'Failed to encode settings: ' . json_last_error_msg()]);
         exit;
     }
-    
     // Fix empty arrays to empty objects for nicknames field only
     $decoded = json_decode($jsonOutput, true);
     if (isset($decoded['nicknames']) && is_array($decoded['nicknames']) && empty($decoded['nicknames'])) {
         $jsonOutput = str_replace('"nicknames": []', '"nicknames": {}', $jsonOutput);
     }
-    
     if (file_put_contents($settingsFile, $jsonOutput) === false) {
         echo json_encode(['success' => false, 'error' => 'Failed to write file. Check permissions.']);
         exit;
     }
-    
     echo json_encode(['success' => true, 'message' => 'Settings saved']);
     exit;
 }
@@ -268,6 +259,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 </div>
                 <div class="status-indicator">
                     <span class="token-wrapper"><span class="token-label hide-on-narrow">Token:</span> <span id="token-timer">--:--</span></span>
+                </div>
+                <div class="status-indicator" title="Last message received">
+                    <span class="last-msg-wrapper"><span class="last-msg-label hide-on-narrow">Last Msg:</span> <span id="last-message-time">--</span></span>
                 </div>
                 <div class="compact-actions" aria-hidden="false">
                     <button class="clear-history-btn" onclick="clearChatHistory()" title="Clear Chat History" aria-label="Clear chat history">🗑️</button>
@@ -373,6 +367,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let keepaliveTimeoutHandle = null;
             let keepaliveTimeoutSeconds = 10; // Default, will be updated from session
             let badgeCache = {}; // Cache for badge URLs
+            let lastMessageTimestamp = null; // Track last message time
             // Recent redemptions cache to deduplicate matching chat messages
             let recentRedemptions = [];
             // Recent chat messages cache for bidirectional deduplication
@@ -481,6 +476,28 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let presenceCurrentInterval = presenceBaseInterval;
             let presenceBackoffAttempts = 0;
             const PRESENCE_MAX_BACKOFF_MS = 5 * 60 * 1000;
+            // Update last message time display
+            function updateLastMessageTime() {
+                const element = document.getElementById('last-message-time');
+                if (!element) return;
+                if (!lastMessageTimestamp) {
+                    element.textContent = '--';
+                    return;
+                }
+                const now = Date.now();
+                const diff = Math.floor((now - lastMessageTimestamp) / 1000); // seconds
+                if (diff < 60) {
+                    element.textContent = `${diff}s ago`;
+                } else if (diff < 3600) {
+                    const minutes = Math.floor(diff / 60);
+                    element.textContent = `${minutes}m ago`;
+                } else {
+                    const hours = Math.floor(diff / 3600);
+                    element.textContent = `${hours}h ago`;
+                }
+            }
+            // Update last message time every second
+            setInterval(updateLastMessageTime, 1000);
             function loadPresenceSetting() {
                 return userSettings.presence_enabled || false;
             }
@@ -1558,6 +1575,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             function handleChatMessage(event) {
                 // Log raw event data for debugging streaks and other features
                 logRawChatData(event);
+                // Update last message timestamp
+                lastMessageTimestamp = Date.now();
+                updateLastMessageTime();
                 // Check if message should be filtered
                 if (isMessageFiltered(event)) {
                     return;
