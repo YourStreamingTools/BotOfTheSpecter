@@ -483,6 +483,14 @@ body {
     margin-right: 6px;
 }
 
+.chat-timestamp {
+    color: #999;
+    font-size: 11px;
+    margin-left: 4px;
+    margin-right: 8px;
+    opacity: 0.8;
+}
+
 .chat-text {
     color: #fff;
     word-wrap: break-word;
