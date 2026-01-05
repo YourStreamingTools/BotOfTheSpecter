@@ -93,7 +93,6 @@ if (isset($_GET['log'])) {
   header('Expires: 0');
   header('Pragma: no-cache');
   $logType = $_GET['log'];
-  $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
   $currentUser = $_SESSION['username'];
   $log = "$logPath/$logType/$currentUser.txt";
   // Read the log file via SSH
@@ -103,15 +102,12 @@ if (isset($_GET['log'])) {
     exit();
   }
   $logContent = $result['logContent'];
-  $lines = explode("\n", $logContent);
-  $linesTotal = count($lines);
-  // Get the selected lines based on skip from end
-  $skip_from_end = $since;
-  $start = max(0, $linesTotal - $skip_from_end - 200);
-  $selected_lines = array_slice($lines, $start, 200);
-  $logContent = implode("\n", $selected_lines);
+  // Load entire file content
+  if (trim($logContent) === '') {
+    $logContent = "Nothing has been logged yet.";
+  }
   $logContent = highlight_log_dates($logContent);
-  echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
+  echo json_encode(['data' => $logContent]);
   exit();
 }
 
@@ -125,11 +121,6 @@ if (isset($_GET['logType'])) {
     $logContent = "Error: " . $result['error'];
   } else {
     $logContent = $result['logContent'];
-    $lines = explode("\n", $logContent);
-    $linesTotal = count($lines);
-    $start = max(0, $linesTotal - 200);
-    $selected_lines = array_slice($lines, $start, 200);
-    $logContent = implode("\n", $selected_lines);
     if (trim($logContent) === '') {
       $logContent = "Nothing has been logged yet.";
     }
@@ -181,7 +172,6 @@ ob_start();
       <div class="buttons buttons-container mt-4" style="display: none;">
         <button class="button is-link mr-2 mb-2" id="reload-log"><?php echo t('logs_reload_btn'); ?></button>
         <button class="button is-info toggle-button mr-2 mb-2" id="toggle-auto-refresh"><?php echo t('logs_auto_refresh'); ?>: OFF</button>
-        <button class="button is-primary mb-2" id="load-more"><?php echo t('logs_load_more'); ?></button>
       </div>
     </div>
   </div>
@@ -194,7 +184,7 @@ ob_start();
             <div
               id="logs-log-html"
               class="admin-log-content"
-              style="max-height: 600px; min-height: 600px; font-family: monospace; white-space: pre-wrap; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: auto; overflow-y: auto;"
+              style="max-height: 400px; min-height: 200px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"
               contenteditable="false"
             ><?php echo $logContent; ?></div>
           </div>
@@ -210,14 +200,12 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-var loaded_lines = 0;
 var autoRefresh = false;
 var currentLogName = ''; // Track the currently selected log
 var logtext = document.getElementById("logs-log-textarea");
 var logHtml = document.getElementById("logs-log-html");
 const reloadButton = document.getElementById("reload-log");
 const autoRefreshButton = document.getElementById("toggle-auto-refresh");
-const loadMoreButton = document.getElementById("load-more");
 const logSelect = document.getElementById("logs-select");
 const buttonsContainer = document.querySelector(".buttons-container"); // Target the buttons container
 const autoRefreshInterval = 5000; // Auto-refresh interval in milliseconds (5 seconds by default)
@@ -236,21 +224,16 @@ function toggleButtonsContainer(show) {
   }
 }
 
-async function fetchLogData(logname, loadMore = false) {
+async function fetchLogData(logname) {
   // Set the current log name
   if (currentLogName !== logname) {
     currentLogName = logname;
   }
-  // Load more lines or reset
-  if (!loadMore) {
-    loaded_lines = 0;
-  }
-  let since = loaded_lines;
   try {
     // Add cache-busting timestamp to URL
-    const response = await fetch(`logs.php?log=${logname}&since=${since}&_=${Date.now()}`);
+    const response = await fetch(`logs.php?log=${logname}&_=${Date.now()}`);
     const json = await response.json();
-      // Check for errors first
+    // Check for errors first
     if (json.error) {
       logHtml.innerHTML = `<span style="color: #ff6b6b;">Error: ${json.error}</span>`;
       toggleButtonsContainer(true);
@@ -260,16 +243,7 @@ async function fetchLogData(logname, loadMore = false) {
     if (json.empty || json["data"].length === 0 || json["data"].trim() === '') {
       logHtml.innerHTML = "(log is empty)";
     } else {
-      if (loadMore && loaded_lines >= json["last_line"]) {
-        console.log(<?php echo json_encode(t('logs_no_more_lines')); ?>);
-        return;
-      }
-      if (loadMore) {
-        logHtml.innerHTML = json["data"] + logHtml.innerHTML;
-      } else {
-        logHtml.innerHTML = json["data"];
-      }
-      loaded_lines += 200;
+      logHtml.innerHTML = json["data"];
     }
     toggleButtonsContainer(true);
   } catch (error) {
@@ -282,7 +256,7 @@ async function autoUpdateLog() {
   if (autoRefresh && currentLogName !== '') {
     try {
       // Add cache-busting timestamp to URL
-      const response = await fetch(`logs.php?log=${currentLogName}&since=0&_=${Date.now()}`);
+      const response = await fetch(`logs.php?log=${currentLogName}&_=${Date.now()}`);
       const json = await response.json();
       // Check for errors
       if (json.error) {
@@ -317,11 +291,6 @@ autoRefreshButton.addEventListener('click', () => {
   autoRefresh = !autoRefresh;
   autoRefreshButton.innerText = `Auto-refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
   autoRefreshButton.classList.toggle('active', autoRefresh);
-});
-
-// Event listener for load more button
-loadMoreButton.addEventListener('click', () => {
-  fetchLogData(currentLogName, true);
 });
 
 // Auto-refresh interval (every 5 seconds)
