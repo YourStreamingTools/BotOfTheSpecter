@@ -467,9 +467,7 @@ async def subscribe_to_events(session_id):
         # v1 topics
         {"type": "stream.online", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "stream.offline", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
-        {"type": "channel.subscribe", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
-        {"type": "channel.subscription.gift", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
-        {"type": "channel.subscription.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.chat.notification", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         {"type": "channel.bits.use", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.raid", "version": "1", "condition": {"to_broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.ad_break.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
@@ -840,28 +838,141 @@ async def process_twitch_eventsub_message(message):
                         event_data["user_id"],
                         event_data["user_name"]
                     ))
-                # Subscription Event
-                elif event_type == "channel.subscribe":
-                    tier = event_data["tier"]
-                    tier_name = tier_mapping.get(tier, tier)
-                    create_task(process_subscription_event(
-                        event_data["user_id"],
-                        event_data["user_name"],
-                        tier_name,
-                        event_data.get("cumulative_months", 1)
-                    ))
-                # Subscription Message Event
-                elif event_type == "channel.subscription.message":
-                    tier = event_data["tier"]
-                    tier_name = tier_mapping.get(tier, tier)
-                    subscription_message = event_data.get("message", {}).get("text", "")
-                    create_task(process_subscription_message_event(
-                        event_data["user_id"],
-                        event_data["user_name"],
-                        tier_name,
-                        event_data.get("cumulative_months", 1)
-                    ))
-                # Subscription Gift Event
+                # Chat Notification Event (handles sub, resub, sub_gift, etc.)
+                elif event_type == "channel.chat.notification":
+                    notice_type = event_data.get("notice_type")
+                    if notice_type == "sub":
+                        sub_data = event_data.get("sub", {})
+                        tier = sub_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        create_task(process_subscription_event(
+                            event_data["chatter_user_id"],
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1  # New sub is always month 1
+                        ))
+                    elif notice_type == "resub":
+                        resub_data = event_data.get("resub", {})
+                        tier = resub_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        cumulative_months = resub_data.get("cumulative_months", 1)
+                        subscription_message = resub_data.get("sub_message", {}).get("text", "")
+                        if subscription_message:
+                            create_task(process_subscription_message_event(
+                                event_data["chatter_user_id"],
+                                event_data["chatter_user_name"],
+                                tier_name,
+                                cumulative_months
+                            ))
+                        else:
+                            create_task(process_subscription_event(
+                                event_data["chatter_user_id"],
+                                event_data["chatter_user_name"],
+                                tier_name,
+                                cumulative_months
+                            ))
+                    elif notice_type == "sub_gift":
+                        sub_gift_data = event_data.get("sub_gift", {})
+                        tier = sub_gift_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        create_task(process_giftsub_event(
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1,  # Single gift
+                            event_data.get("chatter_is_anonymous", False),
+                            sub_gift_data.get("cumulative_total")
+                        ))
+                    elif notice_type == "community_sub_gift":
+                        community_gift_data = event_data.get("community_sub_gift", {})
+                        tier = community_gift_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        create_task(process_giftsub_event(
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            community_gift_data.get("count", 0),
+                            event_data.get("chatter_is_anonymous", False),
+                            community_gift_data.get("cumulative_total")
+                        ))
+                    elif notice_type == "pay_it_forward":
+                        pay_it_forward_data = event_data.get("pay_it_forward", {})
+                        tier = pay_it_forward_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        gifter_user_name = pay_it_forward_data.get("gifter_user_name")
+                        # Fetch pay it forward message from database
+                        await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("pay_it_forward",))
+                        result = await cursor.fetchone()
+                        if result and result.get("alert_message"):
+                            pif_message = result.get("alert_message")
+                        else:
+                            if gifter_user_name:
+                                pif_message = "Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!"
+                            else:
+                                pif_message = "Thank you (user) for paying it forward with a (tier) subscription!"
+                        # Replace placeholders
+                        pif_message = pif_message.replace("(user)", event_data['chatter_user_name'])
+                        pif_message = pif_message.replace("(tier)", tier_name)
+                        if gifter_user_name:
+                            pif_message = pif_message.replace("(gifter)", gifter_user_name)
+                        await send_chat_message(pif_message)
+                        # Process the gift subscription (skip alert since we already sent custom message)
+                        create_task(process_giftsub_event(
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1,  # Pay it forward is a single gift
+                            event_data.get("chatter_is_anonymous", False),
+                            None,
+                            skip_alert=True  # Skip duplicate alert
+                        ))
+                        event_logger.info(f"Pay it forward: {event_data['chatter_user_name']} paid forward a {tier_name} subscription (received from {gifter_user_name})")
+                    elif notice_type == "gift_paid_upgrade":
+                        gift_paid_upgrade_data = event_data.get("gift_paid_upgrade", {})
+                        tier = gift_paid_upgrade_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        # Fetch upgrade message from database
+                        await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("gift_paid_upgrade",))
+                        result = await cursor.fetchone()
+                        if result and result.get("alert_message"):
+                            upgrade_message = result.get("alert_message")
+                        else:
+                            upgrade_message = "Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!"
+                        # Replace placeholders
+                        upgrade_message = upgrade_message.replace("(user)", event_data['chatter_user_name'])
+                        upgrade_message = upgrade_message.replace("(tier)", tier_name)
+                        await send_chat_message(upgrade_message)
+                        # Process the subscription data
+                        create_task(process_subscription_event(
+                            event_data["chatter_user_id"],
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1,  # Gift paid upgrade starts their own subscription at month 1
+                            is_upgrade=True  # Skip sending duplicate subscription alert
+                        ))
+                        event_logger.info(f"Gift paid upgrade: {event_data['chatter_user_name']} upgraded from Gifted Sub to paid {tier_name} subscription")
+                    elif notice_type == "prime_paid_upgrade":
+                        prime_paid_upgrade_data = event_data.get("prime_paid_upgrade", {})
+                        tier = prime_paid_upgrade_data.get("sub_tier")
+                        tier_name = tier_mapping.get(tier, tier)
+                        # Fetch upgrade message from database
+                        await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("prime_paid_upgrade",))
+                        result = await cursor.fetchone()
+                        if result and result.get("alert_message"):
+                            upgrade_message = result.get("alert_message")
+                        else:
+                            upgrade_message = "Thank you (user) for upgrading from Prime Gaming to a paid (tier) subscription!"
+                        # Replace placeholders
+                        upgrade_message = upgrade_message.replace("(user)", event_data['chatter_user_name'])
+                        upgrade_message = upgrade_message.replace("(tier)", tier_name)
+                        await send_chat_message(upgrade_message)
+                        # Process the subscription data
+                        create_task(process_subscription_event(
+                            event_data["chatter_user_id"],
+                            event_data["chatter_user_name"],
+                            tier_name,
+                            1,  # Prime paid upgrade starts their own subscription at month 1
+                            is_upgrade=True  # Skip sending duplicate subscription alert
+                        ))
+                        event_logger.info(f"Prime paid upgrade: {event_data['chatter_user_name']} upgraded from Prime Gaming to paid {tier_name} subscription")
+                # Subscription Gift Event (Legacy - fallback)
                 elif event_type == "channel.subscription.gift":
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
@@ -8830,7 +8941,7 @@ async def process_cheer_event(user_id, user_name, bits):
         pass
 
 # Function for Subscriptions
-async def process_subscription_event(user_id, user_name, sub_plan, event_months):
+async def process_subscription_event(user_id, user_name, sub_plan, event_months, is_upgrade=False):
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8884,21 +8995,22 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 else:
                     sub_add_time = 0  # Default to 0 if no matching tier
                 await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
-            # Send notification messages
-            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
-            result = await cursor.fetchone()
-            if result and result.get("alert_message"):
-                alert_message = result.get("alert_message")
-            else:
-                alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
-            # Check if shoutout trigger is in the message
-            send_shoutout = False
-            shoutout_message = None
-            if "(shoutout)" in alert_message:
-                send_shoutout = True
-                alert_message = alert_message.replace("(shoutout)", "")
-                shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
-            alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
+            # Send notification messages (skip for upgrades since they send their own message)
+            if not is_upgrade:
+                await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
+                result = await cursor.fetchone()
+                if result and result.get("alert_message"):
+                    alert_message = result.get("alert_message")
+                else:
+                    alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
+                # Check if shoutout trigger is in the message
+                send_shoutout = False
+                shoutout_message = None
+                if "(shoutout)" in alert_message:
+                    send_shoutout = True
+                    alert_message = alert_message.replace("(shoutout)", "")
+                    shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
+                alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -8929,7 +9041,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
         pass
 
 # Function for Resubscriptions with Messages
-async def process_subscription_message_event(user_id, user_name, sub_plan, event_months):
+async def process_subscription_message_event(user_id, user_name, sub_plan, event_months, is_upgrade=False):
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8983,21 +9095,22 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 else:
                     sub_add_time = 0  # Default to 0 if no matching tier
                 await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
-            # Send notification messages
-            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
-            result = await cursor.fetchone()
-            if result and result.get("alert_message"):
-                alert_message = result.get("alert_message")
-            else:
-                alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
-            # Check if shoutout trigger is in the message
-            send_shoutout = False
-            shoutout_message = None
-            if "(shoutout)" in alert_message:
-                send_shoutout = True
-                alert_message = alert_message.replace("(shoutout)", "")
-                shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
-            alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
+            # Send notification messages (skip for upgrades since they send their own message)
+            if not is_upgrade:
+                await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
+                result = await cursor.fetchone()
+                if result and result.get("alert_message"):
+                    alert_message = result.get("alert_message")
+                else:
+                    alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
+                # Check if shoutout trigger is in the message
+                send_shoutout = False
+                shoutout_message = None
+                if "(shoutout)" in alert_message:
+                    send_shoutout = True
+                    alert_message = alert_message.replace("(shoutout)", "")
+                    shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
+                alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -9028,34 +9141,36 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
         pass
 
 # Function for Gift Subscriptions
-async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted):
+async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted, skip_alert=False):
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (gifter_user_name, "Gift Subscriptions", f"{number_gifts} - GIFT SUBSCRIPTIONS"))
             await connection.commit()
-            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("gift_subscription_alert",))
-            result = await cursor.fetchone()
-            if result and result.get("alert_message"):
-                alert_message = result.get("alert_message")
-            else:
-                alert_message = "Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!"
-            if anonymous:
-                giftsubfrom = "Anonymous"
-            else:
-                giftsubfrom = gifter_user_name
-            alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
-            await send_chat_message(alert_message)
-            marker_description = f"New Gift Subs from {giftsubfrom}"
-            if await make_stream_marker(marker_description):
-                twitch_logger.info(f"A stream marker was created: {marker_description}.")
-            else:
-                twitch_logger.info("Failed to create a stream marker.")
-            await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Gift Subscription",))
-            result = await cursor.fetchone()
-            if result and result.get("sound_mapping"):
-                sound_file = "twitch/" + result.get("sound_mapping")
-                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+            # Skip alert message for special cases like pay_it_forward (which sends its own message)
+            if not skip_alert:
+                await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("gift_subscription_alert",))
+                result = await cursor.fetchone()
+                if result and result.get("alert_message"):
+                    alert_message = result.get("alert_message")
+                else:
+                    alert_message = "Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!"
+                if anonymous:
+                    giftsubfrom = "Anonymous"
+                else:
+                    giftsubfrom = gifter_user_name
+                alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
+                await send_chat_message(alert_message)
+                marker_description = f"New Gift Subs from {giftsubfrom}"
+                if await make_stream_marker(marker_description):
+                    twitch_logger.info(f"A stream marker was created: {marker_description}.")
+                else:
+                    twitch_logger.info("Failed to create a stream marker.")
+                await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Gift Subscription",))
+                result = await cursor.fetchone()
+                if result and result.get("sound_mapping"):
+                    sound_file = "twitch/" + result.get("sound_mapping")
+                    create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         pass
 

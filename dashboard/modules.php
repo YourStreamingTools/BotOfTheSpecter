@@ -136,7 +136,10 @@ $default_chat_alerts = [
     'subscription_alert' => 'Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!',
     'gift_subscription_alert' => 'Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!',
     'hype_train_start' => 'The Hype Train has started! Starting at level: (level)',
-    'hype_train_end' => 'The Hype Train has ended at level (level)!'
+    'hype_train_end' => 'The Hype Train has ended at level (level)!',
+    'gift_paid_upgrade' => 'Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!',
+    'prime_paid_upgrade' => 'Thank you (user) for upgrading from Prime Gaming to a paid (tier) subscription!',
+    'pay_it_forward' => 'Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!'
 ];
 $chat_alerts = [];
 $stmt = $db->prepare("SELECT alert_type, alert_message FROM twitch_chat_alerts");
@@ -186,29 +189,6 @@ $stmt->close();
 ob_start();
 ?>
 
-<!-- Module Variables Notification -->
-<div class="notification is-info mb-5">
-    <div class="columns is-vcentered">
-        <div class="column is-narrow">
-            <span class="icon is-large"><i class="fas fa-code fa-2x"></i></span>
-        </div>
-        <div class="column">
-            <p class="title is-6 mb-2">Variables for Modules</p>
-            <p class="mb-2">Use variables in your Welcome Messages, Ad Notices, and Twitch Chat Alerts to create dynamic, personalized messages for your community.</p>
-            <p class="mb-2"><strong>What are Module Variables?</strong>
-                            <br>Variables are placeholders that get replaced with real information when the message is sent.
-                            <br>For example, <code>(user)</code> becomes the viewer's username, and <code>(bits)</code> shows the number of bits cheered.
-            </p>
-            <p class="mb-2"><strong>Available Variables:</strong>
-                            <br>Each module has specific variables you can use - from usernames and viewer counts to subscription tiers and hype train levels.
-            </p>
-            <a href="https://help.botofthespecter.com/specter_module_variables.php" target="_blank" class="button is-primary is-small">
-                <span class="icon"><i class="fas fa-code"></i></span>
-                <span>View All Module Variables</span>
-            </a>
-        </div>
-    </div>
-</div>
 <div class="columns is-centered">
     <div class="column is-fullwidth">
         <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
@@ -1071,6 +1051,60 @@ ob_start();
                                                         <p class="help has-text-grey-light">
                                                             <span class="char-count" data-field="hype_train_end">0</span>/255 characters
                                                         </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- BETA Features Section -->
+                                            <div class="box has-background-dark mt-5">
+                                                <div class="notification is-warning is-light mb-4">
+                                                    <span class="icon mr-2"><i class="fas fa-flask"></i></span>
+                                                    <strong>BETA Features:</strong> These subscription upgrade alerts are currently in beta testing. They use the new Twitch EventSub channel.chat.notification system.
+                                                </div>
+                                                <div class="columns is-multiline">
+                                                    <div class="column is-6">
+                                                        <div class="field">
+                                                            <label class="label has-text-white">
+                                                                <span class="icon mr-1"><i class="fas fa-arrow-up"></i></span>
+                                                                Gift Paid Upgrade <span class="tag is-warning ml-2">BETA</span>
+                                                            </label>
+                                                            <div class="control">
+                                                                <input class="input chat-alert-input" type="text" name="gift_paid_upgrade" maxlength="255"
+                                                                       value="<?php echo htmlspecialchars(isset($chat_alerts['gift_paid_upgrade']) ? $chat_alerts['gift_paid_upgrade'] : $default_chat_alerts['gift_paid_upgrade']); ?>">
+                                                            </div>
+                                                            <p class="help has-text-grey-light">
+                                                                <span class="char-count" data-field="gift_paid_upgrade">0</span>/255 characters. Placeholders: (user), (tier)
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div class="column is-6">
+                                                        <div class="field">
+                                                            <label class="label has-text-white">
+                                                                <span class="icon mr-1"><i class="fas fa-arrow-up"></i></span>
+                                                                Prime Paid Upgrade <span class="tag is-warning ml-2">BETA</span>
+                                                            </label>
+                                                            <div class="control">
+                                                                <input class="input chat-alert-input" type="text" name="prime_paid_upgrade" maxlength="255"
+                                                                       value="<?php echo htmlspecialchars(isset($chat_alerts['prime_paid_upgrade']) ? $chat_alerts['prime_paid_upgrade'] : $default_chat_alerts['prime_paid_upgrade']); ?>">
+                                                            </div>
+                                                            <p class="help has-text-grey-light">
+                                                                <span class="char-count" data-field="prime_paid_upgrade">0</span>/255 characters. Placeholders: (user), (tier)
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div class="column is-12">
+                                                        <div class="field">
+                                                            <label class="label has-text-white">
+                                                                <span class="icon mr-1"><i class="fas fa-gift"></i></span>
+                                                                Pay It Forward <span class="tag is-warning ml-2">BETA</span>
+                                                            </label>
+                                                            <div class="control">
+                                                                <input class="input chat-alert-input" type="text" name="pay_it_forward" maxlength="255"
+                                                                       value="<?php echo htmlspecialchars(isset($chat_alerts['pay_it_forward']) ? $chat_alerts['pay_it_forward'] : $default_chat_alerts['pay_it_forward']); ?>">
+                                                            </div>
+                                                            <p class="help has-text-grey-light">
+                                                                <span class="char-count" data-field="pay_it_forward">0</span>/255 characters. Placeholders: (user), (tier), (gifter)
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
