@@ -1226,9 +1226,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const messageText = (event.message?.text || '').toString().toLowerCase();
                 const username = (event.chatter_user_login || '').toString().toLowerCase();
                 const displayName = (event.chatter_user_name || event.chatter_user_display_name || '').toString().toLowerCase();
-                // Check username filters (exact match)
+                // Check username filters (exact match) - only check actual Twitch username/displayName, not nicknames
                 const userFilters = loadFiltersUsernames();
-                if (userFilters.some(f => f.toLowerCase() === username || f.toLowerCase() === displayName)) {
+                if (userFilters.some(f => {
+                    const filterLower = f.toLowerCase();
+                    return filterLower === username || filterLower === displayName;
+                })) {
                     return true;
                 }
                 // Check message phrase filters (contains)
