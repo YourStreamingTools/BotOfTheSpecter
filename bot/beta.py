@@ -9779,6 +9779,7 @@ async def channel_point_rewards():
                         data = await response.json()
                         rewards = data.get("data", [])
                         for reward in rewards:
+                            rewards_processed += 1
                             reward_id = reward.get("id")
                             reward_title = reward.get("title")
                             reward_cost = reward.get("cost")
@@ -9789,8 +9790,7 @@ async def channel_point_rewards():
                                 "ON DUPLICATE KEY UPDATE reward_title = new.reward_title, reward_cost = new.reward_cost",
                                 (reward_id, reward_title, reward_cost)
                             )
-                            api_logger.info(f"Processed reward: {reward_id}, {reward_title}, {reward_cost}")
-                        api_logger.info("Rewards processed successfully.")
+                        api_logger.info(f"Rewards processed successfully. {rewards_processed} rewards processed.")
                     else:
                         api_logger.error(f"Failed to fetch rewards: {response.status} {response.reason}")
         if connection:
@@ -10649,7 +10649,6 @@ async def handle_ad_break_start(duration_seconds):
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
     global CHANNEL_NAME, stream_online, ad_upcoming_notified
-    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     last_notification_time = None
     last_ad_time = None
     last_snooze_count = None
