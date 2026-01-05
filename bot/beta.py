@@ -205,6 +205,7 @@ streamlabs_token = None                                 # StreamLabs access toke
 ad_settings_cache = None                                # Global cache for ad settings
 ad_settings_cache_time = 0                              # Last time the ad settings were cached
 CACHE_DURATION = 60                                     # 1 minute (matches ad check interval)
+ad_upcoming_notified = False                            # Flag to prevent duplicate ad upcoming notifications
 
 SPOTIFY_ERROR_MESSAGES = {
     400: "It looks like something went wrong with the request. Please try again.",
