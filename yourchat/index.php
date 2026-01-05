@@ -1413,6 +1413,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             handleRaidEvent(payload.event);
                         } else if (payload.subscription.type === 'channel.bits.use') {
                             handleBitsEvent(payload.event);
+                        } else if (payload.subscription.type === 'channel.chat.message_delete') {
+                            handleMessageDelete(payload.event);
                         }
                         break;
                     case 'session_reconnect':
@@ -1479,6 +1481,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         version: '1',
                         condition: {
                             broadcaster_user_id: CONFIG.USER_ID
+                        }
+                    },
+                    {
+                        type: 'channel.chat.message_delete',
+                        version: '1',
+                        condition: {
+                            broadcaster_user_id: CONFIG.USER_ID,
+                            user_id: CONFIG.USER_ID
                         }
                     }
                 ];
@@ -1594,6 +1604,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'chat-message';
+                messageDiv.setAttribute('data-message-id', event.message_id);
                 // Build badges HTML
                 let badgesHtml = '';
                 if (event.badges && event.badges.length > 0) {
@@ -1650,6 +1661,20 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
                 // Save chat history
                 saveChatHistory();
+            }
+            // Handle message deletion
+            function handleMessageDelete(event) {
+                const messageId = event.message_id;
+                const overlay = document.getElementById('chat-overlay');
+                const messageElement = overlay.querySelector(`[data-message-id="${messageId}"]`);
+                
+                if (messageElement) {
+                    // Add deleted class to strike through the message
+                    messageElement.classList.add('deleted');
+                    
+                    // Save updated history
+                    saveChatHistory();
+                }
             }
             function escapeHtml(text) {
                 const div = document.createElement('div');

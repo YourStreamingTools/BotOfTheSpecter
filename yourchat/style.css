@@ -432,6 +432,16 @@ body {
     animation: slideIn 0.3s ease-out;
 }
 
+.chat-message.deleted {
+    opacity: 0.5;
+    background: rgba(255, 68, 68, 0.1);
+}
+
+.chat-message.deleted .chat-text {
+    text-decoration: line-through;
+    color: #999;
+}
+
 /* Center the colored message boxes and constrain their width */
 .chat-overlay .system-message,
 .chat-overlay .chat-message,
