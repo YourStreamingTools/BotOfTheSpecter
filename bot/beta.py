@@ -3298,6 +3298,13 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        settings = await get_point_settings()
+                        if settings and 'excluded_users' in settings:
+                            excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
+                            if user_name.lower() in excluded_users:
+                                await send_chat_message(f'@{user_name}, you have 0 points.')
+                                add_usage('points', bucket_key, cooldown_bucket)
+                                return
                         result = await manage_user_points(user_id, user_name, "get")
                         if result["success"]:
                             points = result["points"]
