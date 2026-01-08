@@ -2490,33 +2490,19 @@ class TwitchBot(commands.Bot):
 
     async def user_points(self, messageAuthor, messageAuthorID):
         try:
-            connection = await mysql_handler.get_connection()
-            async with connection.cursor(DictCursor) as cursor:
-                settings = await get_point_settings()
-                if not settings or 'chat_points' not in settings or 'excluded_users' not in settings:
-                    chat_logger.error("Error: Point settings are missing or incomplete.")
-                    return
-                chat_points = settings['chat_points']
-                excluded_users = settings['excluded_users'].split(',')
-                #bot_logger.info(f"Excluded users: {excluded_users}")
-                author_lower = messageAuthor.lower()
-                if author_lower not in excluded_users:
-                    await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
-                    result = await cursor.fetchone()
-                    current_points = result.get('points') if result else 0
-                    new_points = current_points + chat_points
-                    if result:
-                        await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
-                        #bot_logger.info(f"Updated {settings['point_name']} for {messageAuthor} in the database.")
-                    else:
-                        await cursor.execute(
-                            "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                            (messageAuthorID, messageAuthor, new_points)
-                        )
-                        bot_logger.info(f"Inserted new user {messageAuthor} with {settings['point_name']} {new_points} into the database.")
-                    await connection.commit()
+            settings = await get_point_settings()
+            if not settings or 'chat_points' not in settings or 'excluded_users' not in settings:
+                chat_logger.error("Error: Point settings are missing or incomplete.")
+                return
+            chat_points = settings['chat_points']
+            excluded_users = settings['excluded_users'].split(',')
+            author_lower = messageAuthor.lower()
+            if author_lower not in excluded_users:
+                result = await manage_user_points(messageAuthorID, messageAuthor, "credit", chat_points)
+                if result["success"]:
+                    bot_logger.info(f"Awarded {chat_points} {settings['point_name']} to {messageAuthor}. Total: {result['points']}")
                 else:
-                    return
+                    chat_logger.error(f"Failed to award points to {messageAuthor}: {result['error']}")
         except Exception as e:
             chat_logger.error(f"Error in user_points: {e}")
         finally:
@@ -3328,23 +3314,13 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        # Check if the user exists in the database
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                        result = await cursor.fetchone()
-                        if result:
-                            points = result.get("points")
-                            chat_logger.info(f"{user_name} has {points} points")
+                        result = await manage_user_points(user_id, user_name, "get")
+                        if result["success"]:
+                            points = result["points"]
+                            await send_chat_message(f'@{user_name}, you have {points} points.')
+                            add_usage('points', bucket_key, cooldown_bucket)
                         else:
-                            points = 0
-                            chat_logger.info(f"{user_name} has {points} points")
-                            await cursor.execute(
-                                "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                                (user_id, user_name, points)
-                            )
-                            await connection.commit()
-                        await send_chat_message(f'@{user_name}, you have {points} points.')
-                        # Record usage
-                        add_usage('points', bucket_key, cooldown_bucket)
+                            await send_chat_message(f"Error checking points: {result['error']}")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the points command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -3378,24 +3354,19 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@')  # Remove @ if present
-                        user_id = str(ctx.author.id)
-                        user_name = user if user else ctx.author.name
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                        result = await cursor.fetchone()
-                        if result:
-                            new_points = result["points"] + points_to_add
-                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+                        user = user.lstrip('@')
+                        user_info = await self.fetch_users(names=[user])
+                        if not user_info:
+                            await send_chat_message(f"User {user} not found.")
+                            return
+                        target_user_id = str(user_info[0].id)
+                        target_user_name = user_info[0].name
+                        result = await manage_user_points(target_user_id, target_user_name, "credit", points_to_add)
+                        if result["success"]:
+                            await send_chat_message(f"Added {points_to_add} points to {target_user_name}. They now have {result['points']} points.")
+                            add_usage('addpoints', bucket_key, cooldown_bucket)
                         else:
-                            new_points = points_to_add
-                            await cursor.execute(
-                                "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                                (user_id, user_name, new_points)
-                            )
-                        await connection.commit()
-                        await send_chat_message(f"Added {points_to_add} points to {user_name}. They now have {new_points} points.")
-                        # Record usage
-                        add_usage('addpoints', bucket_key, cooldown_bucket)
+                            await send_chat_message(f"Error adding points: {result['error']}")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of addpoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -3426,20 +3397,19 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@')  # Remove @ if present
-                        user_id = str(ctx.author.id)
-                        user_name = user if user else ctx.author.name
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                        result = await cursor.fetchone()
-                        if result:
-                            new_points = max(0, result["points"] - points_to_remove)
-                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
-                            await connection.commit()
-                            await send_chat_message(f"Removed {points_to_remove} points from {user_name}. They now have {new_points} points.")
-                            # Record usage
+                        user = user.lstrip('@')
+                        user_info = await self.fetch_users(names=[user])
+                        if not user_info:
+                            await send_chat_message(f"User {user} not found.")
+                            return
+                        target_user_id = str(user_info[0].id)
+                        target_user_name = user_info[0].name
+                        result = await manage_user_points(target_user_id, target_user_name, "debit", points_to_remove)
+                        if result["success"]:
+                            await send_chat_message(f"Removed {result['amount_changed']} points from {target_user_name}. They now have {result['points']} points.")
                             add_usage('removepoints', bucket_key, cooldown_bucket)
                         else:
-                            await send_chat_message(f"{user_name} does not have any points.")
+                            await send_chat_message(f"Error removing points: {result['error']}")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of removepoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -11053,6 +11023,78 @@ async def get_shoutout_message(user_id, user_name, action="command"):
                 f"https://www.twitch.tv/{user_name}"
             )
     return shoutout_message
+
+# Function to manage user points
+async def manage_user_points(user_id: str, user_name: str, action: str, amount: int = 0) -> dict:
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            if result:
+                current_points = result.get("points", 0)
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, 0)",
+                    (user_id, user_name)
+                )
+                await connection.commit()
+                current_points = 0
+            previous_points = current_points
+            if action == "get":
+                return {
+                    "success": True,
+                    "points": current_points,
+                    "previous_points": current_points,
+                    "amount_changed": 0,
+                    "error": None
+                }
+            elif action == "credit":
+                new_points = current_points + amount
+                await cursor.execute(
+                    "UPDATE bot_points SET points = %s WHERE user_id = %s",
+                    (new_points, user_id)
+                )
+                await connection.commit()
+                return {
+                    "success": True,
+                    "points": new_points,
+                    "previous_points": previous_points,
+                    "amount_changed": amount,
+                    "error": None
+                }
+            elif action == "debit":
+                actual_debit = min(amount, current_points)
+                new_points = max(0, current_points - amount)
+                await cursor.execute(
+                    "UPDATE bot_points SET points = %s WHERE user_id = %s",
+                    (new_points, user_id)
+                )
+                await connection.commit()
+                return {
+                    "success": True,
+                    "points": new_points,
+                    "previous_points": previous_points,
+                    "amount_changed": actual_debit,
+                    "error": None
+                }
+            else:
+                return {
+                    "success": False,
+                    "points": current_points,
+                    "previous_points": current_points,
+                    "amount_changed": 0,
+                    "error": f"Invalid action: {action}. Use 'get', 'credit', or 'debit'."
+                }
+    except Exception as e:
+        bot_logger.error(f"Error in manage_user_points (action={action}, user={user_name}): {e}")
+        return {
+            "success": False,
+            "points": 0,
+            "previous_points": 0,
+            "amount_changed": 0,
+            "error": str(e)
+        }
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
