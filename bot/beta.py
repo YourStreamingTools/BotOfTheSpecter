@@ -6686,8 +6686,9 @@ class TwitchBot(commands.Bot):
                     user_points = 0
                 else:
                     user_points = user_data.get("points")
-                # Check if user has enough points
-                if user_points < bet_amount:
+                # Check if user has enough points (broadcaster has unlimited points)
+                is_broadcaster = ctx.author.is_broadcaster
+                if not is_broadcaster and user_points < bet_amount:
                     await send_chat_message(f"{ctx.author.name}, you don't have enough points to gamble {bet_amount}. You have {user_points} points.")
                     return
                 # Handle game types
