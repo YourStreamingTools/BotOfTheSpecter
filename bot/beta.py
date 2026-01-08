@@ -2501,7 +2501,7 @@ class TwitchBot(commands.Bot):
                 chat_logger.error("Error: Point settings are missing or incomplete.")
                 return
             chat_points = settings['chat_points']
-            excluded_users = settings['excluded_users'].split(',')
+            excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
             author_lower = messageAuthor.lower()
             if author_lower not in excluded_users:
                 result = await manage_user_points(messageAuthorID, messageAuthor, "credit", chat_points)
