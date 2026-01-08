@@ -554,6 +554,7 @@ async def subscribe_to_events(session_id):
         {"type": "channel.chat.user_message_hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         {"type": "channel.shoutout.create", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.shoutout.receive", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "channel.chat.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         # v2 topics
         {"type": "channel.channel_points_automatic_reward_redemption.add", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},        
         {"type": "automod.message.hold", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
@@ -1414,6 +1415,13 @@ async def process_twitch_eventsub_message(message):
                         shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct inforamtion from twitch to process the request."
                     await send_chat_message(shoutout_message)
                     twitch_logger.info(f"Shoutout message sent: {shoutout_message}")
+                elif event_type == "channel.chat.message":
+                    if event_data.get("source_broadcaster_user_id") and event_data["source_broadcaster_user_id"] != CHANNEL_ID:
+                        return
+                    chatter_user_id = event_data["chatter_user_id"]
+                    chatter_user_name = event_data["chatter_user_name"]
+                    message_text = event_data["message"]["text"]
+                    create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
                 else:
                     # Logging for unknown event types
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
@@ -2363,8 +2371,6 @@ class TwitchBot(commands.Bot):
                     pass
                 else:
                     bot_logger.error(f"An error occurred in event_message: {e}")
-            finally:
-                await self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser, messageContent)
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
         if messageAuthor in [bannedUser, None, ""]:
@@ -11095,6 +11101,15 @@ async def manage_user_points(user_id: str, user_name: str, action: str, amount: 
             "amount_changed": 0,
             "error": str(e)
         }
+
+async def process_chat_message_event(user_id: str, user_name: str, message: str = ""):
+    try:
+        get_function_from = BOTS_TWITCH_BOT
+        await get_function_from.message_counting_and_welcome_messages(user_name, user_id, False, message)
+        await get_function_from.user_points(user_name, user_id)
+        event_logger.info(f"Processed chat message from {user_name}: welcome check + points awarded")
+    except Exception as e:
+        event_logger.error(f"Error processing chat message event for {user_name}: {e}")
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
