@@ -806,6 +806,27 @@ async def connect_to_streamlabs():
 async def process_message(message, source):
     global streamelements_token, streamlabs_token
     try:
+        # For StreamLabs, strip Socket.IO frame type prefix (e.g., "0", "40", "42")
+        if source == "StreamLabs":
+            # Socket.IO messages start with a frame type number, strip it
+            # Frame types: 0=open, 1=close, 2=ping, 3=pong, 4=message, 40=connect, 41=disconnect, 42=event
+            message_str = str(message)
+            # Find where the JSON starts (after the leading digits)
+            json_start = 0
+            for i, char in enumerate(message_str):
+                if not char.isdigit():
+                    json_start = i
+                    break
+            # If the entire message is just digits (like "40"), skip processing
+            if json_start == 0 and message_str.isdigit():
+                event_logger.debug(f"StreamLabs Socket.IO control frame: {message_str}")
+                return
+            # Extract JSON part
+            json_message = message_str[json_start:]
+            if not json_message:
+                event_logger.debug(f"StreamLabs message has no JSON content: {message_str}")
+                return
+            message = json_message
         data = json.loads(message)
         if source == "StreamElements":
             if data.get('type') == 'response':
