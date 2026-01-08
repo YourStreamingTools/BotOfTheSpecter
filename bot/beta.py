@@ -6723,9 +6723,10 @@ class TwitchBot(commands.Bot):
                 else:
                     await send_chat_message(f"{ctx.author.name}, invalid game type. Try !gamble coinflip {bet_amount}, !gamble blackjack {bet_amount}, or !gamble roulette red {bet_amount}")
                     return
-                # Update user's points in the database
-                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
-                await connection.commit()
+                # Update user's points in the database (skip for broadcaster)
+                if not is_broadcaster:
+                    await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                    await connection.commit()
                 await send_chat_message(message)
                 # Record usage
                 add_usage('gamble', bucket_key, cooldown_bucket)
