@@ -50,6 +50,7 @@ require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 require_once 'bot_control_functions.php';
 include 'userdata.php';
+include '/var/www/config/twitch.php';
 
 // Map action to function action (stop -> kill)
 $actionMap = [ 'run' => 'run', 'stop' => 'stop' ];
@@ -68,7 +69,60 @@ if (empty($username)) {
   echo json_encode(['success' => false, 'message' => 'Username not found in session']);
   exit();
 }
-
+// If attempting to start a bot (not custom), check if bot is banned
+if (($actionMap[$action] ?? '') === 'run' && $bot !== 'custom' && $username !== 'botofthespecter') {
+  // Check if bot is a moderator first
+  $modCheckUrl = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=" . urlencode($twitchUserId);
+  $modHeaders = ['Authorization: Bearer ' . $authToken, 'Client-ID: ' . $clientID];
+  $modCh = curl_init($modCheckUrl);
+  curl_setopt($modCh, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($modCh, CURLOPT_HTTPHEADER, $modHeaders);
+  curl_setopt($modCh, CURLOPT_TIMEOUT, 5);
+  $modResponse = curl_exec($modCh);
+  $modHttpCode = curl_getinfo($modCh, CURLINFO_HTTP_CODE);
+  curl_close($modCh);
+  $isMod = false;
+  if ($modResponse !== false && $modHttpCode === 200) {
+    $modData = json_decode($modResponse, true);
+    if (isset($modData['data'])) {
+      $botUserId = '971436498';
+      foreach ($modData['data'] as $mod) {
+        if ($mod['user_id'] === $botUserId) {
+          $isMod = true;
+          break;
+        }
+      }
+    }
+  }
+  // If bot is NOT a moderator, check if it's banned
+  if (!$isMod) {
+    $botUserId = '971436498';
+    $banCheckUrl = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id=" . urlencode($twitchUserId) . "&user_id=" . urlencode($botUserId);
+    $banHeaders = ['Authorization: Bearer ' . $authToken, 'Client-ID: ' . $clientID];
+    $banCh = curl_init($banCheckUrl);
+    curl_setopt($banCh, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($banCh, CURLOPT_HTTPHEADER, $banHeaders);
+    curl_setopt($banCh, CURLOPT_TIMEOUT, 5);
+    $banResponse = curl_exec($banCh);
+    $banHttpCode = curl_getinfo($banCh, CURLINFO_HTTP_CODE);
+    curl_close($banCh);
+    if ($banResponse !== false && $banHttpCode === 200) {
+      $banData = json_decode($banResponse, true);
+      if (isset($banData['data']) && !empty($banData['data'])) {
+        $banReason = $banData['data'][0]['reason'] ?? 'No reason provided';
+        ob_clean();
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Bot is BANNED from your channel. Reason: ' . $banReason . '. Please unban the bot and make it a moderator before starting.']);
+        exit();
+      }
+    }
+    // Bot is not mod and not banned - still can't start without mod
+    ob_clean();
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Bot is not a moderator on your channel. Please make the bot a moderator before starting.']);
+    exit();
+  }
+}
 // Prepare parameters
 $params = [
   'username' => $username,
