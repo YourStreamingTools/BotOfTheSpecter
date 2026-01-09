@@ -16,9 +16,9 @@ $pageTitle = t('video_alerts_page_title');
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'userdata.php';
-include 'bot_control.php';
-include "mod_access.php";
+include __DIR__ . '/../userdata.php';
+include __DIR__ . '/../bot_control.php';
+include __DIR__ . '/../mod_access.php';
 include 'user_db.php';
 include 'storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
@@ -69,7 +69,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST[
     $videoFile = $_POST['video_file'];
     $rewardId = $_POST['reward_id'];
     $videoFile = htmlspecialchars($videoFile);
-
+    $videoFileRaw = $_POST['video_file'];
+    $videoFile = $videoFileRaw; // Keep $videoFile as raw for existing DB code compat
+    $videoFileSafe = htmlspecialchars($videoFileRaw);
     // Check if a mapping already exists for this video file
     $stmt = $db->prepare("SELECT 1 FROM video_alerts WHERE video_mapping = ?");
     $stmt->bind_param("s", $videoFile);
@@ -77,24 +79,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST[
     $stmt->store_result();
     $exists = $stmt->num_rows > 0;
     $stmt->close();
-
     if ($exists) {
         if ($rewardId) {
             $stmt = $db->prepare("UPDATE video_alerts SET reward_id = ? WHERE video_mapping = ?");
             $stmt->bind_param("ss", $rewardId, $videoFile);
             if (!$stmt->execute()) {
-                $status .= t('video_alerts_mapping_update_failed', ['file' => $videoFile, 'error' => $stmt->error]) . "<br>";
+                $status .= t('video_alerts_mapping_update_failed', ['file' => $videoFileSafe, 'error' => $stmt->error]) . "<br>";
             } else {
-                $status .= t('video_alerts_mapping_updated', ['file' => $videoFile]) . "<br>";
+                $status .= t('video_alerts_mapping_updated', ['file' => $videoFileSafe]) . "<br>";
             }
             $stmt->close();
         } else {
             $stmt = $db->prepare("DELETE FROM video_alerts WHERE video_mapping = ?");
             $stmt->bind_param("s", $videoFile);
             if (!$stmt->execute()) {
-                $status .= t('video_alerts_mapping_remove_failed', ['file' => $videoFile, 'error' => $stmt->error]) . "<br>";
+                $status .= t('video_alerts_mapping_remove_failed', ['file' => $videoFileSafe, 'error' => $stmt->error]) . "<br>";
             } else {
-                $status .= t('video_alerts_mapping_removed', ['file' => $videoFile]) . "<br>";
+                $status .= t('video_alerts_mapping_removed', ['file' => $videoFileSafe]) . "<br>";
             }
             $stmt->close();
         }
@@ -103,9 +104,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST[
             $stmt = $db->prepare("INSERT INTO video_alerts (video_mapping, reward_id) VALUES (?, ?)");
             $stmt->bind_param("ss", $videoFile, $rewardId);
             if (!$stmt->execute()) {
-                $status .= t('video_alerts_mapping_create_failed', ['file' => $videoFile, 'error' => $stmt->error]) . "<br>";
+                $status .= t('video_alerts_mapping_create_failed', ['file' => $videoFileSafe, 'error' => $stmt->error]) . "<br>";
             } else {
-                $status .= t('video_alerts_mapping_created', ['file' => $videoFile]) . "<br>";
+                $status .= t('video_alerts_mapping_created', ['file' => $videoFileSafe]) . "<br>";
             }
             $stmt->close();
         }
