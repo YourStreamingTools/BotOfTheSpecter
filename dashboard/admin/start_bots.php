@@ -179,11 +179,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
             echo json_encode(['success' => false, 'message' => 'Failed to fetch users from database', 'bots' => [], 'debug' => $debug]);
             exit;
         }
-            $debug = ob_get_clean();
-            echo json_encode(['success' => true, 'bots' => $running_bots, 'debug' => $debug]);
+        $debug = ob_get_clean();
+        echo json_encode(['success' => true, 'bots' => $running_bots, 'debug' => $debug]);
     } catch (Exception $e) {
-            $debug = ob_get_clean();
-            echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'bots' => [], 'debug' => $debug]);
+        $debug = ob_get_clean();
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'bots' => [], 'debug' => $debug]);
     }
     exit;
 }
@@ -283,15 +283,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
                 'debug' => $debug
             ]);
         } else {
-                // Remove potentially stale cache entry
-                @removeTokenCacheEntry($tokenCacheFile, $twitch_user_id);
-                $debug = ob_get_clean();
-                echo json_encode([
-                    'success' => true,
-                    'valid' => false,
-                    'message' => 'Token is invalid or expired',
-                    'debug' => $debug
-                ]);
+            // Remove potentially stale cache entry
+            @removeTokenCacheEntry($tokenCacheFile, $twitch_user_id);
+            $debug = ob_get_clean();
+            echo json_encode([
+                'success' => true,
+                'valid' => false,
+                'message' => 'Token is invalid or expired',
+                'debug' => $debug
+            ]);
         }
     } catch (Exception $e) {
             $debug = ob_get_clean();
@@ -370,15 +370,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_user_token'])) 
                 $dbErr = $stmt->error;
                 error_log('Failed to update auth tokens for twitch_user_id=' . $twitch_user_id . ' stmt_error=' . $dbErr);
                 $stmt->close();
-                    $debug = ob_get_clean();
-                    echo json_encode(['success' => false, 'message' => 'Failed to update database', 'debug' => $debug, 'error_details' => ['db_error' => $dbErr]]);
+                $debug = ob_get_clean();
+                echo json_encode(['success' => false, 'message' => 'Failed to update database', 'debug' => $debug, 'error_details' => ['db_error' => $dbErr]]);
             }
         } else {
-                // Log Twitch renewal failure for debugging
-                $respSnippet = substr((string)$response, 0, 200);
-                error_log('Twitch token renew failed for twitch_user_id=' . $twitch_user_id . ' http_code=' . $httpCode . ' curl_error=' . $curlError . ' response=' . $respSnippet);
-                $debug = ob_get_clean();
-                echo json_encode(['success' => false, 'message' => 'Failed to renew token with Twitch', 'debug' => $debug, 'error_details' => ['http_code' => $httpCode, 'curl_error' => $curlError, 'response' => $respSnippet]]);
+            // Log Twitch renewal failure for debugging
+            $respSnippet = substr((string)$response, 0, 200);
+            error_log('Twitch token renew failed for twitch_user_id=' . $twitch_user_id . ' http_code=' . $httpCode . ' curl_error=' . $curlError . ' response=' . $respSnippet);
+            $debug = ob_get_clean();
+            echo json_encode(['success' => false, 'message' => 'Failed to renew token with Twitch', 'debug' => $debug, 'error_details' => ['http_code' => $httpCode, 'curl_error' => $curlError, 'response' => $respSnippet]]);
         }
         } catch (Exception $e) {
             $debug = ob_get_clean();
@@ -431,11 +431,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_bot_mod_status'
         if ($httpCode === 200) {
             $data = json_decode($response, true);
             $isMod = !empty($data['data']);
+            $isBanned = false;
+            $banReason = '';
+            // If bot is NOT a moderator, check if it's banned
+            if (!$isMod) {
+                $banCheckUrl = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id={$twitch_user_id}&user_id={$bot_user_id}";
+                $banCh = curl_init();
+                curl_setopt($banCh, CURLOPT_URL, $banCheckUrl);
+                curl_setopt($banCh, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($banCh, CURLOPT_HTTPHEADER, [
+                    "Authorization: Bearer {$access_token}",
+                    "Client-Id: {$clientID}"
+                ]);
+                $banResponse = curl_exec($banCh);
+                $banHttpCode = curl_getinfo($banCh, CURLINFO_HTTP_CODE);
+                $banCurlErr = curl_error($banCh);
+                curl_close($banCh);
+                
+                if ($banHttpCode === 200 && !$banCurlErr) {
+                    $banData = json_decode($banResponse, true);
+                    if (!empty($banData['data'])) {
+                        $isBanned = true;
+                        $banReason = $banData['data'][0]['reason'] ?? 'No reason provided';
+                    }
+                }
+            }
             $debug = ob_get_clean();
             echo json_encode([
                 'success' => true,
                 'is_mod' => $isMod,
-                'message' => $isMod ? 'Bot is a moderator' : 'Bot is not a moderator',
+                'is_banned' => $isBanned,
+                'ban_reason' => $banReason,
+                'message' => $isMod ? 'Bot is a moderator' : ($isBanned ? 'Bot is banned' : 'Bot is not a moderator'),
                 'debug' => $debug
             ]);
         } else {
@@ -684,7 +711,6 @@ ob_start();
 <div class="box">
     <h1 class="title is-4"><span class="icon"><i class="fas fa-play-circle"></i></span> Start User Bots</h1>
     <p class="mb-4">Validate tokens and start stable bots for users. The system will automatically check if the token is valid and renew it if necessary before starting the bot.</p>
-    
     <div class="is-flex is-justify-content-space-between is-align-items-center mb-4">
         <div class="buttons">
             <button class="button is-info" onclick="refreshBotStatus()">
@@ -810,19 +836,16 @@ function escapeHtml(str) {
 document.addEventListener('DOMContentLoaded', function() {
     // Load running bots status on page load
     refreshBotStatus();
-    
     // Initialize search functionality
     const searchInput = document.getElementById('user-search');
     if (searchInput) {
         searchInput.addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase().trim();
             const rows = document.querySelectorAll('#users-table-body tr');
-            
             rows.forEach(row => {
                 const username = row.querySelector('td:first-child')?.textContent.toLowerCase() || '';
                 const twitchId = row.getAttribute('data-twitch-id')?.toLowerCase() || '';
                 const displayName = row.querySelector('.has-text-grey')?.textContent.toLowerCase() || '';
-                
                 // Show row if search term matches username, display name, or Twitch ID
                 if (username.includes(searchTerm) || displayName.includes(searchTerm) || twitchId.includes(searchTerm)) {
                     row.style.display = '';
@@ -871,7 +894,6 @@ function refreshBotStatus() {
                     if (isRunning) {
                         // Determine bot type once for use in multiple places
                         const isBeta = isRunning.bot_type === 'beta';
-                        
                         // Show running status
                         if (botTag) {
                             botTag.className = 'tag is-success bot-status-tag';
@@ -1060,31 +1082,25 @@ async function makeBotMod(twitchUserId) {
     const makeModBtn = row.querySelector('.make-mod-btn');
     const startStableBtn = row.querySelector('.start-stable-btn');
     const startBetaBtn = row.querySelector('.start-beta-btn');
-    
     makeModBtn.disabled = true;
     makeModBtn.classList.add('is-loading');
     modTag.className = 'tag is-info mod-status-tag';
     modTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Adding as Mod...</span>';
-    
     try {
         const formData = new FormData();
         formData.append('make_bot_mod', '1');
         formData.append('twitch_user_id', twitchUserId);
-        
         const response = await fetch('', {
             method: 'POST',
             body: formData
         });
-        
         const data = await response.json();
-        
         if (data.success) {
             modTag.className = 'tag is-success mod-status-tag';
             modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
             makeModBtn.style.display = 'none';
             if (startStableBtn) startStableBtn.disabled = false;
             if (startBetaBtn) startBetaBtn.disabled = false;
-            
             Swal.fire({
                 icon: 'success',
                 title: 'Success',
@@ -1097,7 +1113,6 @@ async function makeBotMod(twitchUserId) {
             modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-circle"></i></span><span>Failed</span>';
             makeModBtn.disabled = false;
             makeModBtn.classList.remove('is-loading');
-            
             Swal.fire({
                 icon: 'error',
                 title: 'Failed to Add Moderator',
@@ -1111,7 +1126,6 @@ async function makeBotMod(twitchUserId) {
         makeModBtn.disabled = false;
         makeModBtn.classList.remove('is-loading');
         console.error('Error making bot mod:', error);
-        
         Swal.fire({
             icon: 'error',
             title: 'Error',
@@ -1121,10 +1135,42 @@ async function makeBotMod(twitchUserId) {
 }
 
 async function checkBotModStatus(twitchUserId) {
+    const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
+    const modTag = row.querySelector('.mod-status-tag');
     try {
+        // First validate the token to ensure we have a valid access token
         await validateUserToken(twitchUserId);
+        // Now check mod status
+        modTag.className = 'tag is-info mod-status-tag';
+        modTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Checking...</span>';
+        const formData = new FormData();
+        formData.append('check_bot_mod_status', '1');
+        formData.append('twitch_user_id', twitchUserId);
+        const response = await fetch('', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        if (result.success) {
+            if (result.is_mod) {
+                modTag.className = 'tag is-success mod-status-tag';
+                modTag.innerHTML = '<span class="icon"><i class="fas fa-check"></i></span><span>Moderator</span>';
+            } else if (result.is_banned) {
+                modTag.className = 'tag is-danger mod-status-tag';
+                modTag.innerHTML = '<span class="icon"><i class="fas fa-ban"></i></span><span>Banned</span>';
+                modTag.title = 'Reason: ' + (result.ban_reason || 'No reason provided');
+            } else {
+                modTag.className = 'tag is-warning mod-status-tag';
+                modTag.innerHTML = '<span class="icon"><i class="fas fa-times"></i></span><span>Not Mod</span>';
+            }
+        } else {
+            modTag.className = 'tag is-danger mod-status-tag';
+            modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Check Failed</span>';
+        }
     } catch (e) {
-        console.error('Error delegating mod check to validateUserToken:', e);
+        console.error('Error checking mod/ban status:', e);
+        modTag.className = 'tag is-danger mod-status-tag';
+        modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Error</span>';
     }
 }
 
@@ -1270,7 +1316,6 @@ window.switchBotType = async function(username, twitchUserId, targetType) {
         confirmButtonText: `Yes, switch to ${targetType === 'beta' ? 'Beta' : 'Stable'}!`,
         cancelButtonText: 'Cancel'
     });
-    
     if (result.isConfirmed) {
         // Use the existing startUserBot function which handles stopping and switching
         await startUserBot(username, twitchUserId, targetType);
@@ -1369,7 +1414,6 @@ window.restartAllBots = async function() {
         });
         return;
     }
-
     // Confirm the action
     const result = await Swal.fire({
         title: 'Restart All Bots?',
@@ -1380,16 +1424,13 @@ window.restartAllBots = async function() {
         cancelButtonColor: '#aaa',
         confirmButtonText: 'Yes, restart all!'
     });
-
     if (!result.isConfirmed) return;
-
     // Disable the restart all button during the process
     const restartAllBtn = document.getElementById('restart-all-btn');
     if (restartAllBtn) {
         restartAllBtn.disabled = true;
         restartAllBtn.classList.add('is-loading');
     }
-
     // Store original PIDs for comparison
     const botRestartTracking = runningBots.map(bot => ({
         username: bot.username,
@@ -1397,10 +1438,8 @@ window.restartAllBots = async function() {
         newPid: null,
         restarted: false
     }));
-
     let successCount = 0;
     let failCount = 0;
-
     // Create a persistent progress toast that we'll update
     const progressToast = Swal.mixin({
         toast: true,
@@ -1412,13 +1451,11 @@ window.restartAllBots = async function() {
             toast.style.cursor = 'default';
         }
     });
-
     // Show initial progress toast
     progressToast.fire({
         icon: 'info',
         title: `Starting restart process for ${runningBots.length} bot(s)...`
     });
-
     // Restart each bot sequentially
     for (let i = 0; i < botRestartTracking.length; i++) {
         const botInfo = botRestartTracking[i];
@@ -1427,7 +1464,6 @@ window.restartAllBots = async function() {
             icon: 'info',
             title: `Restarting ${botInfo.username} (${i + 1}/${botRestartTracking.length})...`
         });
-
         try {
             // Send restart request
             const formData = new FormData();
@@ -1435,7 +1471,6 @@ window.restartAllBots = async function() {
             formData.append('username', botInfo.username);
             formData.append('bot_type', 'stable');
             formData.append('pid', botInfo.originalPid);
-
             const response = await fetch(window.location.href, {
                 method: 'POST',
                 body: formData
@@ -1480,18 +1515,15 @@ window.restartAllBots = async function() {
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     }
-
     // Re-enable button
     if (restartAllBtn) {
         restartAllBtn.disabled = false;
         restartAllBtn.classList.remove('is-loading');
     }
-
     // Refresh the bot status one final time
     await refreshBotStatus();
     // Close the progress toast before showing final results
     Swal.close();
-
     // Show final results
     if (failCount === 0) {
         Swal.fire({
