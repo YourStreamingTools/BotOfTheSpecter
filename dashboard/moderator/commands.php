@@ -1,5 +1,4 @@
 <?php
-// Initialize the session
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
@@ -11,16 +10,19 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$pageTitle = t('custom_commands_page_title');
+$pageTitle = t('navbar_edit_custom_commands');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'userdata.php';
-include 'bot_control.php';
-include "mod_access.php";
+include __DIR__ . '/../userdata.php';
+include __DIR__ . '/../bot_control.php';
+include __DIR__ . '/../mod_access.php';
 include 'user_db.php';
+$username = $editing_username;
 include 'storage_used.php';
+$jsonText = file_get_contents(__DIR__ . '/../../api/builtin_commands.json');
+$builtinCommands = json_decode($jsonText, true);
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -28,44 +30,368 @@ $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
+$status = "";
+$notification_status = "";
 
-// Fetch all custom commands
-$commands = [];
-$commandsStmt = $db->prepare("SELECT * FROM custom_commands");
-$commandsStmt->execute();
-$result = $commandsStmt->get_result();
-while ($row = $result->fetch_assoc()) {
-    $commands[] = $row;
-}
-$commandsStmt->close();
+// Permission mapping (display to db)
+$permissionsMap = [
+    "Everyone" => "everyone",
+    "VIPs" => "vip",
+    "All Subscribers" => "all-subs",
+    "Tier 1 Subscriber" => "t1-sub",
+    "Tier 2 Subscriber" => "t2-sub",
+    "Tier 3 Subscriber" => "t3-sub",
+    "Mods" => "mod",
+    "Broadcaster" => "broadcaster"
+];
 
-// Check if the update request is sent via POST
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+// Reverse mapping (db to display)
+$permissionsMapReverse = array_flip($permissionsMap);
+
+// Check if form data has been submitted
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Editing a Custom Command
+    if (
+        isset($_POST['command_to_edit']) &&
+        isset($_POST['command_response']) &&
+        isset($_POST['cooldown_response']) &&
+        isset($_POST['new_command_name'])
+    ) {
+        $command_to_edit = $_POST['command_to_edit'];
+        $command_response = $_POST['command_response'];
+        $cooldown = $_POST['cooldown_response'];
+        $permission = isset($_POST['permission_response']) ? $_POST['permission_response'] : 'Everyone';
+        // Remove all non-alphanumeric characters
+        $new_command_name = strtolower(str_replace(' ', '', $_POST['new_command_name']));
+        $new_command_name = preg_replace('/[^a-z0-9]/', '', $new_command_name);
+        // Check if new command name is built-in
+        if (array_key_exists($new_command_name, $builtinCommands['commands'])) {
+            $status = "Failed to update: The new command name matches a built-in command.";
+            $notification_status = "is-danger";
+        } else {
+            try {
+                // If the command name is changed, update it as well
+                $dbPermission = $permissionsMap[$permission];
+                $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ?, permission = ? WHERE command = ?");
+                $updateSTMT->bind_param("ssiss", $new_command_name, $command_response, $cooldown, $dbPermission, $command_to_edit);
+                $updateSTMT->execute();
+                if ($updateSTMT->affected_rows > 0) {
+                    $status = "Command " . $command_to_edit . " updated successfully!";
+                    $notification_status = "is-success";
+                } else {
+                    $status = $command_to_edit . " not found or no changes made.";
+                    $notification_status = "is-danger";
+                }
+                $updateSTMT->close();
+                $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+                $commandsSTMT->execute();
+                $result = $commandsSTMT->get_result();
+                $commands = $result->fetch_all(MYSQLI_ASSOC);
+                $commandsSTMT->close();
+            } catch (Exception $e) {
+                $status = "Error updating " . $command_to_edit . ": " . $e->getMessage();
+                $notification_status = "is-danger";
+            }
+        }
+    }
+    // Adding a new custom command
+    if (isset($_POST['command']) && isset($_POST['response']) && isset($_POST['cooldown'])) {
+        $newCommand = strtolower(str_replace(' ', '', $_POST['command']));
+        $newCommand = preg_replace('/[^a-z0-9]/', '', $newCommand);
+        $newResponse = $_POST['response'];
+        $cooldown = $_POST['cooldown'];
+        $permission = isset($_POST['permission']) ? $_POST['permission'] : 'Everyone';
+        // Check if command is built-in
+        if (array_key_exists($newCommand, $builtinCommands['commands'])) {
+            $status = "Failed to add: The custom command name matches a built-in command.";
+            $notification_status = "is-danger";
+        } else {
+            // Insert new command into MySQL database
+            try {
+                $dbPermission = $permissionsMap[$permission];
+                $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, permission) VALUES (?, ?, 'Enabled', ?, ?)");
+                $insertSTMT->bind_param("ssis", $newCommand, $newResponse, $cooldown, $dbPermission);
+                $insertSTMT->execute();
+                $insertSTMT->close();
+                $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+                $commandsSTMT->execute();
+                $result = $commandsSTMT->get_result();
+                $commands = $result->fetch_all(MYSQLI_ASSOC);
+                $commandsSTMT->close();
+            } catch (Exception $e) {
+                $status = t('custom_commands_error_generic');
+                $notification_status = "is-danger";
+            }
+        }
+    }
+    // Handle status toggle and remove from commands.php
+    $dataUpdated = false;
     if (isset($_POST['command']) && isset($_POST['status'])) {
         $dbcommand = $_POST['command'];
-        $status = $_POST['status'];
+        $status_val = $_POST['status'];
         $updateQuery = $db->prepare("UPDATE custom_commands SET status = ? WHERE command = ?");
-        $updateQuery->bind_param("ss", $status, $dbcommand);
-        $updateQuery->execute();
+        if (!$updateQuery) {
+            error_log("MySQL prepare failed: " . $db->error);
+        }
+        $updateQuery->bind_param('ss', $status_val, $dbcommand);
+        $result = $updateQuery->execute();
+        if (!$result) {
+            error_log("MySQL execute failed: " . $updateQuery->error);
+        }
+        $affected_rows = $updateQuery->affected_rows;
         $updateQuery->close();
+        $dataUpdated = $result;
+        // For AJAX requests, return JSON response
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            if ($result && $affected_rows > 0) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Status updated successfully',
+                    'affected_rows' => $affected_rows,
+                    'database' => $db->host_info,
+                    'database_name' => $_SESSION['username'] ?? 'unknown',
+                    'command' => $dbcommand,
+                    'new_status' => $status_val
+                ]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'No rows were updated', 'affected_rows' => $affected_rows]);
+            }
+            exit;
+        }
     }
     if (isset($_POST['remove_command'])) {
         $commandToRemove = $_POST['remove_command'];
         $deleteStmt = $db->prepare("DELETE FROM custom_commands WHERE command = ?");
-        $deleteStmt->bind_param("s", $commandToRemove);
+        $deleteStmt->bind_param('s', $commandToRemove);
         try {
             $deleteStmt->execute();
             $deleteStmt->close();
+            $dataUpdated = true;
             $status = "Command removed successfully";
-            header("Refresh: 1; url={$_SERVER['PHP_SELF']}");
-            exit();
-        } catch (Exception $e) {
+        } catch (mysqli_sql_exception $e) {
             $status = "Error removing command: " . $e->getMessage();
         }
     }
+    // Refresh commands data after any database changes
+    if ($dataUpdated) {
+        $commands = $db->query("SELECT * FROM custom_commands")->fetch_all(MYSQLI_ASSOC);
+    }
 }
+
+if (!isset($commands)) {
+    $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+    $commandsSTMT->execute();
+    $result = $commandsSTMT->get_result();
+    $commands = $result->fetch_all(MYSQLI_ASSOC);
+    $commandsSTMT->close();
+}
+
+// Get user's Twitch username & API key from session/database
+$twitchUsername = $username;
+$userApiKey = isset($_SESSION['api_key']) ? $_SESSION['api_key'] : '';
+
+// Start output buffering for layout
 ob_start();
 ?>
+<div class="notification is-info mb-5">
+    <div class="columns is-vcentered">
+        <div class="column is-narrow">
+            <span class="icon is-large"><i class="fas fa-info-circle fa-2x"></i></span>
+        </div>
+        <div class="column">
+            <p class="title is-6 mb-2"><?php echo t('navbar_edit_custom_commands'); ?></p>
+            <ol class="ml-5 mb-3">
+                <li><?php echo t('custom_commands_skip_exclamation'); ?></li>
+                <li>
+                    <?php echo t('custom_commands_add_in_chat'); ?> <code>!addcommand [command] [message]</code>
+                    <div class="ml-4 mt-1">
+                        <code>!addcommand mycommand <?php echo t('custom_commands_example_message'); ?></code></div>
+                </li>
+            </ol>
+            <p class="mb-1"><strong><?php echo t('custom_commands_level_up'); ?></strong></p>
+            <p class="mb-1"><?php echo t('custom_commands_explore_variables'); ?></p>
+            <p class="mb-2"><strong><?php echo t('custom_commands_note'); ?></strong>
+                <?php echo t('custom_commands_note_detail'); ?></p>
+            <a href="https://help.botofthespecter.com/custom_command_variables.php" target="_blank"
+                class="button is-primary is-small">
+                <span class="icon"><i class="fas fa-code"></i></span>
+                <span><?php echo t('custom_commands_view_variables'); ?></span>
+            </a>
+        </div>
+    </div>
+</div>
+<?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+    <?php if (isset($_POST['command']) && isset($_POST['response']) && empty($status)): ?>
+        <div class="notification is-success is-light mb-4">
+            <span class="icon"><i class="fas fa-check-circle"></i></span>
+            <span>
+                <?php
+                $commandAdded = strtolower(str_replace(' ', '', $_POST['command']));
+                printf(
+                    t('custom_commands_added_success'),
+                    htmlspecialchars($commandAdded)
+                );
+                ?>
+            </span>
+        </div>
+    <?php else: ?>
+        <div class="notification <?php echo $notification_status; ?> is-light mb-4">
+            <?php echo $status; ?>
+        </div>
+    <?php endif; ?>
+<?php endif; ?>
+<h4 class="title is-4 has-text-centered mb-5"><?php echo t('navbar_edit_custom_commands'); ?></h4>
+<div class="columns is-desktop is-multiline is-centered command-columns-equal" style="align-items: stretch;">
+    <div class="column is-6-desktop is-12-mobile">
+        <div class="box" style="min-height: 500px; display: flex; flex-direction: column;">
+            <form method="post" action="" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="mb-3" style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center;">
+                        <span class="icon is-large has-text-primary" style="margin-right: 0.5rem;">
+                            <i class="fas fa-plus-circle fa-2x"></i>
+                        </span>
+                        <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_add_title'); ?></h4>
+                    </div>
+                    <button class="button is-primary" type="submit">
+                        <span class="icon"><i class="fas fa-plus"></i></span>
+                        <span><?php echo t('custom_commands_add_btn'); ?></span>
+                    </button>
+                </div>
+                <div class="field mb-4">
+                    <label class="label" for="command"><?php echo t('custom_commands_command_label'); ?></label>
+                    <div class="control has-icons-left">
+                        <input class="input" type="text" name="command" id="command" required
+                            placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
+                        <span class="icon is-small is-left"><i class="fas fa-terminal"></i></span>
+                    </div>
+                </div>
+                <div class="field mb-4">
+                    <label class="label" for="response"><?php echo t('custom_commands_response_label'); ?></label>
+                    <div class="control has-icons-left">
+                        <input class="input" type="text" name="response" id="response" required
+                            oninput="updateCharCount('response', 'responseCharCount')" maxlength="255"
+                            placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                        <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
+                    </div>
+                    <p id="responseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
+                </div>
+                <div class="field mb-4">
+                    <label class="label" for="cooldown"><?php echo t('custom_commands_cooldown_label'); ?></label>
+                    <div class="control has-icons-left">
+                        <input class="input" type="number" min="1" name="cooldown" id="cooldown" value="15" required>
+                        <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
+                    </div>
+                </div>
+                <div class="field mb-4">
+                    <label class="label" for="permission">Permission Level</label>
+                    <div class="control has-icons-left">
+                        <div class="select is-fullwidth">
+                            <select id="permission" name="permission" required style="padding-left: 35px;">
+                                <?php foreach ($permissionsMap as $displayName => $dbValue): ?>
+                                    <option value="<?php echo htmlspecialchars($displayName); ?>" <?php echo $displayName === 'Everyone' ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($displayName); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <span class="icon is-small is-left"><i class="fas fa-users"></i></span>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="column is-6-desktop is-12-mobile">
+        <div class="box" style="min-height: 500px; display: flex; flex-direction: column;">
+            <?php if (!empty($commands)): ?>
+                <form method="post" action="" style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="mb-3" style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center;">
+                            <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
+                                <i class="fas fa-edit fa-2x"></i>
+                            </span>
+                            <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_edit_title'); ?></h4>
+                        </div>
+                        <button type="submit" class="button is-primary">
+                            <span class="icon"><i class="fas fa-save"></i></span>
+                            <span><?php echo t('custom_commands_update_btn'); ?></span>
+                        </button>
+                    </div>
+                    <div class="field mb-4">
+                        <label class="label"
+                            for="command_to_edit"><?php echo t('custom_commands_edit_select_label'); ?></label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
+                                    <option value=""><?php echo t('custom_commands_edit_select_placeholder'); ?></option>
+                                    <?php foreach ($commands as $command): ?>
+                                        <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field mb-4">
+                        <label class="label"
+                            for="new_command_name"><?php echo t('custom_commands_edit_new_name_label'); ?></label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="text" name="new_command_name" id="new_command_name" value="" required
+                                placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
+                            <span class="icon is-small is-left"><i class="fas fa-terminal"></i></span>
+                        </div>
+                        <p class="help"><?php echo t('custom_commands_skip_exclamation'); ?></p>
+                    </div>
+                    <div class="field mb-4">
+                        <label class="label"
+                            for="command_response"><?php echo t('custom_commands_response_label'); ?></label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="text" name="command_response" id="command_response" value="" required
+                                oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255"
+                                placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                            <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
+                        </div>
+                        <p id="editResponseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?>
+                        </p>
+                    </div>
+                    <div class="field mb-4">
+                        <label class="label"
+                            for="cooldown_response"><?php echo t('custom_commands_cooldown_label'); ?></label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="number" min="1" name="cooldown_response" id="cooldown_response"
+                                value="" required>
+                            <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
+                        </div>
+                    </div>
+                    <div class="field mb-4">
+                        <label class="label" for="permission_response">Permission Level</label>
+                        <div class="control has-icons-left">
+                            <div class="select is-fullwidth">
+                                <select id="permission_response" name="permission_response" required
+                                    style="padding-left: 35px;">
+                                    <?php foreach ($permissionsMap as $displayName => $dbValue): ?>
+                                        <option value="<?php echo htmlspecialchars($displayName); ?>">
+                                            <?php echo htmlspecialchars($displayName); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <span class="icon is-small is-left"><i class="fas fa-users"></i></span>
+                        </div>
+                    </div>
+                </form>
+            <?php else: ?>
+                <div class="mb-3" style="display: flex; align-items: center;">
+                    <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
+                        <i class="fas fa-edit fa-2x"></i>
+                    </span>
+                    <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_edit_title'); ?></h4>
+                </div>
+                <h4 class="subtitle is-4 has-text-grey-light"><?php echo t('custom_commands_no_commands'); ?></h4>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
 <div class="columns is-centered">
     <div class="column is-fullwidth">
         <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
@@ -117,7 +443,8 @@ ob_start();
                                         <td style="vertical-align: middle;">
                                             <?php echo htmlspecialchars($command['response']); ?></td>
                                         <td class="has-text-centered" style="vertical-align: middle;">
-                                            <?php echo t('builtin_commands_permission_everyone'); ?></td>
+                                            <?php echo $permissionsMapReverse[$command['permission']] ?? 'Everyone'; ?>
+                                        </td>
                                         <td class="has-text-centered" style="vertical-align: middle;">
                                             <?php echo (int) $command['cooldown']; ?>        <?php echo t('custom_commands_cooldown_seconds'); ?>
                                         </td>
@@ -132,7 +459,8 @@ ob_start();
                                                 <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?>
                                                     onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked, this)"
                                                     style="display:none;">
-                                                <span class="icon is-medium" onclick="this.previousElementSibling.click();">
+                                                <span class="icon is-medium"
+                                                    onclick="event.preventDefault(); event.stopPropagation(); this.previousElementSibling.click();">
                                                     <i
                                                         class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
                                                 </span>
@@ -157,11 +485,72 @@ ob_start();
         </div>
     </div>
 </div>
+<!-- Hidden fields for YourLinks API -->
+<input type="hidden" id="yourlinks_api_key" value="<?php echo htmlspecialchars($userApiKey); ?>">
+<input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
+<!-- YourLinks URL Shortener Modal -->
+<div id="yourlinksModal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head" style="background-color: #2c3e50; border-bottom: 3px solid #3498db;">
+            <p class="modal-card-title has-text-white">
+                <span class="icon"><i class="fas fa-link"></i></span>
+                <span>Create Short Link with YourLinks.click</span>
+            </p>
+            <button id="yourlinks_close_btn" class="delete" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body" style="background-color: #1e2936;">
+            <div id="yourlinks_status" class="mb-4"></div>
+
+            <div class="field">
+                <label class="label has-text-white">Destination URL</label>
+                <div class="control has-icons-left">
+                    <input class="input" type="url" id="yourlinks_destination" placeholder="https://example.com"
+                        readonly>
+                    <span class="icon is-small is-left"><i class="fas fa-globe"></i></span>
+                </div>
+                <p class="help has-text-grey-light">The URL you entered in the message</p>
+            </div>
+            <div class="field">
+                <label class="label has-text-white">Link Name <span style="color: #f14668;">*</span></label>
+                <div class="control has-icons-left">
+                    <input class="input" type="text" id="yourlinks_link_name"
+                        placeholder="e.g., discord, youtube, twitch" maxlength="50">
+                    <span class="icon is-small is-left"><i class="fas fa-link"></i></span>
+                </div>
+                <p class="help has-text-grey-light">Alphanumeric characters, hyphens, and underscores only. Will be:
+                    <code><?php echo htmlspecialchars($twitchUsername); ?>.yourlinks.click/<strong>linkname</strong></code>
+                </p>
+            </div>
+            <div class="field">
+                <label class="label has-text-white">Title (Optional)</label>
+                <div class="control has-icons-left">
+                    <input class="input" type="text" id="yourlinks_title" placeholder="e.g., Join My Discord Server"
+                        maxlength="100">
+                    <span class="icon is-small is-left"><i class="fas fa-heading"></i></span>
+                </div>
+                <p class="help has-text-grey-light">Display name for the link (for your reference)</p>
+            </div>
+        </section>
+        <footer class="modal-card-foot" style="justify-content: flex-end; gap: 10px;">
+            <button id="yourlinks_cancel_btn" class="button is-light">
+                <span class="icon"><i class="fas fa-times"></i></span>
+                <span>Cancel</span>
+            </button>
+            <button id="yourlinks_submit_btn" class="button is-primary">
+                <span class="icon"><i class="fas fa-link"></i></span>
+                <span>Create Link</span>
+            </button>
+        </footer>
+    </div>
+</div>
 <?php
 $content = ob_get_clean();
 
 ob_start();
 ?>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="js/yourlinks-shortener.js?v=<?php echo time(); ?>"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         var searchInput = document.getElementById("searchInput");
@@ -171,11 +560,18 @@ ob_start();
                 localStorage.setItem("searchTerm", this.value);
                 searchFunction();
             });
-            // Call searchFunction on page load to filter if there's a saved term
-            searchFunction();
+            // Use setTimeout to ensure table is fully rendered before searching
+            setTimeout(function () {
+                if (typeof searchFunction === "function") {
+                    searchFunction();
+                }
+            }, 100);
         }
         // SweetAlert2 for remove command
         setupRemoveButtons();
+        // Initialize URL shortener for input fields
+        yourLinksShortener.initializeField('response');
+        yourLinksShortener.initializeField('command_response');
     });
 
     function setupRemoveButtons() {
@@ -201,21 +597,65 @@ ob_start();
     }
 
     function toggleStatus(command, isChecked, elem) {
+        // Prevent multiple rapid calls
+        if (elem.dataset.processing === 'true') {
+            return;
+        }
+        elem.dataset.processing = 'true';
+
         var icon = elem.parentElement.querySelector('i');
+        var statusSpan = elem.closest('tr').querySelector('.tag');
         icon.className = "fa-solid fa-spinner fa-spin";
         var status = isChecked ? 'Enabled' : 'Disabled';
         var xhr = new XMLHttpRequest();
         xhr.open("POST", "", true);
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        xhr.onreadystatechange = function () {
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest"); xhr.onreadystatechange = function () {
             if (xhr.readyState === XMLHttpRequest.DONE) {
-                location.reload();
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        console.log('Server response:', response);
+                        if (response.success) {
+                            // Update the toggle icon
+                            icon.className = isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
+                            // Update the status tag
+                            if (statusSpan) {
+                                statusSpan.className = "tag is-medium " + (isChecked ? "is-success" : "is-danger");
+                                statusSpan.textContent = isChecked ? "<?php echo t('builtin_commands_status_enabled'); ?>" : "<?php echo t('builtin_commands_status_disabled'); ?>";
+                            }
+                            if (response.affected_rows === 0) {
+                                console.warn('No rows were affected by the update');
+                                alert('Warning: Command may not exist in database');
+                            }
+                        } else {
+                            // On error, revert the checkbox
+                            elem.checked = !isChecked;
+                            icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
+                            alert('Error: ' + response.message);
+                        }
+                    } catch (e) {
+                        console.error('Error parsing response:', e);
+                        console.log('Raw response:', xhr.responseText);
+                        // On error, revert the checkbox
+                        elem.checked = !isChecked;
+                        icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
+                        alert('Error parsing server response');
+                    }
+                } else {
+                    // On error, revert the checkbox
+                    elem.checked = !isChecked;
+                    icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
+                    alert('HTTP Error: ' + xhr.status);
+                }
+
+                // Reset processing flag in all cases
+                elem.dataset.processing = 'false';
             }
         };
         xhr.send("command=" + encodeURIComponent(command) + "&status=" + status);
     }
 
-    // Simple search function for filtering table rows
     function searchFunction() {
         var input = document.getElementById("searchInput");
         var filter = input.value.toLowerCase();
@@ -233,9 +673,107 @@ ob_start();
             trs[i].style.display = found ? "" : "none";
         }
     }
+
+    document.getElementById("openModalButton").addEventListener("click", function () {
+        document.getElementById("customVariablesModal").classList.add("is-active");
+    });
+    document.getElementById("closeModalButton").addEventListener("click", function () {
+        document.getElementById("customVariablesModal").classList.remove("is-active");
+    });
+
+    function showResponse() {
+        var command = document.getElementById('command_to_edit').value;
+        var commands = <?php echo json_encode($commands); ?>;
+        var permissionsMap = <?php echo json_encode(array_flip($permissionsMap)); ?>;
+        var responseInput = document.getElementById('command_response');
+        var cooldownInput = document.getElementById('cooldown_response');
+        var newCommandInput = document.getElementById('new_command_name');
+        var permissionInput = document.getElementById('permission_response');
+        // Find the response for the selected command and display it in the text box
+        var commandData = commands.find(c => c.command === command);
+        responseInput.value = commandData ? commandData.response : '';
+        cooldownInput.value = commandData ? commandData.cooldown : 15;
+        newCommandInput.value = commandData ? commandData.command : '';
+
+        // Set permission dropdown
+        if (commandData && commandData.permission) {
+            var displayPermission = permissionsMap[commandData.permission] || 'Everyone';
+            permissionInput.value = displayPermission;
+        } else {
+            permissionInput.value = 'Everyone';
+        }
+
+        // Update character count for the edit response field
+        updateCharCount('command_response', 'editResponseCharCount');
+    }
+
+    // Function to update character counts
+    function updateCharCount(inputId, counterId) {
+        const input = document.getElementById(inputId);
+        const counter = document.getElementById(counterId);
+        const maxLength = 255;
+        const currentLength = input.value.length;
+        // Update the counter text
+        counter.textContent = currentLength + '/' + maxLength + ' characters';
+        // Update styling based on character count
+        if (currentLength > maxLength) {
+            counter.className = 'help is-danger';
+            input.classList.add('is-danger');
+            // Trim the input to maxLength characters
+            input.value = input.value.substring(0, maxLength);
+        } else if (currentLength > maxLength * 0.8) {
+            counter.className = 'help is-warning';
+            input.classList.remove('is-danger');
+        } else {
+            counter.className = 'help is-info';
+            input.classList.remove('is-danger');
+        }
+    }
+
+    // Validate form before submission
+    function validateForm(form) {
+        const maxLength = 255;
+        let valid = true;
+        // Check all text inputs with maxlength attribute
+        const textInputs = form.querySelectorAll('input[type="text"][maxlength]');
+        textInputs.forEach(input => {
+            if (input.value.length > maxLength) {
+                input.classList.add('is-danger');
+                valid = false;
+                // Find associated help text and update
+                const helpId = input.id + 'CharCount';
+                const helpText = document.getElementById(helpId);
+                if (helpText) {
+                    helpText.textContent = input.value.length + '/' + maxLength + ' characters - Exceeds limit!';
+                    helpText.className = 'help is-danger';
+                }
+            }
+        });
+        return valid;
+    }
+
+    // Initialize character counters when page loads
+    window.onload = function () {
+        updateCharCount('response', 'responseCharCount');
+        // Always initialize the edit response character counter, even when empty
+        updateCharCount('command_response', 'editResponseCharCount');
+        // Add event listener to command dropdown to update character count when a command is selected
+        document.getElementById('command_to_edit').addEventListener('change', function () {
+            updateCharCount('command_response', 'editResponseCharCount');
+        });
+        // Add form validation to both forms
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function (event) {
+                if (!validateForm(this)) {
+                    event.preventDefault();
+                    alert('<?php echo t('custom_commands_char_limit_alert'); ?>');
+                }
+            });
+        });
+    }
 </script>
 <?php
 $scripts = ob_get_clean();
 include 'mod_layout.php';
-exit;
 ?>
