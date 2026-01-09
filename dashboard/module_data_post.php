@@ -156,9 +156,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $enable_start_ad_message = isset($_POST['enable_start_ad_message']) ? 1 : 0;
         $enable_end_ad_message = isset($_POST['enable_end_ad_message']) ? 1 : 0;
         $enable_snoozed_ad_message = isset($_POST['enable_snoozed_ad_message']) ? 1 : 0;
+        $enable_ai_ad_breaks = isset($_POST['enable_ai_ad_breaks']) ? 1 : 0;
         $update_sql = "INSERT INTO ad_notice_settings 
-            (id, ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
                 ad_upcoming_message = ?,
                 ad_start_message = ?,
@@ -168,10 +169,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 enable_upcoming_ad_message = ?,
                 enable_start_ad_message = ?,
                 enable_end_ad_message = ?,
-                enable_snoozed_ad_message = ?";
+                enable_snoozed_ad_message = ?,
+                enable_ai_ad_breaks = ?";
         $update_stmt = $db->prepare($update_sql);
         $update_stmt->bind_param(
-            'ssssgiiiissssiiiii',
+            'ssssgiiiiissssiiiiii',
             $ad_upcoming_message,
             $ad_start_message,
             $ad_end_message,
@@ -181,6 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $enable_start_ad_message,
             $enable_end_ad_message,
             $enable_snoozed_ad_message,
+            $enable_ai_ad_breaks,
             $ad_upcoming_message,
             $ad_start_message,
             $ad_end_message,
@@ -189,7 +192,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $enable_upcoming_ad_message,
             $enable_start_ad_message,
             $enable_end_ad_message,
-            $enable_snoozed_ad_message
+            $enable_snoozed_ad_message,
+            $enable_ai_ad_breaks
         );
         $update_stmt->execute();
         $update_stmt->close();
