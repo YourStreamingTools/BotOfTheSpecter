@@ -550,23 +550,6 @@ if ($isLoggedIn) {
             </div>
         </div>
     </section>
-    <script>
-        // Add smooth scrolling for internal links
-        $(document).ready(function() {
-            // Add animation to feature cards on scroll
-            $(window).scroll(function() {
-                $('.feature-card').each(function() {
-                    var elementTop = $(this).offset().top;
-                    var elementBottom = elementTop + $(this).outerHeight();
-                    var viewportTop = $(window).scrollTop();
-                    var viewportBottom = viewportTop + $(window).height();
-                    if (elementBottom > viewportTop && elementTop < viewportBottom) {
-                        $(this).addClass('animate__animated animate__fadeInUp');
-                    }
-                });
-            });
-        });
-    </script>
     <?php
     $content = ob_get_clean();
     // For non-logged in users, we'll create a custom layout without the dashboard navigation
@@ -617,6 +600,23 @@ if ($isLoggedIn) {
         <!-- JavaScript dependencies -->
         <!-- jQuery is still included because some page scripts (animations) rely on it -->
         <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+        <script>
+            // Add smooth scrolling for internal links
+            $(document).ready(function() {
+                // Add animation to feature cards on scroll
+                $(window).scroll(function() {
+                    $('.feature-card').each(function() {
+                        var elementTop = $(this).offset().top;
+                        var elementBottom = elementTop + $(this).outerHeight();
+                        var viewportTop = $(window).scrollTop();
+                        var viewportBottom = viewportTop + $(window).height();
+                        if (elementBottom > viewportTop && elementTop < viewportBottom) {
+                            $(this).addClass('animate__animated animate__fadeInUp');
+                        }
+                    });
+                });
+            });
+        </script>
     </body>
     </html>
     <?php
