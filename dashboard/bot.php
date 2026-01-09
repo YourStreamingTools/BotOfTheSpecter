@@ -255,6 +255,36 @@ function checkBotIsMod($broadcasterId, $authToken, $clientID) {
   }
 }
 
+function checkBotIsBanned($broadcasterId, $authToken, $clientID) {
+  try {
+    $botUserId = '971436498';
+    $url = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id=" . urlencode($broadcasterId) . "&user_id=" . urlencode($botUserId);
+    $headers = ['Authorization: Bearer ' . $authToken,'Client-ID: ' . $clientID];
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($response === false || $httpCode !== 200) {
+      return ['banned' => false, 'reason' => ''];
+    }
+    $data = json_decode($response, true);
+    if (!isset($data['data'])) {
+      return ['banned' => false, 'reason' => ''];
+    }
+    if (!empty($data['data'])) {
+      $banReason = $data['data'][0]['reason'] ?? 'No reason provided';
+      return ['banned' => true, 'reason' => $banReason];
+    }
+    return ['banned' => false, 'reason' => ''];
+  } catch (Exception $e) {
+    error_log("Twitch API ban check exception: " . $e->getMessage());
+    return ['banned' => false, 'reason' => ''];
+  }
+}
+
 // Check Beta Access
 $betaAccess = false;
 if ($user['beta_access'] == 1) {
@@ -284,12 +314,22 @@ if ($user['beta_access'] == 1) {
 }
 
 // Check if bot is mod
+$BotIsBanned = false;
+$BotBanReason = '';
 if ($username !== 'botofthespecter') {
   $BotIsMod = checkBotIsMod($twitchUserId, $authToken, $clientID);
+  // Only check ban status if bot is NOT a moderator
+  if (!$BotIsMod) {
+    $banStatus = checkBotIsBanned($twitchUserId, $authToken, $clientID);
+    $BotIsBanned = $banStatus['banned'];
+    $BotBanReason = $banStatus['reason'];
+  }
 } else {
   $BotIsMod = true; // Bot is the channel owner, no mod check needed
 }
-if (!$BotIsMod) {
+if ($BotIsBanned) {
+  $BotModMessage = "<strong>CRITICAL:</strong> The bot account has been BANNED from your channel. The bot cannot start until you unban the bot account AND make it a moderator.<br><strong>Ban Reason:</strong> " . htmlspecialchars($BotBanReason);
+} elseif (!$BotIsMod) {
   $BotModMessage = "The bot is not a moderator on your channel. Please make the bot a moderator to start it.";
 }
 
@@ -472,6 +512,17 @@ ob_start();
 <?php endif; ?>
 <?php if(!empty($customWarning)): ?>
   <?php echo $customWarning; ?>
+<?php endif; ?>
+<?php if ($BotIsBanned): ?>
+  <div class="notification is-danger has-text-white has-text-weight-bold" style="border: 3px solid #ff3860;">
+    <span class="icon"><i class="fas fa-ban"></i></span>
+    <span><?php echo $BotModMessage; ?></span>
+  </div>
+<?php elseif (!$BotIsMod && !empty($BotModMessage)): ?>
+  <div class="notification is-warning has-text-black has-text-weight-bold">
+    <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+    <span><?php echo $BotModMessage; ?></span>
+  </div>
 <?php endif; ?>
 <?php if ($selectedBot === 'custom'): ?>
   <?php if (!$customBotConfigured): ?>
