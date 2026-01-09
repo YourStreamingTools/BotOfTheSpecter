@@ -9284,6 +9284,12 @@ async def websocket_notice(
                     params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
                 elif event == "VIDEO_ALERT" and video:
                     params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
+                elif event == "MODERATION":
+                    if additional_data:
+                        params.update(additional_data)
+                    else:
+                        websocket_logger.error(f"Event '{event}' requires additional parameters.")
+                        return
                 else:
                     websocket_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
                     return
