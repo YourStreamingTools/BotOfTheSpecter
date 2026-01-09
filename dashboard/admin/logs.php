@@ -336,130 +336,130 @@ if (isset($_GET['admin_system_log_type'])) {
     switch ($logType) {        // Standard Apache2 Logs
         case 'apache2-access':
             $logPath = "/var/log/apache2/access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'apache2-error':
             $logPath = "/var/log/apache2/error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'other_vhosts_access':
             $logPath = "/var/log/apache2/other_vhosts_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         // Apache2 Access Logs
         case 'beta.dashboard.botofthespecter.com_access':
             $logPath = "/var/log/apache2/beta.dashboard.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'botofthespecter.com_access':
             $logPath = "/var/log/apache2/botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'cdn.botofthespecter.com_access':
             $logPath = "/var/log/apache2/cdn.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'dashboard.botofthespecter.com_access':
             $logPath = "/var/log/apache2/dashboard.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'members.botofthespecter.com_access':
             $logPath = "/var/log/apache2/members.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'overlay.botofthespecter.com_access':
             $logPath = "/var/log/apache2/overlay.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'soundalerts.botofthespecter.com_access':
             $logPath = "/var/log/apache2/soundalerts.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'tts.botofthespecter.com_access':
             $logPath = "/var/log/apache2/tts.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'videoalerts.botofthespecter.com_access':
             $logPath = "/var/log/apache2/videoalerts.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'walkons.botofthespecter.com_access':
             $logPath = "/var/log/apache2/walkons.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         // Apache2 Error Logs
         case 'beta.dashboard.botofthespecter.com_error':
             $logPath = "/var/log/apache2/beta.dashboard.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'botofthespecter.com_error':
             $logPath = "/var/log/apache2/botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'cdn.botofthespecter.com_error':
             $logPath = "/var/log/apache2/cdn.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'dashboard.botofthespecter.com_error':
             $logPath = "/var/log/apache2/dashboard.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'members.botofthespecter.com_error':
             $logPath = "/var/log/apache2/members.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'overlay.botofthespecter.com_error':
             $logPath = "/var/log/apache2/overlay.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'soundalerts.botofthespecter.com_error':
             $logPath = "/var/log/apache2/soundalerts.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'tts.botofthespecter.com_error':
             $logPath = "/var/log/apache2/tts.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'videoalerts.botofthespecter.com_error':
             $logPath = "/var/log/apache2/videoalerts.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'walkons.botofthespecter.com_error':
             $logPath = "/var/log/apache2/walkons.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'specterbot.app_error':
             $logPath = "/var/log/apache2/specterbot.app_error.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'specterbot.app_access':
             $logPath = "/var/log/apache2/specterbot.app_access.log";
-            $result = read_apache2_log_over_ssh($logPath, 200, $since);
+            $result = read_apache2_log_over_ssh($logPath);
             break;
         case 'discordbot':
             // Discord bot log in custom directory (use SSH)
             $logPath = "/home/botofthespecter/logs/specterdiscord/discordbot.txt";
-            $result = read_bot_log_over_ssh($logPath, 200, $since);
+            $result = read_bot_log_over_ssh($logPath);
             break;
         case 'api':
             // API server log (use API server SSH)
             $logPath = "/home/botofthespecter/log.txt";
-            $result = read_api_log_over_ssh($logPath, 200, $since);
+            $result = read_api_log_over_ssh($logPath);
             break;
         case 'websocket':
             // WebSocket server log (use WebSocket server SSH)
             $logPath = "/home/botofthespecter/noti_server.log";
-            $result = read_websocket_log_over_ssh($logPath, 200, $since);
+            $result = read_websocket_log_over_ssh($logPath);
             break;
         case 'mysql-error':
             // MySQL error log (use database server SSH)
             $logPath = "/var/log/mysql/error.log";
-            $result = read_mysql_log_over_ssh($logPath, 200, $since);
+            $result = read_mysql_log_over_ssh($logPath);
             break;
         default:
             // Other system logs in custom directory (use SSH)
             $logPath = "/home/botofthespecter/logs/system/$logType.txt";
-            $result = read_log_over_ssh($logPath, 200, $since);
+            $result = read_log_over_ssh($logPath);
             break;
     }
     // Check if result is null or invalid
