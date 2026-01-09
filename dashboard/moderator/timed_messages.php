@@ -1,5 +1,4 @@
 <?php
-// Initialize the session
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
@@ -10,15 +9,24 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
-// Page Title
-$pageTitle = "Timed Messages";
+$editing_username = $_SESSION['editing_username'] ?? null;
+if (empty($editing_username)) {
+    header('Location: ../mod_channels.php');
+    exit();
+}
+// Override username for context
+$username = $editing_username;
+
+// Page Title and Header
+$pageTitle = t('timed_messages_title');
+$pageHeader = t('timed_messages_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'userdata.php';
-include 'bot_control.php';
-include "mod_access.php";
+include __DIR__ . '/../userdata.php';
+include __DIR__ . '/../bot_control.php';
+include __DIR__ . '/../mod_access.php';
 include 'user_db.php';
 include 'storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
@@ -29,22 +37,21 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-// Fetch all timed messages for the forms
-$timedMessagesData = [];
-
 // Initialize variables for messages or errors
 $successMessage = "";
 $errorMessage = "";
 $displayMessages = "";
 
+// Handle POST requests for adding, editing, or removing timed messages
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Check if the form was submitted for adding a new message
     if (isset($_POST['message']) && isset($_POST['interval'])) {
         $message = $_POST['message'];
         $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
         $chat_line_trigger = filter_input(INPUT_POST, 'chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
+        // If chat_line_trigger is NULL or FALSE, set default value
         if ($chat_line_trigger === null || $chat_line_trigger === false) {
-            $chat_line_trigger = 5;
+            $chat_line_trigger = 5; // Default value
         }
         // Validate input data
         if ($interval === false) {
@@ -52,39 +59,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } elseif ($chat_line_trigger < 5) {
             $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
         } else {
-            // Use MySQLi for insert
-            $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`, `chat_line_trigger`) VALUES (?, ?, ?, ?)');
-            if ($stmt) {
-                $status = 1; // enabled
-                $stmt->bind_param('isii', $interval, $message, $status, $chat_line_trigger);
-                if ($stmt->execute()) {
-                    $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] .
-                        ($chat_line_trigger ? ' and chat line trigger: ' . $chat_line_trigger : '') . ' has been successfully added to the database.';
-                } else {
-                    $errorMessage = "Error adding message: " . $stmt->error;
-                }
+            try {
+                $status = 1; // 1 for enabled
+                $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`, `chat_line_trigger`) VALUES (?, ?, ?, ?)');
+                $stmt->bind_param("isii", $interval, $message, $status, $chat_line_trigger);
+                $stmt->execute();
+                $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ($chat_line_trigger ? ' and chat line trigger: ' . $chat_line_trigger : '') . ' has been successfully added to the database.';
                 $stmt->close();
-            } else {
-                $errorMessage = "Error preparing statement: " . $db->error;
+            } catch (mysqli_sql_exception $e) {
+                $errorMessage = "Error adding message: " . $e->getMessage();
             }
         }
     }
     // Check if the form was submitted for removing a message
     elseif (isset($_POST['remove_message'])) {
         $message_id = $_POST['remove_message'];
-        $stmt = $db->prepare("DELETE FROM timed_messages WHERE id = ?");
-        if ($stmt) {
-            $stmt->bind_param('i', $message_id);
+        // Remove the selected message from the database
+        try {
+            $stmt = $db->prepare("DELETE FROM timed_messages WHERE id = ?");
+            $stmt->bind_param("i", $message_id);
             $stmt->execute();
-            $deleted = $stmt->affected_rows > 0;
+            // Check if the deletion was successful and provide feedback to the user
+            $deleted = $stmt->affected_rows > 0; // Check if any rows were affected
             if ($deleted) {
                 $successMessage = "Message removed successfully.";
             } else {
                 $errorMessage = "Failed to remove message.";
             }
             $stmt->close();
-        } else {
-            $errorMessage = "Error preparing statement: " . $db->error;
+        } catch (mysqli_sql_exception $e) {
+            $errorMessage = "Error removing message: " . $e->getMessage();
         }
     }
     // Check if the form was submitted for editing the message, interval, or status
@@ -94,39 +98,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $edit_message_content = $_POST['edit_message_content'];
         $edit_status = $_POST['edit_status'];
         $edit_chat_line_trigger = filter_input(INPUT_POST, 'edit_chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
+        // If edit_chat_line_trigger is NULL or FALSE, set default value
         if ($edit_chat_line_trigger === null || $edit_chat_line_trigger === false) {
-            $edit_chat_line_trigger = 5;
+            $edit_chat_line_trigger = 5; // Default value
         }
         // Check if the edit_message_id exists in the timed_messages table
         $stmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE id = ?");
-        if ($stmt) {
-            $stmt->bind_param('i', $edit_message_id);
-            $stmt->execute();
-            $stmt->bind_result($message_exists);
-            $stmt->fetch();
-            $stmt->close();
-            if ($message_exists && $edit_interval !== false) {
+        $stmt->bind_param("i", $edit_message_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $message_exists = $result->fetch_row()[0];
+        $stmt->close();
+        if ($message_exists && $edit_interval !== false) {
+            // Update the message, interval, and status for the selected message in the database
+            try {
+                // Convert string status to integer (True -> 1, False -> 0)
+                $status_int = ($edit_status === 'True') ? 1 : 0;
                 $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ?, `status` = ?, `chat_line_trigger` = ? WHERE id = ?');
-                if ($stmt) {
-                    // Convert status (string) to integer 1/0
-                    $status_int = ($edit_status === 'True' || $edit_status === '1' || $edit_status == 1) ? 1 : 0;
-                    $stmt->bind_param('isiii', $edit_interval, $edit_message_content, $status_int, $edit_chat_line_trigger, $edit_message_id);
-                    $stmt->execute();
-                    $updated = $stmt->affected_rows > 0;
-                    if ($updated) {
-                        $successMessage = 'Message with ID ' . $edit_message_id . ' updated successfully.';
-                    } else {
-                        $errorMessage = "Failed to update message.";
-                    }
-                    $stmt->close();
+                $stmt->bind_param("isiii", $edit_interval, $edit_message_content, $status_int, $edit_chat_line_trigger, $edit_message_id);
+                $stmt->execute();
+                // Check if the update was successful and provide feedback to the user
+                $updated = $stmt->affected_rows > 0; // Check if any rows were affected
+                if ($updated) {
+                    $successMessage = 'Message with ID ' . $edit_message_id . ' updated successfully.';
                 } else {
-                    $errorMessage = "Error preparing statement: " . $db->error;
+                    $errorMessage = "Failed to update message.";
                 }
-            } else {
-                $errorMessage = "Invalid input data.";
+                $stmt->close();
+            } catch (mysqli_sql_exception $e) {
+                $errorMessage = "Error updating message: " . $e->getMessage();
             }
         } else {
-            $errorMessage = "Error preparing statement: " . $db->error;
+            $errorMessage = "Invalid input data.";
         }
     }
     // Redirect with message
@@ -138,26 +141,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 }
-
 $displayMessageData = !empty($_GET['successMessage']) || !empty($_GET['errorMessage']);
 if ($displayMessageData) {
     if (!empty($_GET['successMessage'])) {
         $errorMessage = isset($_GET['successMessage']) ? $_GET['successMessage'] : '';
-        $displayMessages = "<p class='has-text-success'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
+        $displayMessages = "<p class='has-text-black'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
     } elseif (!empty($_GET['errorMessage'])) {
         $errorMessage = isset($_GET['errorMessage']) ? $_GET['errorMessage'] : '';
-        $displayMessages = "<p class='has-text-danger'>" . htmlspecialchars($errorMessage) . "</p>";
+        $displayMessages = "<p class='has-text-black'>" . htmlspecialchars($errorMessage) . "</p>";
     }
 }
 
-// Fetch all timed messages for dropdowns, JS and table rendering
+// Fetch all timed messages for dropdowns
 $stmt = $db->prepare("SELECT * FROM timed_messages");
-if ($stmt) {
-    $stmt->execute();
-    $timedMessagesData = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-}
-
+$stmt->execute();
+$timedMessagesData = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+// Get user's Twitch username & API key from session/database
+$twitchUsername = $username;
+$userApiKey = isset($_SESSION['api_key']) ? $_SESSION['api_key'] : '';
+// Start output buffering for layout template
 ob_start();
 ?>
 <div class="section p-0">
@@ -199,7 +202,9 @@ ob_start();
                             <?php echo t('timed_messages_info'); ?>
                         </div>
                         <?php if ($displayMessages): ?>
-                            <div class="notification is-primary"><?php echo $displayMessages; ?></div>
+                            <div class="notification is-primary">
+                                <?php echo $displayMessages; ?>
+                            </div>
                         <?php endif; ?>
                         <div class="columns is-desktop is-multiline">
                             <!-- Add Timed Message -->
@@ -215,7 +220,8 @@ ob_start();
                                                     maxlength="255"
                                                     oninput="updateCharCount('message', 'charCount'); toggleAddButton();">
                                                 <p id="charCount" class="help">0/255
-                                                    <?php echo t('timed_messages_characters'); ?></p>
+                                                    <?php echo t('timed_messages_characters'); ?>
+                                                </p>
                                                 <span id="messageError" class="help is-danger"
                                                     style="display: none;"><?php echo t('timed_messages_message_required'); ?></span>
                                             </div>
@@ -307,7 +313,8 @@ ob_start();
                                                         id="edit_message_content" required maxlength="255"
                                                         oninput="updateCharCount('edit_message_content', 'editCharCount'); toggleEditButton();">
                                                     <p id="editCharCount" class="help">0/255
-                                                        <?php echo t('timed_messages_characters'); ?></p>
+                                                        <?php echo t('timed_messages_characters'); ?>
+                                                    </p>
                                                 </div>
                                             </div>
                                             <div class="field">
@@ -318,9 +325,11 @@ ob_start();
                                                         <select name="edit_status" id="edit_status"
                                                             onchange="toggleEditButton();">
                                                             <option value="True">
-                                                                <?php echo t('timed_messages_status_enabled'); ?></option>
+                                                                <?php echo t('timed_messages_status_enabled'); ?>
+                                                            </option>
                                                             <option value="False">
-                                                                <?php echo t('timed_messages_status_disabled'); ?></option>
+                                                                <?php echo t('timed_messages_status_disabled'); ?>
+                                                            </option>
                                                         </select>
                                                     </div>
                                                 </div>
@@ -388,259 +397,330 @@ ob_start();
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        <!-- Current Timed Messages Table -->
-        <div class="columns is-centered mt-5">
-            <div class="column is-fullwidth">
-                <div class="card has-background-dark has-text-white"
-                    style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                    <header class="card-header">
-                        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                            <span class="icon mr-2"><i class="fas fa-list"></i></span>
-                            Current Timed Messages
-                        </span>
-                    </header>
-                    <div class="card-content">
-                        <table class="table is-fullwidth has-background-dark has-text-white">
-                            <thead>
-                                <tr>
-                                    <th><?php echo t('timed_messages_message_id') ?: 'ID'; ?></th>
-                                    <th><?php echo t('timed_messages_interval_label'); ?></th>
-                                    <th><?php echo t('timed_messages_chat_line_trigger_label'); ?></th>
-                                    <th><?php echo t('timed_messages_status_label'); ?></th>
-                                    <th><?php echo t('timed_messages_message_label'); ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (!empty($timedMessagesData)): ?>
-                                    <?php foreach ($timedMessagesData as $m): ?>
+                <!-- Current Timed Messages Table -->
+                <div class="columns is-centered mt-5">
+                    <div class="column is-fullwidth">
+                        <div class="card has-background-dark has-text-white"
+                            style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                            <header class="card-header">
+                                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                                    <span class="icon mr-2"><i class="fas fa-list"></i></span>
+                                    Current Timed Messages
+                                </span>
+                            </header>
+                            <div class="card-content">
+                                <table class="table is-fullwidth has-background-dark has-text-white">
+                                    <thead>
                                         <tr>
-                                            <td><?php echo $m['id']; ?></td>
-                                            <td><?php echo $m['interval_count']; ?></td>
-                                            <td><?php echo $m['chat_line_trigger'] ?? 5; ?></td>
-                                            <td><?php echo (isset($m['status']) && $m['status'] == 1) ? t('timed_messages_status_enabled') : t('timed_messages_status_disabled'); ?>
-                                            </td>
-                                            <td><?php echo htmlspecialchars($m['message']); ?></td>
+                                            <th style="width: 42px; text-align: center; vertical-align: middle;">ID</th>
+                                            <th style="vertical-align: middle;">Message</th>
+                                            <th style="width: 120px; text-align: center; vertical-align: middle;">
+                                                Interval (min)</th>
+                                            <th style="width: 120px; text-align: center; vertical-align: middle;">Chat
+                                                Line Trigger</th>
+                                            <th style="width: 120px; text-align: center; vertical-align: middle;">Status
+                                            </th>
                                         </tr>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <tr>
-                                        <td colspan="5" class="has-text-grey-light">
-                                            <?php echo t('timed_messages_no_messages') ?: 'No timed messages configured.'; ?>
-                                        </td>
-                                    </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
+                                    </thead>
+                                    <tbody>
+                                        <?php if (!empty($timedMessagesData)): ?>
+                                            <?php foreach ($timedMessagesData as $msg): ?>
+                                                <tr>
+                                                    <td style="text-align: center; vertical-align: middle;">
+                                                        <?php echo $msg['id']; ?>
+                                                    </td>
+                                                    <td><?php echo htmlspecialchars($msg['message']); ?></td>
+                                                    <td style="text-align: center; vertical-align: middle;">
+                                                        <?php echo $msg['interval_count']; ?>
+                                                    </td>
+                                                    <td style="text-align: center; vertical-align: middle;">
+                                                        <?php echo $msg['chat_line_trigger']; ?>
+                                                    </td>
+                                                    <td style="text-align: center; vertical-align: middle;">
+                                                        <?php echo $msg['status'] == 1 ? 'Enabled' : 'Disabled'; ?>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <tr>
+                                                <td colspan="5" class="has-text-centered">No timed messages found.</td>
+                                            </tr>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
-<?php
-$content = ob_get_clean();
-// Scripts section
-ob_start();
-?>
-<script>
-    // Function to show response for editing
-    function showResponse() {
-        var editMessage = document.getElementById('edit_message').value;
-        var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
-        var editMessageContent = document.getElementById('edit_message_content');
-        var editIntervalInput = document.getElementById('edit_interval');
-        var editChatLineTriggerInput = document.getElementById('edit_chat_line_trigger');
-        var editStatus = document.getElementById('edit_status');
-        var messageData = timedMessagesData.find(m => m.id == editMessage);
-        if (messageData) {
-            editMessageContent.value = messageData.message;
-            editIntervalInput.value = messageData.interval_count;
-            editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
-            // Convert integer status (1/0) to dropdown string value
-            if (editStatus) editStatus.value = (messageData.status == 1 || messageData.status === 'True') ? 'True' : 'False';
-            updateCharCount('edit_message_content', 'editCharCount');
-        } else {
-            editMessageContent.value = '';
-            editIntervalInput.value = '';
-            editChatLineTriggerInput.value = '';
-            if (editStatus) editStatus.value = '';
-            document.getElementById('editCharCount').textContent = '0/255 characters';
-            document.getElementById('editCharCount').className = 'help';
-        }
-        toggleEditButton();
-    }
+            <!-- Hidden fields for YourLinks API -->
+            <input type="hidden" id="yourlinks_api_key" value="<?php echo htmlspecialchars($userApiKey); ?>">
+            <input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
+            <!-- YourLinks URL Shortener Modal -->
+            <div id="yourlinksModal" class="modal">
+                <div class="modal-background"></div>
+                <div class="modal-card">
+                    <header class="modal-card-head"
+                        style="background-color: #2c3e50; border-bottom: 3px solid #3498db;">
+                        <p class="modal-card-title has-text-white">
+                            <span class="icon"><i class="fas fa-link"></i></span>
+                            <span>Create Short Link with YourLinks.click</span>
+                        </p>
+                        <button id="yourlinks_close_btn" class="delete" aria-label="close"></button>
+                    </header>
+                    <section class="modal-card-body" style="background-color: #1e2936;">
+                        <div id="yourlinks_status" class="mb-4"></div>
 
-    // Function to show message content in remove textarea and enable button
-    function showMessage() {
-        var removeMessage = document.getElementById('remove_message').value;
-        var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
-        var removeMessageContent = document.getElementById('remove_message_content');
-        var messageData = timedMessagesData.find(m => m.id == removeMessage);
-        if (messageData) {
-            removeMessageContent.value = messageData.message;
-        } else {
-            removeMessageContent.value = '';
-        }
-        toggleRemoveButton();
-    }
+                        <div class="field">
+                            <label class="label has-text-white">Destination URL</label>
+                            <div class="control has-icons-left">
+                                <input class="input" type="url" id="yourlinks_destination"
+                                    placeholder="https://example.com" readonly>
+                                <span class="icon is-small is-left"><i class="fas fa-globe"></i></span>
+                            </div>
+                            <p class="help has-text-grey-light">The URL you entered in the message</p>
+                        </div>
+                        <div class="field">
+                            <label class="label has-text-white">Link Name <span style="color: #f14668;">*</span></label>
+                            <div class="control has-icons-left">
+                                <input class="input" type="text" id="yourlinks_link_name"
+                                    placeholder="e.g., discord, youtube, twitch" maxlength="50">
+                                <span class="icon is-small is-left"><i class="fas fa-link"></i></span>
+                            </div>
+                            <p class="help has-text-grey-light">Alphanumeric characters, hyphens, and underscores only.
+                                Will be:
+                                <code><?php echo htmlspecialchars($twitchUsername); ?>.yourlinks.click/<strong>linkname</strong></code>
+                            </p>
+                        </div>
+                        <div class="field">
+                            <label class="label has-text-white">Title (Optional)</label>
+                            <div class="control has-icons-left">
+                                <input class="input" type="text" id="yourlinks_title"
+                                    placeholder="e.g., Join My Discord Server" maxlength="100">
+                                <span class="icon is-small is-left"><i class="fas fa-heading"></i></span>
+                            </div>
+                            <p class="help has-text-grey-light">Display name for the link (for your reference)</p>
+                        </div>
+                    </section>
+                    <footer class="modal-card-foot" style="justify-content: flex-end; gap: 10px;">
+                        <button id="yourlinks_cancel_btn" class="button is-light">
+                            <span class="icon"><i class="fas fa-times"></i></span>
+                            <span>Cancel</span>
+                        </button>
+                        <button id="yourlinks_submit_btn" class="button is-primary">
+                            <span class="icon"><i class="fas fa-link"></i></span>
+                            <span>Create Link</span>
+                        </button>
+                    </footer>
+                </div>
+            </div>
+            <?php
+            $content = ob_get_clean();
 
-    // Function to update character counts
-    function updateCharCount(inputId, counterId) {
-        const input = document.getElementById(inputId);
-        const counter = document.getElementById(counterId);
-        const maxLength = 255;
-        const currentLength = input.value.length;
-        // Update the counter text
-        counter.textContent = currentLength + '/' + maxLength + ' characters';
-        // Update styling based on character count
-        if (currentLength > maxLength) {
-            counter.className = 'help is-danger';
-        } else if (currentLength > maxLength * 0.8) {
-            counter.className = 'help is-warning';
-        } else {
-            counter.className = 'help is-info';
-        }
-    }
+            // Scripts section
+            ob_start();
+            ?>
+            <script src="../js/yourlinks-shortener.js?v=<?php echo time(); ?>"></script>
+            <script>
+                // Function to show response for editing
+                function showResponse() {
+                    var editMessage = document.getElementById('edit_message').value;
+                    var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
+                    var editMessageContent = document.getElementById('edit_message_content');
+                    var editIntervalInput = document.getElementById('edit_interval');
+                    var editChatLineTriggerInput = document.getElementById('edit_chat_line_trigger');
+                    var editStatus = document.getElementById('edit_status');
+                    var messageData = timedMessagesData.find(m => m.id == editMessage);
+                    if (messageData) {
+                        editMessageContent.value = messageData.message;
+                        editIntervalInput.value = messageData.interval_count;
+                        editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
+                        // Convert integer status (1/0) to string for dropdown (True/False)
+                        if (editStatus) editStatus.value = (messageData.status == 1) ? 'True' : 'False';
+                        updateCharCount('edit_message_content', 'editCharCount');
+                    } else {
+                        editMessageContent.value = '';
+                        editIntervalInput.value = '';
+                        editChatLineTriggerInput.value = '';
+                        if (editStatus) editStatus.value = '';
+                        document.getElementById('editCharCount').textContent = '0/255 characters';
+                        document.getElementById('editCharCount').className = 'help';
+                    }
+                    toggleEditButton();
+                }
 
-    // Enable/disable add button based on input
-    function toggleAddButton() {
-        var message = document.getElementById('message').value.trim();
-        var interval = document.getElementById('interval').value;
-        var chatLine = document.getElementById('chat_line_trigger').value;
-        var addBtn = document.getElementById('addMessageButton');
-        // All fields must be filled and valid
-        var valid = (
-            message.length > 0 &&
-            interval !== "" && !isNaN(interval) && Number(interval) >= 5 && Number(interval) <= 60 &&
-            chatLine !== "" && !isNaN(chatLine) && Number(chatLine) >= 5
-        );
-        addBtn.disabled = !valid;
-    }
+                // Function to show message content in remove textarea and enable button
+                function showMessage() {
+                    var removeMessage = document.getElementById('remove_message').value;
+                    var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
+                    var removeMessageContent = document.getElementById('remove_message_content');
+                    var messageData = timedMessagesData.find(m => m.id == removeMessage);
+                    if (messageData) {
+                        removeMessageContent.value = messageData.message;
+                    } else {
+                        removeMessageContent.value = '';
+                    }
+                    toggleRemoveButton();
+                }
 
-    // Enable/disable edit button based on input
-    function toggleEditButton() {
-        var editMessage = document.getElementById('edit_message').value;
-        var editInterval = document.getElementById('edit_interval').value;
-        var editMessageContent = document.getElementById('edit_message_content').value.trim();
-        var editStatus = document.getElementById('edit_status').value;
-        var editChatLineTrigger = document.getElementById('edit_chat_line_trigger').value;
-        var editBtn = document.getElementById('editMessageButton');
-        var valid = (
-            editMessage !== "" &&
-            editInterval !== "" && !isNaN(editInterval) && Number(editInterval) >= 5 && Number(editInterval) <= 60 &&
-            editMessageContent.length > 0 && editMessageContent.length <= 255 &&
-            editStatus !== "" &&
-            editChatLineTrigger !== "" && !isNaN(editChatLineTrigger) && Number(editChatLineTrigger) >= 5
-        );
-        editBtn.disabled = !valid;
-    }
+                // Function to update character counts
+                function updateCharCount(inputId, counterId) {
+                    const input = document.getElementById(inputId);
+                    const counter = document.getElementById(counterId);
+                    const maxLength = 255;
+                    const currentLength = input.value.length;
+                    // Update the counter text
+                    counter.textContent = currentLength + '/' + maxLength + ' characters';
+                    // Update styling based on character count
+                    if (currentLength > maxLength) {
+                        counter.className = 'help is-danger';
+                    } else if (currentLength > maxLength * 0.8) {
+                        counter.className = 'help is-warning';
+                    } else {
+                        counter.className = 'help is-info';
+                    }
+                }
 
-    // Enable/disable remove button based on selection
-    function toggleRemoveButton() {
-        var removeMessage = document.getElementById('remove_message').value;
-        var removeBtn = document.getElementById('removeMessageButton');
-        removeBtn.disabled = (removeMessage === "");
-    }
+                // Enable/disable add button based on input
+                function toggleAddButton() {
+                    var message = document.getElementById('message').value.trim();
+                    var interval = document.getElementById('interval').value;
+                    var chatLine = document.getElementById('chat_line_trigger').value;
+                    var addBtn = document.getElementById('addMessageButton');
+                    // All fields must be filled and valid
+                    var valid = (
+                        message.length > 0 &&
+                        interval !== "" && !isNaN(interval) && Number(interval) >= 5 && Number(interval) <= 60 &&
+                        chatLine !== "" && !isNaN(chatLine) && Number(chatLine) >= 5
+                    );
+                    addBtn.disabled = !valid;
+                }
 
-    // Function to validate the form before submission
-    function validateForm() {
-        // Message length validation
-        const messageInput = document.getElementById('message');
-        if (messageInput.value.length > 255) {
-            document.getElementById('messageError').textContent = '<?php echo t('timed_messages_message_length_error'); ?>';
-            document.getElementById('messageError').style.display = 'block';
-            return false;
-        }
-        // Interval validation
-        const intervalInput = document.getElementById('interval');
-        if (intervalInput.value < 5 || intervalInput.value > 60) {
-            document.getElementById('intervalError').style.display = 'block';
-            return false;
-        }
-        return true;
-    }
+                // Enable/disable edit button based on input
+                function toggleEditButton() {
+                    var editMessage = document.getElementById('edit_message').value;
+                    var editInterval = document.getElementById('edit_interval').value;
+                    var editMessageContent = document.getElementById('edit_message_content').value.trim();
+                    var editStatus = document.getElementById('edit_status').value;
+                    var editChatLineTrigger = document.getElementById('edit_chat_line_trigger').value;
+                    var editBtn = document.getElementById('editMessageButton');
+                    var valid = (
+                        editMessage !== "" &&
+                        editInterval !== "" && !isNaN(editInterval) && Number(editInterval) >= 5 && Number(editInterval) <= 60 &&
+                        editMessageContent.length > 0 && editMessageContent.length <= 255 &&
+                        editStatus !== "" &&
+                        editChatLineTrigger !== "" && !isNaN(editChatLineTrigger) && Number(editChatLineTrigger) >= 5
+                    );
+                    editBtn.disabled = !valid;
+                }
 
-    // Function to validate the edit form before submission
-    function validateEditForm() {
-        const editMessageContent = document.getElementById('edit_message_content');
-        if (editMessageContent.value.length > 255) {
-            alert('<?php echo t('timed_messages_char_limit_alert'); ?>');
-            return false;
-        }
-        return true;
-    }
+                // Enable/disable remove button based on selection
+                function toggleRemoveButton() {
+                    var removeMessage = document.getElementById('remove_message').value;
+                    var removeBtn = document.getElementById('removeMessageButton');
+                    removeBtn.disabled = (removeMessage === "");
+                }
 
-    // Update the edit form to use validation
-    document.addEventListener('DOMContentLoaded', function () {
-        const editForm = document.querySelector('form:nth-of-type(2)');
-        if (editForm) {
-            editForm.onsubmit = validateEditForm;
-        }
-    });
+                // Function to validate the form before submission
+                function validateForm() {
+                    // Message length validation
+                    const messageInput = document.getElementById('message');
+                    if (messageInput.value.length > 255) {
+                        document.getElementById('messageError').textContent = '<?php echo t('timed_messages_message_length_error'); ?>';
+                        document.getElementById('messageError').style.display = 'block';
+                        return false;
+                    }
+                    // Interval validation
+                    const intervalInput = document.getElementById('interval');
+                    if (intervalInput.value < 5 || intervalInput.value > 60) {
+                        document.getElementById('intervalError').style.display = 'block';
+                        return false;
+                    }
+                    return true;
+                }
 
-    // SweetAlert2 for remove confirmation
-    document.addEventListener('DOMContentLoaded', function () {
-        toggleEditButton();
-        toggleRemoveButton();
-        var removeForm = document.getElementById('removeMessageForm');
-        if (removeForm) {
-            removeForm.addEventListener('submit', function (e) {
-                e.preventDefault();
-                var select = document.getElementById('remove_message');
-                if (!select.value) return;
-                Swal.fire({
-                    title: 'Are you sure?',
-                    text: "This will permanently remove the selected message.",
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    cancelButtonColor: '#3085d6',
-                    confirmButtonText: 'Yes, remove it!',
-                    reverseButtons: true
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        removeForm.submit();
+                // Function to validate the edit form before submission
+                function validateEditForm() {
+                    const editMessageContent = document.getElementById('edit_message_content');
+                    if (editMessageContent.value.length > 255) {
+                        alert('<?php echo t('timed_messages_char_limit_alert'); ?>');
+                        return false;
+                    }
+                    return true;
+                }
+
+                // Update the edit form to use validation
+                document.addEventListener('DOMContentLoaded', function () {
+                    const editForm = document.querySelector('form:nth-of-type(2)');
+                    if (editForm) {
+                        editForm.onsubmit = validateEditForm;
                     }
                 });
-            });
-        }
-    });
 
-    // Call the function initially to pre-fill the fields if a default message is selected
-    window.onload = function () {
-        showResponse();
-        updateCharCount('message', 'charCount');
-        showMessage();
-        toggleEditButton();
-        toggleRemoveButton();
-        toggleAddButton();
-    }
+                // SweetAlert2 for remove confirmation
+                document.addEventListener('DOMContentLoaded', function () {
+                    toggleEditButton();
+                    toggleRemoveButton();
+                    var removeForm = document.getElementById('removeMessageForm');
+                    if (removeForm) {
+                        removeForm.addEventListener('submit', function (e) {
+                            e.preventDefault();
+                            var select = document.getElementById('remove_message');
+                            if (!select.value) return;
+                            Swal.fire({
+                                title: 'Are you sure?',
+                                text: "This will permanently remove the selected message.",
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonColor: '#d33',
+                                cancelButtonColor: '#3085d6',
+                                confirmButtonText: 'Yes, remove it!',
+                                reverseButtons: true
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    removeForm.submit();
+                                }
+                            });
+                        });
+                    }
+                });
 
-    // In case user types or changes values, keep button states updated
-    document.addEventListener('DOMContentLoaded', function () {
-        document.getElementById('message').addEventListener('input', toggleAddButton);
-        document.getElementById('interval').addEventListener('input', toggleAddButton);
-        document.getElementById('chat_line_trigger').addEventListener('input', toggleAddButton);
-        document.getElementById('edit_interval').addEventListener('input', toggleEditButton);
-        document.getElementById('edit_chat_line_trigger').addEventListener('input', toggleEditButton);
-        document.getElementById('edit_message_content').addEventListener('input', function () {
-            updateCharCount('edit_message_content', 'editCharCount');
-            toggleEditButton();
-        });
-        document.getElementById('edit_status').addEventListener('change', toggleEditButton);
-        document.getElementById('edit_message').addEventListener('change', function () {
-            showResponse();
-            toggleEditButton();
-        });
-        document.getElementById('remove_message').addEventListener('change', function () {
-            showMessage();
-            toggleRemoveButton();
-        });
-    });
-</script>
-<?php
-$scripts = ob_get_clean();
-include 'mod_layout.php';
-?>
+                // Call the function initially to pre-fill the fields if a default message is selected
+                window.onload = function () {
+                    showResponse();
+                    updateCharCount('message', 'charCount');
+                    showMessage();
+                    toggleEditButton();
+                    toggleRemoveButton();
+                    toggleAddButton();
+                    // Initialize URL shortener for input fields
+                    yourLinksShortener.initializeField('message');
+                    yourLinksShortener.initializeField('edit_message_content');
+                }
+
+                // In case user types or changes values, keep button states updated
+                document.addEventListener('DOMContentLoaded', function () {
+                    document.getElementById('message').addEventListener('input', toggleAddButton);
+                    document.getElementById('interval').addEventListener('input', toggleAddButton);
+                    document.getElementById('chat_line_trigger').addEventListener('input', toggleAddButton);
+                    document.getElementById('edit_interval').addEventListener('input', toggleEditButton);
+                    document.getElementById('edit_chat_line_trigger').addEventListener('input', toggleEditButton);
+                    document.getElementById('edit_message_content').addEventListener('input', function () {
+                        updateCharCount('edit_message_content', 'editCharCount');
+                        toggleEditButton();
+                    });
+                    document.getElementById('edit_status').addEventListener('change', toggleEditButton);
+                    document.getElementById('edit_message').addEventListener('change', function () {
+                        showResponse();
+                        toggleEditButton();
+                    });
+                    document.getElementById('remove_message').addEventListener('change', function () {
+                        showMessage();
+                        toggleRemoveButton();
+                    });
+                });
+            </script>
+            <?php
+            $scripts = ob_get_clean();
+            require 'mod_layout.php';
+            ?>
