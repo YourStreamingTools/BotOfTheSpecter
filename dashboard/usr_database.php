@@ -432,7 +432,13 @@ try {
                 ad_start_message VARCHAR(255),
                 ad_end_message VARCHAR(255),
                 ad_upcoming_message VARCHAR(255),
-                enable_ad_notice TINYINT(1) DEFAULT 1
+                ad_snoozed_message VARCHAR(255),
+                enable_ad_notice TINYINT(1) DEFAULT 1,
+                enable_upcoming_ad_message TINYINT(1) DEFAULT 1,
+                enable_start_ad_message TINYINT(1) DEFAULT 1,
+                enable_end_ad_message TINYINT(1) DEFAULT 1,
+                enable_snoozed_ad_message TINYINT(1) DEFAULT 1,
+                enable_ai_ad_breaks TINYINT(1) DEFAULT 0
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'streaming_settings' => "
             CREATE TABLE IF NOT EXISTS streaming_settings (
@@ -531,6 +537,11 @@ try {
                 user_name VARCHAR(255) NOT NULL,
                 shoutout_time DATETIME NOT NULL,
                 INDEX idx_shoutout_time (shoutout_time)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'stream_session_stats' => "
+            CREATE TABLE IF NOT EXISTS stream_session_stats (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                ad_break_count INT DEFAULT 0
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)
@@ -588,7 +599,7 @@ try {
         'streamer_preferences' => ['id' => "INT AUTO_INCREMENT PRIMARY KEY", 'send_welcome_messages' => "TINYINT(1)", 'default_welcome_message' => "TEXT", 'new_default_welcome_message' => "TEXT", 'default_vip_welcome_message' => "TEXT", 'new_default_vip_welcome_message' => "TEXT", 'default_mod_welcome_message' => "TEXT", 'new_default_mod_welcome_message' => "TEXT"],
         'stream_lotto' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'username' => "VARCHAR(255)", 'winning_numbers' => "VARCHAR(255)", 'supplementary_numbers' => "VARCHAR(255)"],
         'stream_lotto_winning_numbers' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'winning_numbers' => "VARCHAR(255)", 'supplementary_numbers' => "VARCHAR(255)"],
-        'ad_notice_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'ad_start_message' => "VARCHAR(255)", 'ad_end_message' => "VARCHAR(255)", 'ad_upcoming_message' => "VARCHAR(255)", 'ad_snoozed_message' => "VARCHAR(255)", 'enable_ad_notice' => "TINYINT(1) DEFAULT 1", 'enable_upcoming_ad_message' => "TINYINT(1) DEFAULT 1", 'enable_start_ad_message' => "TINYINT(1) DEFAULT 1", 'enable_end_ad_message' => "TINYINT(1) DEFAULT 1", 'enable_snoozed_ad_message' => "TINYINT(1) DEFAULT 1"],
+        'ad_notice_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'ad_start_message' => "VARCHAR(255)", 'ad_end_message' => "VARCHAR(255)", 'ad_upcoming_message' => "VARCHAR(255)", 'ad_snoozed_message' => "VARCHAR(255)", 'enable_ad_notice' => "TINYINT(1) DEFAULT 1", 'enable_upcoming_ad_message' => "TINYINT(1) DEFAULT 1", 'enable_start_ad_message' => "TINYINT(1) DEFAULT 1", 'enable_end_ad_message' => "TINYINT(1) DEFAULT 1", 'enable_snoozed_ad_message' => "TINYINT(1) DEFAULT 1", 'enable_ai_ad_breaks' => "TINYINT(1) DEFAULT 0"],
         'streaming_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'twitch_key' => "VARCHAR(255)", 'forward_to_twitch' => "TINYINT(1)"],
         'twitch_chat_alerts' => ['alert_type' => "VARCHAR(255)", 'alert_message' => "TEXT"],
         'reward_streaks' => ['reward_id' => "VARCHAR(255)", 'current_user' => "VARCHAR(255)", 'streak' => "INT DEFAULT 1"],
@@ -599,7 +610,8 @@ try {
         'bingo_games' => ['game_id' => "VARCHAR(255) PRIMARY KEY", 'start_time' => "DATETIME DEFAULT CURRENT_TIMESTAMP", 'end_time' => "DATETIME NULL", 'events_count' => "INT DEFAULT 0", 'is_sub_only' => "BOOLEAN DEFAULT FALSE", 'random_call_only' => "BOOLEAN DEFAULT TRUE", 'status' => "ENUM('active', 'completed') DEFAULT 'active'"],
         'bingo_winners' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'game_id' => "VARCHAR(255) NOT NULL", 'player_name' => "VARCHAR(255) NOT NULL", 'player_id' => "VARCHAR(255) NOT NULL", 'rank' => "INT NOT NULL", 'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
         'working_study_overlay_settings' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'focus_minutes' => "INT DEFAULT 60", 'micro_break_minutes' => "INT DEFAULT 5", 'recharge_break_minutes' => "INT DEFAULT 30", 'updated_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"],
-        'working_study_overlay_tasks' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'username' => "VARCHAR(255) NOT NULL", 'task_id' => "VARCHAR(255) NOT NULL", 'title' => "VARCHAR(255) NOT NULL", 'priority' => "VARCHAR(20) DEFAULT 'medium'", 'completed' => "TINYINT(1) DEFAULT 0", 'created_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", 'updated_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"]
+        'working_study_overlay_tasks' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'username' => "VARCHAR(255) NOT NULL", 'task_id' => "VARCHAR(255) NOT NULL", 'title' => "VARCHAR(255) NOT NULL", 'priority' => "VARCHAR(20) DEFAULT 'medium'", 'completed' => "TINYINT(1) DEFAULT 0", 'created_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", 'updated_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"],
+        'stream_session_stats' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'ad_break_count' => "INT DEFAULT 0"]
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
@@ -710,7 +722,7 @@ try {
             async_log("Default group $group_name ensured.");
         }
     }
-    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 1, 1, 1, 1, 1, 0 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default ad_notice_settings options ensured.');
     }
     // Ensure default options for automated shoutout settings
