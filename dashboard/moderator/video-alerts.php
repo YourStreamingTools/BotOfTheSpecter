@@ -1,5 +1,4 @@
 <?php
-// Initialize the session
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
@@ -10,6 +9,15 @@ if (!isset($_SESSION['access_token'])) {
     header('Location: ../login.php');
     exit();
 }
+
+$editing_username = $_SESSION['editing_username'] ?? null;
+if (empty($editing_username)) {
+    // If no channel selected, redirect or show error (handled by user_db.php mostly)
+    header('Location: ../mod_channels.php');
+    exit();
+}
+// Override username for context
+$username = $editing_username;
 
 $pageTitle = t('video_alerts_page_title');
 
@@ -69,9 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST[
     $videoFile = $_POST['video_file'];
     $rewardId = $_POST['reward_id'];
     $videoFile = htmlspecialchars($videoFile);
-    $videoFileRaw = $_POST['video_file'];
-    $videoFile = $videoFileRaw; // Keep $videoFile as raw for existing DB code compat
-    $videoFileSafe = htmlspecialchars($videoFileRaw);
+
     // Check if a mapping already exists for this video file
     $stmt = $db->prepare("SELECT 1 FROM video_alerts WHERE video_mapping = ?");
     $stmt->bind_param("s", $videoFile);
@@ -79,23 +85,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST[
     $stmt->store_result();
     $exists = $stmt->num_rows > 0;
     $stmt->close();
+
     if ($exists) {
         if ($rewardId) {
             $stmt = $db->prepare("UPDATE video_alerts SET reward_id = ? WHERE video_mapping = ?");
             $stmt->bind_param("ss", $rewardId, $videoFile);
             if (!$stmt->execute()) {
-                $status .= t('video_alerts_mapping_update_failed', ['file' => $videoFileSafe, 'error' => $stmt->error]) . "<br>";
+                $status .= t('video_alerts_mapping_update_failed', ['file' => $videoFile, 'error' => $stmt->error]) . "<br>";
             } else {
-                $status .= t('video_alerts_mapping_updated', ['file' => $videoFileSafe]) . "<br>";
+                $status .= t('video_alerts_mapping_updated', ['file' => $videoFile]) . "<br>";
             }
             $stmt->close();
         } else {
             $stmt = $db->prepare("DELETE FROM video_alerts WHERE video_mapping = ?");
             $stmt->bind_param("s", $videoFile);
             if (!$stmt->execute()) {
-                $status .= t('video_alerts_mapping_remove_failed', ['file' => $videoFileSafe, 'error' => $stmt->error]) . "<br>";
+                $status .= t('video_alerts_mapping_remove_failed', ['file' => $videoFile, 'error' => $stmt->error]) . "<br>";
             } else {
-                $status .= t('video_alerts_mapping_removed', ['file' => $videoFileSafe]) . "<br>";
+                $status .= t('video_alerts_mapping_removed', ['file' => $videoFile]) . "<br>";
             }
             $stmt->close();
         }
@@ -104,9 +111,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST[
             $stmt = $db->prepare("INSERT INTO video_alerts (video_mapping, reward_id) VALUES (?, ?)");
             $stmt->bind_param("ss", $videoFile, $rewardId);
             if (!$stmt->execute()) {
-                $status .= t('video_alerts_mapping_create_failed', ['file' => $videoFileSafe, 'error' => $stmt->error]) . "<br>";
+                $status .= t('video_alerts_mapping_create_failed', ['file' => $videoFile, 'error' => $stmt->error]) . "<br>";
             } else {
-                $status .= t('video_alerts_mapping_created', ['file' => $videoFileSafe]) . "<br>";
+                $status .= t('video_alerts_mapping_created', ['file' => $videoFile]) . "<br>";
             }
             $stmt->close();
         }
@@ -295,19 +302,15 @@ ob_start();
                                         <thead>
                                             <tr>
                                                 <th style="width: 70px;" class="has-text-centered">
-                                                    <?php echo t('video_alerts_select'); ?>
-                                                </th>
+                                                    <?php echo t('video_alerts_select'); ?></th>
                                                 <th class="has-text-centered"><?php echo t('video_alerts_file_name'); ?>
                                                 </th>
                                                 <th class="has-text-centered">
-                                                    <?php echo t('video_alerts_channel_point_reward'); ?>
-                                                </th>
+                                                    <?php echo t('video_alerts_channel_point_reward'); ?></th>
                                                 <th style="width: 80px;" class="has-text-centered">
-                                                    <?php echo t('video_alerts_action'); ?>
-                                                </th>
+                                                    <?php echo t('video_alerts_action'); ?></th>
                                                 <th style="width: 120px;" class="has-text-centered">
-                                                    <?php echo t('video_alerts_test_video'); ?>
-                                                </th>
+                                                    <?php echo t('video_alerts_test_video'); ?></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -336,12 +339,10 @@ ob_start();
                                                                     style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
                                                                     <?php if ($current_reward_id): ?>
                                                                         <option value="" class="has-text-danger">
-                                                                            <?php echo t('video_alerts_remove_mapping'); ?>
-                                                                        </option>
+                                                                            <?php echo t('video_alerts_remove_mapping'); ?></option>
                                                                     <?php endif; ?>
                                                                     <option value="">
-                                                                        <?php echo t('video_alerts_select_reward'); ?>
-                                                                    </option>
+                                                                        <?php echo t('video_alerts_select_reward'); ?></option>
                                                                     <?php
                                                                     foreach ($channelPointRewards as $reward):
                                                                         $isMapped = (in_array($reward['reward_id'], $videoAlertMappings) || in_array($reward['reward_id'], $soundMappedRewards));
@@ -387,8 +388,7 @@ ob_start();
                         <?php else: ?>
                             <div class="has-text-centered py-6">
                                 <h2 class="title is-5 has-text-grey-light">
-                                    <?php echo t('video_alerts_no_files_uploaded'); ?>
-                                </h2>
+                                    <?php echo t('video_alerts_no_files_uploaded'); ?></h2>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -584,7 +584,7 @@ ob_start();
     // Function to send a stream event
     function sendStreamEvent(eventType, fileName) {
         const xhr = new XMLHttpRequest();
-        const url = "notify_event.php";
+        const url = "../notify_event.php"; // Adjusted path for moderator view
         const params = `event=${eventType}&video=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
         xhr.open("POST", url, true);
         xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
@@ -610,5 +610,5 @@ ob_start();
 </script>
 <?php
 $scripts = ob_get_clean();
-include 'mod_layout.php';
+require 'mod_layout.php';
 ?>
