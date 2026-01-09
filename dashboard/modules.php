@@ -114,8 +114,9 @@ $enable_upcoming_ad_message = 1;
 $enable_start_ad_message = 1;
 $enable_end_ad_message = 1;
 $enable_snoozed_ad_message = 1;
+$enable_ai_ad_breaks = 0;
 
-$stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message FROM ad_notice_settings LIMIT 1");
+$stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks FROM ad_notice_settings LIMIT 1");
 if ($stmt) {
     $stmt->execute();
     $stmt->bind_result(
@@ -127,7 +128,8 @@ if ($stmt) {
         $fetched_enable_upcoming,
         $fetched_enable_start,
         $fetched_enable_end,
-        $fetched_enable_snoozed
+        $fetched_enable_snoozed,
+        $fetched_enable_ai
     );
     if ($stmt->fetch()) {
         $ad_upcoming_message = $fetched_upcoming;
@@ -139,6 +141,7 @@ if ($stmt) {
         $enable_start_ad_message = $fetched_enable_start;
         $enable_end_ad_message = $fetched_enable_end;
         $enable_snoozed_ad_message = $fetched_enable_snoozed;
+        $enable_ai_ad_breaks = $fetched_enable_ai;
     }
     $stmt->close();
 }
@@ -892,8 +895,8 @@ ob_start();
                                                             </div>
                                                             <!-- Enable/Disable Toggle -->
                                                             <div class="field mt-4">
-                                                                <div class="columns is-vcentered">
-                                                                    <div class="column">
+                                                                <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                                                    <div>
                                                                         <label class="label has-text-white mb-0">
                                                                             <span class="icon mr-2"><i
                                                                                     class="fas fa-toggle-on"></i></span>
@@ -904,14 +907,37 @@ ob_start();
                                                                             advertisement notices in your stream chat.
                                                                         </p>
                                                                     </div>
-                                                                    <div class="column is-narrow">
-                                                                        <label class="switch is-medium is-success"
-                                                                            aria-label="<?php echo t('modules_enable_ad_notice'); ?>">
-                                                                            <input type="checkbox"
-                                                                                name="enable_ad_notice" value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>
-                                                                                style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
-                                                                            <span class="check"></span>
+                                                                    <div class="field">
+                                                                        <input id="enable_ad_notice"
+                                                                            type="checkbox"
+                                                                            name="enable_ad_notice"
+                                                                            class="switch is-small is-success"
+                                                                            value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>>
+                                                                        <label for="enable_ad_notice"></label>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <!-- AI Ad Breaks Toggle -->
+                                                            <div class="field mt-4">
+                                                                <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                                                    <div>
+                                                                        <label class="label has-text-white mb-0">
+                                                                            <span class="icon mr-2"><i
+                                                                                    class="fas fa-robot"></i></span>
+                                                                            Enable AI-Powered Ad Break Messages
                                                                         </label>
+                                                                        <p class="help has-text-grey-light mt-2">
+                                                                            <span class="tag is-warning mr-2">Premium Feature</span>
+                                                                            When enabled, the bot will use AI to generate dynamic, context-aware ad break messages based on recent chat activity. Requires Tier 2 subscription or higher.
+                                                                        </p>
+                                                                    </div>
+                                                                    <div class="field">
+                                                                        <input id="enable_ai_ad_breaks"
+                                                                            type="checkbox"
+                                                                            name="enable_ai_ad_breaks"
+                                                                            class="switch is-small is-success"
+                                                                            value="1" <?php echo (!empty($enable_ai_ad_breaks) ? 'checked' : ''); ?>>
+                                                                        <label for="enable_ai_ad_breaks"></label>
                                                                     </div>
                                                                 </div>
                                                             </div>
