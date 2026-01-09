@@ -36,13 +36,19 @@ async def get_api_versions():
         print(f"Warning: Could not fetch API versions: {e}")
     return None
 
+# Function to parse version string to tuple for comparison
+def parse_version(version_string):
+    try:
+        return tuple(map(int, version_string.split('.')))
+    except (ValueError, AttributeError):
+        return None
+
 # Function to compare versions and check if outdated
 def is_version_outdated(local_version, api_versions, script_type):
     if not api_versions or local_version == 'Unknown':
         return False, None, "Could not determine version status"
-    try:
-        local_v = float(local_version)
-    except ValueError:
+    local_v = parse_version(local_version)
+    if not local_v:
         return False, None, f"Invalid local version format: {local_version}"
     if script_type == 'stable':
         current_version = api_versions.get('stable_version')
@@ -55,9 +61,8 @@ def is_version_outdated(local_version, api_versions, script_type):
         return False, None, "Unknown script type"
     if not current_version:
         return False, None, "Current version not available in API"
-    try:
-        current_v = float(current_version)
-    except ValueError:
+    current_v = parse_version(current_version)
+    if not current_v:
         return False, None, f"Invalid API version format: {current_version}"
     is_outdated = local_v < current_v
     message = f"Running v{local_version} (Latest: v{current_version})"
