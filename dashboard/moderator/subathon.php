@@ -1,4 +1,4 @@
-<?php 
+<?php
 // Initialize the session
 session_start();
 
@@ -51,9 +51,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
     // Update the settings in the database
     $stmt = $db->prepare("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE starting_minutes=?, cheer_add=?, sub_add_1=?, sub_add_2=?, sub_add_3=?");
     $stmt->bind_param(
-        "iiiiiiiii", 
-        $starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3,
-        $starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3
+        "iiiiiiiii",
+        $starting_minutes,
+        $cheer_add,
+        $sub_add_1,
+        $sub_add_2,
+        $sub_add_3,
+        $starting_minutes,
+        $cheer_add,
+        $sub_add_1,
+        $sub_add_2,
+        $sub_add_3
     );
     $stmt->execute();
     $stmt->close();
@@ -75,18 +83,20 @@ ob_start();
         <div class="columns is-vcentered">
             <div class="column is-narrow">
                 <span class="icon is-large">
-                    <i class="fas fa-hourglass-half fa-2x"></i> 
+                    <i class="fas fa-hourglass-half fa-2x"></i>
                 </span>
             </div>
             <div class="column">
                 <p><span class="has-text-weight-bold">Subathon Time: Work in Progress!</span></p>
-                <p>We're still fine-tuning the donation feature for adding time to your subathon. In the meantime, you can easily add time with a quick command. </p>
+                <p>We're still fine-tuning the donation feature for adding time to your subathon. In the meantime, you
+                    can easily add time with a quick command. </p>
                 <p><span class="has-text-weight-bold">Here's how:</span></p>
                 <ul>
-                    <li><span class="icon"><i class="fas fa-comment-dots"></i></span> Type <code>!subathon addtime [minutes]</code> in chat.</li>
+                    <li><span class="icon"><i class="fas fa-comment-dots"></i></span> Type
+                        <code>!subathon addtime [minutes]</code> in chat.</li>
                     <li> For example: <code>!subathon addtime 10</code> (adds 10 minutes).</li>
                 </ul>
-                <p>We'll keep you updated on the donation feature. Thanks for your patience!</p> 
+                <p>We'll keep you updated on the donation feature. Thanks for your patience!</p>
             </div>
         </div>
     </div>
@@ -96,35 +106,43 @@ ob_start();
                 <div class="field">
                     <label for="starting_minutes">Starting Minutes:</label>
                     <div class="control">
-                        <input class="input" type="number" name="starting_minutes" id="starting_minutes" value="<?php echo htmlspecialchars($starting_minutes); ?>" required>
+                        <input class="input" type="number" name="starting_minutes" id="starting_minutes"
+                            value="<?php echo htmlspecialchars($starting_minutes); ?>" required>
                     </div>
-                    <p class="help">This is the default starting time (in minutes) for the subathon timer when it begins. It indicates how long the subathon will run before any additional time is added. The default value is 60 minutes.</p>
+                    <p class="help">This is the default starting time (in minutes) for the subathon timer when it
+                        begins. It indicates how long the subathon will run before any additional time is added. The
+                        default value is 60 minutes.</p>
                 </div>
                 <div class="field">
                     <label for="cheer_add">Cheer Add:</label>
                     <div class="control">
-                        <input class="input" type="number" name="cheer_add" id="cheer_add" value="<?php echo htmlspecialchars($cheer_add); ?>" required>
+                        <input class="input" type="number" name="cheer_add" id="cheer_add"
+                            value="<?php echo htmlspecialchars($cheer_add); ?>" required>
                     </div>
-                    <p class="help">The number of minutes added to the subathon for each cheer received (per 100 bits). Default is 5 minutes.</p>
+                    <p class="help">The number of minutes added to the subathon for each cheer received (per 100 bits).
+                        Default is 5 minutes.</p>
                 </div>
                 <div class="field">
                     <label for="sub_add_1">Tier 1 Subscription:</label>
                     <div class="control">
-                        <input class="input" type="number" name="sub_add_1" id="sub_add_1" value="<?php echo htmlspecialchars($sub_add_1); ?>" required>
+                        <input class="input" type="number" name="sub_add_1" id="sub_add_1"
+                            value="<?php echo htmlspecialchars($sub_add_1); ?>" required>
                     </div>
                     <p class="help">The number of minutes added for each Tier 1 subscription received.</p>
                 </div>
                 <div class="field">
                     <label for="sub_add_2">Tier 2 Subscription:</label>
                     <div class="control">
-                        <input class="input" type="number" name="sub_add_2" id="sub_add_2" value="<?php echo htmlspecialchars($sub_add_2); ?>" required>
+                        <input class="input" type="number" name="sub_add_2" id="sub_add_2"
+                            value="<?php echo htmlspecialchars($sub_add_2); ?>" required>
                     </div>
                     <p class="help">The number of minutes added for each Tier 2 subscription received.</p>
                 </div>
                 <div class="field">
                     <label for="sub_add_3">Tier 3 Subscription:</label>
                     <div class="control">
-                        <input class="input" type="number" name="sub_add_3" id="sub_add_3" value="<?php echo htmlspecialchars($sub_add_3); ?>" required>
+                        <input class="input" type="number" name="sub_add_3" id="sub_add_3"
+                            value="<?php echo htmlspecialchars($sub_add_3); ?>" required>
                     </div>
                     <p class="help">The number of minutes added for each Tier 3 subscription received.</p>
                 </div>

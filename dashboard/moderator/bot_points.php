@@ -33,7 +33,9 @@ $status = '';
 include '/var/www/config/database.php';
 $dbname = $_SESSION['editing_username'];
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) { throw new Exception('Connect Error (' . $db->connect_errno . ') ' . $db->connect_error); }
+if ($db->connect_error) {
+    throw new Exception('Connect Error (' . $db->connect_errno . ') ' . $db->connect_error);
+}
 
 // Handle POST requests (settings update, etc.)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -72,13 +74,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             excluded_users = ?
         WHERE id = 1");
         $updateStmt->bind_param(
-            "siiiiiss", 
-            $point_name, 
-            $point_amount_chat, 
-            $point_amount_follower, 
-            $point_amount_subscriber, 
-            $point_amount_cheer, 
-            $point_amount_raid, 
+            "siiiiiss",
+            $point_name,
+            $point_amount_chat,
+            $point_amount_follower,
+            $point_amount_subscriber,
+            $point_amount_cheer,
+            $point_amount_raid,
             $subscriber_multiplier,
             $excluded_users
         );
@@ -127,7 +129,8 @@ ob_start();
 ?>
 <div class="columns is-centered">
     <div class="column is-fullwidth">
-        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+        <div class="card has-background-dark has-text-white mb-5"
+            style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
             <header class="card-header" style="border-bottom: 1px solid #23272f;">
                 <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
                     <span class="icon mr-2"><i class="fas fa-coins"></i></span>
@@ -142,28 +145,44 @@ ob_start();
                 <?php if ($status): ?>
                     <div class="notification is-success"><?php echo $status; ?></div>
                 <?php endif; ?>
-                <p id="updateInfo" class="mb-3"><?php echo t('bot_points_data_last_updated'); ?> <span id="secondsAgo">0</span> <?php echo t('bot_points_seconds_ago'); ?></p>
+                <p id="updateInfo" class="mb-3"><?php echo t('bot_points_data_last_updated'); ?> <span
+                        id="secondsAgo">0</span> <?php echo t('bot_points_seconds_ago'); ?></p>
                 <div class="table-container">
                     <table class="table is-fullwidth has-background-dark" id="pointsTable">
                         <thead>
                             <tr>
                                 <th class="has-text-centered"><?php echo t('bot_points_username'); ?></th>
-                                <th class="has-text-centered"><?php echo $pointsName !== 'Points' ? $pointsName . ' ' . t('bot_points_points') : t('bot_points_points'); ?></th>
+                                <th class="has-text-centered">
+                                    <?php echo $pointsName !== 'Points' ? $pointsName . ' ' . t('bot_points_points') : t('bot_points_points'); ?>
+                                </th>
                                 <th class="has-text-centered"><?php echo t('bot_points_actions'); ?></th>
                             </tr>
                         </thead>
                         <tbody id="pointsTableBody">
                             <?php foreach ($pointsData as $row): ?>
                                 <tr>
-                                    <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['user_name']); ?></td>
-                                    <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['points']); ?></td>
-                                    <td class="has-text-centered is-centered is-flex is-justify-content-center is-align-items-center" style="white-space: nowrap; vertical-align: middle;">
+                                    <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">
+                                        <?php echo htmlspecialchars($row['user_name']); ?></td>
+                                    <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">
+                                        <?php echo htmlspecialchars($row['points']); ?></td>
+                                    <td class="has-text-centered is-centered is-flex is-justify-content-center is-align-items-center"
+                                        style="white-space: nowrap; vertical-align: middle;">
                                         <form method="POST" action="" style="display:inline;">
-                                            <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
-                                            <div class="field has-addons is-flex is-justify-content-center is-align-items-center">
-                                                <div class="control"><input class="input" type="number" name="points" value="<?php echo htmlspecialchars($row['points']); ?>" required style="width: 100px;"></div>
-                                                <div class="control" style="margin-left: 5px;"><button class="button is-primary" type="submit" name="update_points"><?php echo t('bot_points_update_btn'); ?></button></div>
-                                                <div class="control" style="margin-left: 5px;"><button class="button is-danger" type="submit" name="remove_user"><?php echo t('bot_points_remove_btn'); ?></button></div>
+                                            <input type="hidden" name="user_name"
+                                                value="<?php echo htmlspecialchars($row['user_name']); ?>">
+                                            <div
+                                                class="field has-addons is-flex is-justify-content-center is-align-items-center">
+                                                <div class="control"><input class="input" type="number" name="points"
+                                                        value="<?php echo htmlspecialchars($row['points']); ?>" required
+                                                        style="width: 100px;"></div>
+                                                <div class="control" style="margin-left: 5px;"><button
+                                                        class="button is-primary" type="submit"
+                                                        name="update_points"><?php echo t('bot_points_update_btn'); ?></button>
+                                                </div>
+                                                <div class="control" style="margin-left: 5px;"><button
+                                                        class="button is-danger" type="submit"
+                                                        name="remove_user"><?php echo t('bot_points_remove_btn'); ?></button>
+                                                </div>
                                             </div>
                                         </form>
                                     </td>
@@ -193,33 +212,43 @@ ob_start();
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_chat'); ?></label>
+                    <label class="label"><?php echo $pointsName; ?>
+                        <?php echo t('bot_points_earned_per_chat'); ?></label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_chat" value="<?php echo $pointAmountChat; ?>" required>
+                        <input class="input" type="number" name="point_amount_chat"
+                            value="<?php echo $pointAmountChat; ?>" required>
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_for_following'); ?></label>
+                    <label class="label"><?php echo $pointsName; ?>
+                        <?php echo t('bot_points_earned_for_following'); ?></label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_follower" value="<?php echo $pointAmountFollower; ?>" required>
+                        <input class="input" type="number" name="point_amount_follower"
+                            value="<?php echo $pointAmountFollower; ?>" required>
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_for_subscribing'); ?></label>
+                    <label class="label"><?php echo $pointsName; ?>
+                        <?php echo t('bot_points_earned_for_subscribing'); ?></label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_subscriber" value="<?php echo $pointAmountSubscriber; ?>" required>
+                        <input class="input" type="number" name="point_amount_subscriber"
+                            value="<?php echo $pointAmountSubscriber; ?>" required>
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_cheer'); ?></label>
+                    <label class="label"><?php echo $pointsName; ?>
+                        <?php echo t('bot_points_earned_per_cheer'); ?></label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_cheer" value="<?php echo $pointAmountCheer; ?>" required>
+                        <input class="input" type="number" name="point_amount_cheer"
+                            value="<?php echo $pointAmountCheer; ?>" required>
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_raid'); ?></label>
+                    <label class="label"><?php echo $pointsName; ?>
+                        <?php echo t('bot_points_earned_per_raid'); ?></label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_raid" value="<?php echo $pointAmountRaid; ?>" required>
+                        <input class="input" type="number" name="point_amount_raid"
+                            value="<?php echo $pointAmountRaid; ?>" required>
                     </div>
                 </div>
                 <div class="field">
@@ -227,7 +256,8 @@ ob_start();
                     <div class="control">
                         <div class="select is-fullwidth">
                             <select name="subscriber_multiplier">
-                                <option value="0" <?php echo $subscriberMultiplier == 0 ? 'selected' : ''; ?>><?php echo t('bot_points_none'); ?></option>
+                                <option value="0" <?php echo $subscriberMultiplier == 0 ? 'selected' : ''; ?>>
+                                    <?php echo t('bot_points_none'); ?></option>
                                 <?php for ($i = 2; $i <= 10; $i++): ?>
                                     <option value="<?php echo $i; ?>" <?php echo $subscriberMultiplier == $i ? 'selected' : ''; ?>><?php echo $i; ?>x</option>
                                 <?php endfor; ?>
@@ -238,13 +268,15 @@ ob_start();
                 <div class="field">
                     <label class="label"><?php echo t('bot_points_excluded_users'); ?></label>
                     <div class="control">
-                        <input class="input" type="text" name="excluded_users" value="<?php echo $excludedUsers; ?>" required>
+                        <input class="input" type="text" name="excluded_users" value="<?php echo $excludedUsers; ?>"
+                            required>
                     </div>
                     <p class="help"><?php echo t('bot_points_excluded_users_help'); ?></p>
                 </div>
                 <div class="field">
                     <div class="control">
-                        <button class="button is-primary" type="submit"><?php echo t('bot_points_update_settings_btn'); ?></button>
+                        <button class="button is-primary"
+                            type="submit"><?php echo t('bot_points_update_settings_btn'); ?></button>
                     </div>
                 </div>
             </form>
@@ -257,18 +289,18 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-let secondsAgo = 0;
-function updatePointsTable() {
-    $.ajax({
-        url: '?action=get_points_data',
-        method: 'GET',
-        success: function(data) {
-            const pointsData = JSON.parse(data);
-            let tableBody = '';
-            const updateLabel = <?php echo json_encode(t('bot_points_update_btn')); ?>;
-            const removeLabel = <?php echo json_encode(t('bot_points_remove_btn')); ?>;
-            pointsData.forEach(function(row) {
-                tableBody += `<tr>
+    let secondsAgo = 0;
+    function updatePointsTable() {
+        $.ajax({
+            url: '?action=get_points_data',
+            method: 'GET',
+            success: function (data) {
+                const pointsData = JSON.parse(data);
+                let tableBody = '';
+                const updateLabel = <?php echo json_encode(t('bot_points_update_btn')); ?>;
+                const removeLabel = <?php echo json_encode(t('bot_points_remove_btn')); ?>;
+                pointsData.forEach(function (row) {
+                    tableBody += `<tr>
                     <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">${row.user_name}</td>
                     <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">${row.points}</td>
                     <td class="has-text-centered is-centered is-flex is-justify-content-center is-align-items-center" style="white-space: nowrap; vertical-align: middle;">
@@ -282,32 +314,32 @@ function updatePointsTable() {
                         </form>
                     </td>
                 </tr>`;
-            });
-            $('#pointsTableBody').html(tableBody);
-            secondsAgo = 0;
-        }
+                });
+                $('#pointsTableBody').html(tableBody);
+                secondsAgo = 0;
+            }
+        });
+    }
+
+    function updateSecondsAgo() {
+        secondsAgo++;
+        $('#secondsAgo').text(secondsAgo);
+    }
+
+    updatePointsTable();
+    setInterval(updatePointsTable, 30000);
+    setInterval(updateSecondsAgo, 1000);
+
+    // Modal Script
+    document.getElementById('settingsButton').addEventListener('click', function () {
+        document.getElementById('settingsModal').classList.add('is-active');
     });
-}
-
-function updateSecondsAgo() {
-    secondsAgo++;
-    $('#secondsAgo').text(secondsAgo);
-}
-
-updatePointsTable();
-setInterval(updatePointsTable, 30000);
-setInterval(updateSecondsAgo, 1000);
-
-// Modal Script
-document.getElementById('settingsButton').addEventListener('click', function() {
-    document.getElementById('settingsModal').classList.add('is-active');
-});
-document.getElementById('closeModal').addEventListener('click', function() {
-    document.getElementById('settingsModal').classList.remove('is-active');
-});
-document.querySelector('.modal-background').addEventListener('click', function() {
-    document.getElementById('settingsModal').classList.remove('is-active');
-});
+    document.getElementById('closeModal').addEventListener('click', function () {
+        document.getElementById('settingsModal').classList.remove('is-active');
+    });
+    document.querySelector('.modal-background').addEventListener('click', function () {
+        document.getElementById('settingsModal').classList.remove('is-active');
+    });
 </script>
 <?php
 $scripts = ob_get_clean();

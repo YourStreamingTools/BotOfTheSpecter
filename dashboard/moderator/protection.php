@@ -1,4 +1,4 @@
-<?php 
+<?php
 // Fetch protection settings
 $getProtection = $db->query("SELECT * FROM protection LIMIT 1");
 $settings = [];
@@ -105,8 +105,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="control">
                         <div class="select">
                             <select name="url_blocking" id="url_blocking">
-                                <option value="True"<?php echo $currentSettings == 'True' ? ' selected' :'';?>>True</option>
-                                <option value="False"<?php echo $currentSettings == 'False' ? ' selected' :'';?>>False</option>
+                                <option value="True" <?php echo $currentSettings == 'True' ? ' selected' : ''; ?>>True
+                                </option>
+                                <option value="False" <?php echo $currentSettings == 'False' ? ' selected' : ''; ?>>False
+                                </option>
                             </select>
                         </div>
                     </div>
@@ -122,7 +124,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="field">
                     <label for="whitelist_link">Enter Link to Whitelist:</label>
                     <div class="control has-icons-left">
-                        <input class="input" type="url" name="whitelist_link" id="whitelist_link" placeholder="Enter a URL" required>
+                        <input class="input" type="url" name="whitelist_link" id="whitelist_link"
+                            placeholder="Enter a URL" required>
                         <div class="icon is-small is-left"><i class="fas fa-link"></i></div>
                     </div>
                 </div>
@@ -137,7 +140,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="field">
                     <label for="blacklist_link">Enter Link to Blacklist:</label>
                     <div class="control has-icons-left">
-                        <input class="input" type="url" name="blacklist_link" id="blacklist_link" placeholder="Enter a URL" required>
+                        <input class="input" type="url" name="blacklist_link" id="blacklist_link"
+                            placeholder="Enter a URL" required>
                         <div class="icon is-small is-left"><i class="fas fa-link"></i></div>
                     </div>
                 </div>
@@ -156,7 +160,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <td><?php echo htmlspecialchars($link['link']); ?></td>
                             <td>
                                 <form action="" method="post" style="display:inline;">
-                                    <input type="hidden" name="remove_whitelist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
+                                    <input type="hidden" name="remove_whitelist_link"
+                                        value="<?php echo htmlspecialchars($link['link']); ?>">
                                     <button type="submit" class="button is-danger">Remove</button>
                                 </form>
                             </td>
@@ -174,7 +179,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <td><?php echo htmlspecialchars($link['link']); ?></td>
                             <td>
                                 <form action="" method="post" style="display:inline;">
-                                    <input type="hidden" name="remove_blacklist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
+                                    <input type="hidden" name="remove_blacklist_link"
+                                        value="<?php echo htmlspecialchars($link['link']); ?>">
                                     <button type="submit" class="button is-danger">Remove</button>
                                 </form>
                             </td>

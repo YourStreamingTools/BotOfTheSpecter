@@ -43,10 +43,14 @@ $cacheDirectory = "cache/$cacheUsername";
 $cacheFile = "$cacheDirectory/bannedUsers.json";
 $bannedUsersCache = [];
 
-if (!is_dir($cacheDirectory)) { mkdir($cacheDirectory, 0755, true); }
+if (!is_dir($cacheDirectory)) {
+  mkdir($cacheDirectory, 0755, true);
+}
 if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
   $cacheContent = file_get_contents($cacheFile);
-  if ($cacheContent) { $bannedUsersCache = json_decode($cacheContent, true); }
+  if ($cacheContent) {
+    $bannedUsersCache = json_decode($cacheContent, true);
+  }
 } else {
   // Clear the cache if it is expired
   $bannedUsersCache = [];
@@ -100,20 +104,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_GET['ajax'])) {
 // Start output buffering for layout
 ob_start();
 ?>
-<div id="loadingNoticeBox" class="notification <?php echo $totalUsers > 0 ? 'has-background-warning has-text-warning-dark' : 'has-background-info-light has-text-info-dark'; ?>">
+<div id="loadingNoticeBox"
+  class="notification <?php echo $totalUsers > 0 ? 'has-background-warning has-text-warning-dark' : 'has-background-info-light has-text-info-dark'; ?>">
   <p id="loadingNotice">
-    <?php 
+    <?php
     if ($totalUsers > 0) {
-        echo "Please wait while we load the users and their status... (0/$totalUsers)";
+      echo "Please wait while we load the users and their status... (0/$totalUsers)";
     } else {
-        echo "There are no users to display.";
+      echo "There are no users to display.";
     }
     ?>
   </p>
 </div>
 <div id="content" style="display: <?php echo $totalUsers > 0 ? 'none' : 'block'; ?>;">
   <h2 class="title is-4">Known Users & Welcome Messages</h2>
-  <div class="notification has-background-danger has-text-black has-text-weight-bold">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</div>
+  <div class="notification has-background-danger has-text-black has-text-weight-bold">Click the Edit Button within the
+    users table, edit the welcome message in the text box, when done, click the edit button again to save.</div>
   <!-- Search Bar -->
   <input type="text" id="searchInput" class="input" placeholder="Search users..." onkeyup="searchFunction()">
   <br><br>
@@ -142,7 +148,8 @@ ob_start();
               <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
             </div>
             <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
-              <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
+              <textarea class="textarea welcome-message"
+                data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
             </div>
           </td>
           <td class="has-text-centered" style="vertical-align: middle;">
@@ -152,7 +159,8 @@ ob_start();
           </td>
           <td class="has-text-centered" style="vertical-align: middle;">
             <label class="checkbox" style="cursor:pointer;">
-              <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)" style="display:none;">
+              <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?>
+                onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)" style="display:none;">
               <span class="icon is-medium" onclick="this.previousElementSibling.click();">
                 <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
               </span>
@@ -163,12 +171,14 @@ ob_start();
               <button class="button is-primary is-small edit-btn" data-user-id="<?php echo $userData['id']; ?>">
                 <i class="fas fa-pencil-alt"></i>
               </button>
-              <button class="button is-small is-success save-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none; margin-top: 0.25em;">
+              <button class="button is-small is-success save-edit-btn" data-user-id="<?php echo $userData['id']; ?>"
+                style="display:none; margin-top: 0.25em;">
                 <span class="icon is-medium">
                   <i class="fas fa-floppy-disk"></i>
                 </span>
               </button>
-              <button class="button is-small is-danger cancel-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none; margin-top: 0.25em;">
+              <button class="button is-small is-danger cancel-edit-btn" data-user-id="<?php echo $userData['id']; ?>"
+                style="display:none; margin-top: 0.25em;">
                 <span class="icon is-medium">
                   <i class="fas fa-xmark"></i>
                 </span>
@@ -178,7 +188,8 @@ ob_start();
           <td class="has-text-centered" style="vertical-align: middle;">
             <form method="POST" style="display:inline;" class="delete-user-form">
               <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
-              <button type="button" class="button is-danger is-small delete-user-btn"><i class="fas fa-trash-alt"></i></button>
+              <button type="button" class="button is-danger is-small delete-user-btn"><i
+                  class="fas fa-trash-alt"></i></button>
             </form>
           </td>
         </tr>
@@ -193,224 +204,224 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-const totalUsers = <?php echo $totalUsers; ?>;
-let loadedUsers = 0;
-const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
+  const totalUsers = <?php echo $totalUsers; ?>;
+  let loadedUsers = 0;
+  const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
 
-document.addEventListener('DOMContentLoaded', function() {
-  // Editing functionality
-  document.querySelectorAll('.edit-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const userId = this.getAttribute('data-user-id');
-      const editBox = document.getElementById('edit-box-' + userId);
-      const welcomeMessage = document.getElementById('welcome-message-' + userId);
-      const editActionGroup = this.parentElement;
-      const saveBtn = editActionGroup.querySelector('.save-edit-btn');
-      const cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
-      // Switch to editing mode
-      editBox.style.display = 'block';
-      welcomeMessage.style.display = 'none';
-      this.style.display = 'none';
-      if (saveBtn) saveBtn.style.display = '';
-      if (cancelBtn) cancelBtn.style.display = '';
-    });
-  });
-
-  // Save edit functionality
-  document.querySelectorAll('.save-edit-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const userId = this.getAttribute('data-user-id');
-      const editBox = document.getElementById('edit-box-' + userId);
-      const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
-      const editActionGroup = this.parentElement;
-      const editBtn = editActionGroup.querySelector('.edit-btn');
-      const cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
-      // Hide save/cancel, show edit
-      this.style.display = 'none';
-      if (cancelBtn) cancelBtn.style.display = 'none';
-      if (editBtn) editBtn.style.display = '';
-      updateWelcomeMessage(userId, newWelcomeMessage, editBtn);
-    });
-  });
-
-  // Cancel edit functionality
-  document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const userId = this.getAttribute('data-user-id');
-      const editActionGroup = this.parentElement;
-      const editBtn = editActionGroup.querySelector('.edit-btn');
-      const saveBtn = editActionGroup.querySelector('.save-edit-btn');
-      const editBox = document.getElementById('edit-box-' + userId);
-      const welcomeMessage = document.getElementById('welcome-message-' + userId);
-      // Revert UI to non-editing state
-      editBox.style.display = 'none';
-      welcomeMessage.style.display = '';
-      if (editBtn) editBtn.style.display = '';
-      if (saveBtn) saveBtn.style.display = 'none';
-      this.style.display = 'none';
-    });
-  });
-  // SweetAlert2 for delete confirmation
-  document.querySelectorAll('.delete-user-btn').forEach(btn => {
-    btn.addEventListener('click', function(e) {
-      e.preventDefault();
-      const form = this.closest('form');
-      Swal.fire({
-        title: 'Are you sure?',
-        text: "This user will be removed. This action cannot be undone.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Yes, delete user'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          const formData = new FormData(form);
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "?ajax=1", true);
-          xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-              if (xhr.status === 200) {
-                const response = JSON.parse(xhr.responseText);
-                if (response.success) {
-                  location.reload();
-                } else {
-                  console.log('Error deleting user:', response.error);
-                  alert('Error deleting user: ' + response.error);
-                }
-              } else {
-                console.log('HTTP Error:', xhr.status);
-              }
-            }
-          };
-          xhr.send(formData);
-        }
+  document.addEventListener('DOMContentLoaded', function () {
+    // Editing functionality
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const userId = this.getAttribute('data-user-id');
+        const editBox = document.getElementById('edit-box-' + userId);
+        const welcomeMessage = document.getElementById('welcome-message-' + userId);
+        const editActionGroup = this.parentElement;
+        const saveBtn = editActionGroup.querySelector('.save-edit-btn');
+        const cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
+        // Switch to editing mode
+        editBox.style.display = 'block';
+        welcomeMessage.style.display = 'none';
+        this.style.display = 'none';
+        if (saveBtn) saveBtn.style.display = '';
+        if (cancelBtn) cancelBtn.style.display = '';
       });
     });
+
+    // Save edit functionality
+    document.querySelectorAll('.save-edit-btn').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const userId = this.getAttribute('data-user-id');
+        const editBox = document.getElementById('edit-box-' + userId);
+        const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
+        const editActionGroup = this.parentElement;
+        const editBtn = editActionGroup.querySelector('.edit-btn');
+        const cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
+        // Hide save/cancel, show edit
+        this.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (editBtn) editBtn.style.display = '';
+        updateWelcomeMessage(userId, newWelcomeMessage, editBtn);
+      });
+    });
+
+    // Cancel edit functionality
+    document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const userId = this.getAttribute('data-user-id');
+        const editActionGroup = this.parentElement;
+        const editBtn = editActionGroup.querySelector('.edit-btn');
+        const saveBtn = editActionGroup.querySelector('.save-edit-btn');
+        const editBox = document.getElementById('edit-box-' + userId);
+        const welcomeMessage = document.getElementById('welcome-message-' + userId);
+        // Revert UI to non-editing state
+        editBox.style.display = 'none';
+        welcomeMessage.style.display = '';
+        if (editBtn) editBtn.style.display = '';
+        if (saveBtn) saveBtn.style.display = 'none';
+        this.style.display = 'none';
+      });
+    });
+    // SweetAlert2 for delete confirmation
+    document.querySelectorAll('.delete-user-btn').forEach(btn => {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const form = this.closest('form');
+        Swal.fire({
+          title: 'Are you sure?',
+          text: "This user will be removed. This action cannot be undone.",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, delete user'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            const formData = new FormData(form);
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "?ajax=1", true);
+            xhr.onreadystatechange = function () {
+              if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                  const response = JSON.parse(xhr.responseText);
+                  if (response.success) {
+                    location.reload();
+                  } else {
+                    console.log('Error deleting user:', response.error);
+                    alert('Error deleting user: ' + response.error);
+                  }
+                } else {
+                  console.log('HTTP Error:', xhr.status);
+                }
+              }
+            };
+            xhr.send(formData);
+          }
+        });
+      });
+    });
+    // Fetch the banned status for each user asynchronously
+    fetchBannedStatuses();
   });
-  // Fetch the banned status for each user asynchronously
-  fetchBannedStatuses();
-});
 
-function fetchBannedStatuses() {
-  const usernameElements = document.querySelectorAll('.username');
-  const usernames = Array.from(usernameElements).map(el => el.dataset.username);
-  const batchSize = 10;
-  let index = 0;
+  function fetchBannedStatuses() {
+    const usernameElements = document.querySelectorAll('.username');
+    const usernames = Array.from(usernameElements).map(el => el.dataset.username);
+    const batchSize = 10;
+    let index = 0;
 
-  function sendBatch() {
-    const batch = usernames.slice(index, index + batchSize);
-    if (batch.length === 0) {
-      // All batches sent, show success
-      const loadingNoticeBox = document.getElementById('loadingNoticeBox');
-      const loadingNotice = document.getElementById('loadingNotice');
-      loadingNotice.innerText = 'Loading completed, you can start editing';
-      loadingNoticeBox.classList.remove('has-background-warning', 'has-text-warning-dark');
-      loadingNoticeBox.classList.add('has-background-success-light', 'has-text-success-dark');
-      setTimeout(() => {
-        loadingNoticeBox.style.display = 'none';
-        document.getElementById('content').style.display = 'block';
-      }, 2000);
-      return;
+    function sendBatch() {
+      const batch = usernames.slice(index, index + batchSize);
+      if (batch.length === 0) {
+        // All batches sent, show success
+        const loadingNoticeBox = document.getElementById('loadingNoticeBox');
+        const loadingNotice = document.getElementById('loadingNotice');
+        loadingNotice.innerText = 'Loading completed, you can start editing';
+        loadingNoticeBox.classList.remove('has-background-warning', 'has-text-warning-dark');
+        loadingNoticeBox.classList.add('has-background-success-light', 'has-text-success-dark');
+        setTimeout(() => {
+          loadingNoticeBox.style.display = 'none';
+          document.getElementById('content').style.display = 'block';
+        }, 2000);
+        return;
+      }
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "fetch_banned_status.php", true);
+      xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+          if (xhr.status === 200) {
+            const response = JSON.parse(xhr.responseText);
+            batch.forEach(username => {
+              const usernameElement = document.querySelector(`.username[data-username="${username}"]`);
+              if (usernameElement) {
+                const banned = response[username];
+                const bannedStatusElement = usernameElement.nextElementSibling;
+                if (banned) {
+                  bannedStatusElement.innerHTML = " <em style='color:red'>(banned)</em>";
+                }
+                // Update cache
+                bannedUsersCache[username] = banned;
+                loadedUsers++;
+                updateLoadingNotice();
+              }
+            });
+            // Update cache on server
+            fetch('update_banned_users_cache.php', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(bannedUsersCache)
+            }).then(res => res.json()).then(data => {
+              console.log('Cache updated', data);
+            }).catch(error => {
+              console.error('Error updating cache', error);
+            });
+            // Send next batch
+            index += batchSize;
+            sendBatch();
+          } else {
+            console.log(`Error fetching banned statuses: ${xhr.status}`);
+          }
+        }
+      };
+      const data = 'usernames=' + encodeURIComponent(JSON.stringify(batch));
+      xhr.send(data);
     }
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "fetch_banned_status.php", true);
+    sendBatch();
+  } function updateLoadingNotice() {
+    const loadingNotice = document.getElementById('loadingNotice');
+    loadingNotice.innerText = `Please wait while we load the users and their status... (${loadedUsers}/${totalUsers})`;
+  }
+
+  function updateWelcomeMessage(userId, newWelcomeMessage, button) {
+    console.log(`Updating welcome message for user ID ${userId} to "${newWelcomeMessage}"`);
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "?ajax=1", true);
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function() {
+    xhr.onreadystatechange = function () {
       if (xhr.readyState === XMLHttpRequest.DONE) {
         if (xhr.status === 200) {
           const response = JSON.parse(xhr.responseText);
-          batch.forEach(username => {
-            const usernameElement = document.querySelector(`.username[data-username="${username}"]`);
-            if (usernameElement) {
-              const banned = response[username];
-              const bannedStatusElement = usernameElement.nextElementSibling;
-              if (banned) {
-                bannedStatusElement.innerHTML = " <em style='color:red'>(banned)</em>";
-              }
-              // Update cache
-              bannedUsersCache[username] = banned;
-              loadedUsers++;
-              updateLoadingNotice();
-            }
-          });
-          // Update cache on server
-          fetch('update_banned_users_cache.php', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(bannedUsersCache)
-          }).then(res => res.json()).then(data => {
-            console.log('Cache updated', data);
-          }).catch(error => {
-            console.error('Error updating cache', error);
-          });
-          // Send next batch
-          index += batchSize;
-          sendBatch();
+          if (response.success) {
+            location.reload();
+          } else {
+            console.log('Error updating welcome message:', response.error);
+            alert('Error updating welcome message: ' + response.error);
+          }
         } else {
-          console.log(`Error fetching banned statuses: ${xhr.status}`);
+          console.log('HTTP Error:', xhr.status);
         }
       }
     };
-    const data = 'usernames=' + encodeURIComponent(JSON.stringify(batch));
-    xhr.send(data);
+    xhr.send("userId=" + encodeURIComponent(userId) + "&newWelcomeMessage=" + encodeURIComponent(newWelcomeMessage));
   }
 
-  sendBatch();
-}function updateLoadingNotice() {
-  const loadingNotice = document.getElementById('loadingNotice');
-  loadingNotice.innerText = `Please wait while we load the users and their status... (${loadedUsers}/${totalUsers})`;
-}
-
-function updateWelcomeMessage(userId, newWelcomeMessage, button) {
-  console.log(`Updating welcome message for user ID ${userId} to "${newWelcomeMessage}"`);
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "?ajax=1", true);
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState === XMLHttpRequest.DONE) {
-      if (xhr.status === 200) {
-        const response = JSON.parse(xhr.responseText);
-        if (response.success) {
-          location.reload();
+  function toggleStatus(username, isChecked) {
+    console.log(`Toggling status for ${username} to ${isChecked ? 'True' : 'False'}`);
+    var status = isChecked ? 'True' : 'False';
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "?ajax=1", true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        if (xhr.status === 200) {
+          const response = JSON.parse(xhr.responseText);
+          if (response.success) {
+            location.reload();
+          } else {
+            console.log('Error updating status:', response.error);
+            alert('Error updating status: ' + response.error);
+          }
         } else {
-          console.log('Error updating welcome message:', response.error);
-          alert('Error updating welcome message: ' + response.error);
+          console.log('HTTP Error:', xhr.status);
         }
-      } else {
-        console.log('HTTP Error:', xhr.status);
       }
-    }
-  };
-  xhr.send("userId=" + encodeURIComponent(userId) + "&newWelcomeMessage=" + encodeURIComponent(newWelcomeMessage));
-}
-
-function toggleStatus(username, isChecked) {
-  console.log(`Toggling status for ${username} to ${isChecked ? 'True' : 'False'}`);
-  var status = isChecked ? 'True' : 'False';
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "?ajax=1", true);
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState === XMLHttpRequest.DONE) {
-      if (xhr.status === 200) {
-        const response = JSON.parse(xhr.responseText);
-        if (response.success) {
-          location.reload();
-        } else {
-          console.log('Error updating status:', response.error);
-          alert('Error updating status: ' + response.error);
-        }
-      } else {
-        console.log('HTTP Error:', xhr.status);
-      }
-    }
-  };
-  xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
-}
+    };
+    xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
+  }
 </script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>

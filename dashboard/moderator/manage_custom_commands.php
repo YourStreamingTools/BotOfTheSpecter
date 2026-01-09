@@ -1,4 +1,4 @@
-<?php 
+<?php
 // Initialize the session
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -35,8 +35,8 @@ $notification_status = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Editing a Custom Command
     if (
-        isset($_POST['command_to_edit']) && 
-        isset($_POST['command_response']) && 
+        isset($_POST['command_to_edit']) &&
+        isset($_POST['command_response']) &&
         isset($_POST['cooldown_response']) &&
         isset($_POST['new_command_name'])
     ) {
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $updateSTMT->bind_param("ssis", $new_command_name, $command_response, $cooldown, $command_to_edit);
             $updateSTMT->execute();
             if ($updateSTMT->affected_rows > 0) {
-                $status = "Command ". $command_to_edit . " updated successfully!";
+                $status = "Command " . $command_to_edit . " updated successfully!";
                 $notification_status = "is-success";
             } else {
                 $status = $command_to_edit . " not found or no changes made.";
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
             $updateSTMT->close();
         } catch (Exception $e) {
-            $status = "Error updating " .$command_to_edit . ": " . $e->getMessage();
+            $status = "Error updating " . $command_to_edit . ": " . $e->getMessage();
             $notification_status = "is-danger";
         }
     }
@@ -107,12 +107,14 @@ ob_start();
                 <li><?php echo t('custom_commands_skip_exclamation'); ?></li>
                 <li>
                     <?php echo t('custom_commands_add_in_chat'); ?> <code>!addcommand [command] [message]</code>
-                    <div class="ml-4 mt-1"><code>!addcommand mycommand <?php echo t('custom_commands_example_message'); ?></code></div>
+                    <div class="ml-4 mt-1">
+                        <code>!addcommand mycommand <?php echo t('custom_commands_example_message'); ?></code></div>
                 </li>
             </ol>
             <p class="mb-1"><strong><?php echo t('custom_commands_level_up'); ?></strong></p>
             <p class="mb-1"><?php echo t('custom_commands_explore_variables'); ?></p>
-            <p class="mb-2"><strong><?php echo t('custom_commands_note'); ?></strong> <?php echo t('custom_commands_note_detail'); ?></p>
+            <p class="mb-2"><strong><?php echo t('custom_commands_note'); ?></strong>
+                <?php echo t('custom_commands_note_detail'); ?></p>
             <button class="button is-primary is-small" id="openModalButton">
                 <span class="icon"><i class="fas fa-code"></i></span>
                 <span><?php echo t('custom_commands_view_variables'); ?></span>
@@ -154,14 +156,17 @@ ob_start();
                 <div class="field mb-4">
                     <label class="label" for="command"><?php echo t('custom_commands_command_label'); ?></label>
                     <div class="control has-icons-left">
-                        <input class="input" type="text" name="command" id="command" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
+                        <input class="input" type="text" name="command" id="command" required
+                            placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
                         <span class="icon is-small is-left"><i class="fas fa-terminal"></i></span>
                     </div>
                 </div>
                 <div class="field mb-4">
                     <label class="label" for="response"><?php echo t('custom_commands_response_label'); ?></label>
                     <div class="control has-icons-left">
-                        <input class="input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                        <input class="input" type="text" name="response" id="response" required
+                            oninput="updateCharCount('response', 'responseCharCount')" maxlength="255"
+                            placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
                         <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
                     </div>
                     <p id="responseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
@@ -195,38 +200,48 @@ ob_start();
             <?php if (!empty($commands)): ?>
                 <form method="post" action="">
                     <div class="field mb-4">
-                        <label class="label" for="command_to_edit"><?php echo t('custom_commands_edit_select_label'); ?></label>
+                        <label class="label"
+                            for="command_to_edit"><?php echo t('custom_commands_edit_select_label'); ?></label>
                         <div class="control">
                             <div class="select is-fullwidth">
                                 <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
                                     <option value=""><?php echo t('custom_commands_edit_select_placeholder'); ?></option>
                                     <?php foreach ($commands as $command): ?>
-                                        <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
+                                        <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
                         </div>
                     </div>
                     <div class="field mb-4">
-                        <label class="label" for="new_command_name"><?php echo t('custom_commands_edit_new_name_label'); ?></label>
+                        <label class="label"
+                            for="new_command_name"><?php echo t('custom_commands_edit_new_name_label'); ?></label>
                         <div class="control has-icons-left">
-                            <input class="input" type="text" name="new_command_name" id="new_command_name" value="" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
+                            <input class="input" type="text" name="new_command_name" id="new_command_name" value="" required
+                                placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
                             <span class="icon is-small is-left"><i class="fas fa-terminal"></i></span>
                         </div>
                         <p class="help"><?php echo t('custom_commands_skip_exclamation'); ?></p>
                     </div>
                     <div class="field mb-4">
-                        <label class="label" for="command_response"><?php echo t('custom_commands_response_label'); ?></label>
+                        <label class="label"
+                            for="command_response"><?php echo t('custom_commands_response_label'); ?></label>
                         <div class="control has-icons-left">
-                            <input class="input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                            <input class="input" type="text" name="command_response" id="command_response" value="" required
+                                oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255"
+                                placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
                             <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
                         </div>
-                        <p id="editResponseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
+                        <p id="editResponseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?>
+                        </p>
                     </div>
                     <div class="field mb-4">
-                        <label class="label" for="cooldown_response"><?php echo t('custom_commands_cooldown_label'); ?></label>
+                        <label class="label"
+                            for="cooldown_response"><?php echo t('custom_commands_cooldown_label'); ?></label>
                         <div class="control has-icons-left">
-                            <input class="input" type="number" min="1" name="cooldown_response" id="cooldown_response" value="" required>
+                            <input class="input" type="number" min="1" name="cooldown_response" id="cooldown_response"
+                                value="" required>
                             <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
                         </div>
                     </div>
@@ -304,7 +319,8 @@ ob_start();
                     <code><?php echo t('custom_var_timeuntil_in_chat'); ?></code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(user)</span> | <span class="has-text-weight-bold variable-title">(author)</span><br>
+                    <span class="has-text-weight-bold variable-title">(user)</span> | <span
+                        class="has-text-weight-bold variable-title">(author)</span><br>
                     <?php echo t('custom_var_user_author_desc'); ?><br>
                     <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
                     <code><?php echo t('custom_var_user_author_example'); ?></code>
@@ -362,93 +378,93 @@ ob_start();
 ?>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
-document.getElementById("openModalButton").addEventListener("click", function() {
-    document.getElementById("customVariablesModal").classList.add("is-active");
-});
-document.getElementById("closeModalButton").addEventListener("click", function() {
-    document.getElementById("customVariablesModal").classList.remove("is-active");
-});
-
-function showResponse() {
-    var command = document.getElementById('command_to_edit').value;
-    var commands = <?php echo json_encode($commands); ?>;
-    var responseInput = document.getElementById('command_response');
-    var cooldownInput = document.getElementById('cooldown_response');
-    var newCommandInput = document.getElementById('new_command_name');
-    // Find the response for the selected command and display it in the text box
-    var commandData = commands.find(c => c.command === command);
-    responseInput.value = commandData ? commandData.response : '';
-    cooldownInput.value = commandData ? commandData.cooldown : 15;
-    newCommandInput.value = commandData ? commandData.command : '';
-    // Update character count for the edit response field
-    updateCharCount('command_response', 'editResponseCharCount');
-}
-
-// Function to update character counts
-function updateCharCount(inputId, counterId) {
-    const input = document.getElementById(inputId);
-    const counter = document.getElementById(counterId);
-    const maxLength = 255;
-    const currentLength = input.value.length;
-    // Update the counter text
-    counter.textContent = currentLength + '/' + maxLength + ' characters';
-    // Update styling based on character count
-    if (currentLength > maxLength) {
-        counter.className = 'help is-danger';
-        input.classList.add('is-danger');
-        // Trim the input to maxLength characters
-        input.value = input.value.substring(0, maxLength);
-    } else if (currentLength > maxLength * 0.8) {
-        counter.className = 'help is-warning';
-        input.classList.remove('is-danger');
-    } else {
-        counter.className = 'help is-info';
-        input.classList.remove('is-danger');
-    }
-}
-
-// Validate form before submission
-function validateForm(form) {
-    const maxLength = 255;
-    let valid = true;
-    // Check all text inputs with maxlength attribute
-    const textInputs = form.querySelectorAll('input[type="text"][maxlength]');
-    textInputs.forEach(input => {
-        if (input.value.length > maxLength) {
-            input.classList.add('is-danger');
-            valid = false;
-            // Find associated help text and update
-            const helpId = input.id + 'CharCount';
-            const helpText = document.getElementById(helpId);
-            if (helpText) {
-                helpText.textContent = input.value.length + '/' + maxLength + ' characters - Exceeds limit!';
-                helpText.className = 'help is-danger';
-            }
-        }
+    document.getElementById("openModalButton").addEventListener("click", function () {
+        document.getElementById("customVariablesModal").classList.add("is-active");
     });
-    return valid;
-}
+    document.getElementById("closeModalButton").addEventListener("click", function () {
+        document.getElementById("customVariablesModal").classList.remove("is-active");
+    });
 
-// Initialize character counters when page loads
-window.onload = function() {
-    updateCharCount('response', 'responseCharCount');
-    // Always initialize the edit response character counter, even when empty
-    updateCharCount('command_response', 'editResponseCharCount');
-    // Add event listener to command dropdown to update character count when a command is selected
-    document.getElementById('command_to_edit').addEventListener('change', function() {
+    function showResponse() {
+        var command = document.getElementById('command_to_edit').value;
+        var commands = <?php echo json_encode($commands); ?>;
+        var responseInput = document.getElementById('command_response');
+        var cooldownInput = document.getElementById('cooldown_response');
+        var newCommandInput = document.getElementById('new_command_name');
+        // Find the response for the selected command and display it in the text box
+        var commandData = commands.find(c => c.command === command);
+        responseInput.value = commandData ? commandData.response : '';
+        cooldownInput.value = commandData ? commandData.cooldown : 15;
+        newCommandInput.value = commandData ? commandData.command : '';
+        // Update character count for the edit response field
         updateCharCount('command_response', 'editResponseCharCount');
-    });
-    // Add form validation to both forms
-    const forms = document.querySelectorAll('form');
-    forms.forEach(form => {
-        form.addEventListener('submit', function(event) {
-            if (!validateForm(this)) {
-                event.preventDefault();
-                alert('<?php echo t('custom_commands_char_limit_alert'); ?>');
+    }
+
+    // Function to update character counts
+    function updateCharCount(inputId, counterId) {
+        const input = document.getElementById(inputId);
+        const counter = document.getElementById(counterId);
+        const maxLength = 255;
+        const currentLength = input.value.length;
+        // Update the counter text
+        counter.textContent = currentLength + '/' + maxLength + ' characters';
+        // Update styling based on character count
+        if (currentLength > maxLength) {
+            counter.className = 'help is-danger';
+            input.classList.add('is-danger');
+            // Trim the input to maxLength characters
+            input.value = input.value.substring(0, maxLength);
+        } else if (currentLength > maxLength * 0.8) {
+            counter.className = 'help is-warning';
+            input.classList.remove('is-danger');
+        } else {
+            counter.className = 'help is-info';
+            input.classList.remove('is-danger');
+        }
+    }
+
+    // Validate form before submission
+    function validateForm(form) {
+        const maxLength = 255;
+        let valid = true;
+        // Check all text inputs with maxlength attribute
+        const textInputs = form.querySelectorAll('input[type="text"][maxlength]');
+        textInputs.forEach(input => {
+            if (input.value.length > maxLength) {
+                input.classList.add('is-danger');
+                valid = false;
+                // Find associated help text and update
+                const helpId = input.id + 'CharCount';
+                const helpText = document.getElementById(helpId);
+                if (helpText) {
+                    helpText.textContent = input.value.length + '/' + maxLength + ' characters - Exceeds limit!';
+                    helpText.className = 'help is-danger';
+                }
             }
         });
-    });
-}
+        return valid;
+    }
+
+    // Initialize character counters when page loads
+    window.onload = function () {
+        updateCharCount('response', 'responseCharCount');
+        // Always initialize the edit response character counter, even when empty
+        updateCharCount('command_response', 'editResponseCharCount');
+        // Add event listener to command dropdown to update character count when a command is selected
+        document.getElementById('command_to_edit').addEventListener('change', function () {
+            updateCharCount('command_response', 'editResponseCharCount');
+        });
+        // Add form validation to both forms
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function (event) {
+                if (!validateForm(this)) {
+                    event.preventDefault();
+                    alert('<?php echo t('custom_commands_char_limit_alert'); ?>');
+                }
+            });
+        });
+    }
 </script>
 <?php
 $scripts = ob_get_clean();

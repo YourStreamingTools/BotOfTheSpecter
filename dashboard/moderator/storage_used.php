@@ -37,10 +37,14 @@ if (!empty($editing_username)) {
                     if ($res) {
                         $row = $res->fetch_assoc();
                         if ($row) {
-                            if (isset($row['tier'])) $tier = $row['tier'];
-                            if (isset($row['beta'])) $is_beta_flag = (bool)$row['beta'];
-                            if (isset($row['is_beta'])) $is_beta_flag = $is_beta_flag || (bool)$row['is_beta'];
-                            if (isset($row['twitch_user_id'])) $twitch_user_id = $row['twitch_user_id'];
+                            if (isset($row['tier']))
+                                $tier = $row['tier'];
+                            if (isset($row['beta']))
+                                $is_beta_flag = (bool) $row['beta'];
+                            if (isset($row['is_beta']))
+                                $is_beta_flag = $is_beta_flag || (bool) $row['is_beta'];
+                            if (isset($row['twitch_user_id']))
+                                $twitch_user_id = $row['twitch_user_id'];
                         }
                     }
                 }
@@ -68,10 +72,10 @@ if (!$is_beta_flag) {
 $max_storage_size = $base_storage_size;
 
 // Apply known mappings
-if ($is_beta_flag === true || (is_string($tier) && strtolower($tier) === 'beta') || strtolower((string)$is_beta_flag) === 'true') {
+if ($is_beta_flag === true || (is_string($tier) && strtolower($tier) === 'beta') || strtolower((string) $is_beta_flag) === 'true') {
     $max_storage_size = 500 * 1024 * 1024; // 500MB for beta users
 } else {
-    switch ((string)$tier) {
+    switch ((string) $tier) {
         case "1000":
             $max_storage_size = 50 * 1024 * 1024; // 50MB
             break;
@@ -108,7 +112,7 @@ if ($max_storage_size === $base_storage_size && !empty($twitch_user_id) && !empt
     }
     if (!empty($clientID) && !empty($broadcaster_id)) {
         $url = "https://api.twitch.tv/helix/subscriptions?broadcaster_id={$broadcaster_id}&user_id={$twitch_user_id}";
-        $headers = [ "Client-ID: $clientID", "Authorization: Bearer $accessToken" ];
+        $headers = ["Client-ID: $clientID", "Authorization: Bearer $accessToken"];
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -124,7 +128,8 @@ if ($max_storage_size === $base_storage_size && !empty($twitch_user_id) && !empt
 }
 
 // Helper function to ensure directory is writable
-function ensureDirectoryWritable($path) {
+function ensureDirectoryWritable($path)
+{
     if (!is_dir($path)) {
         if (!mkdir($path, 0755, true)) {
             error_log("Failed to create directory: $path");
@@ -148,10 +153,11 @@ ensureDirectoryWritable($videoalert_path);
 ensureDirectoryWritable($twitch_sound_alert_path);
 
 // Calculate total storage used by the user across both directories
-function calculateStorageUsed($directories) {
+function calculateStorageUsed($directories)
+{
     $size = 0;
     foreach ($directories as $directory) {
-        foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
+        foreach (glob(rtrim($directory, '/') . '/*', GLOB_NOSORT) as $file) {
             $size += is_file($file) ? filesize($file) : calculateStorageUsed([$file]);
         }
     }
