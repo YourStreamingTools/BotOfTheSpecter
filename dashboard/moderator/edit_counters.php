@@ -1,12 +1,27 @@
 <?php
-// Initialize the session
+// Redirect to the unified counters page
+// The edit functionality has been merged into counters.php
+header('Location: counters.php');
+exit();
+
 session_start();
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
-include_once __DIR__ . '/../lang/i18n.php';
+include_once __DIR__ . '/lang/i18n.php';
+
+// Check for session-based status messages (e.g., after redirect)
+if (isset($_SESSION['status'])) {
+    $status = $_SESSION['status'];
+    $notification_status = $_SESSION['notification_status'];
+    unset($_SESSION['status']);
+    unset($_SESSION['notification_status']);
+}
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: ../login.php');
+    header('Location: login.php');
     exit();
 }
 
@@ -16,6 +31,9 @@ $pageTitle = t('edit_counters_title');
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
+include 'userdata.php';
+include 'bot_control.php';
+include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
@@ -27,7 +45,6 @@ $stmt->close();
 date_default_timezone_set($timezone);
 
 require_once '/var/www/config/database.php';
-$dbname = $_SESSION['editing_username'];
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
 if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
@@ -71,12 +88,6 @@ if ($result = $db->query("SELECT game_name FROM game_deaths")) {
 
 // Fetch total deaths
 $totalDeaths = 0;
-if ($result = $db->query("SELECT death_count FROM total_deaths LIMIT 1")) {
-    if ($row = $result->fetch_assoc()) {
-        $totalDeaths = $row['death_count'];
-    }
-    $result->free();
-}
 
 // Fetch hugs from the hug_counts table
 $hugUsers = [];
@@ -117,10 +128,12 @@ if ($result = $db->query("SELECT username FROM highfive_counts")) {
 // Fetch user counts from the user_counts table
 $userCountCommands = [];
 $userCountUsersByCommand = [];
-if ($result = $db->query("SELECT command, user FROM user_counts")) {
+$userCountArr = [];
+if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
     while ($row = $result->fetch_assoc()) {
         $cmd = $row['command'];
         $user = $row['user'];
+        $count = $row['count'];
         if (!in_array($cmd, $userCountCommands, true)) {
             $userCountCommands[] = $cmd;
         }
@@ -128,6 +141,10 @@ if ($result = $db->query("SELECT command, user FROM user_counts")) {
             $userCountUsersByCommand[$cmd] = [];
         }
         $userCountUsersByCommand[$cmd][] = $user;
+        if (!isset($userCountArr[$cmd])) {
+            $userCountArr[$cmd] = [];
+        }
+        $userCountArr[$cmd][$user] = $count;
     }
     $result->free();
 }
@@ -156,6 +173,38 @@ if ($result = $db->query("SELECT rc.reward_id, rc.user, rc.count, cpr.reward_tit
     $result->free();
 } else {
     $status = "Error fetching reward counts: " . $db->error;
+    $notification_status = "is-danger";
+}
+
+// Fetch reward streaks data
+$rewardStreaksData = [];
+$rewardStreaksIds = [];
+if ($result = $db->query("SELECT rs.reward_id, rs.current_user, rs.streak, cpr.reward_title FROM reward_streaks rs LEFT JOIN channel_point_rewards cpr ON rs.reward_id COLLATE utf8mb4_unicode_ci = cpr.reward_id COLLATE utf8mb4_unicode_ci")) {
+    while ($row = $result->fetch_assoc()) {
+        $rewardStreaksData[] = $row;
+        $rid = $row['reward_id'];
+        $rewardTitles[$rid] = $row['reward_title'];
+        if (!in_array($rid, $rewardStreaksIds, true)) {
+            $rewardStreaksIds[] = $rid;
+        }
+    }
+    $result->free();
+} else {
+    $status = "Error fetching reward streaks: " . $db->error;
+    $notification_status = "is-danger";
+}
+
+// Fetch reward usage data
+$rewardUsageData = [];
+$rewardUsageTitles = [];
+if ($result = $db->query("SELECT reward_title, usage_count FROM channel_point_rewards WHERE usage_count > 0")) {
+    while ($row = $result->fetch_assoc()) {
+        $rewardUsageData[] = $row;
+        $rewardUsageTitles[] = $row['reward_title'];
+    }
+    $result->free();
+} else {
+    $status = "Error fetching reward usage: " . $db->error;
     $notification_status = "is-danger";
 }
 
@@ -228,16 +277,6 @@ if ($result = $db->query("SELECT username, highfive_count FROM highfive_counts")
     $notification_status = "is-danger";
 }
 
-if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $userCountData[] = $row;
-    }
-    $result->free();
-} else {
-    $status = "Error fetching user count data: " . $db->error;
-    $notification_status = "is-danger";
-}
-
 // Prepare JS objects for reward counts and titles
 $rewardCountsJs = [];
 foreach ($rewardCountsData as $row) {
@@ -245,11 +284,20 @@ foreach ($rewardCountsData as $row) {
 }
 $rewardTitlesJs = $rewardTitles;
 
+// Prepare JS objects for reward streaks
+$rewardStreaksJs = [];
+foreach ($rewardStreaksData as $row) {
+    $rewardStreaksJs[$row['reward_id']] = ['user' => $row['current_user'], 'streak' => $row['streak']];
+}
+
+// Prepare JS objects for reward usage
+$rewardUsageJs = array_column($rewardUsageData, 'usage_count', 'reward_title');
+
 // Handling form submissions
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
     switch ($action) {
-        case 'update':
+        case 'update': 
             $formUsername = $_POST['typo-username'] ?? '';
             $typoCount = $_POST['typo_count'] ?? '';
             $formCommand = $_POST['command'] ?? '';
@@ -432,6 +480,49 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             }
             break;
+        case 'update_reward_streak':
+            $formRewardStreakReward = $_POST['rewardstreak-reward'] ?? '';
+            $formRewardStreakUser = $_POST['rewardstreak-user'] ?? '';
+            $formRewardStreakStreak = $_POST['rewardstreak-streak'] ?? '';
+            if ($formRewardStreakReward && $formRewardStreakUser && is_numeric($formRewardStreakStreak)) {
+                $stmt = $db->prepare("UPDATE reward_streaks SET current_user = ?, streak = ? WHERE reward_id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('sis', $formRewardStreakUser, $formRewardStreakStreak, $formRewardStreakReward);
+                    if ($stmt->execute()) {
+                        $status = "Reward streak updated successfully for reward {$formRewardStreakReward}.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = "Error: " . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
+        case 'update_reward_usage':
+            $formRewardUsageReward = $_POST['rewardusage-reward'] ?? '';
+            $formRewardUsageCount = $_POST['rewardusage-count'] ?? '';
+            if ($formRewardUsageReward && is_numeric($formRewardUsageCount)) {
+                $stmt = $db->prepare("UPDATE channel_point_rewards SET usage_count = ? WHERE reward_title = ?");
+                if ($stmt) {
+                    $stmt->bind_param('is', $formRewardUsageCount, $formRewardUsageReward);
+                    if ($stmt->execute()) {
+                        $status = "Reward usage updated successfully for reward {$formRewardUsageReward}.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = "Error: " . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
         case 'remove':
             $formUsername = $_POST['typo-username-remove'] ?? '';
             $formCommandRemove = $_POST['command-remove'] ?? '';
@@ -459,7 +550,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $status = "Error: " . $db->error;
                     $notification_status = "is-danger";
                 }
-                // Remove custom counter record
+            // Remove custom counter record
             } elseif ($formCommandRemove) {
                 $stmt = $db->prepare("DELETE FROM custom_counts WHERE command = ?");
                 if ($stmt) {
@@ -503,6 +594,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     if ($stmt->execute()) {
                         $status = "Death counter for game '{$formGameRemove}' has been removed and total deaths updated.";
                         $notification_status = "is-success";
+                        $_SESSION['status'] = $status;
+                        $_SESSION['notification_status'] = $notification_status;
+                        header('Location: ' . $_SERVER['REQUEST_URI'] . '?t=' . time());
+                        exit;
                     } else {
                         $status = 'Error: ' . $stmt->error;
                         $notification_status = "is-danger";
@@ -608,6 +703,107 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $notification_status = "is-danger";
             }
             break;
+        case 'remove_reward_streak':
+            $formRewardStreakRemove = $_POST['rewardstreak-reward-remove'] ?? '';
+            if ($formRewardStreakRemove) {
+                $stmt = $db->prepare("DELETE FROM reward_streaks WHERE reward_id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('s', $formRewardStreakRemove);
+                    if ($stmt->execute()) {
+                        $status = "Reward streak for reward '$formRewardStreakRemove' has been removed.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = 'Error: ' . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
+        case 'remove_reward_usage':
+            $formRewardUsageRemove = $_POST['rewardusage-reward-remove'] ?? '';
+            if ($formRewardUsageRemove) {
+                $stmt = $db->prepare("UPDATE channel_point_rewards SET usage_count = 0 WHERE reward_title = ?");
+                if ($stmt) {
+                    $stmt->bind_param('s', $formRewardUsageRemove);
+                    if ($stmt->execute()) {
+                        $status = "Reward usage for reward '$formRewardUsageRemove' has been reset.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = 'Error: ' . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
+        case 'remove_quote':
+            $quoteId = $_POST['quote-id-remove'] ?? '';
+            if ($quoteId) {
+                $stmt = $db->prepare("DELETE FROM quotes WHERE id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('i', $quoteId);
+                    if ($stmt->execute()) {
+                        $status = "Quote removed successfully.";
+                        $notification_status = "is-success";
+                    } else {
+                        $status = "Error: " . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                } else {
+                    $status = "Error: " . $db->error;
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
+        case 'add_death':
+            $formGameAdd = trim($_POST['death-game-add'] ?? '');
+            $deathCountAdd = $_POST['death_count_add'] ?? '';
+            if ($formGameAdd && is_numeric($deathCountAdd) && $deathCountAdd >= 0) {
+                // Check if game already exists
+                $stmt = $db->prepare("SELECT COUNT(*) FROM game_deaths WHERE game_name = ?");
+                $stmt->bind_param('s', $formGameAdd);
+                $stmt->execute();
+                $stmt->bind_result($count);
+                $stmt->fetch();
+                $stmt->close();
+                if ($count > 0) {
+                    $status = "Game '$formGameAdd' already exists.";
+                    $notification_status = "is-danger";
+                } else {
+                    // Insert
+                    $stmt = $db->prepare("INSERT INTO game_deaths (game_name, death_count) VALUES (?, ?)");
+                    $stmt->bind_param('si', $formGameAdd, $deathCountAdd);
+                    if ($stmt->execute()) {
+                        // Update total deaths
+                        $stmt2 = $db->prepare("UPDATE total_deaths SET death_count = death_count + ? LIMIT 1");
+                        $stmt2->bind_param('i', $deathCountAdd);
+                        $stmt2->execute();
+                        $stmt2->close();
+                        $status = "Death counter for game '$formGameAdd' has been added.";
+                        $notification_status = "is-success";
+                        $_SESSION['status'] = $status;
+                        $_SESSION['notification_status'] = $notification_status;
+                        header('Location: ' . $_SERVER['REQUEST_URI'] . '?t=' . time());
+                        exit;
+                    } else {
+                        $status = "Error: " . $stmt->error;
+                        $notification_status = "is-danger";
+                    }
+                    $stmt->close();
+                }
+            } else {
+                $status = "Invalid input for adding game death.";
+                $notification_status = "is-danger";
+            }
+            break;
         default:
             $status = "Invalid action.";
             $notification_status = "is-danger";
@@ -684,18 +880,6 @@ if ($result = $db->query("SELECT username, highfive_count FROM highfive_counts")
     $result->free();
 } else {
     $status = "Error fetching high-five data: " . $db->error;
-    $notification_status = "is-danger";
-}
-
-// Fetch user counts and their current values
-$userCountData = [];
-if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $userCountData[] = $row;
-    }
-    $result->free();
-} else {
-    $status = "Error fetching user count data: " . $db->error;
     $notification_status = "is-danger";
 }
 
@@ -711,242 +895,6 @@ if ($result = $db->query("SELECT id, quote, added FROM quotes ORDER BY added DES
     $notification_status = "is-danger";
 }
 
-// Handling form submissions
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $action = $_POST['action'] ?? '';
-    switch ($action) {
-        case 'update':
-            $formUsername = $_POST['typo-username'] ?? '';
-            $typoCount = $_POST['typo_count'] ?? '';
-            $formCommand = $_POST['command'] ?? '';
-            $commandCount = $_POST['command_count'] ?? '';
-            $formGame = $_POST['death-game'] ?? '';
-            $deathCount = $_POST['death_count'] ?? '';
-            $formHugUser = $_POST['hug-username'] ?? '';
-            $hugCount = $_POST['hug_count'] ?? '';
-            $formKissUser = $_POST['kiss-username'] ?? '';
-            $kissCount = $_POST['kiss_count'] ?? '';
-            $formHighfiveUser = $_POST['highfive-username'] ?? '';
-            $highfiveCount = $_POST['highfive_count'] ?? '';
-            $formUserCountCommand = $_POST['usercount-command'] ?? '';
-            $formUserCountUser = $_POST['usercount-user'] ?? '';
-            $userCountValue = $_POST['usercount_count'] ?? '';
-            // Update typo count
-            if ($formUsername && is_numeric($typoCount)) {
-                $stmt = $db->prepare("UPDATE user_typos SET typo_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $typoCount, $formUsername);
-                    if ($stmt->execute()) {
-                        $status = "Typo count updated successfully for user {$formUsername}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update command count
-            if ($formCommand && is_numeric($commandCount)) {
-                $stmt = $db->prepare("UPDATE custom_counts SET count = ? WHERE command = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $commandCount, $formCommand);
-                    if ($stmt->execute()) {
-                        $status = "Count updated successfully for the command {$formCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update death count and total deaths
-            if ($formGame && is_numeric($deathCount)) {
-                // Get the old count for this game
-                $oldDeathCount = 0;
-                $stmt = $db->prepare("SELECT death_count FROM game_deaths WHERE game_name = ?");
-                if ($stmt) {
-                    $stmt->bind_param('s', $formGame);
-                    $stmt->execute();
-                    $stmt->bind_result($oldDeathCount);
-                    $stmt->fetch();
-                    $stmt->close();
-                }
-                $diff = $deathCount - $oldDeathCount;
-                if ($diff !== 0) {
-                    $stmt = $db->prepare("UPDATE game_deaths SET death_count = ? WHERE game_name = ?");
-                    if ($stmt) {
-                        $stmt->bind_param('is', $deathCount, $formGame);
-                        if ($stmt->execute()) {
-                            $stmt2 = $db->prepare("UPDATE total_deaths SET death_count = death_count + ? LIMIT 1");
-                            if ($stmt2) {
-                                $stmt2->bind_param('i', $diff);
-                                $stmt2->execute();
-                                $stmt2->close();
-                            }
-                            $status = "Death count updated successfully for game {$formGame}.";
-                            $notification_status = "is-success";
-                        } else {
-                            $status = "Error: " . $stmt->error;
-                            $notification_status = "is-danger";
-                        }
-                        $stmt->close();
-                    } else {
-                        $status = "Error: " . $db->error;
-                        $notification_status = "is-danger";
-                    }
-                } else {
-                    $status = "No change in death count for game {$formGame}.";
-                    $notification_status = "is-info";
-                }
-            }
-            // Update hug count
-            if ($formHugUser && is_numeric($hugCount)) {
-                $stmt = $db->prepare("UPDATE hug_counts SET hug_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $hugCount, $formHugUser);
-                    if ($stmt->execute()) {
-                        $status = "Hug count updated successfully for user {$formHugUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update kiss count
-            if ($formKissUser && is_numeric($kissCount)) {
-                $stmt = $db->prepare("UPDATE kiss_counts SET kiss_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $kissCount, $formKissUser);
-                    if ($stmt->execute()) {
-                        $status = "Kiss count updated successfully for user {$formKissUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update high-five count
-            if ($formHighfiveUser && is_numeric($highfiveCount)) {
-                $stmt = $db->prepare("UPDATE highfive_counts SET highfive_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $highfiveCount, $formHighfiveUser);
-                    if ($stmt->execute()) {
-                        $status = "High-five count updated successfully for user {$formHighfiveUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update user count
-            if ($formUserCountCommand && $formUserCountUser && is_numeric($userCountValue)) {
-                $stmt = $db->prepare("UPDATE user_counts SET count = ? WHERE command = ? AND user = ?");
-                if ($stmt) {
-                    $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
-                    if ($stmt->execute()) {
-                        $status = "User count updated successfully for user {$formUserCountUser} and command {$formUserCountCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update reward count
-            if ($formUserCountCommand && $formUserCountUser && is_numeric($userCountValue)) {
-                $stmt = $db->prepare("UPDATE reward_counts SET count = ? WHERE reward_id = ? AND user = ?");
-                if ($stmt) {
-                    $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
-                    if ($stmt->execute()) {
-                        $status = "Reward count updated successfully for user {$formUserCountUser} and reward {$formUserCountCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        case 'remove_quote':
-            $quoteId = $_POST['quote-id-remove'] ?? '';
-            if ($quoteId) {
-                $stmt = $db->prepare("DELETE FROM quotes WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('i', $quoteId);
-                    if ($stmt->execute()) {
-                        $status = "Quote removed successfully.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        case 'update_quote':
-            $quoteId = $_POST['quote-id'] ?? '';
-            $quoteText = $_POST['quote-text'] ?? '';
-            $quoteAdded = $_POST['quote-added'] ?? '';
-            if ($quoteId && $quoteText !== '' && $quoteAdded !== '') {
-                $stmt = $db->prepare("UPDATE quotes SET quote = ?, added = ? WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('ssi', $quoteText, $quoteAdded, $quoteId);
-                    if ($stmt->execute()) {
-                        $status = "Quote updated successfully.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        default:
-            $status = "Invalid action.";
-            $notification_status = "is-danger";
-            break;
-    }
-}
-
 // Fetch usernames and their current typo counts
 $typoData = [];
 if ($result = $db->query("SELECT username, typo_count FROM user_typos")) {
@@ -1016,18 +964,6 @@ if ($result = $db->query("SELECT username, highfive_count FROM highfive_counts")
     $result->free();
 } else {
     $status = "Error fetching high-five data: " . $db->error;
-    $notification_status = "is-danger";
-}
-
-// Fetch user counts and their current values
-$userCountData = [];
-if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $userCountData[] = $row;
-    }
-    $result->free();
-} else {
-    $status = "Error fetching user count data: " . $db->error;
     $notification_status = "is-danger";
 }
 
@@ -1043,242 +979,6 @@ if ($result = $db->query("SELECT id, quote, added FROM quotes ORDER BY added DES
     $notification_status = "is-danger";
 }
 
-// Handling form submissions
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $action = $_POST['action'] ?? '';
-    switch ($action) {
-        case 'update':
-            $formUsername = $_POST['typo-username'] ?? '';
-            $typoCount = $_POST['typo_count'] ?? '';
-            $formCommand = $_POST['command'] ?? '';
-            $commandCount = $_POST['command_count'] ?? '';
-            $formGame = $_POST['death-game'] ?? '';
-            $deathCount = $_POST['death_count'] ?? '';
-            $formHugUser = $_POST['hug-username'] ?? '';
-            $hugCount = $_POST['hug_count'] ?? '';
-            $formKissUser = $_POST['kiss-username'] ?? '';
-            $kissCount = $_POST['kiss_count'] ?? '';
-            $formHighfiveUser = $_POST['highfive-username'] ?? '';
-            $highfiveCount = $_POST['highfive_count'] ?? '';
-            $formUserCountCommand = $_POST['usercount-command'] ?? '';
-            $formUserCountUser = $_POST['usercount-user'] ?? '';
-            $userCountValue = $_POST['usercount_count'] ?? '';
-            // Update typo count
-            if ($formUsername && is_numeric($typoCount)) {
-                $stmt = $db->prepare("UPDATE user_typos SET typo_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $typoCount, $formUsername);
-                    if ($stmt->execute()) {
-                        $status = "Typo count updated successfully for user {$formUsername}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update command count
-            if ($formCommand && is_numeric($commandCount)) {
-                $stmt = $db->prepare("UPDATE custom_counts SET count = ? WHERE command = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $commandCount, $formCommand);
-                    if ($stmt->execute()) {
-                        $status = "Count updated successfully for the command {$formCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update death count and total deaths
-            if ($formGame && is_numeric($deathCount)) {
-                // Get the old count for this game
-                $oldDeathCount = 0;
-                $stmt = $db->prepare("SELECT death_count FROM game_deaths WHERE game_name = ?");
-                if ($stmt) {
-                    $stmt->bind_param('s', $formGame);
-                    $stmt->execute();
-                    $stmt->bind_result($oldDeathCount);
-                    $stmt->fetch();
-                    $stmt->close();
-                }
-                $diff = $deathCount - $oldDeathCount;
-                if ($diff !== 0) {
-                    $stmt = $db->prepare("UPDATE game_deaths SET death_count = ? WHERE game_name = ?");
-                    if ($stmt) {
-                        $stmt->bind_param('is', $deathCount, $formGame);
-                        if ($stmt->execute()) {
-                            $stmt2 = $db->prepare("UPDATE total_deaths SET death_count = death_count + ? LIMIT 1");
-                            if ($stmt2) {
-                                $stmt2->bind_param('i', $diff);
-                                $stmt2->execute();
-                                $stmt2->close();
-                            }
-                            $status = "Death count updated successfully for game {$formGame}.";
-                            $notification_status = "is-success";
-                        } else {
-                            $status = "Error: " . $stmt->error;
-                            $notification_status = "is-danger";
-                        }
-                        $stmt->close();
-                    } else {
-                        $status = "Error: " . $db->error;
-                        $notification_status = "is-danger";
-                    }
-                } else {
-                    $status = "No change in death count for game {$formGame}.";
-                    $notification_status = "is-info";
-                }
-            }
-            // Update hug count
-            if ($formHugUser && is_numeric($hugCount)) {
-                $stmt = $db->prepare("UPDATE hug_counts SET hug_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $hugCount, $formHugUser);
-                    if ($stmt->execute()) {
-                        $status = "Hug count updated successfully for user {$formHugUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update kiss count
-            if ($formKissUser && is_numeric($kissCount)) {
-                $stmt = $db->prepare("UPDATE kiss_counts SET kiss_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $kissCount, $formKissUser);
-                    if ($stmt->execute()) {
-                        $status = "Kiss count updated successfully for user {$formKissUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update high-five count
-            if ($formHighfiveUser && is_numeric($highfiveCount)) {
-                $stmt = $db->prepare("UPDATE highfive_counts SET highfive_count = ? WHERE username = ?");
-                if ($stmt) {
-                    $stmt->bind_param('is', $highfiveCount, $formHighfiveUser);
-                    if ($stmt->execute()) {
-                        $status = "High-five count updated successfully for user {$formHighfiveUser}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update user count
-            if ($formUserCountCommand && $formUserCountUser && is_numeric($userCountValue)) {
-                $stmt = $db->prepare("UPDATE user_counts SET count = ? WHERE command = ? AND user = ?");
-                if ($stmt) {
-                    $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
-                    if ($stmt->execute()) {
-                        $status = "User count updated successfully for user {$formUserCountUser} and command {$formUserCountCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            // Update reward count
-            if ($formUserCountCommand && $formUserCountUser && is_numeric($userCountValue)) {
-                $stmt = $db->prepare("UPDATE reward_counts SET count = ? WHERE reward_id = ? AND user = ?");
-                if ($stmt) {
-                    $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
-                    if ($stmt->execute()) {
-                        $status = "Reward count updated successfully for user {$formUserCountUser} and reward {$formUserCountCommand}.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        case 'remove_quote':
-            $quoteId = $_POST['quote-id-remove'] ?? '';
-            if ($quoteId) {
-                $stmt = $db->prepare("DELETE FROM quotes WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('i', $quoteId);
-                    if ($stmt->execute()) {
-                        $status = "Quote removed successfully.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        case 'update_quote':
-            $quoteId = $_POST['quote-id'] ?? '';
-            $quoteText = $_POST['quote-text'] ?? '';
-            $quoteAdded = $_POST['quote-added'] ?? '';
-            if ($quoteId && $quoteText !== '' && $quoteAdded !== '') {
-                $stmt = $db->prepare("UPDATE quotes SET quote = ?, added = ? WHERE id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('ssi', $quoteText, $quoteAdded, $quoteId);
-                    if ($stmt->execute()) {
-                        $status = "Quote updated successfully.";
-                        $notification_status = "is-success";
-                    } else {
-                        $status = "Error: " . $stmt->error;
-                        $notification_status = "is-danger";
-                    }
-                    $stmt->close();
-                } else {
-                    $status = "Error: " . $db->error;
-                    $notification_status = "is-danger";
-                }
-            }
-            break;
-        default:
-            $status = "Invalid action.";
-            $notification_status = "is-danger";
-            break;
-    }
-}
-
 // Fetch usernames and their current typo counts
 $typoData = [];
 if ($result = $db->query("SELECT username, typo_count FROM user_typos")) {
@@ -1348,18 +1048,6 @@ if ($result = $db->query("SELECT username, highfive_count FROM highfive_counts")
     $result->free();
 } else {
     $status = "Error fetching high-five data: " . $db->error;
-    $notification_status = "is-danger";
-}
-
-// Fetch user counts and their current values
-$userCountData = [];
-if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $userCountData[] = $row;
-    }
-    $result->free();
-} else {
-    $status = "Error fetching user count data: " . $db->error;
     $notification_status = "is-danger";
 }
 
@@ -1514,9 +1202,7 @@ if (isset($_GET['action'])) {
 // Check for cookie consent
 $cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
 $defaultEditTab = 'typos';
-if ($cookieConsent && isset($_COOKIE['preferred_edit_tab'])) {
-    $defaultEditTab = $_COOKIE['preferred_edit_tab'];
-}
+if ($cookieConsent && isset($_COOKIE['preferred_edit_tab'])) { $defaultEditTab = $_COOKIE['preferred_edit_tab']; }
 
 // Prepare a JavaScript object with Typo Counts & Command Counts for each user
 $commandCountsJs = json_encode(array_column($commandData, 'count', 'command'));
@@ -1527,8 +1213,7 @@ ob_start();
 ?>
 <div class="columns is-centered">
     <div class="column is-fullwidth">
-        <div class="card has-background-dark has-text-white mt-6"
-            style="border-radius: 14px; box-shadow: 0 4px 24px #000a; margin-top: 3rem;">
+        <div class="card has-background-dark has-text-white mt-6" style="border-radius: 14px; box-shadow: 0 4px 24px #000a; margin-top: 3rem;">
             <header class="card-header" style="border-bottom: 1px solid #23272f;">
                 <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
                     <span class="icon mr-2"><i class="fas fa-edit"></i></span>
@@ -1536,29 +1221,22 @@ ob_start();
                 </span>
             </header>
             <div class="card-content">
-                <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+                <?php if (isset($status) && !empty($status)): ?>
                     <div class="notification <?php echo $notification_status; ?>"><?php echo $status; ?></div>
                 <?php endif; ?>
                 <!-- Tab Buttons -->
                 <div class="buttons is-centered mb-4">
-                    <button class="button is-info" data-type="typos"
-                        onclick="showTab('typos')"><?php echo t('edit_counters_edit_user_typos'); ?></button>
-                    <button class="button is-info" data-type="customCounts"
-                        onclick="showTab('customCounts')"><?php echo t('counters_custom_counts'); ?></button>
-                    <button class="button is-info" data-type="deaths"
-                        onclick="showTab('deaths')"><?php echo t('counters_deaths'); ?></button>
-                    <button class="button is-info" data-type="hugs"
-                        onclick="showTab('hugs')"><?php echo t('counters_hugs'); ?></button>
-                    <button class="button is-info" data-type="kisses"
-                        onclick="showTab('kisses')"><?php echo t('counters_kisses'); ?></button>
-                    <button class="button is-info" data-type="highfives"
-                        onclick="showTab('highfives')"><?php echo t('counters_highfives'); ?></button>
-                    <button class="button is-info" data-type="userCounts"
-                        onclick="showTab('userCounts')"><?php echo t('counters_user_counts'); ?></button>
-                    <button class="button is-info" data-type="rewardCounts"
-                        onclick="showTab('rewardCounts')"><?php echo t('counters_reward_counts'); ?></button>
-                    <button class="button is-info" data-type="quotes"
-                        onclick="showTab('quotes')"><?php echo t('counters_quotes'); ?></button>
+                    <button class="button is-info" data-type="typos" onclick="showTab('typos')"><?php echo t('edit_counters_edit_user_typos'); ?></button>
+                    <button class="button is-info" data-type="customCounts" onclick="showTab('customCounts')"><?php echo t('counters_custom_counts'); ?></button>
+                    <button class="button is-info" data-type="deaths" onclick="showTab('deaths')"><?php echo t('counters_deaths'); ?></button>
+                    <button class="button is-info" data-type="hugs" onclick="showTab('hugs')"><?php echo t('counters_hugs'); ?></button>
+                    <button class="button is-info" data-type="kisses" onclick="showTab('kisses')"><?php echo t('counters_kisses'); ?></button>
+                    <button class="button is-info" data-type="highfives" onclick="showTab('highfives')"><?php echo t('counters_highfives'); ?></button>
+                    <button class="button is-info" data-type="userCounts" onclick="showTab('userCounts')"><?php echo t('counters_user_counts'); ?></button>
+                    <button class="button is-info" data-type="rewardCounts" onclick="showTab('rewardCounts')"><?php echo t('counters_reward_counts'); ?></button>
+                    <button class="button is-info" data-type="rewardStreaks" onclick="showTab('rewardStreaks')"><?php echo t('counters_reward_streaks'); ?></button>
+                    <button class="button is-info" data-type="rewardUsage" onclick="showTab('rewardUsage')"><?php echo t('counters_reward_usage'); ?></button>
+                    <button class="button is-info" data-type="quotes" onclick="showTab('quotes')"><?php echo t('counters_quotes'); ?></button>
                 </div>
                 <!-- Tab Contents -->
                 <div id="tab-typos" class="tab-content">
@@ -1567,41 +1245,31 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_user_typos'); ?></h4>
-                                <form action="" method="post" id="typo-edit-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1">
+                                <form action="" method="post" id="typo-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
                                     <input type="hidden" name="action" value="update">
                                     <div class="field">
-                                        <label class="label"
-                                            for="typo-username"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="typo-username"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="typo-username" name="typo-username" required
-                                                    onchange="updateCurrentCount('typo', this.value); enableButton('typo-username','typo-edit-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="typo-username" name="typo-username" required onchange="updateCurrentCount('typo', this.value); enableButton('typo-username','typo-edit-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <?php foreach ($usernames as $typo_name): ?>
-                                                        <option title="<?php echo htmlspecialchars($typo_name); ?>"
-                                                            value="<?php echo htmlspecialchars($typo_name); ?>">
-                                                            <?php echo htmlspecialchars($typo_name); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($typo_name); ?>" value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="typo_count"><?php echo t('edit_counters_new_typo_count'); ?></label>
+                                        <label class="label" for="typo_count"><?php echo t('edit_counters_new_typo_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="typo_count" name="typo_count"
-                                                value="" required min="0">
+                                            <input class="input" type="number" id="typo_count" name="typo_count" value="" required min="0">
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-primary is-fullwidth"
-                                                id="typo-edit-btn"
-                                                disabled><?php echo t('edit_counters_update_typo_btn'); ?></button>
+                                            <button type="submit" class="button is-primary is-fullwidth" id="typo-edit-btn" disabled><?php echo t('edit_counters_update_typo_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -1611,22 +1279,16 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_user_typo'); ?></h4>
-                                <form action="" method="post" id="typo-remove-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1" data-type="typo">
+                                <form action="" method="post" id="typo-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="typo">
                                     <input type="hidden" name="action" value="remove">
                                     <div class="field">
-                                        <label class="label"
-                                            for="typo-username-remove"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="typo-username-remove"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="typo-username-remove" name="typo-username-remove" required
-                                                    onchange="enableButton('typo-username-remove','typo-remove-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="typo-username-remove" name="typo-username-remove" required onchange="enableButton('typo-username-remove','typo-remove-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <?php foreach ($usernames as $typo_name): ?>
-                                                        <option title="<?php echo htmlspecialchars($typo_name); ?>"
-                                                            value="<?php echo htmlspecialchars($typo_name); ?>">
-                                                            <?php echo htmlspecialchars($typo_name); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($typo_name); ?>" value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
@@ -1636,9 +1298,7 @@ ob_start();
                                     <div style="height: 88px;"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-danger is-fullwidth"
-                                                id="typo-remove-btn"
-                                                disabled><?php echo t('edit_counters_remove_typo_btn'); ?></button>
+                                            <button type="submit" class="button is-danger is-fullwidth" id="typo-remove-btn" disabled><?php echo t('edit_counters_remove_typo_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -1652,41 +1312,31 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_custom_counter'); ?></h4>
-                                <form action="" method="post" id="command-edit-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1">
+                                <form action="" method="post" id="command-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
                                     <input type="hidden" name="action" value="update">
                                     <div class="field">
-                                        <label class="label"
-                                            for="command"><?php echo t('edit_counters_command_label'); ?></label>
+                                        <label class="label" for="command"><?php echo t('edit_counters_command_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="command" name="command" required
-                                                    onchange="updateCurrentCount('command', this.value); enableButton('command','command-edit-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_command'); ?>
-                                                    </option>
+                                                <select id="command" name="command" required onchange="updateCurrentCount('command', this.value); enableButton('command','command-edit-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_command'); ?></option>
                                                     <?php foreach ($commands as $command): ?>
-                                                        <option title="<?php echo htmlspecialchars($command); ?>"
-                                                            value="<?php echo htmlspecialchars($command); ?>">
-                                                            <?php echo htmlspecialchars($command); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($command); ?>" value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="command_count"><?php echo t('edit_counters_new_command_count'); ?></label>
+                                        <label class="label" for="command_count"><?php echo t('edit_counters_new_command_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="command_count" name="command_count"
-                                                value="" min="0" required>
+                                            <input class="input" type="number" id="command_count" name="command_count" value="" min="0" required>
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-primary is-fullwidth"
-                                                id="command-edit-btn"
-                                                disabled><?php echo t('edit_counters_update_command_btn'); ?></button>
+                                            <button type="submit" class="button is-primary is-fullwidth" id="command-edit-btn" disabled><?php echo t('edit_counters_update_command_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -1696,22 +1346,16 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_custom_counter'); ?></h4>
-                                <form action="" method="post" id="command-remove-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1" data-type="command">
+                                <form action="" method="post" id="command-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="command">
                                     <input type="hidden" name="action" value="remove">
                                     <div class="field">
-                                        <label class="label"
-                                            for="command-remove"><?php echo t('edit_counters_command_label'); ?></label>
+                                        <label class="label" for="command-remove"><?php echo t('edit_counters_command_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="command-remove" name="command-remove" required
-                                                    onchange="enableButton('command-remove','command-remove-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_command'); ?>
-                                                    </option>
+                                                <select id="command-remove" name="command-remove" required onchange="enableButton('command-remove','command-remove-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_command'); ?></option>
                                                     <?php foreach ($commands as $command): ?>
-                                                        <option title="<?php echo htmlspecialchars($command); ?>"
-                                                            value="<?php echo htmlspecialchars($command); ?>">
-                                                            <?php echo htmlspecialchars($command); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($command); ?>" value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
@@ -1721,9 +1365,7 @@ ob_start();
                                     <div style="height: 88px;"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-danger is-fullwidth"
-                                                id="command-remove-btn"
-                                                disabled><?php echo t('edit_counters_remove_command_btn'); ?></button>
+                                            <button type="submit" class="button is-danger is-fullwidth" id="command-remove-btn" disabled><?php echo t('edit_counters_remove_command_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -1736,74 +1378,85 @@ ob_start();
                     <div class="mb-4">
                         <div class="notification is-info has-text-centered" style="font-size:1.2em;">
                             <strong><?php echo t('edit_counters_total_deaths'); ?>:</strong>
-                            <span class="has-text-weight-bold has-text-danger"><?php echo (int) $totalDeaths; ?></span>
+                            <span class="has-text-weight-bold has-text-danger" id="total-deaths"><?php echo (int)$totalDeaths; ?></span>
                         </div>
                     </div>
                     <div class="columns is-desktop is-multiline">
+                        <!-- Add Game Death Counter -->
+                        <div class="column is-4 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5">Add Game Death Counter</h4>
+                                <form action="" method="post" id="death-add-form" class="is-flex is-flex-direction-column is-flex-grow-1">
+                                    <input type="hidden" name="action" value="add_death">
+                                    <div class="field">
+                                        <label class="label" for="death-game-add">Game Name</label>
+                                        <div class="control">
+                                            <input class="input" type="text" id="death-game-add" name="death-game-add" required>
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="label" for="death_count_add">Death Count</label>
+                                        <div class="control">
+                                            <input class="input" type="number" id="death_count_add" name="death_count_add" required min="0">
+                                        </div>
+                                    </div>
+                                    <div class="is-flex-grow-1"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-success is-fullwidth" id="death-add-btn" disabled>Add Game Death</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                         <!-- Edit Game Death Count -->
-                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                        <div class="column is-4 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_game_deaths'); ?></h4>
-                                <form action="" method="post" id="death-edit-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1">
+                                <form action="" method="post" id="death-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
                                     <input type="hidden" name="action" value="update">
                                     <div class="field">
-                                        <label class="label"
-                                            for="death-game"><?php echo t('edit_counters_game_label'); ?></label>
+                                        <label class="label" for="death-game"><?php echo t('edit_counters_game_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="death-game" name="death-game" required
-                                                    onchange="updateCurrentCount('death', this.value); enableButton('death-game','death-edit-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_game'); ?>
-                                                    </option>
+                                                <select id="death-game" name="death-game" required>
+                                                    <option value=""><?php echo t('edit_counters_select_game'); ?></option>
                                                     <?php foreach ($games as $game): ?>
-                                                        <option title="<?php echo htmlspecialchars($game); ?>"
-                                                            value="<?php echo htmlspecialchars($game); ?>">
-                                                            <?php echo htmlspecialchars($game); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($game); ?>" value="<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($game); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="death_count"><?php echo t('edit_counters_new_death_count'); ?></label>
+                                        <label class="label" for="death_count"><?php echo t('edit_counters_new_death_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="death_count" name="death_count"
-                                                value="" required min="0">
+                                            <input class="input" type="number" id="death_count" name="death_count" value="" required min="0">
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-primary is-fullwidth"
-                                                id="death-edit-btn"
-                                                disabled><?php echo t('edit_counters_update_death_btn'); ?></button>
+                                            <button type="submit" class="button is-primary is-fullwidth" id="death-edit-btn" disabled><?php echo t('edit_counters_update_death_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
                             </div>
                         </div>
                         <!-- Remove Game Death Counter -->
-                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                        <div class="column is-4 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_game_death_counter'); ?></h4>
-                                <form action="" method="post" id="death-remove-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1" data-type="death">
+                                <form action="" method="post" id="death-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="death">
                                     <input type="hidden" name="action" value="remove">
                                     <div class="field">
-                                        <label class="label"
-                                            for="death-game-remove"><?php echo t('edit_counters_game_label'); ?></label>
+                                        <label class="label" for="death-game-remove"><?php echo t('edit_counters_game_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="death-game-remove" name="death-game-remove" required
-                                                    onchange="enableButton('death-game-remove','death-remove-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_game'); ?>
-                                                    </option>
+                                                <select id="death-game-remove" name="death-game-remove" required onchange="enableButton('death-game-remove','death-remove-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_game'); ?></option>
                                                     <?php foreach ($games as $game): ?>
-                                                        <option title="<?php echo htmlspecialchars($game); ?>"
-                                                            value="<?php echo htmlspecialchars($game); ?>">
-                                                            <?php echo htmlspecialchars($game); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($game); ?>" value="<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($game); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
@@ -1813,9 +1466,7 @@ ob_start();
                                     <div style="height: 88px;"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-danger is-fullwidth"
-                                                id="death-remove-btn"
-                                                disabled><?php echo t('edit_counters_remove_game_death_btn'); ?></button>
+                                            <button type="submit" class="button is-danger is-fullwidth" id="death-remove-btn" disabled><?php echo t('edit_counters_remove_game_death_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -1829,41 +1480,31 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_user_hugs'); ?></h4>
-                                <form action="" method="post" id="hug-edit-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1">
+                                <form action="" method="post" id="hug-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
                                     <input type="hidden" name="action" value="update">
                                     <div class="field">
-                                        <label class="label"
-                                            for="hug-username"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="hug-username"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="hug-username" name="hug-username" required
-                                                    onchange="updateCurrentCount('hug', this.value); enableButton('hug-username','hug-edit-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="hug-username" name="hug-username" required onchange="updateCurrentCount('hug', this.value); enableButton('hug-username','hug-edit-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <?php foreach ($hugUsers as $hugUser): ?>
-                                                        <option title="<?php echo htmlspecialchars($hugUser); ?>"
-                                                            value="<?php echo htmlspecialchars($hugUser); ?>">
-                                                            <?php echo htmlspecialchars($hugUser); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($hugUser); ?>" value="<?php echo htmlspecialchars($hugUser); ?>"><?php echo htmlspecialchars($hugUser); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="hug_count"><?php echo t('edit_counters_new_hug_count'); ?></label>
+                                        <label class="label" for="hug_count"><?php echo t('edit_counters_new_hug_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="hug_count" name="hug_count" value=""
-                                                required min="0">
+                                            <input class="input" type="number" id="hug_count" name="hug_count" value="" required min="0">
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-primary is-fullwidth"
-                                                id="hug-edit-btn"
-                                                disabled><?php echo t('edit_counters_update_hug_btn'); ?></button>
+                                            <button type="submit" class="button is-primary is-fullwidth" id="hug-edit-btn" disabled><?php echo t('edit_counters_update_hug_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -1873,22 +1514,16 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_user_hug'); ?></h4>
-                                <form action="" method="post" id="hug-remove-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1" data-type="hug">
+                                <form action="" method="post" id="hug-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="hug">
                                     <input type="hidden" name="action" value="remove">
                                     <div class="field">
-                                        <label class="label"
-                                            for="hug-username-remove"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="hug-username-remove"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="hug-username-remove" name="hug-username-remove" required
-                                                    onchange="enableButton('hug-username-remove','hug-remove-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="hug-username-remove" name="hug-username-remove" required onchange="enableButton('hug-username-remove','hug-remove-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <?php foreach ($hugUsers as $hugUser): ?>
-                                                        <option title="<?php echo htmlspecialchars($hugUser); ?>"
-                                                            value="<?php echo htmlspecialchars($hugUser); ?>">
-                                                            <?php echo htmlspecialchars($hugUser); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($hugUser); ?>" value="<?php echo htmlspecialchars($hugUser); ?>"><?php echo htmlspecialchars($hugUser); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
@@ -1898,9 +1533,7 @@ ob_start();
                                     <div style="height: 88px;"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-danger is-fullwidth"
-                                                id="hug-remove-btn"
-                                                disabled><?php echo t('edit_counters_remove_hug_btn'); ?></button>
+                                            <button type="submit" class="button is-danger is-fullwidth" id="hug-remove-btn" disabled><?php echo t('edit_counters_remove_hug_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -1914,41 +1547,31 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_user_kisses'); ?></h4>
-                                <form action="" method="post" id="kiss-edit-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1">
+                                <form action="" method="post" id="kiss-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
                                     <input type="hidden" name="action" value="update">
                                     <div class="field">
-                                        <label class="label"
-                                            for="kiss-username"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="kiss-username"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="kiss-username" name="kiss-username" required
-                                                    onchange="updateCurrentCount('kiss', this.value); enableButton('kiss-username','kiss-edit-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="kiss-username" name="kiss-username" required onchange="updateCurrentCount('kiss', this.value); enableButton('kiss-username','kiss-edit-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <?php foreach ($kissUsers as $kissUser): ?>
-                                                        <option title="<?php echo htmlspecialchars($kissUser); ?>"
-                                                            value="<?php echo htmlspecialchars($kissUser); ?>">
-                                                            <?php echo htmlspecialchars($kissUser); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($kissUser); ?>" value="<?php echo htmlspecialchars($kissUser); ?>"><?php echo htmlspecialchars($kissUser); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="kiss_count"><?php echo t('edit_counters_new_kiss_count'); ?></label>
+                                        <label class="label" for="kiss_count"><?php echo t('edit_counters_new_kiss_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="kiss_count" name="kiss_count"
-                                                value="" required min="0">
+                                            <input class="input" type="number" id="kiss_count" name="kiss_count" value="" required min="0">
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-primary is-fullwidth"
-                                                id="kiss-edit-btn"
-                                                disabled><?php echo t('edit_counters_update_kiss_btn'); ?></button>
+                                            <button type="submit" class="button is-primary is-fullwidth" id="kiss-edit-btn" disabled><?php echo t('edit_counters_update_kiss_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -1958,22 +1581,16 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_user_kiss'); ?></h4>
-                                <form action="" method="post" id="kiss-remove-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1" data-type="kiss">
+                                <form action="" method="post" id="kiss-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="kiss">
                                     <input type="hidden" name="action" value="remove">
                                     <div class="field">
-                                        <label class="label"
-                                            for="kiss-username-remove"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="kiss-username-remove"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="kiss-username-remove" name="kiss-username-remove" required
-                                                    onchange="enableButton('kiss-username-remove','kiss-remove-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="kiss-username-remove" name="kiss-username-remove" required onchange="enableButton('kiss-username-remove','kiss-remove-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <?php foreach ($kissUsers as $kissUser): ?>
-                                                        <option title="<?php echo htmlspecialchars($kissUser); ?>"
-                                                            value="<?php echo htmlspecialchars($kissUser); ?>">
-                                                            <?php echo htmlspecialchars($kissUser); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($kissUser); ?>" value="<?php echo htmlspecialchars($kissUser); ?>"><?php echo htmlspecialchars($kissUser); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
@@ -1983,9 +1600,7 @@ ob_start();
                                     <div style="height: 88px;"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-danger is-fullwidth"
-                                                id="kiss-remove-btn"
-                                                disabled><?php echo t('edit_counters_remove_kiss_btn'); ?></button>
+                                            <button type="submit" class="button is-danger is-fullwidth" id="kiss-remove-btn" disabled><?php echo t('edit_counters_remove_kiss_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -1999,41 +1614,31 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_user_highfives'); ?></h4>
-                                <form action="" method="post" id="highfive-edit-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1">
+                                <form action="" method="post" id="highfive-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
                                     <input type="hidden" name="action" value="update">
                                     <div class="field">
-                                        <label class="label"
-                                            for="highfive-username"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="highfive-username"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="highfive-username" name="highfive-username" required
-                                                    onchange="updateCurrentCount('highfive', this.value); enableButton('highfive-username','highfive-edit-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="highfive-username" name="highfive-username" required onchange="updateCurrentCount('highfive', this.value); enableButton('highfive-username','highfive-edit-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <?php foreach ($highfiveUsers as $highfiveUser): ?>
-                                                        <option title="<?php echo htmlspecialchars($highfiveUser); ?>"
-                                                            value="<?php echo htmlspecialchars($highfiveUser); ?>">
-                                                            <?php echo htmlspecialchars($highfiveUser); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($highfiveUser); ?>" value="<?php echo htmlspecialchars($highfiveUser); ?>"><?php echo htmlspecialchars($highfiveUser); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="highfive_count"><?php echo t('edit_counters_new_highfive_count'); ?></label>
+                                        <label class="label" for="highfive_count"><?php echo t('edit_counters_new_highfive_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="highfive_count" name="highfive_count"
-                                                value="" required min="0">
+                                            <input class="input" type="number" id="highfive_count" name="highfive_count" value="" required min="0">
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-primary is-fullwidth"
-                                                id="highfive-edit-btn"
-                                                disabled><?php echo t('edit_counters_update_highfive_btn'); ?></button>
+                                            <button type="submit" class="button is-primary is-fullwidth" id="highfive-edit-btn" disabled><?php echo t('edit_counters_update_highfive_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -2043,23 +1648,16 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_user_highfive'); ?></h4>
-                                <form action="" method="post" id="highfive-remove-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1" data-type="highfive">
+                                <form action="" method="post" id="highfive-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="highfive">
                                     <input type="hidden" name="action" value="remove">
                                     <div class="field">
-                                        <label class="label"
-                                            for="highfive-username-remove"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="highfive-username-remove"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="highfive-username-remove" name="highfive-username-remove"
-                                                    required
-                                                    onchange="enableButton('highfive-username-remove','highfive-remove-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="highfive-username-remove" name="highfive-username-remove" required onchange="enableButton('highfive-username-remove','highfive-remove-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <?php foreach ($highfiveUsers as $highfiveUser): ?>
-                                                        <option title="<?php echo htmlspecialchars($highfiveUser); ?>"
-                                                            value="<?php echo htmlspecialchars($highfiveUser); ?>">
-                                                            <?php echo htmlspecialchars($highfiveUser); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($highfiveUser); ?>" value="<?php echo htmlspecialchars($highfiveUser); ?>"><?php echo htmlspecialchars($highfiveUser); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
@@ -2069,9 +1667,7 @@ ob_start();
                                     <div style="height: 88px;"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-danger is-fullwidth"
-                                                id="highfive-remove-btn"
-                                                disabled><?php echo t('edit_counters_remove_highfive_btn'); ?></button>
+                                            <button type="submit" class="button is-danger is-fullwidth" id="highfive-remove-btn" disabled><?php echo t('edit_counters_remove_highfive_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -2085,56 +1681,42 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_user_counts'); ?></h4>
-                                <form action="" method="post" id="usercount-edit-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1">
+                                <form action="" method="post" id="usercount-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
                                     <input type="hidden" name="action" value="update">
                                     <div class="field">
-                                        <label class="label"
-                                            for="usercount-command"><?php echo t('edit_counters_command_label'); ?></label>
+                                        <label class="label" for="usercount-command"><?php echo t('edit_counters_command_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="usercount-command" name="usercount-command" required
-                                                    onchange="populateUserCountUsers(); enableUserCountEditBtn();">
-                                                    <option value=""><?php echo t('edit_counters_select_command'); ?>
-                                                    </option>
+                                                <select id="usercount-command" name="usercount-command" required onchange="populateUserCountUsers(); enableUserCountEditBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_command'); ?></option>
                                                     <?php foreach ($userCountCommands as $command): ?>
-                                                        <option title="<?php echo htmlspecialchars($command); ?>"
-                                                            value="<?php echo htmlspecialchars($command); ?>">
-                                                            <?php echo htmlspecialchars($command); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($command); ?>" value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="usercount-user"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="usercount-user"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="usercount-user" name="usercount-user" required
-                                                    onchange="enableUserCountEditBtn();">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="usercount-user" name="usercount-user" required onchange="enableUserCountEditBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                     <!-- Options will be populated by JS -->
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="usercount_count"><?php echo t('edit_counters_new_usercount_count'); ?></label>
+                                        <label class="label" for="usercount_count"><?php echo t('edit_counters_new_usercount_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="usercount_count"
-                                                name="usercount_count" value="" required min="0"
-                                                oninput="enableUserCountEditBtn();">
+                                            <input class="input" type="number" id="usercount_count" name="usercount_count" value="" required min="0" oninput="enableUserCountEditBtn();">
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-primary is-fullwidth"
-                                                id="usercount-edit-btn"
-                                                disabled><?php echo t('edit_counters_update_usercount_btn'); ?></button>
+                                            <button type="submit" class="button is-primary is-fullwidth" id="usercount-edit-btn" disabled><?php echo t('edit_counters_update_usercount_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -2144,37 +1726,27 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_user_usercount'); ?></h4>
-                                <form action="" method="post" id="usercount-remove-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1" data-type="usercount">
+                                <form action="" method="post" id="usercount-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="usercount">
                                     <input type="hidden" name="action" value="remove">
                                     <div class="field">
-                                        <label class="label"
-                                            for="usercount-command-remove"><?php echo t('edit_counters_command_label'); ?></label>
+                                        <label class="label" for="usercount-command-remove"><?php echo t('edit_counters_command_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="usercount-command-remove" name="usercount-command-remove"
-                                                    required
-                                                    onchange="populateUserCountUsersRemove(); enableUserCountRemoveBtn();">
-                                                    <option value=""><?php echo t('edit_counters_select_command'); ?>
-                                                    </option>
+                                                <select id="usercount-command-remove" name="usercount-command-remove" required onchange="populateUserCountUsersRemove(); enableUserCountRemoveBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_command'); ?></option>
                                                     <?php foreach ($userCountCommands as $command): ?>
-                                                        <option title="<?php echo htmlspecialchars($command); ?>"
-                                                            value="<?php echo htmlspecialchars($command); ?>">
-                                                            <?php echo htmlspecialchars($command); ?></option>
+                                                        <option title="<?php echo htmlspecialchars($command); ?>" value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="usercount-user-remove"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="usercount-user-remove"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="usercount-user-remove" name="usercount-user-remove" required
-                                                    onchange="enableUserCountRemoveBtn();">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="usercount-user-remove" name="usercount-user-remove" required onchange="enableUserCountRemoveBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                 </select>
                                             </div>
                                         </div>
@@ -2183,9 +1755,7 @@ ob_start();
                                     <div style="height: 88px;"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-danger is-fullwidth"
-                                                id="usercount-remove-btn"
-                                                disabled><?php echo t('edit_counters_remove_usercount_btn'); ?></button>
+                                            <button type="submit" class="button is-danger is-fullwidth" id="usercount-remove-btn" disabled><?php echo t('edit_counters_remove_usercount_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -2199,21 +1769,16 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_reward_counts'); ?></h4>
-                                <form action="" method="post" id="rewardcount-edit-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1">
+                                <form action="" method="post" id="rewardcount-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
                                     <input type="hidden" name="action" value="update">
                                     <div class="field">
-                                        <label class="label"
-                                            for="rewardcount-reward"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <label class="label" for="rewardcount-reward"><?php echo t('edit_counters_reward_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="rewardcount-reward" name="rewardcount-reward" required
-                                                    onchange="populateRewardCountUsers(); enableRewardCountEditBtn();">
-                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?>
-                                                    </option>
+                                                <select id="rewardcount-reward" name="rewardcount-reward" required>
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
                                                     <?php foreach ($rewardIds as $rid): ?>
-                                                        <option value="<?php echo htmlspecialchars($rid); ?>"
-                                                            title="<?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>">
+                                                        <option value="<?php echo htmlspecialchars($rid); ?>" title="<?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>">
                                                             <?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>
                                                         </option>
                                                     <?php endforeach; ?>
@@ -2222,32 +1787,25 @@ ob_start();
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="rewardcount-user"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="rewardcount-user"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="rewardcount-user" name="rewardcount-user" required
-                                                    onchange="enableRewardCountEditBtn();">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="rewardcount-user" name="rewardcount-user" required>
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="rewardcount_count"><?php echo t('edit_counters_new_rewardcount_count'); ?></label>
+                                        <label class="label" for="rewardcount_count"><?php echo t('edit_counters_new_rewardcount_count'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="number" id="rewardcount_count"
-                                                name="rewardcount_count" value="" required min="0">
+                                            <input class="input" type="number" id="rewardcount_count" name="rewardcount_count" value="" required min="0">
                                         </div>
                                     </div>
                                     <div class="is-flex-grow-1"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-primary is-fullwidth"
-                                                id="rewardcount-edit-btn"
-                                                disabled><?php echo t('edit_counters_update_rewardcount_btn'); ?></button>
+                                            <button type="submit" class="button is-primary is-fullwidth" id="rewardcount-edit-btn" disabled><?php echo t('edit_counters_update_rewardcount_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -2257,22 +1815,16 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_rewardcount'); ?></h4>
-                                <form action="" method="post" id="rewardcount-remove-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1" data-type="rewardcount">
+                                <form action="" method="post" id="rewardcount-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="rewardcount">
                                     <input type="hidden" name="action" value="remove">
                                     <div class="field">
-                                        <label class="label"
-                                            for="rewardcount-reward-remove"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <label class="label" for="rewardcount-reward-remove"><?php echo t('edit_counters_reward_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="rewardcount-reward-remove" name="rewardcount-reward-remove"
-                                                    required
-                                                    onchange="populateRewardCountUsersRemove(); enableRewardCountRemoveBtn();">
-                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?>
-                                                    </option>
+                                                <select id="rewardcount-reward-remove" name="rewardcount-reward-remove" required onchange="populateRewardCountUsersRemove(); enableRewardCountRemoveBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
                                                     <?php foreach ($rewardIds as $rid): ?>
-                                                        <option value="<?php echo htmlspecialchars($rid); ?>"
-                                                            title="<?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>">
+                                                        <option value="<?php echo htmlspecialchars($rid); ?>" title="<?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>">
                                                             <?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>
                                                         </option>
                                                     <?php endforeach; ?>
@@ -2281,14 +1833,11 @@ ob_start();
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="rewardcount-user-remove"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <label class="label" for="rewardcount-user-remove"><?php echo t('edit_counters_username_label'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="rewardcount-user-remove" name="rewardcount-user-remove"
-                                                    required onchange="enableRewardCountRemoveBtn();">
-                                                    <option value=""><?php echo t('edit_counters_select_user'); ?>
-                                                    </option>
+                                                <select id="rewardcount-user-remove" name="rewardcount-user-remove" required onchange="enableRewardCountRemoveBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                                                 </select>
                                             </div>
                                         </div>
@@ -2297,9 +1846,151 @@ ob_start();
                                     <div style="height: 88px;"></div>
                                     <div class="field is-grouped is-grouped-right mt-4">
                                         <div class="control">
-                                            <button type="submit" class="button is-danger is-fullwidth"
-                                                id="rewardcount-remove-btn"
-                                                disabled><?php echo t('edit_counters_remove_rewardcount_btn'); ?></button>
+                                            <button type="submit" class="button is-danger is-fullwidth" id="rewardcount-remove-btn" disabled><?php echo t('edit_counters_remove_rewardcount_btn'); ?></button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="tab-rewardStreaks" class="tab-content" style="display:none;">
+                    <div class="columns is-desktop is-multiline">
+                        <!-- Edit Reward Streak -->
+                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5"><?php echo t('edit_counters_edit_reward_streaks'); ?></h4>
+                                <form action="" method="post" id="rewardstreak-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
+                                    <input type="hidden" name="action" value="update_reward_streak">
+                                    <div class="field">
+                                        <label class="label" for="rewardstreak-reward"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth is-clipped">
+                                                <select id="rewardstreak-reward" name="rewardstreak-reward" required onchange="populateRewardStreakUsers(); enableRewardStreakEditBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
+                                                    <?php foreach ($rewardStreaksIds as $rid): ?>
+                                                        <option value="<?php echo htmlspecialchars($rid); ?>" title="<?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>">
+                                                            <?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="label" for="rewardstreak-user"><?php echo t('edit_counters_username_label'); ?></label>
+                                        <div class="control">
+                                            <input class="input" type="text" id="rewardstreak-user" name="rewardstreak-user" required>
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="label" for="rewardstreak-streak"><?php echo t('edit_counters_streak_label'); ?></label>
+                                        <div class="control">
+                                            <input class="input" type="number" id="rewardstreak-streak" name="rewardstreak-streak" value="" required min="0">
+                                        </div>
+                                    </div>
+                                    <div class="is-flex-grow-1"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-primary is-fullwidth" id="rewardstreak-edit-btn" disabled><?php echo t('edit_counters_update_rewardstreak_btn'); ?></button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <!-- Remove Reward Streak Record -->
+                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5"><?php echo t('edit_counters_remove_rewardstreak'); ?></h4>
+                                <form action="" method="post" id="rewardstreak-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="rewardstreak">
+                                    <input type="hidden" name="action" value="remove_reward_streak">
+                                    <div class="field">
+                                        <label class="label" for="rewardstreak-reward-remove"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth is-clipped">
+                                                <select id="rewardstreak-reward-remove" name="rewardstreak-reward-remove" required onchange="enableRewardStreakRemoveBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
+                                                    <?php foreach ($rewardStreaksIds as $rid): ?>
+                                                        <option value="<?php echo htmlspecialchars($rid); ?>" title="<?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>">
+                                                            <?php echo htmlspecialchars($rewardTitles[$rid] ?? $rid); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="flex-grow:1"></div>
+                                    <div style="height: 88px;"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-danger is-fullwidth" id="rewardstreak-remove-btn" disabled><?php echo t('edit_counters_remove_rewardstreak_btn'); ?></button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="tab-rewardUsage" class="tab-content" style="display:none;">
+                    <div class="columns is-desktop is-multiline">
+                        <!-- Edit Reward Usage -->
+                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5"><?php echo t('edit_counters_edit_reward_usage'); ?></h4>
+                                <form action="" method="post" id="rewardusage-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
+                                    <input type="hidden" name="action" value="update_reward_usage">
+                                    <div class="field">
+                                        <label class="label" for="rewardusage-reward"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth is-clipped">
+                                                <select id="rewardusage-reward" name="rewardusage-reward" required onchange="updateCurrentRewardUsage(); enableRewardUsageEditBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
+                                                    <?php foreach ($rewardUsageTitles as $title): ?>
+                                                        <option title="<?php echo htmlspecialchars($title); ?>" value="<?php echo htmlspecialchars($title); ?>"><?php echo htmlspecialchars($title); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="label" for="rewardusage-count"><?php echo t('edit_counters_usage_count_label'); ?></label>
+                                        <div class="control">
+                                            <input class="input" type="number" id="rewardusage-count" name="rewardusage-count" value="" required min="0">
+                                        </div>
+                                    </div>
+                                    <div class="is-flex-grow-1"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-primary is-fullwidth" id="rewardusage-edit-btn" disabled><?php echo t('edit_counters_update_rewardusage_btn'); ?></button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <!-- Remove Reward Usage Record -->
+                        <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
+                            <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
+                                <h4 class="title is-5"><?php echo t('edit_counters_remove_rewardusage'); ?></h4>
+                                <form action="" method="post" id="rewardusage-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="rewardusage">
+                                    <input type="hidden" name="action" value="remove_reward_usage">
+                                    <div class="field">
+                                        <label class="label" for="rewardusage-reward-remove"><?php echo t('edit_counters_reward_label'); ?></label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth is-clipped">
+                                                <select id="rewardusage-reward-remove" name="rewardusage-reward-remove" required onchange="enableRewardUsageRemoveBtn();">
+                                                    <option value=""><?php echo t('edit_counters_select_reward'); ?></option>
+                                                    <?php foreach ($rewardUsageTitles as $title): ?>
+                                                        <option title="<?php echo htmlspecialchars($title); ?>" value="<?php echo htmlspecialchars($title); ?>"><?php echo htmlspecialchars($title); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="flex-grow:1"></div>
+                                    <div style="height: 88px;"></div>
+                                    <div class="field is-grouped is-grouped-right mt-4">
+                                        <div class="control">
+                                            <button type="submit" class="button is-danger is-fullwidth" id="rewardusage-remove-btn" disabled><?php echo t('edit_counters_remove_rewardusage_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -2313,24 +2004,19 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-flex-grow-1">
                                 <h4 class="title is-5"><?php echo t('edit_counters_edit_quote'); ?></h4>
-                                <form action="" method="post" id="quote-edit-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1">
+                                <form action="" method="post" id="quote-edit-form" class="is-flex is-flex-direction-column is-flex-grow-1">
                                     <input type="hidden" name="action" value="update_quote">
                                     <div class="field">
-                                        <label class="label"
-                                            for="quote-id"><?php echo t('edit_counters_select_quote'); ?></label>
+                                        <label class="label" for="quote-id"><?php echo t('edit_counters_select_quote'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="quote-id" name="quote-id" required
-                                                    onchange="populateQuoteEdit();">
-                                                    <option value=""><?php echo t('edit_counters_select_quote'); ?>
-                                                    </option>
+                                                <select id="quote-id" name="quote-id" required onchange="populateQuoteEdit();">
+                                                    <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
                                                     <?php foreach ($quotesData as $q): ?>
-                                                        <option value="<?php echo (int) $q['id']; ?>"
+                                                        <option value="<?php echo (int)$q['id']; ?>"
                                                             data-quote="<?php echo htmlspecialchars($q['quote']); ?>"
                                                             data-added="<?php echo htmlspecialchars($q['added']); ?>">
-                                                            <?php echo htmlspecialchars($q['quote']); ?>
-                                                            (<?php echo date('Y-m-d H:i:s', strtotime($q['added'])); ?>)
+                                                            <?php echo htmlspecialchars($q['quote']); ?> (<?php echo date('Y-m-d H:i:s', strtotime($q['added'])); ?>)
                                                         </option>
                                                     <?php endforeach; ?>
                                                 </select>
@@ -2338,28 +2024,21 @@ ob_start();
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="quote-text"><?php echo t('edit_counters_edit_quote_text'); ?></label>
+                                        <label class="label" for="quote-text"><?php echo t('edit_counters_edit_quote_text'); ?></label>
                                         <div class="control">
-                                            <textarea class="textarea" id="quote-text" name="quote-text" required
-                                                rows="3"></textarea>
+                                            <textarea class="textarea" id="quote-text" name="quote-text" required rows="3"></textarea>
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label class="label"
-                                            for="quote-added"><?php echo t('edit_counters_edit_quote_added'); ?></label>
+                                        <label class="label" for="quote-added"><?php echo t('edit_counters_edit_quote_added'); ?></label>
                                         <div class="control">
-                                            <input class="input" type="datetime-local" id="quote-added"
-                                                name="quote-added" required>
+                                            <input class="input" type="datetime-local" id="quote-added" name="quote-added" required>
                                         </div>
                                         <p class="help"><?php echo t('edit_counters_edit_quote_added_help'); ?></p>
                                     </div>
-                                    <div
-                                        class="field is-grouped is-grouped-right mt-4 is-flex-grow-1 is-align-items-end">
+                                    <div class="field is-grouped is-grouped-right mt-4 is-flex-grow-1 is-align-items-end">
                                         <div class="control">
-                                            <button type="submit" class="button is-primary is-fullwidth"
-                                                id="quote-edit-btn"
-                                                disabled><?php echo t('edit_counters_update_quote_btn'); ?></button>
+                                            <button type="submit" class="button is-primary is-fullwidth" id="quote-edit-btn" disabled><?php echo t('edit_counters_update_quote_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -2369,23 +2048,18 @@ ob_start();
                         <div class="column is-6 is-flex is-flex-direction-column is-fullheight">
                             <div class="box has-background-dark is-flex is-flex-direction-column is-flex-grow-1">
                                 <h4 class="title is-5"><?php echo t('edit_counters_remove_quote'); ?></h4>
-                                <form action="" method="post" id="quote-remove-form"
-                                    class="is-flex is-flex-direction-column is-flex-grow-1" data-type="quote">
+                                <form action="" method="post" id="quote-remove-form" class="is-flex is-flex-direction-column is-flex-grow-1" data-type="quote">
                                     <input type="hidden" name="action" value="remove_quote">
                                     <div class="field">
-                                        <label class="label"
-                                            for="quote-id-remove"><?php echo t('edit_counters_select_quote'); ?></label>
+                                        <label class="label" for="quote-id-remove"><?php echo t('edit_counters_select_quote'); ?></label>
                                         <div class="control">
                                             <div class="select is-fullwidth is-clipped">
-                                                <select id="quote-id-remove" name="quote-id-remove" required
-                                                    onchange="populateQuotePreview(); enableButton('quote-id-remove','quote-remove-btn');">
-                                                    <option value=""><?php echo t('edit_counters_select_quote'); ?>
-                                                    </option>
+                                                <select id="quote-id-remove" name="quote-id-remove" required onchange="populateQuotePreview(); enableButton('quote-id-remove','quote-remove-btn');">
+                                                    <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
                                                     <?php foreach ($quotesData as $q): ?>
-                                                        <option value="<?php echo (int) $q['id']; ?>"
+                                                        <option value="<?php echo (int)$q['id']; ?>"
                                                             data-quote="<?php echo htmlspecialchars($q['quote']); ?>">
-                                                            <?php echo htmlspecialchars($q['quote']); ?>
-                                                            (<?php echo date('Y-m-d H:i:s', strtotime($q['added'])); ?>)
+                                                            <?php echo htmlspecialchars($q['quote']); ?> (<?php echo date('Y-m-d H:i:s', strtotime($q['added'])); ?>)
                                                         </option>
                                                     <?php endforeach; ?>
                                                 </select>
@@ -2395,16 +2069,12 @@ ob_start();
                                     <div class="field">
                                         <label class="label"><?php echo t('edit_counters_quote_preview'); ?></label>
                                         <div class="control">
-                                            <textarea class="textarea" id="quote-preview" readonly rows="7"
-                                                style="background-color: #2b2b2b; color: #fff;"></textarea>
+                                            <textarea class="textarea" id="quote-preview" readonly rows="7" style="background-color: #2b2b2b; color: #fff;"></textarea>
                                         </div>
                                     </div>
-                                    <div
-                                        class="field is-grouped is-grouped-right mt-4 is-flex-grow-1 is-align-items-end">
+                                    <div class="field is-grouped is-grouped-right mt-4 is-flex-grow-1 is-align-items-end">
                                         <div class="control">
-                                            <button type="submit" class="button is-danger is-fullwidth"
-                                                id="quote-remove-btn"
-                                                disabled><?php echo t('edit_counters_remove_quote_btn'); ?></button>
+                                            <button type="submit" class="button is-danger is-fullwidth" id="quote-remove-btn" disabled><?php echo t('edit_counters_remove_quote_btn'); ?></button>
                                         </div>
                                     </div>
                                 </form>
@@ -2422,343 +2092,563 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-    // Set a cookie
-    function setCookie(name, value, days) {
-        const d = new Date();
-        d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
-        const expires = "expires=" + d.toUTCString();
-        document.cookie = name + "=" + value + ";" + expires + ";path=/";
-    }
+// Set a cookie
+function setCookie(name, value, days) {
+    const d = new Date();
+    d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+    const expires = "expires=" + d.toUTCString();
+    document.cookie = name + "=" + value + ";" + expires + ";path=/";
+}
 
-    function populateQuotePreview() {
-        const select = document.getElementById('quote-id-remove');
-        const textarea = document.getElementById('quote-preview');
-        const selectedOption = select.options[select.selectedIndex];
-        textarea.value = selectedOption.dataset.quote || '';
-    }
+function populateQuotePreview() {
+    const select = document.getElementById('quote-id-remove');
+    const textarea = document.getElementById('quote-preview');
+    const selectedOption = select.options[select.selectedIndex];
+    textarea.value = selectedOption.dataset.quote || '';
+}
 
-    // Tab system like counters.php
-    function showTab(type) {
-        // Hide all tab contents
-        document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
-        // Show selected tab
-        var tab = document.getElementById('tab-' + type);
-        if (tab) tab.style.display = '';
-        // Update button states
-        document.querySelectorAll('.buttons .button').forEach(button => {
-            if (button.getAttribute('data-type') === type) {
-                button.classList.remove('is-info');
-                button.classList.add('is-primary');
-            } else {
-                button.classList.remove('is-primary');
-                button.classList.add('is-info');
-            }
+// Enable/disable button based on select value
+function enableButton(selectId, buttonId) {
+    var select = document.getElementById(selectId);
+    var button = document.getElementById(buttonId);
+    if (select && button) {
+        button.disabled = !select.value;
+        select.addEventListener('change', function() {
+            button.disabled = !select.value;
         });
-        // Store the user's preferred edit tab in a cookie if consent is given
-        if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
-            setCookie('preferred_edit_tab', type, 30); // Store for 30 days
+    }
+}
+
+// Tab system like counters.php
+function showTab(type) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+    // Show selected tab
+    var tab = document.getElementById('tab-' + type);
+    if (tab) tab.style.display = '';
+    // Update button states
+    document.querySelectorAll('.buttons .button').forEach(button => {
+        if (button.getAttribute('data-type') === type) {
+            button.classList.remove('is-info');
+            button.classList.add('is-primary');
+        } else {
+            button.classList.remove('is-primary');
+            button.classList.add('is-info');
         }
+    });
+    // Store the user's preferred edit tab in a cookie if consent is given
+    if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
+        setCookie('preferred_edit_tab', type, 30); // Store for 30 days
+    }
+}
+
+// On page load, show the preferred tab (from cookie) or default to 'typos'
+document.addEventListener('DOMContentLoaded', function() {
+    var defaultTab = <?php echo json_encode($defaultEditTab); ?>;
+    showTab(defaultTab);
+    enableButton('typo-username', 'typo-edit-btn');
+    enableButton('typo-username-remove', 'typo-remove-btn');
+    enableButton('command', 'command-edit-btn');
+    enableButton('command-remove', 'command-remove-btn');
+    enableDeathEditBtn();
+    enableButton('death-game-remove', 'death-remove-btn');
+    enableDeathAddBtn();
+    enableButton('hug-username', 'hug-edit-btn');
+    enableButton('hug-username-remove', 'hug-remove-btn');
+    enableButton('kiss-username', 'kiss-edit-btn');
+    enableButton('kiss-username-remove', 'kiss-remove-btn');
+    enableButton('highfive-username', 'highfive-edit-btn');
+    enableButton('highfive-username-remove', 'highfive-remove-btn');
+    enableButton('usercount-command', 'usercount-edit-btn');
+    enableButton('usercount-user', 'usercount-edit-btn');
+    enableButton('usercount-command-remove', 'usercount-remove-btn');
+    enableButton('usercount-user-remove', 'usercount-remove-btn');
+    enableButton('rewardcount-reward', 'rewardcount-edit-btn');
+    enableButton('rewardcount-user', 'rewardcount-edit-btn');
+    enableButton('rewardcount-reward-remove', 'rewardcount-remove-btn');
+    enableButton('rewardcount-user-remove', 'rewardcount-remove-btn');
+    enableButton('rewardstreak-reward', 'rewardstreak-edit-btn');
+    enableButton('rewardstreak-reward-remove', 'rewardstreak-remove-btn');
+    enableButton('rewardusage-reward', 'rewardusage-edit-btn');
+    enableButton('rewardusage-reward-remove', 'rewardusage-remove-btn');
+});
+
+// SweetAlert2 for Remove User Typo Record
+document.addEventListener('DOMContentLoaded', function() {
+    // Map type to context-aware removal message
+    const removalMessages = {
+        typo: "<?php echo t('edit_counters_swal_html_typo'); ?>",
+        command: "<?php echo t('edit_counters_swal_html_command'); ?>",
+        death: "<?php echo t('edit_counters_swal_html_death'); ?>",
+        hug: "<?php echo t('edit_counters_swal_html_hug'); ?>",
+        kiss: "<?php echo t('edit_counters_swal_html_kiss'); ?>",
+        highfive: "<?php echo t('edit_counters_swal_html_highfive'); ?>",
+        usercount: "<?php echo t('edit_counters_swal_html_usercount'); ?>",
+        rewardcount: "<?php echo t('edit_counters_swal_html_rewardcount'); ?>",
+        rewardstreak: "<?php echo t('edit_counters_swal_html_rewardstreak'); ?>",
+        rewardusage: "<?php echo t('edit_counters_swal_html_rewardusage'); ?>"
+    };
+
+    function getRemovalMessage(type, value, command) {
+        let msg = removalMessages[type] || removalMessages['typo'];
+        // For usercount and rewardcount, we want to show both user and command
+        if (type === 'usercount' || type === 'rewardcount') {
+            msg = msg.replace(':username', '<span class="has-text-danger">' + value + ' (' + command + ')</span>');
+        } else {
+            msg = msg.replace(':username', '<span class="has-text-danger">' + value + '</span>');
+        }
+        return msg;
     }
 
-    // On page load, show the preferred tab (from cookie) or default to 'typos'
-    document.addEventListener('DOMContentLoaded', function () {
-        var defaultTab = <?php echo json_encode($defaultEditTab); ?>;
-        showTab(defaultTab);
-        enableButton('typo-username', 'typo-edit-btn');
-        enableButton('typo-username-remove', 'typo-remove-btn');
-        enableButton('command', 'command-edit-btn');
-        enableButton('command-remove', 'command-remove-btn');
-        enableButton('death-game', 'death-edit-btn');
-        enableButton('death-game-remove', 'death-remove-btn');
-        enableButton('hug-username', 'hug-edit-btn');
-        enableButton('hug-username-remove', 'hug-remove-btn');
-        enableButton('kiss-username', 'kiss-edit-btn');
-        enableButton('kiss-username-remove', 'kiss-remove-btn');
-        enableButton('highfive-username', 'highfive-edit-btn');
-        enableButton('highfive-username-remove', 'highfive-remove-btn');
-        enableButton('usercount-command', 'usercount-edit-btn');
-        enableButton('usercount-user', 'usercount-edit-btn');
-        enableButton('usercount-command-remove', 'usercount-remove-btn');
-        enableButton('usercount-user-remove', 'usercount-remove-btn');
-        enableButton('rewardcount-reward', 'rewardcount-edit-btn');
-        enableButton('rewardcount-user', 'rewardcount-edit-btn');
-        enableButton('rewardcount-reward-remove', 'rewardcount-remove-btn');
-        enableButton('rewardcount-user-remove', 'rewardcount-remove-btn');
-    });
-
-    // SweetAlert2 for Remove User Typo Record
-    document.addEventListener('DOMContentLoaded', function () {
-        // Map type to context-aware removal message
-        const removalMessages = {
-            typo: "<?php echo t('edit_counters_swal_html_typo'); ?>",
-            command: "<?php echo t('edit_counters_swal_html_command'); ?>",
-            death: "<?php echo t('edit_counters_swal_html_death'); ?>",
-            hug: "<?php echo t('edit_counters_swal_html_hug'); ?>",
-            kiss: "<?php echo t('edit_counters_swal_html_kiss'); ?>",
-            highfive: "<?php echo t('edit_counters_swal_html_highfive'); ?>",
-            usercount: "<?php echo t('edit_counters_swal_html_usercount'); ?>",
-            rewardcount: "<?php echo t('edit_counters_swal_html_rewardcount'); ?>"
-        };
-
-        function getRemovalMessage(type, value, command) {
-            let msg = removalMessages[type] || removalMessages['typo'];
-            // For usercount and rewardcount, we want to show both user and command
-            if (type === 'usercount' || type === 'rewardcount') {
-                msg = msg.replace(':username', '<span class="has-text-danger">' + value + ' (' + command + ')</span>');
-            } else {
-                msg = msg.replace(':username', '<span class="has-text-danger">' + value + '</span>');
-            }
-            return msg;
-        }
-
-        // Helper to wire up SweetAlert for a form
-        function wireRemoveForm(formId, selectId, type, getExtra) {
-            var form = document.getElementById(formId);
-            if (form) {
-                form.addEventListener('submit', function (e) {
-                    e.preventDefault();
-                    var select = document.getElementById(selectId);
-                    var value = select ? select.value : '';
-                    if (!value) return;
-                    var extra = getExtra ? getExtra() : undefined;
-                    Swal.fire({
-                        title: '<?php echo t('edit_counters_swal_title'); ?>',
-                        html: getRemovalMessage(type, value, extra),
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonText: '<?php echo t('edit_counters_swal_confirm'); ?>',
-                        cancelButtonText: '<?php echo t('edit_counters_swal_cancel'); ?>',
-                        focusCancel: true,
-                        customClass: {
-                            confirmButton: 'button is-danger',
-                            cancelButton: 'button is-light'
-                        },
-                        buttonsStyling: false
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            form.submit();
-                        }
-                    });
+    // Helper to wire up SweetAlert for a form
+    function wireRemoveForm(formId, selectId, type, getExtra) {
+        var form = document.getElementById(formId);
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                var select = document.getElementById(selectId);
+                var value = select ? select.value : '';
+                if (!value) return;
+                var extra = getExtra ? getExtra() : undefined;
+                Swal.fire({
+                    title: '<?php echo t('edit_counters_swal_title'); ?>',
+                    html: getRemovalMessage(type, value, extra),
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: '<?php echo t('edit_counters_swal_confirm'); ?>',
+                    cancelButtonText: '<?php echo t('edit_counters_swal_cancel'); ?>',
+                    focusCancel: true,
+                    customClass: {
+                        confirmButton: 'button is-danger',
+                        cancelButton: 'button is-light'
+                    },
+                    buttonsStyling: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        form.submit();
+                    }
                 });
-            }
+            });
         }
+    }
 
-        wireRemoveForm('typo-remove-form', 'typo-username-remove', 'typo');
-        wireRemoveForm('command-remove-form', 'command-remove', 'command');
-        wireRemoveForm('death-remove-form', 'death-game-remove', 'death');
-        wireRemoveForm('hug-remove-form', 'hug-username-remove', 'hug');
-        wireRemoveForm('kiss-remove-form', 'kiss-username-remove', 'kiss');
-        wireRemoveForm('highfive-remove-form', 'highfive-username-remove', 'highfive');
-        wireRemoveForm('usercount-remove-form', 'usercount-user-remove', 'usercount', function () {
-            return document.getElementById('usercount-command-remove').value;
-        });
-        wireRemoveForm('rewardcount-remove-form', 'rewardcount-reward-remove', 'rewardcount', function () {
-            return document.getElementById('rewardcount-user-remove').value;
-        });
+    wireRemoveForm('typo-remove-form', 'typo-username-remove', 'typo');
+    wireRemoveForm('command-remove-form', 'command-remove', 'command');
+    wireRemoveForm('death-remove-form', 'death-game-remove', 'death');
+    wireRemoveForm('hug-remove-form', 'hug-username-remove', 'hug');
+    wireRemoveForm('kiss-remove-form', 'kiss-username-remove', 'kiss');
+    wireRemoveForm('highfive-remove-form', 'highfive-username-remove', 'highfive');
+    wireRemoveForm('usercount-remove-form', 'usercount-user-remove', 'usercount', function() {
+        return document.getElementById('usercount-command-remove').value;
     });
-
-    // Data from PHP for current counts
-    const typoCounts = <?php echo $typoCountsJs; ?>;
-    const commandCounts = <?php echo $commandCountsJs; ?>;
-    const deathCounts = <?php echo json_encode(array_column($deathData, 'death_count', 'game_name')); ?>;
-    const hugCounts = <?php echo json_encode(array_column($hugData, 'hug_count', 'username')); ?>;
-    const kissCounts = <?php echo json_encode(array_column($kissData, 'kiss_count', 'username')); ?>;
-    const highfiveCounts = <?php echo json_encode(array_column($highfiveData, 'highfive_count', 'username')); ?>;
-    const userCountCounts = <?php
-    $userCountArr = [];
-    foreach ($userCountData as $row) {
-        $userCountArr[$row['command']][$row['user']] = $row['count'];
-    }
-    echo json_encode($userCountArr);
-    ?>;
-    const rewardCounts = <?php echo json_encode($rewardCountsJs); ?>;
-    const rewardTitles = <?php echo json_encode($rewardTitlesJs); ?>;
-
-    // Populate user dropdown for reward counts (edit)
-    function populateRewardCountUsers() {
-        var rid = document.getElementById('rewardcount-reward').value;
-        var userSelect = document.getElementById('rewardcount-user');
-        userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
-        if (rid && rewardCounts[rid]) {
-            Object.keys(rewardCounts[rid]).forEach(function (user) {
-                var opt = document.createElement('option');
-                opt.value = user;
-                opt.textContent = user;
-                userSelect.appendChild(opt);
-            });
-        }
-        document.getElementById('rewardcount_count').value = '';
-        enableRewardCountEditBtn();
-    }
-
-    // Populate user dropdown for reward counts (remove)
-    function populateRewardCountUsersRemove() {
-        var rid = document.getElementById('rewardcount-reward-remove').value;
-        var userSelect = document.getElementById('rewardcount-user-remove');
-        userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
-        if (rid && rewardCounts[rid]) {
-            Object.keys(rewardCounts[rid]).forEach(function (user) {
-                var opt = document.createElement('option');
-                opt.value = user;
-                opt.textContent = user;
-                userSelect.appendChild(opt);
-            });
-        }
-        enableRewardCountRemoveBtn();
-    }
-
-    // Enable/disable edit button for reward counts
-    function enableRewardCountEditBtn() {
-        var rid = document.getElementById('rewardcount-reward').value;
-        var user = document.getElementById('rewardcount-user').value;
-        var btn = document.getElementById('rewardcount-edit-btn');
-        btn.disabled = !(rid && user);
-        updateCurrentCount('rewardcount');
-    }
-
-    // Enable/disable remove button for reward counts
-    function enableRewardCountRemoveBtn() {
-        var rid = document.getElementById('rewardcount-reward-remove').value;
-        var user = document.getElementById('rewardcount-user-remove').value;
-        var btn = document.getElementById('rewardcount-remove-btn');
-        btn.disabled = !(rid && user);
-    }
-
-    // Update input field for reward count
-    function updateCurrentCount(type, value) {
-        switch (type) {
-            case 'typo':
-                document.getElementById('typo_count').value = (value && typoCounts[value] !== undefined) ? typoCounts[value] : '';
-                break;
-            case 'command':
-                document.getElementById('command_count').value = (value && commandCounts[value] !== undefined) ? commandCounts[value] : '';
-                break;
-            case 'death':
-                document.getElementById('death_count').value = (value && deathCounts[value] !== undefined) ? deathCounts[value] : '';
-                break;
-            case 'hug':
-                document.getElementById('hug_count').value = (value && hugCounts[value] !== undefined) ? hugCounts[value] : '';
-                break;
-            case 'kiss':
-                document.getElementById('kiss_count').value = (value && kissCounts[value] !== undefined) ? kissCounts[value] : '';
-                break;
-            case 'highfive':
-                document.getElementById('highfive_count').value = (value && highfiveCounts[value] !== undefined) ? highfiveCounts[value] : '';
-                break;
-            case 'usercount':
-                var cmd = document.getElementById('usercount-command').value;
-                var user = document.getElementById('usercount-user').value;
-                if (cmd && user && userCountCounts[cmd] && userCountCounts[cmd][user] !== undefined) {
-                    document.getElementById('usercount_count').value = userCountCounts[cmd][user];
-                } else {
-                    document.getElementById('usercount_count').value = '';
-                }
-                break;
-            case 'rewardcount':
-                var rid = document.getElementById('rewardcount-reward').value;
-                var user = document.getElementById('rewardcount-user').value;
-                if (rid && user && rewardCounts[rid] && rewardCounts[rid][user] !== undefined) {
-                    document.getElementById('rewardcount_count').value = rewardCounts[rid][user];
-                } else {
-                    document.getElementById('rewardcount_count').value = '';
-                }
-                break;
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        // Wire up user count dropdowns
-        var usercountCmd = document.getElementById('usercount-command');
-        if (usercountCmd) {
-            usercountCmd.addEventListener('change', function () {
-                populateUserCountUsers();
-            });
-        }
-        var usercountCmdRemove = document.getElementById('usercount-command-remove');
-        if (usercountCmdRemove) {
-            usercountCmdRemove.addEventListener('change', function () {
-                populateUserCountUsersRemove();
-            });
-        }
-        // Also wire up user dropdowns to enable/disable buttons
-        var usercountUser = document.getElementById('usercount-user');
-        if (usercountUser) {
-            usercountUser.addEventListener('change', function () {
-                enableUserCountEditBtn();
-            });
-        }
-        var usercountUserRemove = document.getElementById('usercount-user-remove');
-        if (usercountUserRemove) {
-            usercountUserRemove.addEventListener('change', function () {
-                enableUserCountRemoveBtn();
-            });
-        }
-        // Wire up reward count dropdowns
-        var rewardcountReward = document.getElementById('rewardcount-reward');
-        if (rewardcountReward) {
-            rewardcountReward.addEventListener('change', function () {
-                populateRewardCountUsers();
-            });
-        }
-        var rewardcountRewardRemove = document.getElementById('rewardcount-reward-remove');
-        if (rewardcountRewardRemove) {
-            rewardcountRewardRemove.addEventListener('change', function () {
-                populateRewardCountUsersRemove();
-            });
-        }
-        var rewardcountUser = document.getElementById('rewardcount-user');
-        if (rewardcountUser) {
-            rewardcountUser.addEventListener('change', function () {
-                enableRewardCountEditBtn();
-            });
-        }
-        var rewardcountUserRemove = document.getElementById('rewardcount-user-remove');
-        if (rewardcountUserRemove) {
-            rewardcountUserRemove.addEventListener('change', function () {
-                enableRewardCountRemoveBtn();
-            });
-        }
-        // Wire up quote edit form
-        var quoteEditSelect = document.getElementById('quote-id');
-        if (quoteEditSelect) {
-            quoteEditSelect.addEventListener('change', function () {
-                populateQuoteEdit();
-            });
-        }
-        // Wire up quote remove form
-        var quoteRemoveSelect = document.getElementById('quote-id-remove');
-        var quoteRemoveBtn = document.getElementById('quote-remove-btn');
-        if (quoteRemoveSelect && quoteRemoveBtn) {
-            quoteRemoveSelect.addEventListener('change', function () {
-                quoteRemoveBtn.disabled = !quoteRemoveSelect.value;
-            });
-        }
+    wireRemoveForm('rewardcount-remove-form', 'rewardcount-reward-remove', 'rewardcount', function() {
+        return document.getElementById('rewardcount-user-remove').value;
     });
+    wireRemoveForm('rewardstreak-remove-form', 'rewardstreak-reward-remove', 'rewardstreak');
+    wireRemoveForm('rewardusage-remove-form', 'rewardusage-reward-remove', 'rewardusage');
+});
 
-    // Populate quote textarea and date/time when selecting a quote to edit
-    function populateQuoteEdit() {
-        var select = document.getElementById('quote-id');
-        var btn = document.getElementById('quote-edit-btn');
-        var textarea = document.getElementById('quote-text');
-        var addedInput = document.getElementById('quote-added');
-        if (select && textarea && addedInput) {
-            var selected = select.options[select.selectedIndex];
-            textarea.value = selected && selected.value ? selected.getAttribute('data-quote') : '';
-            // Convert "YYYY-MM-DD HH:MM:SS" to "YYYY-MM-DDTHH:MM:SS" for datetime-local
-            var raw = selected && selected.value ? selected.getAttribute('data-added') : '';
-            if (raw) {
-                // If the value is "YYYY-MM-DD HH:MM:SS", convert to "YYYY-MM-DDTHH:MM:SS"
-                var dt = raw.replace(' ', 'T').slice(0, 19);
-                addedInput.value = dt;
+// Data from PHP for current counts
+const typoCounts = <?php echo $typoCountsJs; ?>;
+const commandCounts = <?php echo $commandCountsJs; ?>;
+const deathCounts = <?php echo json_encode(array_column($deathData, 'death_count', 'game_name')); ?>;
+const hugCounts = <?php echo json_encode(array_column($hugData, 'hug_count', 'username')); ?>;
+const kissCounts = <?php echo json_encode(array_column($kissData, 'kiss_count', 'username')); ?>;
+const highfiveCounts = <?php echo json_encode(array_column($highfiveData, 'highfive_count', 'username')); ?>;
+const userCountCounts = <?php echo json_encode($userCountArr); ?>;
+const rewardCounts = <?php echo json_encode($rewardCountsJs); ?>;
+const rewardTitles = <?php echo json_encode($rewardTitlesJs); ?>;
+
+// Data for reward streaks and usage
+const rewardStreaks = <?php echo json_encode($rewardStreaksJs); ?>;
+const rewardUsage = <?php echo json_encode($rewardUsageJs); ?>;
+
+// Calculate and display total deaths
+const totalDeaths = Object.values(deathCounts).reduce((sum, count) => sum + parseInt(count || 0), 0);
+document.getElementById('total-deaths').textContent = totalDeaths;
+
+// Populate user dropdown for user counts (edit)
+function populateUserCountUsers() {
+    var cmd = document.getElementById('usercount-command').value;
+    var userSelect = document.getElementById('usercount-user');
+    userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
+    if (cmd && userCountCounts[cmd]) {
+        Object.keys(userCountCounts[cmd]).forEach(function(user) {
+            var opt = document.createElement('option');
+            opt.value = user;
+            opt.textContent = user;
+            userSelect.appendChild(opt);
+        });
+    }
+    document.getElementById('usercount_count').value = '';
+    enableUserCountEditBtn();
+}
+
+// Populate user dropdown for user counts (remove)
+function populateUserCountUsersRemove() {
+    var cmd = document.getElementById('usercount-command-remove').value;
+    var userSelect = document.getElementById('usercount-user-remove');
+    userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
+    if (cmd && userCountCounts[cmd]) {
+        Object.keys(userCountCounts[cmd]).forEach(function(user) {
+            var opt = document.createElement('option');
+            opt.value = user;
+            opt.textContent = user;
+            userSelect.appendChild(opt);
+        });
+    }
+    enableUserCountRemoveBtn();
+}
+
+// Enable/disable edit button for user counts
+function enableUserCountEditBtn() {
+    var cmd = document.getElementById('usercount-command').value;
+    var user = document.getElementById('usercount-user').value;
+    var countInput = document.getElementById('usercount_count');
+    var currentCount = parseInt(countInput.value) || 0;
+    var originalCount = (userCountCounts[cmd] && userCountCounts[cmd][user]) ? userCountCounts[cmd][user] : 0;
+    var btn = document.getElementById('usercount-edit-btn');
+    btn.disabled = !(cmd && user && currentCount !== originalCount);
+}
+
+// Populate user dropdown for reward counts (edit)
+function populateRewardCountUsers() {
+    var rid = document.getElementById('rewardcount-reward').value;
+    var userSelect = document.getElementById('rewardcount-user');
+    userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
+    if (rid && rewardCounts[rid]) {
+        Object.keys(rewardCounts[rid]).forEach(function(user) {
+            var opt = document.createElement('option');
+            opt.value = user;
+            opt.textContent = user;
+            userSelect.appendChild(opt);
+        });
+    }
+    document.getElementById('rewardcount_count').value = '';
+    enableRewardCountEditBtn();
+}
+
+// Populate user dropdown for reward counts (remove)
+function populateRewardCountUsersRemove() {
+    var rid = document.getElementById('rewardcount-reward-remove').value;
+    var userSelect = document.getElementById('rewardcount-user-remove');
+    userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
+    if (rid && rewardCounts[rid]) {
+        Object.keys(rewardCounts[rid]).forEach(function(user) {
+            var opt = document.createElement('option');
+            opt.value = user;
+            opt.textContent = user;
+            userSelect.appendChild(opt);
+        });
+    }
+    enableRewardCountRemoveBtn();
+}
+
+// Enable/disable edit button for reward counts
+function enableRewardCountEditBtn() {
+    var rid = document.getElementById('rewardcount-reward').value;
+    var user = document.getElementById('rewardcount-user').value;
+    var countInput = document.getElementById('rewardcount_count');
+    var currentCount = parseInt(countInput.value) || 0;
+    var originalCount = (rewardCounts[rid] && rewardCounts[rid][user]) ? rewardCounts[rid][user] : 0;
+    var btn = document.getElementById('rewardcount-edit-btn');
+    btn.disabled = !(rid && user && currentCount !== originalCount);
+    updateCurrentCount('rewardcount');
+}
+
+// Enable/disable remove button for reward counts
+function enableRewardCountRemoveBtn() {
+    var rid = document.getElementById('rewardcount-reward-remove').value;
+    var user = document.getElementById('rewardcount-user-remove').value;
+    var btn = document.getElementById('rewardcount-remove-btn');
+    btn.disabled = !(rid && user);
+}
+
+// Enable/disable edit button for death counts
+function enableDeathEditBtn() {
+    var game = document.getElementById('death-game').value;
+    var countInput = document.getElementById('death_count');
+    var currentCount = parseInt(countInput.value) || 0;
+    var originalCount = deathCounts[game] || 0;
+    var btn = document.getElementById('death-edit-btn');
+    btn.disabled = !(game && currentCount !== originalCount);
+}
+
+// Enable/disable add button for death counts
+function enableDeathAddBtn() {
+    var gameInput = document.getElementById('death-game-add');
+    var countInput = document.getElementById('death_count_add');
+    var btn = document.getElementById('death-add-btn');
+    var game = gameInput ? gameInput.value.trim() : '';
+    var count = countInput ? parseInt(countInput.value) || 0 : 0;
+    btn.disabled = !(game && count >= 0);
+}
+
+// Enable/disable remove button for user counts
+function enableUserCountRemoveBtn() {
+    var cmd = document.getElementById('usercount-command-remove').value;
+    var user = document.getElementById('usercount-user-remove').value;
+    var btn = document.getElementById('usercount-remove-btn');
+    btn.disabled = !(cmd && user);
+}
+
+// Update input field for reward count
+function updateCurrentCount(type, value) {
+    switch(type) {
+        case 'typo':
+            document.getElementById('typo_count').value = (value && typoCounts[value] !== undefined) ? typoCounts[value] : '';
+            break;
+        case 'command':
+            document.getElementById('command_count').value = (value && commandCounts[value] !== undefined) ? commandCounts[value] : '';
+            break;
+        case 'death':
+            document.getElementById('death_count').value = (value && deathCounts[value] !== undefined) ? deathCounts[value] : '';
+            break;
+        case 'hug':
+            document.getElementById('hug_count').value = (value && hugCounts[value] !== undefined) ? hugCounts[value] : '';
+            break;
+        case 'kiss':
+            document.getElementById('kiss_count').value = (value && kissCounts[value] !== undefined) ? kissCounts[value] : '';
+            break;
+        case 'highfive':
+            document.getElementById('highfive_count').value = (value && highfiveCounts[value] !== undefined) ? highfiveCounts[value] : '';
+            break;
+        case 'usercount':
+            var cmd = document.getElementById('usercount-command').value;
+            var user = document.getElementById('usercount-user').value;
+            if (cmd && user && userCountCounts[cmd] && userCountCounts[cmd][user] !== undefined) {
+                document.getElementById('usercount_count').value = userCountCounts[cmd][user];
             } else {
-                addedInput.value = '';
+                document.getElementById('usercount_count').value = '';
             }
-            btn.disabled = !select.value;
-        }
+            break;
+        case 'rewardcount':
+            var rid = document.getElementById('rewardcount-reward').value;
+            var user = document.getElementById('rewardcount-user').value;
+            if (rid && user && rewardCounts[rid] && rewardCounts[rid][user] !== undefined) {
+                document.getElementById('rewardcount_count').value = rewardCounts[rid][user];
+            } else {
+                document.getElementById('rewardcount_count').value = '';
+            }
+            break;
     }
+}
+
+// Functions for reward streaks
+function populateRewardStreakUsers() {
+    var rid = document.getElementById('rewardstreak-reward').value;
+    if (rid && rewardStreaks[rid]) {
+        document.getElementById('rewardstreak-user').value = rewardStreaks[rid].user;
+        document.getElementById('rewardstreak-streak').value = rewardStreaks[rid].streak;
+    } else {
+        document.getElementById('rewardstreak-user').value = '';
+        document.getElementById('rewardstreak-streak').value = '';
+    }
+    enableRewardStreakEditBtn();
+}
+
+function enableRewardStreakEditBtn() {
+    var rid = document.getElementById('rewardstreak-reward').value;
+    var user = document.getElementById('rewardstreak-user').value;
+    var streak = parseInt(document.getElementById('rewardstreak-streak').value) || 0;
+    var original = rewardStreaks[rid];
+    var btn = document.getElementById('rewardstreak-edit-btn');
+    btn.disabled = !(rid && user && (user !== (original ? original.user : '') || streak !== (original ? original.streak : 0)));
+}
+
+function enableRewardStreakRemoveBtn() {
+    var rid = document.getElementById('rewardstreak-reward-remove').value;
+    var btn = document.getElementById('rewardstreak-remove-btn');
+    btn.disabled = !rid;
+}
+
+// Functions for reward usage
+function updateCurrentRewardUsage() {
+    var title = document.getElementById('rewardusage-reward').value;
+    document.getElementById('rewardusage-count').value = (title && rewardUsage[title] !== undefined) ? rewardUsage[title] : '';
+}
+
+function enableRewardUsageEditBtn() {
+    var title = document.getElementById('rewardusage-reward').value;
+    var count = parseInt(document.getElementById('rewardusage-count').value) || 0;
+    var original = rewardUsage[title] || 0;
+    var btn = document.getElementById('rewardusage-edit-btn');
+    btn.disabled = !(title && count !== original);
+}
+
+function enableRewardUsageRemoveBtn() {
+    var title = document.getElementById('rewardusage-reward-remove').value;
+    var btn = document.getElementById('rewardusage-remove-btn');
+    btn.disabled = !title;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Wire up user count dropdowns
+    var usercountCmd = document.getElementById('usercount-command');
+    if (usercountCmd) {
+        usercountCmd.addEventListener('change', function() {
+            populateUserCountUsers();
+            enableUserCountEditBtn();
+        });
+    }
+    var usercountCmdRemove = document.getElementById('usercount-command-remove');
+    if (usercountCmdRemove) {
+        usercountCmdRemove.addEventListener('change', function() {
+            populateUserCountUsersRemove();
+        });
+    }
+    // Also wire up user dropdowns to enable/disable buttons
+    var usercountUser = document.getElementById('usercount-user');
+    if (usercountUser) {
+        usercountUser.addEventListener('change', function() {
+            enableUserCountEditBtn();
+            updateCurrentCount('usercount');
+        });
+    }
+    var usercountUserRemove = document.getElementById('usercount-user-remove');
+    if (usercountUserRemove) {
+        usercountUserRemove.addEventListener('change', function() {
+            enableUserCountRemoveBtn();
+        });
+    }
+    // Wire up reward count dropdowns
+    var rewardcountReward = document.getElementById('rewardcount-reward');
+    if (rewardcountReward) {
+        rewardcountReward.addEventListener('change', function() {
+            populateRewardCountUsers();
+            enableRewardCountEditBtn();
+        });
+    }
+    var rewardcountRewardRemove = document.getElementById('rewardcount-reward-remove');
+    if (rewardcountRewardRemove) {
+        rewardcountRewardRemove.addEventListener('change', function() {
+            populateRewardCountUsersRemove();
+        });
+    }
+    var rewardcountUser = document.getElementById('rewardcount-user');
+    if (rewardcountUser) {
+        rewardcountUser.addEventListener('change', function() {
+            enableRewardCountEditBtn();
+        });
+    }
+    var rewardcountUserRemove = document.getElementById('rewardcount-user-remove');
+    if (rewardcountUserRemove) {
+        rewardcountUserRemove.addEventListener('change', function() {
+            enableRewardCountRemoveBtn();
+        });
+    }
+    // Wire up reward streak dropdowns
+    var rewardstreakReward = document.getElementById('rewardstreak-reward');
+    if (rewardstreakReward) {
+        rewardstreakReward.addEventListener('change', function() {
+            populateRewardStreakUsers();
+            enableRewardStreakEditBtn();
+        });
+    }
+    // Wire up reward usage dropdowns
+    var rewardusageReward = document.getElementById('rewardusage-reward');
+    if (rewardusageReward) {
+        rewardusageReward.addEventListener('change', function() {
+            updateCurrentRewardUsage();
+            enableRewardUsageEditBtn();
+        });
+    }
+    // Wire up input listeners for reward streak and usage
+    var rewardstreakUserInput = document.getElementById('rewardstreak-user');
+    if (rewardstreakUserInput) {
+        rewardstreakUserInput.addEventListener('input', function() {
+            enableRewardStreakEditBtn();
+        });
+    }
+    var rewardstreakStreakInput = document.getElementById('rewardstreak-streak');
+    if (rewardstreakStreakInput) {
+        rewardstreakStreakInput.addEventListener('input', function() {
+            enableRewardStreakEditBtn();
+        });
+    }
+    var rewardusageCountInput = document.getElementById('rewardusage-count');
+    if (rewardusageCountInput) {
+        rewardusageCountInput.addEventListener('input', function() {
+            enableRewardUsageEditBtn();
+        });
+    }
+    // Wire up input listeners for count changes
+    var usercountCountInput = document.getElementById('usercount_count');
+    if (usercountCountInput) {
+        usercountCountInput.addEventListener('input', function() {
+            enableUserCountEditBtn();
+        });
+    }
+    var rewardcountCountInput = document.getElementById('rewardcount_count');
+    if (rewardcountCountInput) {
+        rewardcountCountInput.addEventListener('input', function() {
+            enableRewardCountEditBtn();
+        });
+    }
+    // Wire up quote edit form
+    var quoteEditSelect = document.getElementById('quote-id');
+    if (quoteEditSelect) {
+        quoteEditSelect.addEventListener('change', function() {
+            populateQuoteEdit();
+        });
+    }
+    // Wire up quote remove form
+    var quoteRemoveSelect = document.getElementById('quote-id-remove');
+    var quoteRemoveBtn = document.getElementById('quote-remove-btn');
+    if (quoteRemoveSelect && quoteRemoveBtn) {
+        quoteRemoveSelect.addEventListener('change', function() {
+            quoteRemoveBtn.disabled = !quoteRemoveSelect.value;
+        });
+    }
+    // Wire up death count form
+    var deathGameSelect = document.getElementById('death-game');
+    if (deathGameSelect) {
+        deathGameSelect.addEventListener('change', function() {
+            updateCurrentCount('death', this.value);
+            enableDeathEditBtn();
+        });
+    }
+    var deathCountInput = document.getElementById('death_count');
+    if (deathCountInput) {
+        deathCountInput.addEventListener('input', function() {
+            enableDeathEditBtn();
+        });
+    }
+    // Wire up death add form
+    var deathGameAddInput = document.getElementById('death-game-add');
+    if (deathGameAddInput) {
+        deathGameAddInput.addEventListener('input', enableDeathAddBtn);
+    }
+    var deathCountAddInput = document.getElementById('death_count_add');
+    if (deathCountAddInput) {
+        deathCountAddInput.addEventListener('input', enableDeathAddBtn);
+    }
+});
+
+// Populate quote textarea and date/time when selecting a quote to edit
+function populateQuoteEdit() {
+    var select = document.getElementById('quote-id');
+    var btn = document.getElementById('quote-edit-btn');
+    var textarea = document.getElementById('quote-text');
+    var addedInput = document.getElementById('quote-added');
+    if (select && textarea && addedInput) {
+        var selected = select.options[select.selectedIndex];
+        textarea.value = selected && selected.value ? selected.getAttribute('data-quote') : '';
+        // Convert "YYYY-MM-DD HH:MM:SS" to "YYYY-MM-DDTHH:MM:SS" for datetime-local
+        var raw = selected && selected.value ? selected.getAttribute('data-added') : '';
+        if (raw) {
+            // If the value is "YYYY-MM-DD HH:MM:SS", convert to "YYYY-MM-DDTHH:MM:SS"
+            var dt = raw.replace(' ', 'T').slice(0, 19);
+            addedInput.value = dt;
+        } else {
+            addedInput.value = '';
+        }
+        btn.disabled = !select.value;
+    }
+}
 </script>
 <?php
 $scripts = ob_get_clean();
 // Render layout
-include "mod_layout.php";
+include "layout.php";
 ?>
