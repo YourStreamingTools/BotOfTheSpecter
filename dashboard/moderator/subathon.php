@@ -1,6 +1,7 @@
 <?php
-// Initialize the session
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/../lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -9,15 +10,16 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$pageTitle = "Subathon Settings";
+$pageTitle = t('subathon_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'userdata.php';
-include 'bot_control.php';
-include "mod_access.php";
+include __DIR__ . '/../userdata.php';
+include __DIR__ . '/../bot_control.php';
+include __DIR__ . '/../mod_access.php';
 include 'user_db.php';
+$username = $editing_username;
 include 'storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
@@ -28,7 +30,9 @@ $stmt->close();
 date_default_timezone_set($timezone);
 $message = '';
 
-// Fetch the current subathon settings
+// Redundant DB connection removed as user_db.php handles it
+
+// Fetch the current subathon settings using MySQLi
 $stmt = $db->prepare("SELECT * FROM subathon_settings LIMIT 1");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -48,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
     $sub_add_1 = $_POST['sub_add_1'];
     $sub_add_2 = $_POST['sub_add_2'];
     $sub_add_3 = $_POST['sub_add_3'];
-    // Update the settings in the database
+    // Update the settings in the database using MySQLi
     $stmt = $db->prepare("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE starting_minutes=?, cheer_add=?, sub_add_1=?, sub_add_2=?, sub_add_3=?");
     $stmt->bind_param(
         "iiiiiiiii",
@@ -64,98 +68,128 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
         $sub_add_3
     );
     $stmt->execute();
-    $stmt->close();
     // Set the success message
-    $message = "Settings updated successfully!";
+    $message = t('subathon_settings_update_success');
 }
 
+// Start output buffering for layout content
 ob_start();
 ?>
-<div class="container">
-    <br>
-    <h1 class="title">Subathon Settings</h1>
-    <?php if ($message): ?>
-        <div class="notification is-success">
-            <?php echo htmlspecialchars($message); ?>
+<h1 class="title is-3 mb-5"><?php echo htmlspecialchars($pageTitle); ?></h1>
+<?php if ($message): ?>
+    <div class="notification is-success is-light">
+        <?php echo htmlspecialchars($message); ?>
+    </div>
+<?php endif; ?>
+<div class="notification is-warning is-light mb-6">
+    <div class="columns is-vcentered is-mobile">
+        <div class="column is-narrow">
+            <span class="icon is-large">
+                <i class="fas fa-hourglass-half fa-2x"></i>
+            </span>
         </div>
-    <?php endif; ?>
-    <div class="notification is-warning">
-        <div class="columns is-vcentered">
-            <div class="column is-narrow">
-                <span class="icon is-large">
-                    <i class="fas fa-hourglass-half fa-2x"></i>
-                </span>
-            </div>
-            <div class="column">
-                <p><span class="has-text-weight-bold">Subathon Time: Work in Progress!</span></p>
-                <p>We're still fine-tuning the donation feature for adding time to your subathon. In the meantime, you
-                    can easily add time with a quick command. </p>
-                <p><span class="has-text-weight-bold">Here's how:</span></p>
-                <ul>
-                    <li><span class="icon"><i class="fas fa-comment-dots"></i></span> Type
-                        <code>!subathon addtime [minutes]</code> in chat.</li>
-                    <li> For example: <code>!subathon addtime 10</code> (adds 10 minutes).</li>
-                </ul>
-                <p>We'll keep you updated on the donation feature. Thanks for your patience!</p>
-            </div>
+        <div class="column">
+            <p class="has-text-weight-bold mb-2"><?php echo t('subathon_wip_title'); ?></p>
+            <p><?php echo t('subathon_wip_desc'); ?></p>
+            <p class="has-text-weight-bold mt-3 mb-1"><?php echo t('subathon_howto_title'); ?></p>
+            <ul>
+                <li>
+                    <span class="icon"><i class="fas fa-comment-dots"></i></span>
+                    <code>!subathon addtime [minutes]</code> <?php echo t('subathon_howto_chat'); ?>
+                </li>
+                <li><?php echo t('subathon_howto_example'); ?></li>
+            </ul>
+            <p class="mt-3"><?php echo t('subathon_wip_footer'); ?></p>
         </div>
     </div>
-    <div class="columns is-desktop is-multiline box-container">
-        <div class="column is-5" id="stable-bot-status" style="position: relative;">
+</div>
+<div class="columns is-centered">
+    <div class="column is-8-tablet is-8-desktop">
+        <div class="box">
             <form method="POST" action="">
-                <div class="field">
-                    <label for="starting_minutes">Starting Minutes:</label>
+                <div class="field mb-5">
+                    <label class="label" for="starting_minutes">
+                        <?php echo t('subathon_starting_minutes'); ?>
+                    </label>
+                    <p class="has-text-grey-light mb-1"><?php echo t('subathon_default'); ?>: 60</p>
                     <div class="control">
                         <input class="input" type="number" name="starting_minutes" id="starting_minutes"
                             value="<?php echo htmlspecialchars($starting_minutes); ?>" required>
                     </div>
-                    <p class="help">This is the default starting time (in minutes) for the subathon timer when it
-                        begins. It indicates how long the subathon will run before any additional time is added. The
-                        default value is 60 minutes.</p>
+                    <p class="help">
+                        <?php echo t('subathon_starting_minutes_help'); ?>
+                    </p>
                 </div>
-                <div class="field">
-                    <label for="cheer_add">Cheer Add:</label>
-                    <div class="control">
-                        <input class="input" type="number" name="cheer_add" id="cheer_add"
-                            value="<?php echo htmlspecialchars($cheer_add); ?>" required>
+                <div class="columns is-multiline">
+                    <div class="column is-3">
+                        <div class="field mb-5">
+                            <label class="label" for="cheer_add">
+                                <?php echo t('subathon_cheer_add'); ?>
+                            </label>
+                            <p class="has-text-grey-light mb-1"><?php echo t('subathon_default'); ?>: 5</p>
+                            <div class="control">
+                                <input class="input" type="number" name="cheer_add" id="cheer_add"
+                                    value="<?php echo htmlspecialchars($cheer_add); ?>" required>
+                            </div>
+                            <p class="help"><?php echo t('subathon_cheer_add_help'); ?></p>
+                        </div>
                     </div>
-                    <p class="help">The number of minutes added to the subathon for each cheer received (per 100 bits).
-                        Default is 5 minutes.</p>
-                </div>
-                <div class="field">
-                    <label for="sub_add_1">Tier 1 Subscription:</label>
-                    <div class="control">
-                        <input class="input" type="number" name="sub_add_1" id="sub_add_1"
-                            value="<?php echo htmlspecialchars($sub_add_1); ?>" required>
+                    <div class="column is-3">
+                        <div class="field mb-5">
+                            <label class="label" for="sub_add_1">
+                                <?php echo t('subathon_sub_add_1'); ?>
+                            </label>
+                            <p class="has-text-grey-light mb-1"><?php echo t('subathon_default'); ?>: 10</p>
+                            <div class="control">
+                                <input class="input" type="number" name="sub_add_1" id="sub_add_1"
+                                    value="<?php echo htmlspecialchars($sub_add_1); ?>" required>
+                            </div>
+                            <p class="help"><?php echo t('subathon_sub_add_1_help'); ?></p>
+                        </div>
                     </div>
-                    <p class="help">The number of minutes added for each Tier 1 subscription received.</p>
-                </div>
-                <div class="field">
-                    <label for="sub_add_2">Tier 2 Subscription:</label>
-                    <div class="control">
-                        <input class="input" type="number" name="sub_add_2" id="sub_add_2"
-                            value="<?php echo htmlspecialchars($sub_add_2); ?>" required>
+                    <div class="column is-3">
+                        <div class="field mb-5">
+                            <label class="label" for="sub_add_2">
+                                <?php echo t('subathon_sub_add_2'); ?>
+                            </label>
+                            <p class="has-text-grey-light mb-1"><?php echo t('subathon_default'); ?>: 20</p>
+                            <div class="control">
+                                <input class="input" type="number" name="sub_add_2" id="sub_add_2"
+                                    value="<?php echo htmlspecialchars($sub_add_2); ?>" required>
+                            </div>
+                            <p class="help"><?php echo t('subathon_sub_add_2_help'); ?></p>
+                        </div>
                     </div>
-                    <p class="help">The number of minutes added for each Tier 2 subscription received.</p>
-                </div>
-                <div class="field">
-                    <label for="sub_add_3">Tier 3 Subscription:</label>
-                    <div class="control">
-                        <input class="input" type="number" name="sub_add_3" id="sub_add_3"
-                            value="<?php echo htmlspecialchars($sub_add_3); ?>" required>
+                    <div class="column is-3">
+                        <div class="field mb-5">
+                            <label class="label" for="sub_add_3">
+                                <?php echo t('subathon_sub_add_3'); ?>
+                            </label>
+                            <p class="has-text-grey-light mb-1"><?php echo t('subathon_default'); ?>: 30</p>
+                            <div class="control">
+                                <input class="input" type="number" name="sub_add_3" id="sub_add_3"
+                                    value="<?php echo htmlspecialchars($sub_add_3); ?>" required>
+                            </div>
+                            <p class="help"><?php echo t('subathon_sub_add_3_help'); ?></p>
+                        </div>
                     </div>
-                    <p class="help">The number of minutes added for each Tier 3 subscription received.</p>
                 </div>
-                <div class="control">
-                    <button class="button is-primary" type="submit" name="update_settings">Update Settings</button>
+                <div class="field is-grouped is-grouped-right">
+                    <div class="control">
+                        <button class="button is-primary" type="submit" name="update_settings">
+                            <span class="icon"><i class="fas fa-save"></i></span>
+                            <span><?php echo t('subathon_update_settings_btn'); ?></span>
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 </div>
-
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <?php
+// End buffering and assign to $content
 $content = ob_get_clean();
+
+// Use layout.php for rendering
 include 'mod_layout.php';
-exit;
+?>
