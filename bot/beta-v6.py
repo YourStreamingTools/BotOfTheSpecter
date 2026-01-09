@@ -597,6 +597,7 @@ async def subscribe_to_events(session_id):
         {"type": "channel.chat.user_message_hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         {"type": "channel.shoutout.create", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.shoutout.receive", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "channel.chat.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         # v2 topics
         {"type": "channel.channel_points_automatic_reward_redemption.add", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},        
         {"type": "automod.message.hold", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
@@ -849,6 +850,27 @@ async def connect_to_streamlabs():
 async def process_message(message, source):
     global streamelements_token, streamlabs_token
     try:
+        # For StreamLabs, strip Socket.IO frame type prefix (e.g., "0", "40", "42")
+        if source == "StreamLabs":
+            # Socket.IO messages start with a frame type number, strip it
+            # Frame types: 0=open, 1=close, 2=ping, 3=pong, 4=message, 40=connect, 41=disconnect, 42=event
+            message_str = str(message)
+            # Find where the JSON starts (after the leading digits)
+            json_start = 0
+            for i, char in enumerate(message_str):
+                if not char.isdigit():
+                    json_start = i
+                    break
+            # If the entire message is just digits (like "40"), skip processing
+            if json_start == 0 and message_str.isdigit():
+                event_logger.debug(f"StreamLabs Socket.IO control frame: {message_str}")
+                return
+            # Extract JSON part
+            json_message = message_str[json_start:]
+            if not json_message:
+                event_logger.debug(f"StreamLabs message has no JSON content: {message_str}")
+                return
+            message = json_message
         data = json.loads(message)
         if source == "StreamElements":
             if data.get('type') == 'response':
@@ -1436,6 +1458,13 @@ async def process_twitch_eventsub_message(message):
                         shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct inforamtion from twitch to process the request."
                     await send_chat_message(shoutout_message)
                     twitch_logger.info(f"Shoutout message sent: {shoutout_message}")
+                elif event_type == "channel.chat.message":
+                    if event_data.get("source_broadcaster_user_id") and event_data["source_broadcaster_user_id"] != CHANNEL_ID:
+                        return
+                    chatter_user_id = event_data["chatter_user_id"]
+                    chatter_user_name = event_data["chatter_user_name"]
+                    message_text = event_data["message"]["text"]
+                    create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
                 else:
                     # Logging for unknown event types
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
@@ -2399,8 +2428,6 @@ class TwitchBot(commands.AutoBot):
                     pass
                 else:
                     bot_logger.error(f"An error occurred in event_message: {e}")
-            finally:
-                await self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser, messageContent)
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
         if messageAuthor in [bannedUser, None, ""]:
@@ -2526,37 +2553,21 @@ class TwitchBot(commands.AutoBot):
 
     async def user_points(self, messageAuthor, messageAuthorID):
         try:
-            connection = await mysql_handler.get_connection()
-            async with connection.cursor(DictCursor) as cursor:
-                settings = await get_point_settings()
-                if not settings or 'chat_points' not in settings or 'excluded_users' not in settings:
-                    chat_logger.error("Error: Point settings are missing or incomplete.")
-                    return
-                chat_points = settings['chat_points']
-                excluded_users = settings['excluded_users'].split(',')
-                #bot_logger.info(f"Excluded users: {excluded_users}")
-                author_lower = messageAuthor.lower()
-                if author_lower not in excluded_users:
-                    await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
-                    result = await cursor.fetchone()
-                    current_points = result.get('points') if result else 0
-                    new_points = current_points + chat_points
-                    if result:
-                        await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
-                        #bot_logger.info(f"Updated {settings['point_name']} for {messageAuthor} in the database.")
-                    else:
-                        await cursor.execute(
-                            "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                            (messageAuthorID, messageAuthor, new_points)
-                        )
-                        bot_logger.info(f"Inserted new user {messageAuthor} with {settings['point_name']} {new_points} into the database.")
-                    await connection.commit()
+            settings = await get_point_settings()
+            if not settings or 'chat_points' not in settings or 'excluded_users' not in settings:
+                chat_logger.error("Error: Point settings are missing or incomplete.")
+                return
+            chat_points = settings['chat_points']
+            excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
+            author_lower = messageAuthor.lower()
+            if author_lower not in excluded_users:
+                result = await manage_user_points(messageAuthorID, messageAuthor, "credit", chat_points)
+                if result["success"]:
+                    bot_logger.info(f"Awarded {chat_points} {settings['point_name']} to {messageAuthor}. Total: {result['points']}")
                 else:
-                    return
+                    chat_logger.error(f"Failed to award points to {messageAuthor}: {result['error']}")
         except Exception as e:
             chat_logger.error(f"Error in user_points: {e}")
-        finally:
-            pass
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
         try:
@@ -2608,8 +2619,6 @@ class TwitchBot(commands.AutoBot):
                         bot_logger.error(f"Group '{name}' does not exist.")
         except Exception as e:
             bot_logger.error(f"An error occurred in user_grouping: {e}")
-        finally:
-            pass
 
     async def call_command(self, command_name, ctx):
         if command_name in self.running_commands:
@@ -2907,10 +2916,6 @@ class TwitchBot(commands.AutoBot):
             api_logger.info("AI access denied due to lack of premium.")
             return False
 
-class TwitchBotCommnads(commands.Component):
-    def __init__(self, bot: Bot) -> None:
-        self.bot = bot
-
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(ctx: commands.Context):
         global bot_owner
@@ -2954,8 +2959,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
             await send_chat_message("An error occurred while fetching the twitch_commands. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='bot')
     async def bot_command(ctx: commands.Context):
@@ -2991,8 +2994,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the bot command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='wsstatus')
     async def websocket_status_command(ctx: commands.Context):
@@ -3042,8 +3043,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in websocket_status_command: {e}")
             await send_chat_message("An error occurred while checking WebSocket status.")
-        finally:
-            pass
 
     @commands.command(name='dbstatus')
     async def database_status_command(ctx: commands.Context):
@@ -3100,8 +3099,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in database_status_command: {e}")
             await send_chat_message("An error occurred while checking database status.")
-        finally:
-            pass
 
     @commands.command(name='forceonline')
     async def forceonline_command(ctx: commands.Context):
@@ -3139,8 +3136,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in forceonline_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
-        finally:
-            pass
 
     @commands.command(name='forceoffline')
     async def forceoffline_command(ctx: commands.Context):
@@ -3180,8 +3175,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in forceoffline_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
-        finally:
-            pass
 
     @commands.command(name='version')
     async def version_command(ctx: commands.Context):
@@ -3251,8 +3244,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the version command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='roadmap')
     async def roadmap_command(ctx: commands.Context):
@@ -3287,8 +3278,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roadmap command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='weather')
     async def weather_command(ctx: commands.Context, *, location: str = None) -> None:
@@ -3339,8 +3328,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the weather command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='points')
     async def points_command(ctx: commands.Context):
@@ -3368,31 +3355,26 @@ class TwitchBotCommnads(commands.Component):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        # Check if the user exists in the database
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                        result = await cursor.fetchone()
-                        if result:
-                            points = result.get("points")
-                            chat_logger.info(f"{user_name} has {points} points")
+                        settings = await get_point_settings()
+                        if settings and 'excluded_users' in settings:
+                            excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
+                            if user_name.lower() in excluded_users:
+                                await send_chat_message(f'@{user_name}, you have 0 points.')
+                                add_usage('points', bucket_key, cooldown_bucket)
+                                return
+                        result = await manage_user_points(user_id, user_name, "get")
+                        if result["success"]:
+                            points = result["points"]
+                            await send_chat_message(f'@{user_name}, you have {points} points.')
+                            add_usage('points', bucket_key, cooldown_bucket)
                         else:
-                            points = 0
-                            chat_logger.info(f"{user_name} has {points} points")
-                            await cursor.execute(
-                                "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                                (user_id, user_name, points)
-                            )
-                            await connection.commit()
-                        await send_chat_message(f'@{user_name}, you have {points} points.')
-                        # Record usage
-                        add_usage('points', bucket_key, cooldown_bucket)
+                            await send_chat_message(f"Error checking points: {result['error']}")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the points command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the points command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='addpoints')
     async def addpoints_command(ctx: commands.Context, user: str, points_to_add: int):
@@ -3418,29 +3400,22 @@ class TwitchBotCommnads(commands.Component):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@')  # Remove @ if present
-                        user_id = str(ctx.author.id)
-                        user_name = user if user else ctx.author.name
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                        result = await cursor.fetchone()
-                        if result:
-                            new_points = result["points"] + points_to_add
-                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+                        user = user.lstrip('@')
+                        user_info = await self.fetch_users(names=[user])
+                        if not user_info:
+                            await send_chat_message(f"User {user} not found.")
+                            return
+                        target_user_id = str(user_info[0].id)
+                        target_user_name = user_info[0].name
+                        result = await manage_user_points(target_user_id, target_user_name, "credit", points_to_add)
+                        if result["success"]:
+                            await send_chat_message(f"Added {points_to_add} points to {target_user_name}. They now have {result['points']} points.")
+                            add_usage('addpoints', bucket_key, cooldown_bucket)
                         else:
-                            new_points = points_to_add
-                            await cursor.execute(
-                                "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                                (user_id, user_name, new_points)
-                            )
-                        await connection.commit()
-                        await send_chat_message(f"Added {points_to_add} points to {user_name}. They now have {new_points} points.")
-                        # Record usage
-                        add_usage('addpoints', bucket_key, cooldown_bucket)
+                            await send_chat_message(f"Error adding points: {result['error']}")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of addpoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='removepoints')
     async def removepoints_command(ctx: commands.Context, user: str, points_to_remove: int):
@@ -3466,25 +3441,22 @@ class TwitchBotCommnads(commands.Component):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@')  # Remove @ if present
-                        user_id = str(ctx.author.id)
-                        user_name = user if user else ctx.author.name
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                        result = await cursor.fetchone()
-                        if result:
-                            new_points = max(0, result["points"] - points_to_remove)
-                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
-                            await connection.commit()
-                            await send_chat_message(f"Removed {points_to_remove} points from {user_name}. They now have {new_points} points.")
-                            # Record usage
+                        user = user.lstrip('@')
+                        user_info = await self.fetch_users(names=[user])
+                        if not user_info:
+                            await send_chat_message(f"User {user} not found.")
+                            return
+                        target_user_id = str(user_info[0].id)
+                        target_user_name = user_info[0].name
+                        result = await manage_user_points(target_user_id, target_user_name, "debit", points_to_remove)
+                        if result["success"]:
+                            await send_chat_message(f"Removed {result['amount_changed']} points from {target_user_name}. They now have {result['points']} points.")
                             add_usage('removepoints', bucket_key, cooldown_bucket)
                         else:
-                            await send_chat_message(f"{user_name} does not have any points.")
+                            await send_chat_message(f"Error removing points: {result['error']}")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of removepoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='time')
     async def time_command(ctx: commands.Context, *, timezone: str = None) -> None:
@@ -3577,8 +3549,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the time command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='joke')
     async def joke_command(ctx: commands.Context):
@@ -3634,8 +3604,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the joke command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='quote')
     async def quote_command(ctx: commands.Context, number: int = None):
@@ -3683,8 +3651,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the quote command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='quoteadd')
     async def quoteadd_command(ctx: commands.Context, *, quote):
@@ -3721,8 +3687,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the quoteadd command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='removequote')
     async def quoteremove_command(ctx: commands.Context, number: int = None):
@@ -3765,8 +3729,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the removequote command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='permit')
     async def permit_command(ctx: commands.Context, permit_user: str = None):
@@ -3806,8 +3768,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the permit command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='settitle')
     async def settitle_command(ctx: commands.Context, *, title: str = None) -> None:
@@ -3847,8 +3807,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the settitle command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='setgame')
     async def setgame_command(ctx: commands.Context, *, game: str = None) -> None:
@@ -3904,8 +3862,6 @@ class TwitchBotCommnads(commands.Component):
                 await send_chat_message("An unexpected error occurred. Please try again later.")
             except:
                 pass
-        finally:
-            pass
 
     @commands.command(name='song')
     async def song_command(ctx: commands.Context):
@@ -3977,8 +3933,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the song command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='songrequest', aliases=['sr'])
     async def songrequest_command(ctx: commands.Context):
@@ -4157,8 +4111,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the songrequest command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='skipsong', aliases=['skip'])
     async def skipsong_command(ctx: commands.Context):
@@ -4228,8 +4180,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the skipsong command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
     async def songqueue_command(ctx: commands.Context):
@@ -4319,8 +4269,6 @@ class TwitchBotCommnads(commands.Component):
                 await send_chat_message("Something went wrong while fetching the song queue. Please try again later.")
             except:
                 pass
-        finally:
-            pass
 
     @commands.command(name='timer')
     async def timer_command(ctx: commands.Context):
@@ -4375,8 +4323,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='stoptimer')
     async def stoptimer_command(ctx: commands.Context):
@@ -4417,8 +4363,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the stoptimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='checktimer')
     async def checktimer_command(ctx: commands.Context):
@@ -4461,8 +4405,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the checktimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='hug')
     async def hug_command(ctx: commands.Context, mentioned_username: str = None):
@@ -4531,8 +4473,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in hug command: {e}")
             await send_chat_message("An error occurred while processing the command.")
-        finally:
-            pass
 
     @commands.command(name='highfive')
     async def highfive_command(ctx: commands.Context, mentioned_username: str = None):
@@ -4601,8 +4541,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in highfive command: {e}")
             await send_chat_message("An error occurred while processing the command.")
-        finally:
-            pass
 
     @commands.command(name='kiss')
     async def kiss_command(ctx: commands.Context, mentioned_username: str = None):
@@ -4671,8 +4609,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in kiss command: {e}")
             await send_chat_message("An error occurred while processing the command.")
-        finally:
-            pass
 
     @commands.command(name='ping')
     async def ping_command(ctx: commands.Context):
@@ -4724,8 +4660,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in ping_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
-        finally:
-            pass
 
     @commands.command(name='translate')
     async def translate_command(ctx: commands.Context):
@@ -4778,8 +4712,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in translate_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
-        finally:
-            pass
 
     @commands.command(name='cheerleader', aliases=['bitsleader'])
     async def cheerleader_command(ctx: commands.Context):
@@ -4834,8 +4766,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in cheerleader_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
-        finally:
-            pass
 
     @commands.command(name='mybits')
     async def mybits_command(ctx: commands.Context):
@@ -4918,8 +4848,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in mybits_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
-        finally:
-            pass
 
     @commands.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
@@ -4991,8 +4919,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
             await send_chat_message(f"Thanks for lurking! See you soon.")
-        finally:
-            pass
 
     @commands.command(name='lurking')
     async def lurking_command(ctx: commands.Context):
@@ -5042,8 +4968,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in lurking_command: {e}")
             await send_chat_message(f"Oops, something went wrong while trying to check your lurk time.")
-        finally:
-            pass
 
     @commands.command(name='lurklead', aliases=['lurkleader'])
     async def lurklead_command(ctx: commands.Context):
@@ -5104,8 +5028,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in lurklead_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check the command status.")
-        finally:
-            pass
 
     @commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(ctx: commands.Context):
@@ -5174,8 +5096,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
             await send_chat_message("Oops, something went wrong with the unlurk command.")
-        finally:
-            pass
 
     @commands.command(name='userslurking')
     async def userslurking_command(ctx: commands.Context):
@@ -5216,8 +5136,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in userslurking_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check the number of lurkers.")
-        finally:
-            pass
 
     @commands.command(name='clip')
     async def clip_command(ctx: commands.Context):
@@ -5277,8 +5195,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             twitch_logger.error(f"Error in clip_command: {e}")
             await send_chat_message("An error occurred while executing the clip command.")
-        finally:
-            pass
 
     @commands.command(name='marker')
     async def marker_command(ctx: commands.Context, *, description: str):
@@ -5318,8 +5234,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             twitch_logger.error(f"Error in marker_command: {e}")
             await send_chat_message("An error occurred while executing the marker command.")
-        finally:
-            pass
 
     @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(ctx: commands.Context):
@@ -5384,8 +5298,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subscription command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='uptime')
     async def uptime_command(ctx: commands.Context):
@@ -5454,8 +5366,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the uptime command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='typo')
     async def typo_command(ctx: commands.Context, mentioned_username: str = None):
@@ -5508,8 +5418,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
             await send_chat_message(f"An error occurred while trying to add to your typo count.")
-        finally:
-            pass
 
     @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(ctx: commands.Context, mentioned_username: str = None):
@@ -5554,8 +5462,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to check typos.")
-        finally:
-            pass
 
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
@@ -5624,8 +5530,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
@@ -5672,8 +5576,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to remove typos.")
-        finally:
-            pass
 
     @commands.command(name='steam')
     async def steam_command(ctx: commands.Context):
@@ -5740,8 +5642,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in steam_command: {e}")
             await send_chat_message("An error occurred while trying to check the Steam store.")
-        finally:
-            pass
 
     @commands.command(name='deaths')
     async def deaths_command(ctx: commands.Context):
@@ -5798,8 +5698,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
-        finally:
-            pass
 
     @commands.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(ctx: commands.Context, deaths: int = 1):
@@ -5878,8 +5776,6 @@ class TwitchBotCommnads(commands.Component):
                 await send_chat_message(f"An unexpected error occurred: {e}")
             except:
                 pass
-        finally:
-            pass
 
     @commands.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(ctx: commands.Context, deaths: int = 1):
@@ -5951,8 +5847,6 @@ class TwitchBotCommnads(commands.Component):
                 await send_chat_message(f"An unexpected error occurred: {e}")
             except:
                 pass
-        finally:
-            pass
 
     @commands.command(name='game')
     async def game_command(ctx: commands.Context):
@@ -5986,8 +5880,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in game_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to retrieve the game information.")
-        finally:
-            pass
 
     @commands.command(name='followage')
     async def followage_command(ctx: commands.Context, mentioned_username: str = None):
@@ -6081,8 +5973,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the followage command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='schedule')
     async def schedule_command(ctx: commands.Context):
@@ -6184,8 +6074,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the schedule command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='checkupdate')
     async def checkupdate_command(ctx: commands.Context):
@@ -6239,8 +6127,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in checkupdate_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check for updates.")
-        finally:
-            pass
 
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
@@ -6293,8 +6179,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='addcommand')
     async def addcommand_command(ctx: commands.Context):
@@ -6337,8 +6221,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the addcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='editcommand')
     async def editcommand_command(ctx: commands.Context):
@@ -6381,8 +6263,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the editcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='removecommand')
     async def removecommand_command(ctx: commands.Context):
@@ -6425,8 +6305,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the removecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='enablecommand')
     async def enablecommand_command(ctx: commands.Context):
@@ -6485,8 +6363,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='disablecommand')
     async def disablecommand_command(ctx: commands.Context):
@@ -6545,8 +6421,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='slots')
     async def slots_command(ctx: commands.Context):
@@ -6625,8 +6499,6 @@ class TwitchBotCommnads(commands.Component):
                 await send_chat_message("An unexpected error occurred. Please try again later.")
             except:
                 pass
-        finally:
-            pass
 
     @commands.command(name='kill')
     async def kill_command(ctx: commands.Context, mention: str = None):
@@ -6691,8 +6563,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the kill command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name="roulette")
     async def roulette_command(ctx: commands.Context):
@@ -6754,8 +6624,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roulette command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name="rps")
     async def rps_command(ctx: commands.Context):
@@ -6804,8 +6672,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the RPS command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name="gamble")
     async def gamble_command(ctx: commands.Context):
@@ -6877,8 +6743,9 @@ class TwitchBotCommnads(commands.Component):
                     user_points = 0
                 else:
                     user_points = user_data.get("points")
-                # Check if user has enough points
-                if user_points < bet_amount:
+                # Check if user has enough points (broadcaster has unlimited points)
+                is_broadcaster = ctx.author.is_broadcaster
+                if not is_broadcaster and user_points < bet_amount:
                     await send_chat_message(f"{ctx.author.name}, you don't have enough points to gamble {bet_amount}. You have {user_points} points.")
                     return
                 # Handle game types
@@ -6913,17 +6780,16 @@ class TwitchBotCommnads(commands.Component):
                 else:
                     await send_chat_message(f"{ctx.author.name}, invalid game type. Try !gamble coinflip {bet_amount}, !gamble blackjack {bet_amount}, or !gamble roulette red {bet_amount}")
                     return
-                # Update user's points in the database
-                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
-                await connection.commit()
+                # Update user's points in the database (skip for broadcaster)
+                if not is_broadcaster:
+                    await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                    await connection.commit()
                 await send_chat_message(message)
                 # Record usage
                 add_usage('gamble', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the gamble command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name="story")
     async def story_command(ctx: commands.Context):
@@ -6969,8 +6835,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the story command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name="convert")
     async def convert_command(ctx: commands.Context, *args):
@@ -7057,8 +6921,6 @@ class TwitchBotCommnads(commands.Component):
                 await send_chat_message("An unexpected error occurred. Please try again later.")
             except:
                 pass
-        finally:
-            pass
 
     @commands.command(name='todo')
     async def todo_command(ctx: commands.Context: commands.Context):
@@ -7122,8 +6984,6 @@ class TwitchBotCommnads(commands.Component):
                 chat_logger.warning(f"{user.name} used an unrecognized action: {action}.")
         except Exception as e:
             bot_logger.error(f"An error occurred in todo_command: {e}")
-        finally:
-            pass
 
     @commands.command(name="subathon")
     async def subathon_command(ctx: commands.Context, action: str = None, minutes: int = None):
@@ -7178,8 +7038,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subathon command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='heartrate')
     async def heartrate_command(ctx: commands.Context):
@@ -7229,8 +7087,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            pass
 
     @commands.command(name='watchtime')
     async def watchtime_command(ctx: commands.Context):
@@ -7301,8 +7157,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             bot_logger.error(f"Error fetching watch time for {username}: {e}")
             await send_chat_message(f"@{username}, an error occurred while fetching your watch time.")
-        finally:
-            pass
 
     @commands.command(name='startlotto')
     async def startlotto_command(ctx: commands.Context):
@@ -7338,8 +7192,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             bot_logger.error(f"Error in starting lotto game: {e}")
             await send_chat_message("There was an error generating the lotto numbers.")
-        finally:
-            pass
 
     @commands.command(name='drawlotto')
     async def drawlotto_command(ctx: commands.Context):
@@ -7449,8 +7301,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
-        finally:
-            pass
 
     @commands.command(name='obs')
     async def obs_command(ctx: commands.Context):
@@ -7499,8 +7349,6 @@ class TwitchBotCommnads(commands.Component):
         except Exception as e:
             chat_logger.error(f"Error in obs_command: {e}")
             await send_chat_message("An error occurred while sending OBS event.")
-        finally:
-            pass
 
 # Functions for all the commands
 ##
@@ -9493,6 +9341,12 @@ async def websocket_notice(
                     params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
                 elif event == "VIDEO_ALERT" and video:
                     params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
+                elif event == "MODERATION":
+                    if additional_data:
+                        params.update(additional_data)
+                    else:
+                        websocket_logger.error(f"Event '{event}' requires additional parameters.")
+                        return
                 else:
                     websocket_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
                     return
@@ -9788,7 +9642,7 @@ async def process_channel_point_rewards(event_data, event_type):
                                 if streak_row:
                                     current_user_from_db = streak_row['current_user']
                                     current_streak = streak_row['streak']
-                                    if current_user_from_db.lower() == user_name.lower():
+                                    if current_user_from_db and current_user_from_db.lower() == user_name.lower():
                                         current_user = user_name
                                         current_streak += 1
                                     else:
@@ -9873,8 +9727,6 @@ async def process_channel_point_rewards(event_data, event_type):
                 create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
         except Exception as e:
             event_logger.error(f"An error occurred while processing the reward: {str(e)}")
-        finally:
-            pass
 
 async def channel_point_rewards():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
@@ -10601,7 +10453,7 @@ async def track_watch_time(active_users):
                 await cursor.executemany("UPDATE watch_time SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s WHERE user_id = %s", updates)
             # Execute batch inserts
             if inserts:
-                await cursor.executemany("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE total_watch_time_live = total_watch_time_live + VALUES(total_watch_time_live), total_watch_time_offline = total_watch_time_offline + VALUES(total_watch_time_offline), last_active = VALUES(last_active), username = VALUES(username)", inserts)
+                await cursor.executemany("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s) AS new_watch_time ON DUPLICATE KEY UPDATE total_watch_time_live = watch_time.total_watch_time_live + new_watch_time.total_watch_time_live, total_watch_time_offline = watch_time.total_watch_time_offline + new_watch_time.total_watch_time_offline, last_active = new_watch_time.last_active, username = new_watch_time.username", inserts)
             await connection.commit()
     except Exception as e:
         bot_logger.error(f"Error in track_watch_time: {e}", exc_info=True)
@@ -10697,7 +10549,11 @@ async def get_ad_settings():
                     'ad_end_message': settings.get("ad_end_message", "Thanks for sticking with us through the ads! Welcome back, everyone!"),
                     'ad_upcoming_message': settings.get("ad_upcoming_message", "Heads up! An ad break is coming up in (minutes) minutes and will last (duration)."),
                     'ad_snoozed_message': settings.get("ad_snoozed_message", "Ads have been snoozed."),
-                    'enable_ad_notice': settings.get("enable_ad_notice", True)
+                    'enable_ad_notice': settings.get("enable_ad_notice", True),
+                    'enable_upcoming_ad_message': settings.get("enable_upcoming_ad_message", True),
+                    'enable_start_ad_message': settings.get("enable_start_ad_message", True),
+                    'enable_end_ad_message': settings.get("enable_end_ad_message", True),
+                    'enable_snoozed_ad_message': settings.get("enable_snoozed_ad_message", True)
                 }
             else:
                 ad_settings_cache = {
@@ -10705,7 +10561,11 @@ async def get_ad_settings():
                     'ad_end_message': "Thanks for sticking with us through the ads! Welcome back, everyone!",
                     'ad_upcoming_message': "Heads up! An ad break is coming up in (minutes) minutes and will last (duration).",
                     'ad_snoozed_message': "Ads have been snoozed.",
-                    'enable_ad_notice': True
+                    'enable_ad_notice': True,
+                    'enable_upcoming_ad_message': True,
+                    'enable_start_ad_message': True,
+                    'enable_end_ad_message': True,
+                    'enable_snoozed_ad_message': True
                 }
             # Ensure messages are distinct to avoid confusion
             if ad_settings_cache['ad_upcoming_message'] == ad_settings_cache['ad_snoozed_message']:
@@ -10729,7 +10589,11 @@ async def get_ad_settings():
             'ad_end_message': "Thanks for sticking with us through the ads! Welcome back, everyone!",
             'ad_upcoming_message': "Heads up! An ad break is coming up in (minutes) minutes and will last (duration).",
             'ad_snoozed_message': "Ads have been snoozed.",
-            'enable_ad_notice': True
+            'enable_ad_notice': True,
+            'enable_upcoming_ad_message': True,
+            'enable_start_ad_message': True,
+            'enable_end_ad_message': True,
+            'enable_snoozed_ad_message': True
         }
         ad_settings_cache_time = current_time
         return ad_settings_cache
@@ -10741,6 +10605,10 @@ async def handle_ad_break_start(duration_seconds):
     settings = await get_ad_settings()
     if not settings['enable_ad_notice']:
         return
+    # Check individual setting for start message
+    if not settings.get('enable_start_ad_message', True):
+        return
+        
     formatted_duration = format_duration(duration_seconds)
     ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
     try:
@@ -10754,9 +10622,11 @@ async def handle_ad_break_start(duration_seconds):
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
     async def handle_ad_break_end():
         try:
-            sent_ok = await send_chat_message(settings['ad_end_message'])
-            if not sent_ok:
-                api_logger.warning(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+            # Check individual setting for end message
+            if settings.get('enable_end_ad_message', True):
+                sent_ok = await send_chat_message(settings['ad_end_message'])
+                if not sent_ok:
+                    api_logger.warning(f"Ad end message failed to send: {settings.get('ad_end_message')}")
         except Exception as e:
             api_logger.error(f"Exception while sending ad end message: {e}")
         # Check for the next ad after this one completes
@@ -10775,7 +10645,6 @@ async def handle_ad_break_start(duration_seconds):
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
     global CHANNEL_NAME, stream_online, ad_upcoming_notified
-    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     last_notification_time = None
     last_ad_time = None
     last_snooze_count = None
@@ -10822,15 +10691,17 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                 skip_upcoming_check = False
                 if last_snooze_count is not None and snooze_count < last_snooze_count:
                     settings = await get_ad_settings()
-                    snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
-                    try:
-                        sent_ok = await send_chat_message(snooze_message)
-                        if not sent_ok:
-                            api_logger.warning(f"Failed to send snooze message: {snooze_message}")
-                        else:
-                            api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
-                    except Exception as e:
-                        api_logger.error(f"Exception sending snooze message: {e}")
+                    # Check global and individual settings for snoozed message
+                    if settings and settings['enable_ad_notice'] and settings.get('enable_snoozed_ad_message', True):
+                        snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
+                        try:
+                            sent_ok = await send_chat_message(snooze_message)
+                            if not sent_ok:
+                                api_logger.warning(f"Failed to send snooze message: {snooze_message}")
+                            else:
+                                api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
+                        except Exception as e:
+                            api_logger.error(f"Exception sending snooze message: {e}")
                     last_snooze_count = snooze_count
                     skip_upcoming_check = True
                     return last_notification_time, last_ad_time, last_snooze_count
@@ -10849,21 +10720,25 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                                 minutes_until = 5
                                 duration_text = format_duration(duration)
                                 settings = await get_ad_settings()
-                                if settings and settings['ad_upcoming_message']:
-                                    message = settings['ad_upcoming_message']
-                                    # Replace placeholders
-                                    message = message.replace("(minutes)", str(minutes_until))
-                                    message = message.replace("(duration)", duration_text)
-                                else:
-                                    message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
-                                try:
-                                    sent_ok = await send_chat_message(message)
-                                    if not sent_ok:
-                                        api_logger.warning(f"Failed to send 5-minute ad notification: {message}")
+                                # Check global and individual settings for upcoming message
+                                if settings and settings['enable_ad_notice'] and settings.get('enable_upcoming_ad_message', True):
+                                    if settings and settings['ad_upcoming_message']:
+                                        message = settings['ad_upcoming_message']
+                                        # Replace placeholders
+                                        message = message.replace("(minutes)", str(minutes_until))
+                                        message = message.replace("(duration)", duration_text)
                                     else:
-                                        api_logger.info(f"Sent 5-minute ad notification: {message}")
-                                except Exception as e:
-                                    api_logger.error(f"Exception while sending 5-minute ad notification: {e}")
+                                        message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
+                                    try:
+                                        sent_ok = await send_chat_message(message)
+                                        if not sent_ok:
+                                            api_logger.warning(f"Failed to send 5-minute ad notification: {message}")
+                                        else:
+                                            api_logger.info(f"Sent 5-minute ad notification: {message}")
+                                    except Exception as e:
+                                        api_logger.error(f"Exception while sending 5-minute ad notification: {e}")
+                                else:
+                                    api_logger.debug("Ad upcoming notification disabled by settings")
                                 last_notification_time = next_ad_at
                                 ad_upcoming_notified = True
                     except Exception as e:
@@ -11070,6 +10945,87 @@ async def get_shoutout_message(user_id, user_name, action="command"):
                 f"https://www.twitch.tv/{user_name}"
             )
     return shoutout_message
+
+# Function to manage user points
+async def manage_user_points(user_id: str, user_name: str, action: str, amount: int = 0) -> dict:
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            if result:
+                current_points = result.get("points", 0)
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, 0)",
+                    (user_id, user_name)
+                )
+                await connection.commit()
+                current_points = 0
+            previous_points = current_points
+            if action == "get":
+                return {
+                    "success": True,
+                    "points": current_points,
+                    "previous_points": current_points,
+                    "amount_changed": 0,
+                    "error": None
+                }
+            elif action == "credit":
+                new_points = current_points + amount
+                await cursor.execute(
+                    "UPDATE bot_points SET points = %s WHERE user_id = %s",
+                    (new_points, user_id)
+                )
+                await connection.commit()
+                return {
+                    "success": True,
+                    "points": new_points,
+                    "previous_points": previous_points,
+                    "amount_changed": amount,
+                    "error": None
+                }
+            elif action == "debit":
+                actual_debit = min(amount, current_points)
+                new_points = max(0, current_points - amount)
+                await cursor.execute(
+                    "UPDATE bot_points SET points = %s WHERE user_id = %s",
+                    (new_points, user_id)
+                )
+                await connection.commit()
+                return {
+                    "success": True,
+                    "points": new_points,
+                    "previous_points": previous_points,
+                    "amount_changed": actual_debit,
+                    "error": None
+                }
+            else:
+                return {
+                    "success": False,
+                    "points": current_points,
+                    "previous_points": current_points,
+                    "amount_changed": 0,
+                    "error": f"Invalid action: {action}. Use 'get', 'credit', or 'debit'."
+                }
+    except Exception as e:
+        bot_logger.error(f"Error in manage_user_points (action={action}, user={user_name}): {e}")
+        return {
+            "success": False,
+            "points": 0,
+            "previous_points": 0,
+            "amount_changed": 0,
+            "error": str(e)
+        }
+
+async def process_chat_message_event(user_id: str, user_name: str, message: str = ""):
+    try:
+        get_function_from = BOTS_TWITCH_BOT
+        await get_function_from.message_counting_and_welcome_messages(user_name, user_id, False, message)
+        await get_function_from.user_points(user_name, user_id)
+        event_logger.info(f"Processed chat message from {user_name}: welcome check + points awarded")
+    except Exception as e:
+        event_logger.error(f"Error processing chat message event for {user_name}: {e}")
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
