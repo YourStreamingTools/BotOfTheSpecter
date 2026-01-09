@@ -82,6 +82,7 @@ _cached_instructions = None
 _cached_instructions_time = 0
 INSTRUCTIONS_CACHE_TTL = int('300') # seconds
 HISTORY_DIR = '/home/botofthespecter/ai/chat-history'
+AD_BREAK_CHAT_DIR = '/home/botofthespecter/ai/ad_break_chat'
 # Max allowed characters per chat message; reserve room for possible prefixes like @username
 MAX_CHAT_MESSAGE_LENGTH = 240
 SSH_USERNAME = os.getenv('SSH_USERNAME')
@@ -1295,6 +1296,13 @@ async def process_twitch_eventsub_message(message):
                         create_task(handel_twitch_poll(event="poll.end", poll_title=poll_title, message=message))
                 # Stream Online/Offline Event
                 elif event_type in ["stream.online", "stream.offline"]:
+                    # Reset ad break count in database
+                    try:
+                        await cursor.execute("INSERT INTO stream_session_stats (id, ad_break_count) VALUES (1, 0) ON DUPLICATE KEY UPDATE ad_break_count = 0")
+                        await connection.commit()
+                        event_logger.info(f"Reset ad break count for {event_type}")
+                    except Exception as e:
+                        event_logger.error(f"Error resetting ad break count: {e}")
                     if event_type == "stream.online":
                         bot_logger.info(f"Stream is now online!")
                         create_task(websocket_notice(event="STREAM_ONLINE"))
@@ -1421,6 +1429,39 @@ async def process_twitch_eventsub_message(message):
                     chatter_user_id = event_data["chatter_user_id"]
                     chatter_user_name = event_data["chatter_user_name"]
                     message_text = event_data["message"]["text"]
+                    # Capture chat for AI Ad Breaks
+                    try:
+                        # Skip if it matches an auto-posted timed message
+                        is_auto_message = False
+                        auto_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
+                        if message_text in auto_messages:
+                            is_auto_message = True
+                        if not is_auto_message:
+                            Path(AD_BREAK_CHAT_DIR).mkdir(parents=True, exist_ok=True)
+                            chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
+                            chat_entry = {
+                                "user": chatter_user_name,
+                                "message": message_text,
+                                "timestamp": time.time()
+                            }
+                            current_chat = []
+                            if chat_file.exists():
+                                try:
+                                    with chat_file.open('r', encoding='utf-8') as f:
+                                        content = f.read()
+                                        if content:
+                                            current_chat = json.loads(content)
+                                except json.JSONDecodeError:
+                                    # If file is corrupted, start fresh
+                                    current_chat = []
+                                except Exception as e:
+                                    event_logger.error(f"Error reading ad break chat log: {e}")
+                            current_chat.append(chat_entry)
+                            with chat_file.open('w', encoding='utf-8') as f:
+                                json.dump(current_chat, f, ensure_ascii=False, indent=2)
+                            
+                    except Exception as e:
+                        event_logger.error(f"Error logging chat for ad break: {e}")
                     create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
                 else:
                     # Logging for unknown event types
@@ -10496,7 +10537,8 @@ async def get_ad_settings():
                     'enable_upcoming_ad_message': settings.get("enable_upcoming_ad_message", True),
                     'enable_start_ad_message': settings.get("enable_start_ad_message", True),
                     'enable_end_ad_message': settings.get("enable_end_ad_message", True),
-                    'enable_snoozed_ad_message': settings.get("enable_snoozed_ad_message", True)
+                    'enable_snoozed_ad_message': settings.get("enable_snoozed_ad_message", True),
+                    'enable_ai_ad_breaks': settings.get("enable_ai_ad_breaks", 0)
                 }
             else:
                 ad_settings_cache = {
@@ -10508,7 +10550,8 @@ async def get_ad_settings():
                     'enable_upcoming_ad_message': True,
                     'enable_start_ad_message': True,
                     'enable_end_ad_message': True,
-                    'enable_snoozed_ad_message': True
+                    'enable_snoozed_ad_message': True,
+                    'enable_ai_ad_breaks': 0
                 }
             # Ensure messages are distinct to avoid confusion
             if ad_settings_cache['ad_upcoming_message'] == ad_settings_cache['ad_snoozed_message']:
@@ -10536,7 +10579,8 @@ async def get_ad_settings():
             'enable_upcoming_ad_message': True,
             'enable_start_ad_message': True,
             'enable_end_ad_message': True,
-            'enable_snoozed_ad_message': True
+            'enable_snoozed_ad_message': True,
+            'enable_ai_ad_breaks': 0
         }
         ad_settings_cache_time = current_time
         return ad_settings_cache
@@ -10546,21 +10590,80 @@ async def get_ad_settings():
 # Function for AD BREAK
 async def handle_ad_break_start(duration_seconds):
     settings = await get_ad_settings()
-    if not settings['enable_ad_notice']:
-        return
-    # Check individual setting for start message
-    if not settings.get('enable_start_ad_message', True):
-        return
-        
     formatted_duration = format_duration(duration_seconds)
-    ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
+    # 1. Update Ad Break Count
+    ad_break_count = 1
     try:
-        # Try to send the start message and log if it fails
-        sent_ok = await send_chat_message(ad_start_message)
-        if not sent_ok:
-            api_logger.warning(f"Ad start message failed to send: {ad_start_message}")
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("UPDATE stream_session_stats SET ad_break_count = ad_break_count + 1 WHERE id = 1")
+            await connection.commit()
+            await cursor.execute("SELECT ad_break_count FROM stream_session_stats WHERE id = 1")
+            result = await cursor.fetchone()
+            if result:
+                ad_break_count = result['ad_break_count']
     except Exception as e:
-        api_logger.error(f"Exception while sending ad start message: {e}")
+        api_logger.error(f"Error updating ad break count in handle_ad_break_start: {e}")
+    # 2. AI Logic
+    enable_ai = settings.get('enable_ai_ad_breaks', 0)
+    premium_tier = await check_premium_feature(CHANNEL_NAME)
+    ai_message_sent = False
+    if enable_ai and premium_tier >= 2000:
+        try:
+            chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
+            chat_history = []
+            if chat_file.exists():
+                try:
+                    with chat_file.open('r', encoding='utf-8') as f:
+                        content = f.read()
+                        if content:
+                            chat_history = json.loads(content)
+                except Exception as e:
+                    event_logger.error(f"Error reading chat history: {e}")
+            system_prompt = (
+                "You are the witty and entertaining assistant for a Twitch stream. "
+                f"An ad break is starting now (Duration: {formatted_duration}). "
+                f"This is ad break number {ad_break_count} of the current stream session. "
+                "Your goal is to write a message to the chat to keep them entertained/inform them. "
+                "IMPORTANT: Keep your response under 500 characters."
+            )
+            user_content = ""
+            if ad_break_count == 1:
+                user_content = "This is the first ad break of the stream. Welcome everyone to the break, reassure them we will be back soon, and maybe suggest a quick stretch. "
+            user_content += "Summarize the following recent chat conversation to catch everyone up on what happened since the last break (or start of stream). Be brief and fun. Chat logs:\n"
+            for entry in chat_history:
+                user_content += f"{entry.get('user', 'User')}: {entry.get('message', '')}\n"
+            try:
+                response = await openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ],
+                    max_tokens=150,
+                    temperature=0.7
+                )
+                ai_text = response.choices[0].message.content.strip()
+                await send_chat_message(f"/me 🤖 {ai_text}")
+                ai_message_sent = True
+                event_logger.info(f"Sent AI Ad Break message: {ai_text}")
+                with chat_file.open('w', encoding='utf-8') as f:
+                    json.dump([], f)
+            except Exception as e:
+                event_logger.error(f"OpenAI error during ad break in handle_ad_break_start: {e}")
+        except Exception as e:
+            event_logger.error(f"Error in AI Ad Break logic in handle_ad_break_start: {e}")
+    # 3. Standard Notice (Fallback or if AI disabled)
+    if not ai_message_sent:
+        if settings['enable_ad_notice'] and settings.get('enable_start_ad_message', True):
+            ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
+            try:
+        # Try to send the start message and log if it fails
+                sent_ok = await send_chat_message(ad_start_message)
+                if not sent_ok:
+                    api_logger.warning(f"Ad start message failed to send: {ad_start_message}")
+            except Exception as e:
+                api_logger.error(f"Exception while sending ad start message: {e}")
 
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
     async def handle_ad_break_end():
@@ -10810,8 +10913,8 @@ async def track_chat_message():
 
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
-    if len(message) > 255:
-        chat_logger.error(f"Message too long: {len(message)} characters (max 255)")
+    if len(message) > 500:
+        chat_logger.error(f"Message too long: {len(message)} characters (max 500)")
         return False
     url = "https://api.twitch.tv/helix/chat/messages"
     headers = {
