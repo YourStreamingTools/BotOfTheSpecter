@@ -1,4 +1,4 @@
-<?php 
+<?php
 // Initialize the session
 session_start();
 
@@ -12,9 +12,10 @@ $access_token = $_SESSION['access_token'];
 $broadcasterID = $_SESSION['editing_user'];
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 
-function getTwitchUserId($username, $accessToken, $clientID) {
+function getTwitchUserId($username, $accessToken, $clientID)
+{
     $url = "https://api.twitch.tv/helix/users?login=$username";
-    $headers = ["Authorization: Bearer $accessToken","Client-Id: $clientID"];
+    $headers = ["Authorization: Bearer $accessToken", "Client-Id: $clientID"];
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
@@ -25,9 +26,10 @@ function getTwitchUserId($username, $accessToken, $clientID) {
 }
 
 // Ensure the banned status check is scoped to the broadcaster
-function isUserBanned($userId, $accessToken, $broadcasterID, $clientID) {
+function isUserBanned($userId, $accessToken, $broadcasterID, $clientID)
+{
     $url = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id=$broadcasterID&user_id=$userId";
-    $headers = ["Authorization: Bearer $accessToken","Client-Id: $clientID"];
+    $headers = ["Authorization: Bearer $accessToken", "Client-Id: $clientID"];
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
@@ -45,7 +47,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $bannedUsersCache = [];
     if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
         $cacheContent = file_get_contents($cacheFile);
-        if ($cacheContent) { $bannedUsersCache = json_decode($cacheContent, true); }
+        if ($cacheContent) {
+            $bannedUsersCache = json_decode($cacheContent, true);
+        }
     }
     $result = [];
     if (isset($_POST['usernames'])) {
@@ -64,9 +68,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         if (!empty($usernamesToCheck)) {
             // Batch fetch user IDs
-            $query = implode('&', array_map(function($u) { return 'login=' . urlencode($u); }, $usernamesToCheck));
+            $query = implode('&', array_map(function ($u) {
+                return 'login=' . urlencode($u); }, $usernamesToCheck));
             $url = "https://api.twitch.tv/helix/users?$query";
-            $headers = ["Authorization: Bearer $access_token","Client-Id: $clientID"];
+            $headers = ["Authorization: Bearer $access_token", "Client-Id: $clientID"];
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
@@ -83,7 +88,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
             // Batch check banned
             if (!empty($userIds)) {
-                $query = 'broadcaster_id=' . urlencode($broadcasterID) . '&' . implode('&', array_map(function($id) { return 'user_id=' . urlencode($id); }, $userIds));
+                $query = 'broadcaster_id=' . urlencode($broadcasterID) . '&' . implode('&', array_map(function ($id) {
+                    return 'user_id=' . urlencode($id); }, $userIds));
                 $url = "https://api.twitch.tv/helix/moderation/banned?$query";
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -111,7 +117,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
         // Update cache
-        if (!is_dir($cacheDirectory)) { mkdir($cacheDirectory, 0755, true); }
+        if (!is_dir($cacheDirectory)) {
+            mkdir($cacheDirectory, 0755, true);
+        }
         if (!empty($bannedUsersCache) && $tempFileHandle = fopen($tempCacheFile, 'w')) {
             if (flock($tempFileHandle, LOCK_EX)) {
                 fwrite($tempFileHandle, json_encode($bannedUsersCache));

@@ -146,7 +146,7 @@ if ($displayMessageData) {
         $displayMessages = "<p class='has-text-success'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
     } elseif (!empty($_GET['errorMessage'])) {
         $errorMessage = isset($_GET['errorMessage']) ? $_GET['errorMessage'] : '';
-        $displayMessages = "<p class='has-text-danger'>". htmlspecialchars($errorMessage) . "</p>";
+        $displayMessages = "<p class='has-text-danger'>" . htmlspecialchars($errorMessage) . "</p>";
     }
 }
 
@@ -164,7 +164,8 @@ ob_start();
     <div class="container">
         <div class="columns is-centered">
             <div class="column is-fullwidth">
-                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                <div class="card has-background-dark has-text-white"
+                    style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
                     <header class="card-header" style="border-bottom: 1px solid #23272f;">
                         <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
                             <span class="icon mr-2"><i class="fas fa-clock"></i></span>
@@ -175,11 +176,17 @@ ob_start();
                         <!-- Variables Information Card -->
                         <div class="columns is-desktop is-multiline is-centered mb-5">
                             <div class="column is-fullwidth" style="max-width: 1200px;">
-                                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                                <div class="card has-background-dark has-text-white"
+                                    style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
                                     <div class="card-content">
-                                        <h5 class="title is-6 mb-2"><span class="icon"><i class="fas fa-info-circle"></i></span> <?php echo t('timed_messages_variables_title') ?: 'Available Variables'; ?></h5>
+                                        <h5 class="title is-6 mb-2"><span class="icon"><i
+                                                    class="fas fa-info-circle"></i></span>
+                                            <?php echo t('timed_messages_variables_title') ?: 'Available Variables'; ?>
+                                        </h5>
                                         <ul class="mb-0" style="list-style: disc inside;">
-                                            <li><code>(game)</code> – <?php echo t('timed_messages_var_game') ?: 'Displays the current game being played (NEW).'; ?></li>
+                                            <li><code>(game)</code> –
+                                                <?php echo t('timed_messages_var_game') ?: 'Displays the current game being played (NEW).'; ?>
+                                            </li>
                                             <!-- Add more variables here as needed -->
                                         </ul>
                                     </div>
@@ -201,31 +208,45 @@ ob_start();
                                     <h4 class="title is-5"><?php echo t('timed_messages_add_title'); ?></h4>
                                     <form id="addMessageForm" method="post" action="" onsubmit="return validateForm()">
                                         <div class="field">
-                                            <label class="label" for="message"><?php echo t('timed_messages_message_label'); ?></label>
+                                            <label class="label"
+                                                for="message"><?php echo t('timed_messages_message_label'); ?></label>
                                             <div class="control">
-                                                <input class="input" type="text" name="message" id="message" required maxlength="255" oninput="updateCharCount('message', 'charCount'); toggleAddButton();">
-                                                <p id="charCount" class="help">0/255 <?php echo t('timed_messages_characters'); ?></p>
-                                                <span id="messageError" class="help is-danger" style="display: none;"><?php echo t('timed_messages_message_required'); ?></span>
+                                                <input class="input" type="text" name="message" id="message" required
+                                                    maxlength="255"
+                                                    oninput="updateCharCount('message', 'charCount'); toggleAddButton();">
+                                                <p id="charCount" class="help">0/255
+                                                    <?php echo t('timed_messages_characters'); ?></p>
+                                                <span id="messageError" class="help is-danger"
+                                                    style="display: none;"><?php echo t('timed_messages_message_required'); ?></span>
                                             </div>
                                         </div>
                                         <div class="field">
-                                            <label class="label" for="interval"><?php echo t('timed_messages_interval_label'); ?></label>
+                                            <label class="label"
+                                                for="interval"><?php echo t('timed_messages_interval_label'); ?></label>
                                             <div class="control">
-                                                <input class="input" type="number" name="interval" id="interval" min="5" max="60" required value="5" oninput="toggleAddButton();">
-                                                <span id="intervalError" class="help is-danger" style="display: none;"><?php echo t('timed_messages_interval_error'); ?></span>
+                                                <input class="input" type="number" name="interval" id="interval" min="5"
+                                                    max="60" required value="5" oninput="toggleAddButton();">
+                                                <span id="intervalError" class="help is-danger"
+                                                    style="display: none;"><?php echo t('timed_messages_interval_error'); ?></span>
                                             </div>
                                         </div>
                                         <div class="field">
-                                            <label class="label" for="chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
+                                            <label class="label"
+                                                for="chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
                                             <div class="control">
-                                                <input class="input" type="number" name="chat_line_trigger" id="chat_line_trigger" min="5" value="5" oninput="toggleAddButton();">
-                                                <span id="chatLineTriggerError" class="help is-danger" style="display: none;"><?php echo t('timed_messages_chat_line_trigger_error'); ?></span>
+                                                <input class="input" type="number" name="chat_line_trigger"
+                                                    id="chat_line_trigger" min="5" value="5"
+                                                    oninput="toggleAddButton();">
+                                                <span id="chatLineTriggerError" class="help is-danger"
+                                                    style="display: none;"><?php echo t('timed_messages_chat_line_trigger_error'); ?></span>
                                             </div>
                                         </div>
                                         <div style="flex-grow:1"></div>
                                         <div style="height: 165px;"></div>
                                         <div class="control">
-                                            <button type="submit" id="addMessageButton" class="button is-primary is-fullwidth" disabled><?php echo t('timed_messages_add_btn'); ?></button>
+                                            <button type="submit" id="addMessageButton"
+                                                class="button is-primary is-fullwidth"
+                                                disabled><?php echo t('timed_messages_add_btn'); ?></button>
                                         </div>
                                     </form>
                                 </div>
@@ -235,60 +256,81 @@ ob_start();
                                 <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                     <h4 class="title is-5"><?php echo t('timed_messages_edit_title'); ?></h4>
                                     <?php if (!empty($timedMessagesData)): ?>
-                                    <form id="editMessageForm" method="post" action="" onsubmit="return validateEditForm()">
-                                        <div class="field">
-                                            <label class="label" for="edit_message"><?php echo t('timed_messages_select_edit_label'); ?></label>
-                                            <div class="control">
-                                                <div class="select is-fullwidth">
-                                                    <select name="edit_message" id="edit_message" onchange="showResponse(); toggleEditButton();">
-                                                        <option value="" selected><?php echo t('timed_messages_select_edit_placeholder'); ?></option>
-                                                        <?php
-                                                        usort($timedMessagesData, function($a, $b) {
-                                                            return $a['id'] - $b['id'];
-                                                        });
-                                                        foreach ($timedMessagesData as $message): ?>
-                                                            <option value="<?php echo $message['id']; ?>">
-                                                                (<?php echo "ID: " . $message['id']; ?>) <?php echo htmlspecialchars($message['message']); ?>
+                                        <form id="editMessageForm" method="post" action=""
+                                            onsubmit="return validateEditForm()">
+                                            <div class="field">
+                                                <label class="label"
+                                                    for="edit_message"><?php echo t('timed_messages_select_edit_label'); ?></label>
+                                                <div class="control">
+                                                    <div class="select is-fullwidth">
+                                                        <select name="edit_message" id="edit_message"
+                                                            onchange="showResponse(); toggleEditButton();">
+                                                            <option value="" selected>
+                                                                <?php echo t('timed_messages_select_edit_placeholder'); ?>
                                                             </option>
-                                                        <?php endforeach; ?>
-                                                    </select>
+                                                            <?php
+                                                            usort($timedMessagesData, function ($a, $b) {
+                                                                return $a['id'] - $b['id'];
+                                                            });
+                                                            foreach ($timedMessagesData as $message): ?>
+                                                                <option value="<?php echo $message['id']; ?>">
+                                                                    (<?php echo "ID: " . $message['id']; ?>)
+                                                                    <?php echo htmlspecialchars($message['message']); ?>
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label" for="edit_interval"><?php echo t('timed_messages_interval_label'); ?></label>
-                                            <div class="control">
-                                                <input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required oninput="toggleEditButton();">
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label" for="edit_chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
-                                            <div class="control">
-                                                <input class="input" type="number" name="edit_chat_line_trigger" id="edit_chat_line_trigger" min="5" oninput="toggleEditButton();">
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label" for="edit_message_content"><?php echo t('timed_messages_message_label'); ?></label>
-                                            <div class="control">
-                                                <input class="input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="255" oninput="updateCharCount('edit_message_content', 'editCharCount'); toggleEditButton();">
-                                                <p id="editCharCount" class="help">0/255 <?php echo t('timed_messages_characters'); ?></p>
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label" for="edit_status"><?php echo t('timed_messages_status_label'); ?></label>
-                                            <div class="control">
-                                                <div class="select is-fullwidth">
-                                                    <select name="edit_status" id="edit_status" onchange="toggleEditButton();">
-                                                        <option value="True"><?php echo t('timed_messages_status_enabled'); ?></option>
-                                                        <option value="False"><?php echo t('timed_messages_status_disabled'); ?></option>
-                                                    </select>
+                                            <div class="field">
+                                                <label class="label"
+                                                    for="edit_interval"><?php echo t('timed_messages_interval_label'); ?></label>
+                                                <div class="control">
+                                                    <input class="input" type="number" name="edit_interval"
+                                                        id="edit_interval" min="5" max="60" required
+                                                        oninput="toggleEditButton();">
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div class="control">
-                                            <button type="submit" id="editMessageButton" class="button is-primary is-fullwidth" disabled><?php echo t('timed_messages_save_btn'); ?></button>
-                                        </div>
-                                    </form>
+                                            <div class="field">
+                                                <label class="label"
+                                                    for="edit_chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
+                                                <div class="control">
+                                                    <input class="input" type="number" name="edit_chat_line_trigger"
+                                                        id="edit_chat_line_trigger" min="5" oninput="toggleEditButton();">
+                                                </div>
+                                            </div>
+                                            <div class="field">
+                                                <label class="label"
+                                                    for="edit_message_content"><?php echo t('timed_messages_message_label'); ?></label>
+                                                <div class="control">
+                                                    <input class="input" type="text" name="edit_message_content"
+                                                        id="edit_message_content" required maxlength="255"
+                                                        oninput="updateCharCount('edit_message_content', 'editCharCount'); toggleEditButton();">
+                                                    <p id="editCharCount" class="help">0/255
+                                                        <?php echo t('timed_messages_characters'); ?></p>
+                                                </div>
+                                            </div>
+                                            <div class="field">
+                                                <label class="label"
+                                                    for="edit_status"><?php echo t('timed_messages_status_label'); ?></label>
+                                                <div class="control">
+                                                    <div class="select is-fullwidth">
+                                                        <select name="edit_status" id="edit_status"
+                                                            onchange="toggleEditButton();">
+                                                            <option value="True">
+                                                                <?php echo t('timed_messages_status_enabled'); ?></option>
+                                                            <option value="False">
+                                                                <?php echo t('timed_messages_status_disabled'); ?></option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="control">
+                                                <button type="submit" id="editMessageButton"
+                                                    class="button is-primary is-fullwidth"
+                                                    disabled><?php echo t('timed_messages_save_btn'); ?></button>
+                                            </div>
+                                        </form>
                                     <?php else: ?>
                                         <p class="has-text-grey-light"><?php echo t('timed_messages_no_edit'); ?></p>
                                     <?php endif; ?>
@@ -299,34 +341,45 @@ ob_start();
                                 <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
                                     <h4 class="title is-5"><?php echo t('timed_messages_remove_title'); ?></h4>
                                     <?php if (!empty($timedMessagesData)): ?>
-                                    <form id="removeMessageForm" method="post" action="" class="is-flex is-flex-direction-column is-flex-grow-1">
-                                        <div class="field">
-                                            <label class="label" for="remove_message"><?php echo t('timed_messages_select_remove_label'); ?></label>
-                                            <div class="control">
-                                                <div class="select is-fullwidth">
-                                                    <select name="remove_message" id="remove_message" onchange="showMessage(); toggleRemoveButton();">
-                                                        <option value=""><?php echo t('timed_messages_select_remove_placeholder'); ?></option>
-                                                        <?php foreach ($timedMessagesData as $message): ?>
-                                                            <option value="<?php echo $message['id']; ?>">
-                                                                <?php echo t('timed_messages_message_id'); ?> <?php echo $message['id']; ?> - <?php echo htmlspecialchars(mb_strimwidth($message['message'], 0, 40, "")); ?>
+                                        <form id="removeMessageForm" method="post" action=""
+                                            class="is-flex is-flex-direction-column is-flex-grow-1">
+                                            <div class="field">
+                                                <label class="label"
+                                                    for="remove_message"><?php echo t('timed_messages_select_remove_label'); ?></label>
+                                                <div class="control">
+                                                    <div class="select is-fullwidth">
+                                                        <select name="remove_message" id="remove_message"
+                                                            onchange="showMessage(); toggleRemoveButton();">
+                                                            <option value="">
+                                                                <?php echo t('timed_messages_select_remove_placeholder'); ?>
                                                             </option>
-                                                        <?php endforeach; ?>
-                                                    </select>
+                                                            <?php foreach ($timedMessagesData as $message): ?>
+                                                                <option value="<?php echo $message['id']; ?>">
+                                                                    <?php echo t('timed_messages_message_id'); ?>
+                                                                    <?php echo $message['id']; ?> -
+                                                                    <?php echo htmlspecialchars(mb_strimwidth($message['message'], 0, 40, "")); ?>
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label" for="remove_message_content"><?php echo t('timed_messages_message_label'); ?></label>
-                                            <div class="control">
-                                                <textarea class="textarea" id="remove_message_content" disabled rows="7"></textarea>
+                                            <div class="field">
+                                                <label class="label"
+                                                    for="remove_message_content"><?php echo t('timed_messages_message_label'); ?></label>
+                                                <div class="control">
+                                                    <textarea class="textarea" id="remove_message_content" disabled
+                                                        rows="7"></textarea>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div style="flex-grow:1"></div>
-                                        <div style="height: 118px;"></div>
-                                        <div class="control">
-                                            <button type="submit" id="removeMessageButton" class="button is-danger is-fullwidth" disabled><?php echo t('timed_messages_remove_btn'); ?></button>
-                                        </div>
-                                    </form>
+                                            <div style="flex-grow:1"></div>
+                                            <div style="height: 118px;"></div>
+                                            <div class="control">
+                                                <button type="submit" id="removeMessageButton"
+                                                    class="button is-danger is-fullwidth"
+                                                    disabled><?php echo t('timed_messages_remove_btn'); ?></button>
+                                            </div>
+                                        </form>
                                     <?php else: ?>
                                         <p class="has-text-grey-light"><?php echo t('timed_messages_no_remove'); ?></p>
                                     <?php endif; ?>
@@ -340,7 +393,8 @@ ob_start();
         <!-- Current Timed Messages Table -->
         <div class="columns is-centered mt-5">
             <div class="column is-fullwidth">
-                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                <div class="card has-background-dark has-text-white"
+                    style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
                     <header class="card-header">
                         <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
                             <span class="icon mr-2"><i class="fas fa-list"></i></span>
@@ -365,12 +419,17 @@ ob_start();
                                             <td><?php echo $m['id']; ?></td>
                                             <td><?php echo $m['interval_count']; ?></td>
                                             <td><?php echo $m['chat_line_trigger'] ?? 5; ?></td>
-                                            <td><?php echo (isset($m['status']) && $m['status'] == 1) ? t('timed_messages_status_enabled') : t('timed_messages_status_disabled'); ?></td>
+                                            <td><?php echo (isset($m['status']) && $m['status'] == 1) ? t('timed_messages_status_enabled') : t('timed_messages_status_disabled'); ?>
+                                            </td>
                                             <td><?php echo htmlspecialchars($m['message']); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="5" class="has-text-grey-light"><?php echo t('timed_messages_no_messages') ?: 'No timed messages configured.'; ?></td></tr>
+                                    <tr>
+                                        <td colspan="5" class="has-text-grey-light">
+                                            <?php echo t('timed_messages_no_messages') ?: 'No timed messages configured.'; ?>
+                                        </td>
+                                    </tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -386,200 +445,200 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-// Function to show response for editing
-function showResponse() {
-    var editMessage = document.getElementById('edit_message').value;
-    var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
-    var editMessageContent = document.getElementById('edit_message_content');
-    var editIntervalInput = document.getElementById('edit_interval');
-    var editChatLineTriggerInput = document.getElementById('edit_chat_line_trigger');
-    var editStatus = document.getElementById('edit_status');
-    var messageData = timedMessagesData.find(m => m.id == editMessage);
-    if (messageData) {
-        editMessageContent.value = messageData.message;
-        editIntervalInput.value = messageData.interval_count;
-        editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
-        // Convert integer status (1/0) to dropdown string value
-    if (editStatus) editStatus.value = (messageData.status == 1 || messageData.status === 'True') ? 'True' : 'False';
-        updateCharCount('edit_message_content', 'editCharCount');
-    } else {
-        editMessageContent.value = '';
-        editIntervalInput.value = '';
-        editChatLineTriggerInput.value = '';
-        if (editStatus) editStatus.value = '';
-        document.getElementById('editCharCount').textContent = '0/255 characters';
-        document.getElementById('editCharCount').className = 'help';
-    }
-    toggleEditButton();
-}
-
-// Function to show message content in remove textarea and enable button
-function showMessage() {
-    var removeMessage = document.getElementById('remove_message').value;
-    var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
-    var removeMessageContent = document.getElementById('remove_message_content');
-    var messageData = timedMessagesData.find(m => m.id == removeMessage);
-    if (messageData) {
-        removeMessageContent.value = messageData.message;
-    } else {
-        removeMessageContent.value = '';
-    }
-    toggleRemoveButton();
-}
-
-// Function to update character counts
-function updateCharCount(inputId, counterId) {
-    const input = document.getElementById(inputId);
-    const counter = document.getElementById(counterId);
-    const maxLength = 255;
-    const currentLength = input.value.length;
-    // Update the counter text
-    counter.textContent = currentLength + '/' + maxLength + ' characters';
-    // Update styling based on character count
-    if (currentLength > maxLength) {
-        counter.className = 'help is-danger';
-    } else if (currentLength > maxLength * 0.8) {
-        counter.className = 'help is-warning';
-    } else {
-        counter.className = 'help is-info';
-    }
-}
-
-// Enable/disable add button based on input
-function toggleAddButton() {
-    var message = document.getElementById('message').value.trim();
-    var interval = document.getElementById('interval').value;
-    var chatLine = document.getElementById('chat_line_trigger').value;
-    var addBtn = document.getElementById('addMessageButton');
-    // All fields must be filled and valid
-    var valid = (
-        message.length > 0 &&
-        interval !== "" && !isNaN(interval) && Number(interval) >= 5 && Number(interval) <= 60 &&
-        chatLine !== "" && !isNaN(chatLine) && Number(chatLine) >= 5
-    );
-    addBtn.disabled = !valid;
-}
-
-// Enable/disable edit button based on input
-function toggleEditButton() {
-    var editMessage = document.getElementById('edit_message').value;
-    var editInterval = document.getElementById('edit_interval').value;
-    var editMessageContent = document.getElementById('edit_message_content').value.trim();
-    var editStatus = document.getElementById('edit_status').value;
-    var editChatLineTrigger = document.getElementById('edit_chat_line_trigger').value;
-    var editBtn = document.getElementById('editMessageButton');
-    var valid = (
-        editMessage !== "" &&
-        editInterval !== "" && !isNaN(editInterval) && Number(editInterval) >= 5 && Number(editInterval) <= 60 &&
-        editMessageContent.length > 0 && editMessageContent.length <= 255 &&
-        editStatus !== "" &&
-        editChatLineTrigger !== "" && !isNaN(editChatLineTrigger) && Number(editChatLineTrigger) >= 5
-    );
-    editBtn.disabled = !valid;
-}
-
-// Enable/disable remove button based on selection
-function toggleRemoveButton() {
-    var removeMessage = document.getElementById('remove_message').value;
-    var removeBtn = document.getElementById('removeMessageButton');
-    removeBtn.disabled = (removeMessage === "");
-}
-
-// Function to validate the form before submission
-function validateForm() {
-    // Message length validation
-    const messageInput = document.getElementById('message');
-    if (messageInput.value.length > 255) {
-        document.getElementById('messageError').textContent = '<?php echo t('timed_messages_message_length_error'); ?>';
-        document.getElementById('messageError').style.display = 'block';
-        return false;
-    }
-    // Interval validation
-    const intervalInput = document.getElementById('interval');
-    if (intervalInput.value < 5 || intervalInput.value > 60) {
-        document.getElementById('intervalError').style.display = 'block';
-        return false;
-    }
-    return true;
-}
-
-// Function to validate the edit form before submission
-function validateEditForm() {
-    const editMessageContent = document.getElementById('edit_message_content');
-    if (editMessageContent.value.length > 255) {
-        alert('<?php echo t('timed_messages_char_limit_alert'); ?>');
-        return false;
-    }
-    return true;
-}
-
-// Update the edit form to use validation
-document.addEventListener('DOMContentLoaded', function() {
-    const editForm = document.querySelector('form:nth-of-type(2)');
-    if (editForm) {
-        editForm.onsubmit = validateEditForm;
-    }
-});
-
-// SweetAlert2 for remove confirmation
-document.addEventListener('DOMContentLoaded', function() {
-    toggleEditButton();
-    toggleRemoveButton();
-    var removeForm = document.getElementById('removeMessageForm');
-    if (removeForm) {
-        removeForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            var select = document.getElementById('remove_message');
-            if (!select.value) return;
-            Swal.fire({
-                title: 'Are you sure?',
-                text: "This will permanently remove the selected message.",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Yes, remove it!',
-                reverseButtons: true
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    removeForm.submit();
-                }
-            });
-        });
-    }
-});
-
-// Call the function initially to pre-fill the fields if a default message is selected
-window.onload = function() {
-    showResponse();
-    updateCharCount('message', 'charCount');
-    showMessage();
-    toggleEditButton();
-    toggleRemoveButton();
-    toggleAddButton();
-}
-
-// In case user types or changes values, keep button states updated
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('message').addEventListener('input', toggleAddButton);
-    document.getElementById('interval').addEventListener('input', toggleAddButton);
-    document.getElementById('chat_line_trigger').addEventListener('input', toggleAddButton);
-    document.getElementById('edit_interval').addEventListener('input', toggleEditButton);
-    document.getElementById('edit_chat_line_trigger').addEventListener('input', toggleEditButton);
-    document.getElementById('edit_message_content').addEventListener('input', function() {
-        updateCharCount('edit_message_content', 'editCharCount');
+    // Function to show response for editing
+    function showResponse() {
+        var editMessage = document.getElementById('edit_message').value;
+        var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
+        var editMessageContent = document.getElementById('edit_message_content');
+        var editIntervalInput = document.getElementById('edit_interval');
+        var editChatLineTriggerInput = document.getElementById('edit_chat_line_trigger');
+        var editStatus = document.getElementById('edit_status');
+        var messageData = timedMessagesData.find(m => m.id == editMessage);
+        if (messageData) {
+            editMessageContent.value = messageData.message;
+            editIntervalInput.value = messageData.interval_count;
+            editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
+            // Convert integer status (1/0) to dropdown string value
+            if (editStatus) editStatus.value = (messageData.status == 1 || messageData.status === 'True') ? 'True' : 'False';
+            updateCharCount('edit_message_content', 'editCharCount');
+        } else {
+            editMessageContent.value = '';
+            editIntervalInput.value = '';
+            editChatLineTriggerInput.value = '';
+            if (editStatus) editStatus.value = '';
+            document.getElementById('editCharCount').textContent = '0/255 characters';
+            document.getElementById('editCharCount').className = 'help';
+        }
         toggleEditButton();
-    });
-    document.getElementById('edit_status').addEventListener('change', toggleEditButton);
-    document.getElementById('edit_message').addEventListener('change', function() {
-        showResponse();
-        toggleEditButton();
-    });
-    document.getElementById('remove_message').addEventListener('change', function() {
-        showMessage();
+    }
+
+    // Function to show message content in remove textarea and enable button
+    function showMessage() {
+        var removeMessage = document.getElementById('remove_message').value;
+        var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
+        var removeMessageContent = document.getElementById('remove_message_content');
+        var messageData = timedMessagesData.find(m => m.id == removeMessage);
+        if (messageData) {
+            removeMessageContent.value = messageData.message;
+        } else {
+            removeMessageContent.value = '';
+        }
         toggleRemoveButton();
+    }
+
+    // Function to update character counts
+    function updateCharCount(inputId, counterId) {
+        const input = document.getElementById(inputId);
+        const counter = document.getElementById(counterId);
+        const maxLength = 255;
+        const currentLength = input.value.length;
+        // Update the counter text
+        counter.textContent = currentLength + '/' + maxLength + ' characters';
+        // Update styling based on character count
+        if (currentLength > maxLength) {
+            counter.className = 'help is-danger';
+        } else if (currentLength > maxLength * 0.8) {
+            counter.className = 'help is-warning';
+        } else {
+            counter.className = 'help is-info';
+        }
+    }
+
+    // Enable/disable add button based on input
+    function toggleAddButton() {
+        var message = document.getElementById('message').value.trim();
+        var interval = document.getElementById('interval').value;
+        var chatLine = document.getElementById('chat_line_trigger').value;
+        var addBtn = document.getElementById('addMessageButton');
+        // All fields must be filled and valid
+        var valid = (
+            message.length > 0 &&
+            interval !== "" && !isNaN(interval) && Number(interval) >= 5 && Number(interval) <= 60 &&
+            chatLine !== "" && !isNaN(chatLine) && Number(chatLine) >= 5
+        );
+        addBtn.disabled = !valid;
+    }
+
+    // Enable/disable edit button based on input
+    function toggleEditButton() {
+        var editMessage = document.getElementById('edit_message').value;
+        var editInterval = document.getElementById('edit_interval').value;
+        var editMessageContent = document.getElementById('edit_message_content').value.trim();
+        var editStatus = document.getElementById('edit_status').value;
+        var editChatLineTrigger = document.getElementById('edit_chat_line_trigger').value;
+        var editBtn = document.getElementById('editMessageButton');
+        var valid = (
+            editMessage !== "" &&
+            editInterval !== "" && !isNaN(editInterval) && Number(editInterval) >= 5 && Number(editInterval) <= 60 &&
+            editMessageContent.length > 0 && editMessageContent.length <= 255 &&
+            editStatus !== "" &&
+            editChatLineTrigger !== "" && !isNaN(editChatLineTrigger) && Number(editChatLineTrigger) >= 5
+        );
+        editBtn.disabled = !valid;
+    }
+
+    // Enable/disable remove button based on selection
+    function toggleRemoveButton() {
+        var removeMessage = document.getElementById('remove_message').value;
+        var removeBtn = document.getElementById('removeMessageButton');
+        removeBtn.disabled = (removeMessage === "");
+    }
+
+    // Function to validate the form before submission
+    function validateForm() {
+        // Message length validation
+        const messageInput = document.getElementById('message');
+        if (messageInput.value.length > 255) {
+            document.getElementById('messageError').textContent = '<?php echo t('timed_messages_message_length_error'); ?>';
+            document.getElementById('messageError').style.display = 'block';
+            return false;
+        }
+        // Interval validation
+        const intervalInput = document.getElementById('interval');
+        if (intervalInput.value < 5 || intervalInput.value > 60) {
+            document.getElementById('intervalError').style.display = 'block';
+            return false;
+        }
+        return true;
+    }
+
+    // Function to validate the edit form before submission
+    function validateEditForm() {
+        const editMessageContent = document.getElementById('edit_message_content');
+        if (editMessageContent.value.length > 255) {
+            alert('<?php echo t('timed_messages_char_limit_alert'); ?>');
+            return false;
+        }
+        return true;
+    }
+
+    // Update the edit form to use validation
+    document.addEventListener('DOMContentLoaded', function () {
+        const editForm = document.querySelector('form:nth-of-type(2)');
+        if (editForm) {
+            editForm.onsubmit = validateEditForm;
+        }
     });
-});
+
+    // SweetAlert2 for remove confirmation
+    document.addEventListener('DOMContentLoaded', function () {
+        toggleEditButton();
+        toggleRemoveButton();
+        var removeForm = document.getElementById('removeMessageForm');
+        if (removeForm) {
+            removeForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var select = document.getElementById('remove_message');
+                if (!select.value) return;
+                Swal.fire({
+                    title: 'Are you sure?',
+                    text: "This will permanently remove the selected message.",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Yes, remove it!',
+                    reverseButtons: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        removeForm.submit();
+                    }
+                });
+            });
+        }
+    });
+
+    // Call the function initially to pre-fill the fields if a default message is selected
+    window.onload = function () {
+        showResponse();
+        updateCharCount('message', 'charCount');
+        showMessage();
+        toggleEditButton();
+        toggleRemoveButton();
+        toggleAddButton();
+    }
+
+    // In case user types or changes values, keep button states updated
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('message').addEventListener('input', toggleAddButton);
+        document.getElementById('interval').addEventListener('input', toggleAddButton);
+        document.getElementById('chat_line_trigger').addEventListener('input', toggleAddButton);
+        document.getElementById('edit_interval').addEventListener('input', toggleEditButton);
+        document.getElementById('edit_chat_line_trigger').addEventListener('input', toggleEditButton);
+        document.getElementById('edit_message_content').addEventListener('input', function () {
+            updateCharCount('edit_message_content', 'editCharCount');
+            toggleEditButton();
+        });
+        document.getElementById('edit_status').addEventListener('change', toggleEditButton);
+        document.getElementById('edit_message').addEventListener('change', function () {
+            showResponse();
+            toggleEditButton();
+        });
+        document.getElementById('remove_message').addEventListener('change', function () {
+            showMessage();
+            toggleRemoveButton();
+        });
+    });
 </script>
 <?php
 $scripts = ob_get_clean();

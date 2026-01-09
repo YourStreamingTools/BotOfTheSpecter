@@ -125,17 +125,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST[
 $remaining_storage = $max_storage_size - $current_storage_used;
 $max_upload_size = $remaining_storage;
 
-function translateUploadError($code) {
+function translateUploadError($code)
+{
     switch ($code) {
-        case UPLOAD_ERR_OK: return t('video_alerts_upload_error_ok');
-        case UPLOAD_ERR_INI_SIZE: return t('video_alerts_upload_error_ini_size');
-        case UPLOAD_ERR_FORM_SIZE: return t('video_alerts_upload_error_form_size');
-        case UPLOAD_ERR_PARTIAL: return t('video_alerts_upload_error_partial');
-        case UPLOAD_ERR_NO_FILE: return t('video_alerts_upload_error_no_file');
-        case UPLOAD_ERR_NO_TMP_DIR: return t('video_alerts_upload_error_no_tmp_dir');
-        case UPLOAD_ERR_CANT_WRITE: return t('video_alerts_upload_error_cant_write');
-        case UPLOAD_ERR_EXTENSION: return t('video_alerts_upload_error_extension');
-        default: return t('video_alerts_upload_error_unknown');
+        case UPLOAD_ERR_OK:
+            return t('video_alerts_upload_error_ok');
+        case UPLOAD_ERR_INI_SIZE:
+            return t('video_alerts_upload_error_ini_size');
+        case UPLOAD_ERR_FORM_SIZE:
+            return t('video_alerts_upload_error_form_size');
+        case UPLOAD_ERR_PARTIAL:
+            return t('video_alerts_upload_error_partial');
+        case UPLOAD_ERR_NO_FILE:
+            return t('video_alerts_upload_error_no_file');
+        case UPLOAD_ERR_NO_TMP_DIR:
+            return t('video_alerts_upload_error_no_tmp_dir');
+        case UPLOAD_ERR_CANT_WRITE:
+            return t('video_alerts_upload_error_cant_write');
+        case UPLOAD_ERR_EXTENSION:
+            return t('video_alerts_upload_error_extension');
+        default:
+            return t('video_alerts_upload_error_unknown');
     }
 }
 
@@ -211,7 +221,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
 }
 
 $videoalert_files = array_diff(scandir($videoalert_path), array('.', '..'));
-function formatFileName($fileName) { return basename($fileName, '.mp4'); }
+function formatFileName($fileName)
+{
+    return basename($fileName, '.mp4');
+}
 
 // Start output buffering for content
 ob_start();
@@ -254,8 +267,10 @@ ob_start();
         </div>
         <div class="columns is-desktop is-multiline is-centered">
             <div class="column is-fullwidth" style="max-width: 1200px;">
-                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                    <header class="card-header" style="border-bottom: 1px solid #23272f; display: flex; justify-content: space-between; align-items: center;">
+                <div class="card has-background-dark has-text-white"
+                    style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                    <header class="card-header"
+                        style="border-bottom: 1px solid #23272f; display: flex; justify-content: space-between; align-items: center;">
                         <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
                             <span class="icon mr-2"><i class="fas fa-film"></i></span>
                             <?php echo t('video_alerts_your_alerts'); ?>
@@ -272,81 +287,107 @@ ob_start();
                         </div>
                     </header>
                     <div class="card-content">
-                        <?php if (!empty($videoalert_files)) : ?>
+                        <?php if (!empty($videoalert_files)): ?>
                             <form action="" method="POST" id="deleteForm">
                                 <div class="table-container">
                                     <table class="table is-fullwidth has-background-dark" id="videoAlertsTable">
                                         <thead>
                                             <tr>
-                                                <th style="width: 70px;" class="has-text-centered"><?php echo t('video_alerts_select'); ?></th>
-                                                <th class="has-text-centered"><?php echo t('video_alerts_file_name'); ?></th>
-                                                <th class="has-text-centered"><?php echo t('video_alerts_channel_point_reward'); ?></th>
-                                                <th style="width: 80px;" class="has-text-centered"><?php echo t('video_alerts_action'); ?></th>
-                                                <th style="width: 120px;" class="has-text-centered"><?php echo t('video_alerts_test_video'); ?></th>
+                                                <th style="width: 70px;" class="has-text-centered">
+                                                    <?php echo t('video_alerts_select'); ?>
+                                                </th>
+                                                <th class="has-text-centered"><?php echo t('video_alerts_file_name'); ?>
+                                                </th>
+                                                <th class="has-text-centered">
+                                                    <?php echo t('video_alerts_channel_point_reward'); ?>
+                                                </th>
+                                                <th style="width: 80px;" class="has-text-centered">
+                                                    <?php echo t('video_alerts_action'); ?>
+                                                </th>
+                                                <th style="width: 120px;" class="has-text-centered">
+                                                    <?php echo t('video_alerts_test_video'); ?>
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php foreach ($videoalert_files as $file): 
+                                            <?php foreach ($videoalert_files as $file):
                                                 $fileName = htmlspecialchars(pathinfo($file, PATHINFO_FILENAME));
                                                 $current_reward_id = isset($videoAlertMappings[$file]) ? $videoAlertMappings[$file] : null;
                                                 $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : t('video_alerts_not_mapped');
-                                            ?>
-                                            <tr>
-                                                <td class="has-text-centered is-vcentered">
-                                                    <input type="checkbox" class="is-checkradio" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
-                                                </td>
-                                                <td class="is-vcentered"><?php echo $fileName; ?></td>
-                                                <td class="has-text-centered is-vcentered">
-                                                    <?php if ($current_reward_id): ?>
-                                                        <em><?php echo $current_reward_title; ?></em>
-                                                    <?php else: ?>
-                                                        <em><?php echo t('video_alerts_not_mapped'); ?></em>
-                                                    <?php endif; ?>
-                                                    <form action="" method="POST" class="mapping-form mt-2">
-                                                        <input type="hidden" name="video_file" value="<?php echo htmlspecialchars($file); ?>">
-                                                        <div class="select is-small is-fullwidth">
-                                                            <select name="reward_id" class="mapping-select" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                                                                <?php if ($current_reward_id): ?>
-                                                                    <option value="" class="has-text-danger"><?php echo t('video_alerts_remove_mapping'); ?></option>
-                                                                <?php endif; ?>
-                                                                <option value=""><?php echo t('video_alerts_select_reward'); ?></option>
-                                                                <?php
-                                                                foreach ($channelPointRewards as $reward):
-                                                                    $isMapped = (in_array($reward['reward_id'], $videoAlertMappings) || in_array($reward['reward_id'], $soundMappedRewards));
-                                                                    $isCurrent = ($current_reward_id === $reward['reward_id']);
-                                                                    if ($isMapped && !$isCurrent) continue;
-                                                                ?>
-                                                                    <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>"<?php if ($isCurrent) { echo ' selected';}?>>
-                                                                        <?php echo htmlspecialchars($reward['reward_title']); ?>
+                                                ?>
+                                                <tr>
+                                                    <td class="has-text-centered is-vcentered">
+                                                        <input type="checkbox" class="is-checkradio" name="delete_files[]"
+                                                            value="<?php echo htmlspecialchars($file); ?>">
+                                                    </td>
+                                                    <td class="is-vcentered"><?php echo $fileName; ?></td>
+                                                    <td class="has-text-centered is-vcentered">
+                                                        <?php if ($current_reward_id): ?>
+                                                            <em><?php echo $current_reward_title; ?></em>
+                                                        <?php else: ?>
+                                                            <em><?php echo t('video_alerts_not_mapped'); ?></em>
+                                                        <?php endif; ?>
+                                                        <form action="" method="POST" class="mapping-form mt-2">
+                                                            <input type="hidden" name="video_file"
+                                                                value="<?php echo htmlspecialchars($file); ?>">
+                                                            <div class="select is-small is-fullwidth">
+                                                                <select name="reward_id" class="mapping-select"
+                                                                    style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                                                                    <?php if ($current_reward_id): ?>
+                                                                        <option value="" class="has-text-danger">
+                                                                            <?php echo t('video_alerts_remove_mapping'); ?>
+                                                                        </option>
+                                                                    <?php endif; ?>
+                                                                    <option value="">
+                                                                        <?php echo t('video_alerts_select_reward'); ?>
                                                                     </option>
-                                                                <?php endforeach; ?>
-                                                            </select>
-                                                        </div>
-                                                    </form>
-                                                </td>
-                                                <td class="has-text-centered is-vcentered">
-                                                    <button type="button" class="delete-single button is-danger is-small" data-file="<?php echo htmlspecialchars($file); ?>">
-                                                        <span class="icon"><i class="fas fa-trash"></i></span>
-                                                    </button>
-                                                </td>
-                                                <td class="has-text-centered is-vcentered">
-                                                    <button type="button" class="test-video button is-primary is-small" data-file="<?php echo htmlspecialchars($file); ?>">
-                                                        <span class="icon"><i class="fas fa-play"></i></span>
-                                                    </button>
-                                                </td>
-                                            </tr>
+                                                                    <?php
+                                                                    foreach ($channelPointRewards as $reward):
+                                                                        $isMapped = (in_array($reward['reward_id'], $videoAlertMappings) || in_array($reward['reward_id'], $soundMappedRewards));
+                                                                        $isCurrent = ($current_reward_id === $reward['reward_id']);
+                                                                        if ($isMapped && !$isCurrent)
+                                                                            continue;
+                                                                        ?>
+                                                                        <option
+                                                                            value="<?php echo htmlspecialchars($reward['reward_id']); ?>"
+                                                                            <?php if ($isCurrent) {
+                                                                                echo ' selected';
+                                                                            } ?>>
+                                                                            <?php echo htmlspecialchars($reward['reward_title']); ?>
+                                                                        </option>
+                                                                    <?php endforeach; ?>
+                                                                </select>
+                                                            </div>
+                                                        </form>
+                                                    </td>
+                                                    <td class="has-text-centered is-vcentered">
+                                                        <button type="button" class="delete-single button is-danger is-small"
+                                                            data-file="<?php echo htmlspecialchars($file); ?>">
+                                                            <span class="icon"><i class="fas fa-trash"></i></span>
+                                                        </button>
+                                                    </td>
+                                                    <td class="has-text-centered is-vcentered">
+                                                        <button type="button" class="test-video button is-primary is-small"
+                                                            data-file="<?php echo htmlspecialchars($file); ?>">
+                                                            <span class="icon"><i class="fas fa-play"></i></span>
+                                                        </button>
+                                                    </td>
+                                                </tr>
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>
                                 </div>
-                                <button type="submit" value="Delete Selected" class="button is-danger mt-3" name="submit_delete" style="display: none;">
+                                <button type="submit" value="Delete Selected" class="button is-danger mt-3"
+                                    name="submit_delete" style="display: none;">
                                     <span class="icon"><i class="fas fa-trash"></i></span>
                                     <span><?php echo t('video_alerts_delete_selected'); ?></span>
                                 </button>
                             </form>
                         <?php else: ?>
                             <div class="has-text-centered py-6">
-                                <h2 class="title is-5 has-text-grey-light"><?php echo t('video_alerts_no_files_uploaded'); ?></h2>
+                                <h2 class="title is-5 has-text-grey-light">
+                                    <?php echo t('video_alerts_no_files_uploaded'); ?>
+                                </h2>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -371,24 +412,32 @@ ob_start();
             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
                 <div class="file has-name is-fullwidth is-boxed mb-3">
                     <label class="file-label" style="width: 100%;">
-                        <input class="file-input" type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp4">
+                        <input class="file-input" type="file" name="filesToUpload[]" id="filesToUpload" multiple
+                            accept=".mp4">
                         <span class="file-cta" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                            <span class="file-label" style="display: flex; align-items: center; justify-content: center; font-size: 1.15em;">
+                            <span class="file-label"
+                                style="display: flex; align-items: center; justify-content: center; font-size: 1.15em;">
                                 <?php echo t('video_alerts_choose_files'); ?>
                             </span>
                         </span>
-                        <span class="file-name" id="file-list" style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                        <span class="file-name" id="file-list"
+                            style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
                             <?php echo t('video_alerts_no_files_selected'); ?>
                         </span>
                     </label>
                 </div>
                 <div class="mt-4" style="position: relative;">
-                    <progress class="progress is-info" value="<?php echo $storage_percentage; ?>" max="100" style="height: 1.25rem; border-radius: 0.75rem;"></progress>
-                    <div class="has-text-centered" style="margin-top: -1.7rem; margin-bottom: 0.7rem; font-size: 0.98rem; font-weight: 500; color: #fff; width: 100%; position: relative; z-index: 2;">
-                        <?php echo round($storage_percentage, 2); ?>% &mdash; <?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB <?php echo t('video_alerts_of'); ?> <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB <?php echo t('video_alerts_used'); ?>
+                    <progress class="progress is-info" value="<?php echo $storage_percentage; ?>" max="100"
+                        style="height: 1.25rem; border-radius: 0.75rem;"></progress>
+                    <div class="has-text-centered"
+                        style="margin-top: -1.7rem; margin-bottom: 0.7rem; font-size: 0.98rem; font-weight: 500; color: #fff; width: 100%; position: relative; z-index: 2;">
+                        <?php echo round($storage_percentage, 2); ?>% &mdash;
+                        <?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB
+                        <?php echo t('video_alerts_of'); ?> <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB
+                        <?php echo t('video_alerts_used'); ?>
                     </div>
                 </div>
-                <?php if (!empty($status)) : ?>
+                <?php if (!empty($status)): ?>
                     <article class="message is-info mt-4">
                         <div class="message-body">
                             <?php echo $status; ?>
@@ -413,22 +462,96 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-$(document).ready(function() {
-    // Modal controls
-    $('#openUploadModal').on('click', function() {
-        $('#uploadModal').addClass('is-active');
-    });
-    $('#closeUploadModal, #cancelUploadModal, .modal-background').on('click', function() {
-        $('#uploadModal').removeClass('is-active');
-    });
+    $(document).ready(function () {
+        // Modal controls
+        $('#openUploadModal').on('click', function () {
+            $('#uploadModal').addClass('is-active');
+        });
+        $('#closeUploadModal, #cancelUploadModal, .modal-background').on('click', function () {
+            $('#uploadModal').removeClass('is-active');
+        });
 
-    // Handle delete selected button
-    $('#deleteSelectedBtn').on('click', function() {
-        var checkedBoxes = $('input[name="delete_files[]"]:checked');
-        if (checkedBoxes.length > 0) {
+        // Handle delete selected button
+        $('#deleteSelectedBtn').on('click', function () {
+            var checkedBoxes = $('input[name="delete_files[]"]:checked');
+            if (checkedBoxes.length > 0) {
+                Swal.fire({
+                    title: '<?php echo t('video_alerts_delete_file_title'); ?>',
+                    text: 'Are you sure you want to delete the selected ' + checkedBoxes.length + ' file(s)?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    confirmButtonText: '<?php echo t('video_alerts_delete_file_confirm_btn'); ?>',
+                    cancelButtonText: '<?php echo t('video_alerts_delete_file_cancel_btn'); ?>'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $('#deleteForm').submit();
+                    }
+                });
+            }
+        });
+
+        // Monitor checkbox changes to enable/disable delete button
+        $(document).on('change', 'input[name="delete_files[]"]', function () {
+            var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
+            $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
+        });
+
+        // Update file name display for Bulma file input
+        $('#filesToUpload').on('change', function () {
+            let files = this.files;
+            let fileNames = [];
+            for (let i = 0; i < files.length; i++) {
+                fileNames.push(files[i].name);
+            }
+            $('#file-list').text(fileNames.length ? fileNames.join(', ') : '<?php echo t('video_alerts_no_files_selected'); ?>');
+        });
+
+        // Add event listener for mapping select boxes
+        $('.mapping-select').on('change', function () {
+            // Submit the form via AJAX
+            const form = $(this).closest('form');
+            $.post('', form.serialize(), function (data) {
+                // Reload the page after successful submission
+                location.reload();
+            });
+        });
+
+        // AJAX upload with progress bar
+        $('#uploadForm').on('submit', function (e) {
+            e.preventDefault();
+            let formData = new FormData(this);
+            $.ajax({
+                url: '',
+                type: 'POST',
+                data: formData,
+                contentType: false,
+                processData: false,
+                xhr: function () {
+                    let xhr = new window.XMLHttpRequest();
+                    xhr.upload.addEventListener('progress', function (e) {
+                        if (e.lengthComputable) {
+                            let percentComplete = (e.loaded / e.total) * 100;
+                            $('.upload-progress-bar').val(percentComplete).text(Math.round(percentComplete) + '%');
+                        }
+                    }, false);
+                    return xhr;
+                },
+                success: function (response) {
+                    location.reload();
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
+                }
+            });
+        });
+
+        // Single delete button with SweetAlert2
+        $('.delete-single').on('click', function () {
+            let fileName = $(this).data('file');
             Swal.fire({
                 title: '<?php echo t('video_alerts_delete_file_title'); ?>',
-                text: 'Are you sure you want to delete the selected ' + checkedBoxes.length + ' file(s)?',
+                text: '<?php echo t('video_alerts_delete_file_confirm'); ?>'.replace(':file', fileName),
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
@@ -436,127 +559,53 @@ $(document).ready(function() {
                 cancelButtonText: '<?php echo t('video_alerts_delete_file_cancel_btn'); ?>'
             }).then((result) => {
                 if (result.isConfirmed) {
+                    $('<input>').attr({
+                        type: 'hidden',
+                        name: 'delete_files[]',
+                        value: fileName
+                    }).appendTo('#deleteForm');
                     $('#deleteForm').submit();
                 }
             });
-        }
-    });
-
-    // Monitor checkbox changes to enable/disable delete button
-    $(document).on('change', 'input[name="delete_files[]"]', function() {
-        var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
-        $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
-    });
-
-    // Update file name display for Bulma file input
-    $('#filesToUpload').on('change', function() {
-        let files = this.files;
-        let fileNames = [];
-        for (let i = 0; i < files.length; i++) {
-            fileNames.push(files[i].name);
-        }
-        $('#file-list').text(fileNames.length ? fileNames.join(', ') : '<?php echo t('video_alerts_no_files_selected'); ?>');
-    });
-
-    // Add event listener for mapping select boxes
-    $('.mapping-select').on('change', function() {
-        // Submit the form via AJAX
-        const form = $(this).closest('form');
-        $.post('', form.serialize(), function(data) {
-            // Reload the page after successful submission
-            location.reload();
         });
     });
 
-    // AJAX upload with progress bar
-    $('#uploadForm').on('submit', function(e) {
-        e.preventDefault();
-        let formData = new FormData(this);
-        $.ajax({
-            url: '',
-            type: 'POST',
-            data: formData,
-            contentType: false,
-            processData: false,
-            xhr: function() {
-                let xhr = new window.XMLHttpRequest();
-                xhr.upload.addEventListener('progress', function(e) {
-                    if (e.lengthComputable) {
-                        let percentComplete = (e.loaded / e.total) * 100;
-                        $('.upload-progress-bar').val(percentComplete).text(Math.round(percentComplete) + '%');
+    document.addEventListener("DOMContentLoaded", function () {
+        // Attach click event listeners to all Test buttons
+        document.querySelectorAll(".test-video").forEach(function (button) {
+            button.addEventListener("click", function () {
+                const fileName = this.getAttribute("data-file");
+                sendStreamEvent("VIDEO_ALERT", fileName);
+            });
+        });
+    });
+
+    // Function to send a stream event
+    function sendStreamEvent(eventType, fileName) {
+        const xhr = new XMLHttpRequest();
+        const url = "notify_event.php";
+        const params = `event=${eventType}&video=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
+        xhr.open("POST", url, true);
+        xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        console.log(`${eventType} event for ${fileName} sent successfully.`);
+                    } else {
+                        console.error(`Error sending ${eventType} event: ${response.message}`);
                     }
-                }, false);
-                return xhr;
-            },
-            success: function(response) {
-                location.reload();
-            },
-            error: function(jqXHR, textStatus, errorThrown) {
-                console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
-            }
-        });
-    });
-
-    // Single delete button with SweetAlert2
-    $('.delete-single').on('click', function() {
-        let fileName = $(this).data('file');
-        Swal.fire({
-            title: '<?php echo t('video_alerts_delete_file_title'); ?>',
-            text: '<?php echo t('video_alerts_delete_file_confirm'); ?>'.replace(':file', fileName),
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: '<?php echo t('video_alerts_delete_file_confirm_btn'); ?>',
-            cancelButtonText: '<?php echo t('video_alerts_delete_file_cancel_btn'); ?>'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                $('<input>').attr({
-                    type: 'hidden',
-                    name: 'delete_files[]',
-                    value: fileName
-                }).appendTo('#deleteForm');
-                $('#deleteForm').submit();
-            }
-        });
-    });
-});
-
-document.addEventListener("DOMContentLoaded", function () {
-    // Attach click event listeners to all Test buttons
-    document.querySelectorAll(".test-video").forEach(function (button) {
-        button.addEventListener("click", function () {
-            const fileName = this.getAttribute("data-file");
-            sendStreamEvent("VIDEO_ALERT", fileName);
-        });
-    });
-});
-
-// Function to send a stream event
-function sendStreamEvent(eventType, fileName) {
-    const xhr = new XMLHttpRequest();
-    const url = "notify_event.php";
-    const params = `event=${eventType}&video=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
-    xhr.open("POST", url, true);
-    xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-                const response = JSON.parse(xhr.responseText);
-                if (response.success) {
-                    console.log(`${eventType} event for ${fileName} sent successfully.`);
-                } else {
-                    console.error(`Error sending ${eventType} event: ${response.message}`);
+                } catch (e) {
+                    console.error("Error parsing JSON response:", e);
+                    console.error("Response:", xhr.responseText);
                 }
-            } catch (e) {
-                console.error("Error parsing JSON response:", e);
-                console.error("Response:", xhr.responseText);
+            } else if (xhr.readyState === 4) {
+                console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
             }
-        } else if (xhr.readyState === 4) {
-            console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
-        }
-    };
-    xhr.send(params);
-}
+        };
+        xhr.send(params);
+    }
 </script>
 <?php
 $scripts = ob_get_clean();

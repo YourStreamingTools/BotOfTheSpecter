@@ -44,7 +44,7 @@ $stmt->bind_result($ad_start_message_db, $ad_end_message_db, $enable_ad_notice_d
 if ($stmt->fetch()) {
     $ad_start_message = $ad_start_message_db;
     $ad_end_message = $ad_end_message_db;
-    $enable_ad_notice = (int)$enable_ad_notice_db;
+    $enable_ad_notice = (int) $enable_ad_notice_db;
 } else {
     $ad_start_message = "Ads are running for (duration). We'll be right back after these ads.";
     $ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!";
@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $update_stmt->close();
         // Set success message for welcome messages update in session
         $_SESSION['update_message'] = "Welcome message settings updated successfully.";
-    }    
+    }
     // NEW: Move channel point reward mapping here
     elseif (isset($_POST['sound_file'], $_POST['twitch_alert_id'])) {
         $status = "";
@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = ? WHERE sound_mapping = ?");
                 $updateMapping->bind_param('ss', $rewardId, $soundFile);
                 if (!$updateMapping->execute()) {
-                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->error_list, true) . "<br>"; 
+                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->error_list, true) . "<br>";
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
                 }
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $clearMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = NULL WHERE sound_mapping = ?");
                 $clearMapping->bind_param('s', $soundFile);
                 if (!$clearMapping->execute()) {
-                    $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->error_list, true) . "<br>"; 
+                    $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->error_list, true) . "<br>";
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been cleared.<br>";
                 }
@@ -151,12 +151,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (?, ?)");
                 $insertMapping->bind_param('ss', $soundFile, $rewardId);
                 if (!$insertMapping->execute()) {
-                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->error_list, true) . "<br>"; 
+                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->error_list, true) . "<br>";
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
                 }
                 $insertMapping->close();
-            } 
+            }
         }
         $checkExisting->close();
         // Commit transaction
@@ -252,5 +252,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
 }
 
 $soundalert_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
-function formatFileName($fileName) { return basename($fileName, '.mp3'); }
+function formatFileName($fileName)
+{
+    return basename($fileName, '.mp3');
+}
 ?>
