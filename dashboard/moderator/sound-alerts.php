@@ -1,5 +1,4 @@
 <?php
-// Initialize the session
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
@@ -11,15 +10,23 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
+$editing_username = $_SESSION['editing_username'] ?? null;
+if (empty($editing_username)) {
+    header('Location: ../mod_channels.php');
+    exit();
+}
+// Override username for context
+$username = $editing_username;
+
 // Page Title
 $pageTitle = t('sound_alerts_page_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'userdata.php';
-include 'bot_control.php';
-include "mod_access.php";
+include __DIR__ . '/../userdata.php';
+include __DIR__ . '/../bot_control.php';
+include __DIR__ . '/../mod_access.php';
 include 'user_db.php';
 include 'storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
@@ -522,7 +529,7 @@ ob_start();
     // Function to send a stream event
     function sendStreamEvent(eventType, fileName) {
         const xhr = new XMLHttpRequest();
-        const url = "notify_event.php";
+        const url = "../notify_event.php";
         const params = `event=${eventType}&sound=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
         xhr.open("POST", url, true);
         xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
@@ -548,5 +555,5 @@ ob_start();
 </script>
 <?php
 $scripts = ob_get_clean();
-include 'mod_layout.php';
+require 'mod_layout.php';
 ?>
