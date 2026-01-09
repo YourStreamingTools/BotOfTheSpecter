@@ -760,6 +760,7 @@ ob_start();
 </div>
 <script>
 let runningBots = [];
+let refreshTimer = null; // Debounce timer for refresh operations
 // Helper to escape HTML for safe display in alerts
 function escapeHtml(str) {
     if (!str) return '';
@@ -769,6 +770,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load running bots status on page load
     refreshBotStatus();
 });
+// Debounced refresh - delays the actual refresh to avoid multiple rapid calls
+function scheduleRefresh(delayMs = 2000) {
+    // Clear any pending refresh
+    if (refreshTimer) {
+        clearTimeout(refreshTimer);
+    }
+    // Schedule a new refresh
+    refreshTimer = setTimeout(() => {
+        refreshBotStatus();
+    }, delayMs);
+}
 function refreshBotStatus() {
     fetch('?get_running_bots=1')
         .then(response => response.json())
@@ -1078,10 +1090,20 @@ async function startUserBot(username, twitchUserId) {
         let startData = null;
         try { startData = JSON.parse(startText); } catch (e) { console.warn('Non-JSON start response, raw:', startText); }
         if (startData && startData.success) {
+            // Optimistic UI update - immediately mark bot as running
+            botTag.className = 'tag is-success bot-status-tag';
+            botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running</span>';
+            if (startBtn) {
+                startBtn.style.display = 'none';
+            }
+            // Add to runningBots array optimistically
+            runningBots.push({username: username, bot_type: 'stable', pid: 0});
+            // Hide the row since bot is now running
+            row.style.display = 'none';
             // Non-blocking toast notification only
             Swal.fire({toast: true, position: 'top-end', icon: 'success', title: `Started bot for ${username}`, showConfirmButton: false, timer: 1500});
-            // Refresh status after small delay to update running list without blocking
-            setTimeout(() => refreshBotStatus(), 1200);
+            // Schedule a debounced refresh to verify actual status (non-blocking)
+            scheduleRefresh(2000);
         } else {
             botTag.className = 'tag is-danger bot-status-tag';
             botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Start Failed</span>';
