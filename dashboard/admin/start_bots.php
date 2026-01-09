@@ -260,9 +260,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
             $mod_httpCode = curl_getinfo($mod_ch, CURLINFO_HTTP_CODE);
             curl_close($mod_ch);
             $is_mod = false;
+            $is_banned = false;
+            $ban_reason = '';
             if ($mod_httpCode === 200) {
                 $mod_data = json_decode($mod_response, true);
                 $is_mod = !empty($mod_data['data']);
+                // If NOT a mod, check if bot is banned
+                if (!$is_mod) {
+                    $ban_url = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id={$twitch_user_id}&user_id={$bot_user_id}";
+                    $ban_ch = curl_init();
+                    curl_setopt($ban_ch, CURLOPT_URL, $ban_url);
+                    curl_setopt($ban_ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ban_ch, CURLOPT_HTTPHEADER, $mod_headers);
+                    $ban_response = curl_exec($ban_ch);
+                    $ban_httpCode = curl_getinfo($ban_ch, CURLINFO_HTTP_CODE);
+                    curl_close($ban_ch);
+                    if ($ban_httpCode === 200) {
+                        $ban_data = json_decode($ban_response, true);
+                        if (!empty($ban_data['data'])) {
+                            $is_banned = true;
+                            $ban_reason = $ban_data['data'][0]['reason'] ?? 'No reason provided';
+                        }
+                    }
+                }
             }
             // Update cache with expires_at and mod status
             if ($expires > 0) {
@@ -279,6 +299,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
                 'valid' => true,
                 'expires_in' => $data['expires_in'] ?? 0,
                 'is_mod' => $is_mod,
+                'is_banned' => $is_banned,
+                'ban_reason' => $ban_reason,
                 'message' => 'Token is valid',
                 'debug' => $debug
             ]);
@@ -376,7 +398,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_user_token'])) 
         } else {
             // Log Twitch renewal failure for debugging
             $respSnippet = substr((string)$response, 0, 200);
-            error_log('Twitch token renew failed for twitch_user_id=' . $twitch_user_id . ' http_code=' . $httpCode . ' curl_error=' . $curlError . ' response=' . $respSnippet);
             $debug = ob_get_clean();
             echo json_encode(['success' => false, 'message' => 'Failed to renew token with Twitch', 'debug' => $debug, 'error_details' => ['http_code' => $httpCode, 'curl_error' => $curlError, 'response' => $respSnippet]]);
         }
@@ -462,8 +483,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_bot_mod_status'
                 'is_mod' => $isMod,
                 'is_banned' => $isBanned,
                 'ban_reason' => $banReason,
-                'message' => $isMod ? 'Bot is a moderator' : ($isBanned ? 'Bot is banned' : 'Bot is not a moderator'),
-                'debug' => $debug
+                'message' => $isMod ? 'Bot is a moderator' : ($isBanned ? 'Bot is banned' : 'Bot is not a moderator')
             ]);
         } else {
             $debug = ob_get_clean();
@@ -1037,6 +1057,12 @@ async function validateUserToken(twitchUserId) {
                     if (makeModBtn) makeModBtn.style.display = 'none';
                     if (startStableBtn && !isRunning) startStableBtn.disabled = false;
                     if (startBetaBtn && !isRunning) startBetaBtn.disabled = false;
+                } else if (data.is_banned) {
+                    // Bot is BANNED
+                    modTag.className = 'tag is-danger mod-status-tag';
+                    modTag.innerHTML = '<span class="icon"><i class="fas fa-ban"></i></span><span>Banned</span>';
+                    modTag.title = 'Reason: ' + (data.ban_reason || 'No reason provided');
+                    if (makeModBtn) makeModBtn.style.display = 'none';
                 } else {
                     // Not a moderator: show a warning state but allow admins to start the bot
                     modTag.className = 'tag is-warning mod-status-tag';
