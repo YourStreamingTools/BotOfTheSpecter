@@ -1,76 +1,53 @@
 <?php
-// Fetch the current blacklist settings
-$sql = "SELECT blacklist FROM joke_settings WHERE id = 1";
-$stmt = $db->prepare($sql);
-$stmt->execute();
-$stmt->bind_result($blacklist_json);
-if ($stmt->fetch()) {
-    $current_blacklist = json_decode($blacklist_json, true);
+// Initialize the session if not already
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
-$stmt->close();
 
-// Fetch the current settings from the database each time the page loads
-$fetch_sql = "SELECT send_welcome_messages, default_welcome_message, default_vip_welcome_message, default_mod_welcome_message, new_default_welcome_message, new_default_vip_welcome_message, new_default_mod_welcome_message FROM streamer_preferences WHERE id = 1";
-$fetch_stmt = $db->prepare($fetch_sql);
-$fetch_stmt->execute();
-$fetch_stmt->bind_result($send_welcome_messages_db, $default_welcome_message_db, $default_vip_welcome_message_db, $default_mod_welcome_message_db, $new_default_welcome_message_db, $new_default_vip_welcome_message_db, $new_default_mod_welcome_message_db);
-$preferences = [];
-if ($fetch_stmt->fetch()) {
-    $preferences = [
-        'send_welcome_messages' => $send_welcome_messages_db,
-        'default_welcome_message' => $default_welcome_message_db,
-        'default_vip_welcome_message' => $default_vip_welcome_message_db,
-        'default_mod_welcome_message' => $default_mod_welcome_message_db,
-        'new_default_welcome_message' => $new_default_welcome_message_db,
-        'new_default_vip_welcome_message' => $new_default_vip_welcome_message_db,
-        'new_default_mod_welcome_message' => $new_default_mod_welcome_message_db
-    ];
+// Include the database credentials
+require_once "/var/www/config/database.php";
+require_once "/var/www/config/db_connect.php";
+include 'user_db.php';
+$username = $editing_username;
+include 'storage_used.php';
+
+$db_name = $username;
+
+if (!$db_name) {
+    header('Location: ../login.php');
+    exit();
 }
-$fetch_stmt->close();
 
-// Set default values if no settings exist in the database
-$send_welcome_messages = isset($preferences['send_welcome_messages']) ? $preferences['send_welcome_messages'] : 1;
-$default_welcome_message = isset($preferences['default_welcome_message']) ? $preferences['default_welcome_message'] : "Welcome back (user), glad to see you again!";
-$new_default_welcome_message = isset($preferences['new_default_welcome_message']) ? $preferences['new_default_welcome_message'] : "(user) is new to the community, let's give them a warm welcome!";
-$default_vip_welcome_message = isset($preferences['default_vip_welcome_message']) ? $preferences['default_vip_welcome_message'] : "ATTENTION! A very important person has entered the chat, welcome (user)";
-$new_default_vip_welcome_message = isset($preferences['new_default_vip_welcome_message']) ? $preferences['new_default_vip_welcome_message'] : "ATTENTION! A very important person has entered the chat, welcome (user)";
-$default_mod_welcome_message = isset($preferences['default_mod_welcome_message']) ? $preferences['default_mod_welcome_message'] : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!";
-$new_default_mod_welcome_message = isset($preferences['new_default_mod_welcome_message']) ? $preferences['new_default_mod_welcome_message'] : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!";
+// Create database connection using mysqli with credentials from database.php
+$db = new mysqli($db_servername, $db_username, $db_password, $db_name);
 
-// Fetch ad notice settings from the database
-$stmt = $db->prepare("SELECT ad_start_message, ad_end_message, enable_ad_notice FROM ad_notice_settings WHERE id = 1");
-$stmt->execute();
-$stmt->bind_result($ad_start_message_db, $ad_end_message_db, $enable_ad_notice_db);
-if ($stmt->fetch()) {
-    $ad_start_message = $ad_start_message_db;
-    $ad_end_message = $ad_end_message_db;
-    $enable_ad_notice = (int) $enable_ad_notice_db;
-} else {
-    $ad_start_message = "Ads are running for (duration). We'll be right back after these ads.";
-    $ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!";
-    $enable_ad_notice = 1;
+// Check connection
+if ($db->connect_error) {
+    error_log("Connection failed: " . $db->connect_error);
+    die("Database connection failed. Please check the configuration.");
 }
-$stmt->close();
 
-// If form is submitted, update the blacklist
-$update_success = false;
-$update_message = '';
+// Initialize the active tab variable
+$activeTab = "joke-blacklist"; // Default tab
+
+// Process POST requests
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Handle Joke Blacklist Update
+    // Determine which tab to return to based on POST data
     if (isset($_POST['blacklist'])) {
+        $activeTab = "joke-blacklist";
         $new_blacklist = isset($_POST['blacklist']) ? $_POST['blacklist'] : [];
         $new_blacklist_json = json_encode($new_blacklist);
         // Update the blacklist in the database
         $update_sql = "UPDATE joke_settings SET blacklist = ? WHERE id = 1";
         $update_stmt = $db->prepare($update_sql);
-        $update_stmt->bind_param('s', $new_blacklist_json);
+        $update_stmt->bind_param("s", $new_blacklist_json);
         $update_stmt->execute();
-        $update_stmt->close();
         // Set success message for blacklist update in session
         $_SESSION['update_message'] = "Blacklist settings updated successfully.";
     }
     // Handle Welcome Message Settings Update
     elseif (isset($_POST['send_welcome_messages'])) {
+        $activeTab = "welcome-messages";
         // Gather and save the updated welcome message data
         $send_welcome_messages = isset($_POST['send_welcome_messages']) ? 1 : 0;
         // Existing welcome messages
@@ -89,16 +66,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             VALUES 
             (1, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
-                send_welcome_messages = VALUES(send_welcome_messages), 
-                default_welcome_message = VALUES(default_welcome_message),
-                default_vip_welcome_message = VALUES(default_vip_welcome_message),
-                default_mod_welcome_message = VALUES(default_mod_welcome_message),
-                new_default_welcome_message = VALUES(new_default_welcome_message),
-                new_default_vip_welcome_message = VALUES(new_default_vip_welcome_message),
-                new_default_mod_welcome_message = VALUES(new_default_mod_welcome_message)";
+                send_welcome_messages = ?, 
+                default_welcome_message = ?,
+                default_vip_welcome_message = ?,
+                default_mod_welcome_message = ?,
+                new_default_welcome_message = ?,
+                new_default_vip_welcome_message = ?,
+                new_default_mod_welcome_message = ?";
         $update_stmt = $db->prepare($update_sql);
         $update_stmt->bind_param(
-            'issssss',
+            'issssssissssss',
+            $send_welcome_messages,
+            $default_welcome_message,
+            $default_vip_welcome_message,
+            $default_mod_welcome_message,
+            $new_default_welcome_message,
+            $new_default_vip_welcome_message,
+            $new_default_mod_welcome_message,
             $send_welcome_messages,
             $default_welcome_message,
             $default_vip_welcome_message,
@@ -112,148 +96,477 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Set success message for welcome messages update in session
         $_SESSION['update_message'] = "Welcome message settings updated successfully.";
     }
-    // NEW: Move channel point reward mapping here
-    elseif (isset($_POST['sound_file'], $_POST['twitch_alert_id'])) {
+    // Handle channel point reward mapping for twitch sound alerts
+    elseif (isset($_POST['sound_file']) && isset($_POST['twitch_alert_id'])) {
+        $activeTab = "twitch-audio-alerts";
         $status = "";
         $soundFile = htmlspecialchars($_POST['sound_file']);
-        $rewardId = htmlspecialchars($_POST['twitch_alert_id']);
+        $rewardId = isset($_POST['twitch_alert_id']) ? htmlspecialchars($_POST['twitch_alert_id']) : '';
         $db->begin_transaction();
         // Check if a mapping already exists for this sound file
         $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = ?");
         $checkExisting->bind_param('s', $soundFile);
         $checkExisting->execute();
-        $checkExisting->store_result();
-        if ($checkExisting->num_rows > 0) {
+        $result = $checkExisting->get_result();
+        if ($result->num_rows > 0) {
             // Update existing mapping
-            if ($rewardId) {
+            if (!empty($rewardId)) {
                 $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = ? WHERE sound_mapping = ?");
                 $updateMapping->bind_param('ss', $rewardId, $soundFile);
                 if (!$updateMapping->execute()) {
-                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->error_list, true) . "<br>";
+                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>";
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
                 }
-                $updateMapping->close();
             } else {
-                // Clear the mapping if no reward is selected
-                $clearMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = NULL WHERE sound_mapping = ?");
-                $clearMapping->bind_param('s', $soundFile);
-                if (!$clearMapping->execute()) {
-                    $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->error_list, true) . "<br>";
+                // Delete the mapping if no reward is selected
+                $deleteMapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
+                $deleteMapping->bind_param('s', $soundFile);
+                if (!$deleteMapping->execute()) {
+                    $status .= "Failed to remove mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>";
                 } else {
-                    $status .= "Mapping for file '" . $soundFile . "' has been cleared.<br>";
+                    $status .= "Mapping for file '" . $soundFile . "' has been removed.<br>";
                 }
-                $clearMapping->close();
             }
         } else {
             // Create a new mapping if it doesn't exist
-            if ($rewardId) {
+            if (!empty($rewardId)) {
                 $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (?, ?)");
                 $insertMapping->bind_param('ss', $soundFile, $rewardId);
                 if (!$insertMapping->execute()) {
-                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->error_list, true) . "<br>";
+                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>";
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
                 }
-                $insertMapping->close();
             }
         }
-        $checkExisting->close();
         // Commit transaction
         $db->commit();
         $_SESSION['update_message'] = $status;
     }
     // Handle Ad Notices Update
     elseif (isset($_POST['ad_start_message'])) {
+        $activeTab = "ad-notices";
+        $ad_upcoming_message = $_POST['ad_upcoming_message'];
         $ad_start_message = $_POST['ad_start_message'];
         $ad_end_message = $_POST['ad_end_message'];
+        $ad_snoozed_message = $_POST['ad_snoozed_message'];
         $enable_ad_notice = isset($_POST['enable_ad_notice']) ? 1 : 0;
-        $update_sql = "
-            INSERT INTO ad_notice_settings 
-            (id, ad_start_message, ad_end_message, enable_ad_notice)
-            VALUES 
-            (1, ?, ?, ?)
+        $enable_upcoming_ad_message = isset($_POST['enable_upcoming_ad_message']) ? 1 : 0;
+        $enable_start_ad_message = isset($_POST['enable_start_ad_message']) ? 1 : 0;
+        $enable_end_ad_message = isset($_POST['enable_end_ad_message']) ? 1 : 0;
+        $enable_snoozed_ad_message = isset($_POST['enable_snoozed_ad_message']) ? 1 : 0;
+        $update_sql = "INSERT INTO ad_notice_settings 
+            (id, ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
-                ad_start_message = VALUES(ad_start_message),
-                ad_end_message = VALUES(ad_end_message),
-                enable_ad_notice = VALUES(enable_ad_notice)";
+                ad_upcoming_message = ?,
+                ad_start_message = ?,
+                ad_end_message = ?,
+                ad_snoozed_message = ?,
+                enable_ad_notice = ?,
+                enable_upcoming_ad_message = ?,
+                enable_start_ad_message = ?,
+                enable_end_ad_message = ?,
+                enable_snoozed_ad_message = ?";
         $update_stmt = $db->prepare($update_sql);
-        $update_stmt->bind_param('ssi', $ad_start_message, $ad_end_message, $enable_ad_notice);
+        $update_stmt->bind_param(
+            'ssssgiiiissssiiiii',
+            $ad_upcoming_message,
+            $ad_start_message,
+            $ad_end_message,
+            $ad_snoozed_message,
+            $enable_ad_notice,
+            $enable_upcoming_ad_message,
+            $enable_start_ad_message,
+            $enable_end_ad_message,
+            $enable_snoozed_ad_message,
+            $ad_upcoming_message,
+            $ad_start_message,
+            $ad_end_message,
+            $ad_snoozed_message,
+            $enable_ad_notice,
+            $enable_upcoming_ad_message,
+            $enable_start_ad_message,
+            $enable_end_ad_message,
+            $enable_snoozed_ad_message
+        );
         $update_stmt->execute();
         $update_stmt->close();
         $_SESSION['update_message'] = "Ad notice settings updated successfully.";
     }
-    // Refresh the page to show updated settings
-    header("Location: " . $_SERVER['PHP_SELF']);
-}
-
-// Define empty variables
-$status = '';
-
-// Fetch sound alert mappings for the current user
-$getTwitchAlerts = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
-$getTwitchAlerts->execute();
-$getTwitchAlerts->bind_result($sound_mapping, $twitch_alert_id);
-$soundAlerts = [];
-while ($getTwitchAlerts->fetch()) {
-    $soundAlerts[] = [
-        'sound_mapping' => $sound_mapping,
-        'twitch_alert_id' => $twitch_alert_id
-    ];
-}
-$getTwitchAlerts->close();
-
-// Create an associative array for easy lookup: sound_mapping => twitch_alert_id
-$twitchSoundAlertMappings = [];
-foreach ($soundAlerts as $alert) {
-    $twitchSoundAlertMappings[$alert['sound_mapping']] = $alert['twitch_alert_id'];
-}
-
-$remaining_storage = $max_storage_size - $current_storage_used;
-$max_upload_size = $remaining_storage;
-// ini_set('upload_max_filesize', $max_upload_size);
-// ini_set('post_max_size', $max_upload_size);
-
-// Handle file upload
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
-    foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
-        $fileSize = $_FILES["filesToUpload"]["size"][$key];
-        if ($current_storage_used + $fileSize > $max_storage_size) {
-            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Storage limit exceeded.<br>";
-            continue;
+    // Handle Game Deaths Settings
+    elseif (isset($_POST['add_ignored_game'])) {
+        $activeTab = "game-deaths";
+        $game_name = trim($_POST['ignore_game_name']);
+        if (!empty($game_name)) {
+            $insert_stmt = $db->prepare("INSERT INTO game_deaths_settings (game_name) VALUES (?)");
+            $insert_stmt->bind_param("s", $game_name);
+            $insert_stmt->execute();
+            $insert_stmt->close();
+            $_SESSION['update_message'] = "Game '" . htmlspecialchars($game_name) . "' added to ignored list.";
         }
-        $cleanPath = rtrim($twitch_sound_alert_path, '/\\');
-        $targetFile = $cleanPath . DIRECTORY_SEPARATOR . basename($_FILES["filesToUpload"]["name"][$key]);
-        $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
-        if ($fileType != "mp3") {
-            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 files are allowed.<br>";
-            continue;
+    } elseif (isset($_POST['remove_ignored_game'])) {
+        $activeTab = "game-deaths";
+        $game_name = $_POST['remove_ignored_game'];
+        $delete_stmt = $db->prepare("DELETE FROM game_deaths_settings WHERE game_name = ?");
+        $delete_stmt->bind_param("s", $game_name);
+        $delete_stmt->execute();
+        $delete_stmt->close();
+        $_SESSION['update_message'] = "Game '" . htmlspecialchars($game_name) . "' removed from ignored list.";
+    }
+    // Handle chat alerts settings update
+    elseif (
+        isset($_POST['follower_alert']) || isset($_POST['cheer_alert']) || isset($_POST['raid_alert']) || isset($_POST['subscription_alert'])
+        || isset($_POST['gift_subscription_alert']) || isset($_POST['hype_train_start']) || isset($_POST['hype_train_end'])
+    ) {
+        $activeTab = "twitch-chat-alerts";
+        $alertTypes = [
+            'follower_alert',
+            'cheer_alert',
+            'raid_alert',
+            'subscription_alert',
+            'gift_subscription_alert',
+            'hype_train_start',
+            'hype_train_end'
+        ];
+        foreach ($alertTypes as $alertType) {
+            if (isset($_POST[$alertType])) {
+                $alertMessage = $_POST[$alertType];
+                $update_sql = "INSERT INTO twitch_chat_alerts (alert_type, alert_message) VALUES (?, ?) ON DUPLICATE KEY UPDATE alert_message = ?";
+                $update_stmt = $db->prepare($update_sql);
+                $update_stmt->bind_param('sss', $alertType, $alertMessage, $alertMessage);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
         }
-        if (move_uploaded_file($tmp_name, $targetFile)) {
-            $current_storage_used += $fileSize;
-            $status .= "The file " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . " has been uploaded.<br>";
-        } else {
-            $error = error_get_last();
-            $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>Error details: " . print_r($error, true) . "<br>";
+        $_SESSION['update_message'] = "Twitch Chat Alert settings updated successfully.";
+    }
+    // Handle file upload for Twitch Sound Alerts
+    if (isset($_FILES["filesToUpload"]) && is_array($_FILES["filesToUpload"]["tmp_name"])) {
+        $activeTab = "twitch-audio-alerts";
+        $status = "";
+        // Ensure directory exists
+        if (!is_dir($twitch_sound_alert_path)) {
+            mkdir($twitch_sound_alert_path, 0755, true);
+        }
+        // Define user-specific storage limits (backup in case storage_used.php wasn't included properly)
+        if (!isset($max_storage_size)) {
+            $tier = $_SESSION['tier'] ?? "None";
+            switch ($tier) {
+                case "1000":
+                    $max_storage_size = 50 * 1024 * 1024;
+                    break;
+                case "2000":
+                    $max_storage_size = 100 * 1024 * 1024;
+                    break;
+                case "3000":
+                    $max_storage_size = 200 * 1024 * 1024;
+                    break;
+                case "4000":
+                    $max_storage_size = 500 * 1024 * 1024;
+                    break;
+                default:
+                    $max_storage_size = 20 * 1024 * 1024;
+                    break;
+            }
+        }
+        // Recalculate current storage used to ensure accuracy
+        $walkon_path = "/var/www/walkons/" . $username;
+        $videoalert_path = "/var/www/videoalerts/" . $username;
+        $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path, $twitch_sound_alert_path]);
+        foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
+            if (empty($tmp_name))
+                continue;
+            $fileName = $_FILES["filesToUpload"]["name"][$key];
+            $fileSize = $_FILES["filesToUpload"]["size"][$key];
+            $fileError = $_FILES["filesToUpload"]["error"][$key];
+            // Check file size with accurate storage used calculation
+            if ($current_storage_used + $fileSize > $max_storage_size) {
+                $status .= "Failed to upload " . htmlspecialchars($fileName) . ". Storage limit exceeded. Using " .
+                    round($current_storage_used / 1024 / 1024, 2) . "MB of " .
+                    round($max_storage_size / 1024 / 1024, 2) . "MB.<br>";
+                continue;
+            }
+            // Verify file is an MP3
+            $fileType = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            if ($fileType != "mp3") {
+                $status .= "Failed to upload " . htmlspecialchars($fileName) . ". Only MP3 files are allowed.<br>";
+                continue;
+            }
+            // Check for upload errors
+            if ($fileError !== 0) {
+                $status .= "Error uploading " . htmlspecialchars($fileName) . ". Error code: $fileError<br>";
+                continue;
+            }
+            // Full path for the destination file
+            $targetFile = $twitch_sound_alert_path . '/' . basename($fileName);
+            // Move file to destination
+            if (move_uploaded_file($tmp_name, $targetFile)) {
+                $current_storage_used += $fileSize;
+                // Remove the database update since the table doesn't exist
+                $status .= "The file " . htmlspecialchars($fileName) . " has been uploaded.<br>";
+            } else {
+                $error = error_get_last();
+                $status .= "Sorry, there was an error uploading " . htmlspecialchars($fileName) . ".<br>";
+                if ($error) {
+                    $status .= "Error details: " . htmlspecialchars(print_r($error, true)) . "<br>";
+                }
+            }
+        }
+        // Calculate storage percentage
+        if (isset($max_storage_size) && $max_storage_size > 0) {
+            $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+        }
+        $_SESSION['update_message'] = $status;
+        // If this is an AJAX request, return JSON
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            $responseData = [
+                'status' => $status,
+                'success' => strpos($status, 'Failed to upload') === false,
+                'storage_used' => $current_storage_used,
+                'max_storage' => $max_storage_size,
+                'storage_percentage' => $storage_percentage,
+                'tier' => $_SESSION['tier'] ?? 'None'
+            ];
+            // Debug values to help determine what's going wrong
+            if (strpos($status, 'Failed to upload') !== false) {
+                error_log("Upload Failed - Storage Debug: current=$current_storage_used, max=$max_storage_size, tier={$_SESSION['tier']}");
+            }
+            echo json_encode($responseData);
+            exit;
         }
     }
-}
 
-// Handle file deletion
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
-    foreach ($_POST['delete_files'] as $file_to_delete) {
-        $file_to_delete = $twitch_sound_alert_path . '/' . basename($file_to_delete);
-        if (is_file($file_to_delete) && unlink($file_to_delete)) {
-            $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
-        } else {
-            $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
+    // Handle file deletion
+    if (isset($_POST['delete_files']) && is_array($_POST['delete_files'])) {
+        $activeTab = "twitch-audio-alerts";
+        $status = "";
+        $totalFreed = 0;
+        foreach ($_POST['delete_files'] as $file_to_delete) {
+            $file_name = basename($file_to_delete);
+            $full_path = $twitch_sound_alert_path . '/' . $file_name;
+            // Get file size before deletion
+            $fileSize = is_file($full_path) ? filesize($full_path) : 0;
+            try {
+                // First delete any database mappings
+                $delete_mapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
+                if ($delete_mapping) {
+                    $delete_mapping->bind_param('s', $file_name);
+                    $delete_mapping->execute();
+                    $delete_mapping->close();
+                }
+                // Now delete the actual file
+                if (is_file($full_path) && unlink($full_path)) {
+                    $status .= "The file " . htmlspecialchars($file_name) . " has been deleted.<br>";
+                    // Update storage used
+                    $current_storage_used -= $fileSize;
+                    if ($current_storage_used < 0)
+                        $current_storage_used = 0;
+                    $totalFreed += $fileSize;
+                } else {
+                    $status .= "Failed to delete " . htmlspecialchars($file_name) . ".<br>";
+                }
+            } catch (Exception $e) {
+                $status .= "Error: " . $e->getMessage() . "<br>";
+            }
         }
+        // Calculate storage percentage
+        if (isset($max_storage_size) && $max_storage_size > 0) {
+            $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+        }
+        $_SESSION['update_message'] = $status;
     }
-}
 
-$soundalert_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
-function formatFileName($fileName)
-{
-    return basename($fileName, '.mp3');
+    // Handle section-specific chat alert saves
+    if (isset($_POST['section_save'])) {
+        $section = $_POST['section_save'];
+        $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
+        if ($db->connect_error) {
+            die('Connection failed: ' . $db->connect_error);
+        }
+        $fieldsToUpdate = [];
+        if ($section === 'general') {
+            if (isset($_POST['follower_alert']))
+                $fieldsToUpdate['follower_alert'] = $_POST['follower_alert'];
+            if (isset($_POST['cheer_alert']))
+                $fieldsToUpdate['cheer_alert'] = $_POST['cheer_alert'];
+            if (isset($_POST['raid_alert']))
+                $fieldsToUpdate['raid_alert'] = $_POST['raid_alert'];
+        } elseif ($section === 'subscription') {
+            if (isset($_POST['subscription_alert']))
+                $fieldsToUpdate['subscription_alert'] = $_POST['subscription_alert'];
+            if (isset($_POST['gift_subscription_alert']))
+                $fieldsToUpdate['gift_subscription_alert'] = $_POST['gift_subscription_alert'];
+        } elseif ($section === 'hype-train') {
+            if (isset($_POST['hype_train_start']))
+                $fieldsToUpdate['hype_train_start'] = $_POST['hype_train_start'];
+            if (isset($_POST['hype_train_end']))
+                $fieldsToUpdate['hype_train_end'] = $_POST['hype_train_end'];
+        } elseif ($section === 'regular-members') {
+            // Handle regular members welcome messages
+            $db_name_local = $username;
+            $db_local = new mysqli($db_servername, $db_username, $db_password, $db_name_local);
+            if ($db_local->connect_error) {
+                echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+                exit();
+            }
+            $fieldsToUpdate = [];
+            if (isset($_POST['new_default_welcome_message']))
+                $fieldsToUpdate['new_default_welcome_message'] = $_POST['new_default_welcome_message'];
+            if (isset($_POST['default_welcome_message']))
+                $fieldsToUpdate['default_welcome_message'] = $_POST['default_welcome_message'];
+            if (!empty($fieldsToUpdate)) {
+                $updateParts = [];
+                $params = [];
+                $types = '';
+                foreach ($fieldsToUpdate as $field => $value) {
+                    $updateParts[] = "$field = ?";
+                    $params[] = $value;
+                    $types .= 's';
+                }
+                $update_sql = "UPDATE streamer_preferences SET " . implode(', ', $updateParts) . " WHERE id = 1";
+                $update_stmt = $db_local->prepare($update_sql);
+                $update_stmt->bind_param($types, ...$params);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
+            $db_local->close();
+            echo json_encode(['success' => true, 'section' => $section]);
+            exit();
+        } elseif ($section === 'vip-members') {
+            // Handle VIP members welcome messages
+            $db_name_local = $username;
+            $db_local = new mysqli($db_servername, $db_username, $db_password, $db_name_local);
+            if ($db_local->connect_error) {
+                echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+                exit();
+            }
+            $fieldsToUpdate = [];
+            if (isset($_POST['new_default_vip_welcome_message']))
+                $fieldsToUpdate['new_default_vip_welcome_message'] = $_POST['new_default_vip_welcome_message'];
+            if (isset($_POST['default_vip_welcome_message']))
+                $fieldsToUpdate['default_vip_welcome_message'] = $_POST['default_vip_welcome_message'];
+            if (!empty($fieldsToUpdate)) {
+                $updateParts = [];
+                $params = [];
+                $types = '';
+                foreach ($fieldsToUpdate as $field => $value) {
+                    $updateParts[] = "$field = ?";
+                    $params[] = $value;
+                    $types .= 's';
+                }
+                $update_sql = "UPDATE streamer_preferences SET " . implode(', ', $updateParts) . " WHERE id = 1";
+                $update_stmt = $db_local->prepare($update_sql);
+                $update_stmt->bind_param($types, ...$params);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
+            $db_local->close();
+            echo json_encode(['success' => true, 'section' => $section]);
+            exit();
+        } elseif ($section === 'moderators') {
+            // Handle moderators welcome messages
+            $db_name_local = $username;
+            $db_local = new mysqli($db_servername, $db_username, $db_password, $db_name_local);
+            if ($db_local->connect_error) {
+                echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+                exit();
+            }
+            $fieldsToUpdate = [];
+            if (isset($_POST['new_default_mod_welcome_message']))
+                $fieldsToUpdate['new_default_mod_welcome_message'] = $_POST['new_default_mod_welcome_message'];
+            if (isset($_POST['default_mod_welcome_message']))
+                $fieldsToUpdate['default_mod_welcome_message'] = $_POST['default_mod_welcome_message'];
+            if (isset($_POST['send_welcome_messages']))
+                $fieldsToUpdate['send_welcome_messages'] = $_POST['send_welcome_messages'];
+            if (!empty($fieldsToUpdate)) {
+                $updateParts = [];
+                $params = [];
+                $types = '';
+                foreach ($fieldsToUpdate as $field => $value) {
+                    $updateParts[] = "$field = ?";
+                    $params[] = $value;
+                    $types .= ($field === 'send_welcome_messages') ? 'i' : 's';
+                }
+                $update_sql = "UPDATE streamer_preferences SET " . implode(', ', $updateParts) . " WHERE id = 1";
+                $update_stmt = $db_local->prepare($update_sql);
+                $update_stmt->bind_param($types, ...$params);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
+            $db_local->close();
+            echo json_encode(['success' => true, 'section' => $section]);
+            exit();
+        }
+        // Update or insert each field
+        foreach ($fieldsToUpdate as $alertType => $alertMessage) {
+            // Check if the alert type already exists
+            $checkStmt = $db->prepare("SELECT 1 FROM twitch_chat_alerts WHERE alert_type = ?");
+            $checkStmt->bind_param('s', $alertType);
+            $checkStmt->execute();
+            $checkStmt->store_result();
+            if ($checkStmt->num_rows > 0) {
+                // Update existing record
+                $updateStmt = $db->prepare("UPDATE twitch_chat_alerts SET alert_message = ? WHERE alert_type = ?");
+                $updateStmt->bind_param('ss', $alertMessage, $alertType);
+                $updateStmt->execute();
+                $updateStmt->close();
+            } else {
+                // Insert new record
+                $insertStmt = $db->prepare("INSERT INTO twitch_chat_alerts (alert_type, alert_message) VALUES (?, ?)");
+                $insertStmt->bind_param('ss', $alertType, $alertMessage);
+                $insertStmt->execute();
+                $insertStmt->close();
+            }
+            $checkStmt->close();
+        }
+        $db->close();
+        echo json_encode(['success' => true, 'section' => $section]);
+        exit();
+    }
+    // Handle Automated Shoutout Settings Update
+    elseif (isset($_POST['cooldown_minutes'])) {
+        $activeTab = "automated-shoutouts";
+        $cooldown_minutes = max(60, intval($_POST['cooldown_minutes'])); // Enforce minimum of 60
+        $stmt = $db->prepare("INSERT INTO automated_shoutout_settings (id, cooldown_minutes) VALUES (1, ?) ON DUPLICATE KEY UPDATE cooldown_minutes = ?");
+        $stmt->bind_param('ii', $cooldown_minutes, $cooldown_minutes);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Automated shoutout cooldown updated to $cooldown_minutes minutes.";
+        } else {
+            $_SESSION['update_message'] = "Error updating automated shoutout cooldown: " . $stmt->error;
+        }
+        $stmt->close();
+    }
+    // Handle Remove Automated Shoutout Cooldown
+    elseif (isset($_POST['remove_shoutout_cooldown'])) {
+        $activeTab = "automated-shoutouts";
+        $user_id = $_POST['remove_shoutout_cooldown'];
+        $stmt = $db->prepare("DELETE FROM automated_shoutout_tracking WHERE user_id = ?");
+        $stmt->bind_param('s', $user_id);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Automated shoutout cooldown removed for user.";
+        } else {
+            $_SESSION['update_message'] = "Error removing cooldown: " . $stmt->error;
+        }
+        $stmt->close();
+    }
+    // Handle Clear All Automated Shoutout Cooldowns
+    elseif (isset($_POST['clear_all_shoutout_cooldowns'])) {
+        $activeTab = "automated-shoutouts";
+        $stmt = $db->prepare("DELETE FROM automated_shoutout_tracking");
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "All automated shoutout cooldowns have been cleared.";
+        } else {
+            $_SESSION['update_message'] = "Error clearing cooldowns: " . $stmt->error;
+        }
+        $stmt->close();
+    }
+    // For non-AJAX requests, redirect back to the modules page with the active tab
+    if (empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) != 'xmlhttprequest') {
+        header("Location: modules.php?tab=" . $activeTab);
+        exit();
+    }
 }
 ?>
