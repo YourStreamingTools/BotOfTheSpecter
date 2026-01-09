@@ -7,8 +7,8 @@ $today = new DateTime();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: ../login.php');
-    exit();
+  header('Location: ../login.php');
+  exit();
 }
 
 // Page Title and Initial Variables
@@ -62,8 +62,10 @@ $bot_version = '';
 $bot_checked_time = '';
 $bot_running_since = '';
 $bot_running_duration = '';
+$bot_version_kind = '';
 
-function getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password) {
+function getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password)
+{
   $output = '';
   try {
     $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
@@ -91,7 +93,8 @@ $viewerCount = 0;
 $streamUptime = '';
 
 // Function to get channel status from Twitch API
-function getChannelStatus($login) {
+function getChannelStatus($login)
+{
   global $clientID;
   $token = $_SESSION['access_token'];
   $ch = curl_init();
@@ -123,7 +126,8 @@ function getChannelStatus($login) {
 }
 
 // Function to get stream information
-function getStreamInfo($userId) {
+function getStreamInfo($userId)
+{
   global $clientID;
   $token = $_SESSION['access_token'];
   $ch = curl_init();
@@ -154,29 +158,29 @@ if (empty($no_mod_selected)) {
   $channelResponse = getChannelStatus($_SESSION['editing_display_name']);
   $channelInfo = $channelResponse['data'];
   if ($channelInfo) {
-  $stream_title = $channelInfo['title'] ?? 'No Title';
-  $gameName = $channelInfo['game_name'] ?? 'Not Playing';
-  $isLive = $channelInfo['is_live'] ?? false;
-  $activeStatus = $isLive ? "Live" : "Offline";
-  // If channel is live, get additional stream information
-  if ($isLive) {
-    $streamInfo = getStreamInfo($channelInfo['id']);
-    if ($streamInfo['success'] && $streamInfo['data']) {
-      $viewerCount = $streamInfo['data']['viewer_count'] ?? 0;
-      // Calculate uptime
-      if (!empty($streamInfo['data']['started_at'])) {
-        $startTime = new DateTime($streamInfo['data']['started_at']);
-        $currentTime = new DateTime();
-        $interval = $currentTime->diff($startTime);
-        // Format the uptime
-        $hours = $interval->h + ($interval->days * 24);
-        $streamUptime = $hours . 'h ' . $interval->i . 'm';
+    $stream_title = $channelInfo['title'] ?? 'No Title';
+    $gameName = $channelInfo['game_name'] ?? 'Not Playing';
+    $isLive = $channelInfo['is_live'] ?? false;
+    $activeStatus = $isLive ? "Live" : "Offline";
+    // If channel is live, get additional stream information
+    if ($isLive) {
+      $streamInfo = getStreamInfo($channelInfo['id']);
+      if ($streamInfo['success'] && $streamInfo['data']) {
+        $viewerCount = $streamInfo['data']['viewer_count'] ?? 0;
+        // Calculate uptime
+        if (!empty($streamInfo['data']['started_at'])) {
+          $startTime = new DateTime($streamInfo['data']['started_at']);
+          $currentTime = new DateTime();
+          $interval = $currentTime->diff($startTime);
+          // Format the uptime
+          $hours = $interval->h + ($interval->days * 24);
+          $streamUptime = $hours . 'h ' . $interval->i . 'm';
+        }
+      } else {
+        $channelInfo = null;
       }
-    } else {
-      $channelInfo = null;
     }
   }
-}
 
 }
 
@@ -198,34 +202,76 @@ if (empty($no_mod_selected)) {
             if (is_array($entry)) {
               $uname = strtolower($entry['username'] ?? $entry['user'] ?? $entry['channel'] ?? $entry['display'] ?? '');
             }
-            if ($editing_uname !== '' && $uname !== '' && $editing_uname === $uname) { $matched_entry = $entry; break; }
-            if ($editing_display !== '' && $uname !== '' && $editing_display === $uname) { $matched_entry = $entry; break; }
+            if ($editing_uname !== '' && $uname !== '' && $editing_uname === $uname) {
+              $matched_entry = $entry;
+              break;
+            }
+            if ($editing_display !== '' && $uname !== '' && $editing_display === $uname) {
+              $matched_entry = $entry;
+              break;
+            }
           }
         }
         if ($matched_entry) {
           $bot_running = true;
           $bot_checked_time = (new DateTime())->format('M j, Y - g:i A');
           if (is_array($matched_entry)) {
-            if (!empty($matched_entry['pid'])) { $bot_pid = $matched_entry['pid']; }
-            if (!empty($matched_entry['PID'])) { $bot_pid = $matched_entry['PID']; }
-            if (!empty($matched_entry['version'])) { $bot_version = $matched_entry['version']; }
+            if (!empty($matched_entry['pid'])) {
+              $bot_pid = $matched_entry['pid'];
+            }
+            if (!empty($matched_entry['PID'])) {
+              $bot_pid = $matched_entry['PID'];
+            }
+            if (!empty($matched_entry['version'])) {
+              $bot_version = $matched_entry['version'];
+            }
           }
         }
       } else {
         // Line-based output: search lines for the editing username or display name
         $lines = preg_split('/\r\n|\r|\n/', $bot_output);
         $matched_line = null;
+        $current_section = 'stable';
+        $found_kind = '';
         foreach ($lines as $line) {
+          $trim_line = trim($line);
+          if (strpos($trim_line, 'Stable bots running:') !== false) {
+            $current_section = 'stable';
+            continue;
+          }
+          if (strpos($trim_line, 'Beta bots running:') !== false) {
+            $current_section = 'beta';
+            continue;
+          }
+          if (strpos($trim_line, 'Custom bots running:') !== false) {
+            $current_section = 'custom';
+            continue;
+          }
           $low = strtolower($line);
-          if ($editing_uname !== '' && strpos($low, $editing_uname) !== false) { $matched_line = $line; break; }
-          if ($editing_display !== '' && strpos($low, $editing_display) !== false) { $matched_line = $line; break; }
+          if ($editing_uname !== '' && strpos($low, $editing_uname) !== false) {
+            $matched_line = $line;
+            $found_kind = $current_section;
+            break;
+          }
+          if ($editing_display !== '' && strpos($low, $editing_display) !== false) {
+            $matched_line = $line;
+            $found_kind = $current_section;
+            break;
+          }
         }
         if ($matched_line !== null) {
           // Extract PID/version only from the matched line
-          if (preg_match('/PID[:=\s]*([0-9]+)/i', $matched_line, $m)) { $bot_pid = $m[1]; }
-          if (preg_match('/version[:=\s]*([0-9\.\-]+)/i', $matched_line, $m2)) { $bot_version = $m2[1]; }
+          if (preg_match('/PID[:=\s]*([0-9]+)/i', $matched_line, $m)) {
+            $bot_pid = $m[1];
+          }
+          if (preg_match('/version[:=\s]*([0-9\.\-]+)/i', $matched_line, $m2)) {
+            $bot_version = $m2[1];
+          }
           $bot_running = true;
           $bot_checked_time = (new DateTime())->format('M j, Y - g:i A');
+          if ($found_kind !== '') {
+            $bot_version_kind = $found_kind;
+          }
         }
       }
     }
@@ -235,8 +281,7 @@ if (empty($no_mod_selected)) {
 }
 
 // Determine version kind: stable | beta | custom
-$bot_version_kind = '';
-if (!empty($bot_version)) {
+if (empty($bot_version_kind) && !empty($bot_version)) {
   $lv = strtolower($bot_version);
   if (strpos($lv, 'beta') !== false || strpos($lv, 'alpha') !== false || strpos($lv, 'dev') !== false) {
     $bot_version_kind = 'beta';
@@ -247,16 +292,16 @@ if (!empty($bot_version)) {
   }
 } else {
   // fallback: check per-channel DB flags if available
-  if (empty($no_mod_selected) && !empty($db)) {
+  if (empty($no_mod_selected) && !empty($conn)) {
     $editing = $_SESSION['editing_username'] ?? '';
     if (!empty($editing)) {
-      $stmt = $db->prepare("SELECT is_beta, beta FROM users WHERE username = ? OR twitch_user_id = ? LIMIT 1");
+      $stmt = $conn->prepare("SELECT beta_access FROM users WHERE username = ? OR twitch_user_id = ? LIMIT 1");
       if ($stmt) {
         $stmt->bind_param('ss', $editing, $editing);
         $stmt->execute();
         $res = $stmt->get_result();
         if ($row = $res->fetch_assoc()) {
-          if (!empty($row['is_beta']) || !empty($row['beta'])) {
+          if (!empty($row['beta_access'])) {
             $bot_version_kind = 'beta';
           }
         }
@@ -268,8 +313,11 @@ if (!empty($bot_version)) {
 
 // Map to badge classes
 $version_badge_class = 'is-primary';
-if ($bot_version_kind === 'beta') { $version_badge_class = 'is-warning'; }
-elseif ($bot_version_kind === 'custom') { $version_badge_class = 'is-info'; }
+if ($bot_version_kind === 'beta') {
+  $version_badge_class = 'is-warning';
+} elseif ($bot_version_kind === 'custom') {
+  $version_badge_class = 'is-info';
+}
 // If bot is running and we have a PID, attempt to determine 'running since' by checking the
 // version control file mtime on the bot host. Uses paths based on version kind.
 if ($bot_running && !empty($bot_pid) && $bot_pid !== 'N/A') {
@@ -282,10 +330,16 @@ if ($bot_running && !empty($bot_pid) && $bot_pid !== 'N/A') {
       // Generate safe candidates (lowercase, stripped)
       $ed_u = preg_replace('/[^a-zA-Z0-9_\-]/', '', strtolower($editing_uname));
       $ed_d = preg_replace('/[^a-zA-Z0-9_\-]/', '', strtolower($editing_display));
-      if ($ed_d !== '') { $candidates[] = $ed_d; }
-      if ($ed_u !== '' && $ed_u !== $ed_d) { $candidates[] = $ed_u; }
+      if ($ed_d !== '') {
+        $candidates[] = $ed_d;
+      }
+      if ($ed_u !== '' && $ed_u !== $ed_d) {
+        $candidates[] = $ed_u;
+      }
       // Also try raw display as fallback
-      if (!in_array($editing_display, $candidates) && $editing_display !== '') { $candidates[] = $editing_display; }
+      if (!in_array($editing_display, $candidates) && $editing_display !== '') {
+        $candidates[] = $editing_display;
+      }
       $mtime_out = '';
       foreach ($candidates as $cand) {
         if ($bot_version_kind === 'beta') {
@@ -304,7 +358,10 @@ if ($bot_running && !empty($bot_pid) && $bot_pid !== 'N/A') {
         } elseif (is_numeric($mtime_try)) {
           $mtime_found = $mtime_try;
         }
-        if ($mtime_found !== '' && intval($mtime_found) > 0) { $mtime_out = $mtime_found; break; }
+        if ($mtime_found !== '' && intval($mtime_found) > 0) {
+          $mtime_out = $mtime_found;
+          break;
+        }
       }
       if (is_numeric($mtime_out) && intval($mtime_out) > 0) {
         $mtime = intval($mtime_out);
@@ -314,10 +371,18 @@ if ($bot_running && !empty($bot_pid) && $bot_pid !== 'N/A') {
         $now = new DateTime();
         $interval = $now->diff($dt);
         $parts = array();
-        if ($interval->d > 0) { $parts[] = $interval->d . 'd'; }
-        if ($interval->h > 0) { $parts[] = $interval->h . 'h'; }
-        if ($interval->i > 0) { $parts[] = $interval->i . 'm'; }
-        if (empty($parts)) { $parts[] = $interval->s . 's'; }
+        if ($interval->d > 0) {
+          $parts[] = $interval->d . 'd';
+        }
+        if ($interval->h > 0) {
+          $parts[] = $interval->h . 'h';
+        }
+        if ($interval->i > 0) {
+          $parts[] = $interval->i . 'm';
+        }
+        if (empty($parts)) {
+          $parts[] = $interval->s . 's';
+        }
         $bot_running_duration = implode(' ', $parts);
       }
     }
@@ -375,7 +440,8 @@ if (empty($no_mod_selected) && !empty($db)) {
   $timerCount = $enabledTimerCount = $disabledTimerCount = 0;
 }
 
-function formatBytes($bytes, $precision = 2) {
+function formatBytes($bytes, $precision = 2)
+{
   $units = array('B', 'KB', 'MB', 'GB', 'TB');
   $bytes = max($bytes, 0);
   $pow = $bytes > 0 ? floor(log($bytes) / log(1024)) : 0;
@@ -420,16 +486,20 @@ ob_start();
           </span>
           <div>
             <h2 class="title is-5 mb-0">Storage Usage</h2>
-            <p class="help mb-0">Current storage usage for <?php echo isset($_SESSION['editing_display_name']) ? htmlspecialchars($_SESSION['editing_display_name']) : 'Channel'; ?></p>
+            <p class="help mb-0">Current storage usage for
+              <?php echo isset($_SESSION['editing_display_name']) ? htmlspecialchars($_SESSION['editing_display_name']) : 'Channel'; ?>
+            </p>
           </div>
         </div>
         <div class="mb-2">
           <span class="has-text-weight-bold"><?php echo $storageUsedFormatted; ?></span>
           <span class="has-text-white">/ <?php echo $storageMaxFormatted; ?></span>
-          <span class="has-text-white" style="float:right;"><?php echo number_format($storagePercent, 2); ?>% used</span>
+          <span class="has-text-white" style="float:right;"><?php echo number_format($storagePercent, 2); ?>%
+            used</span>
         </div>
         <div style="margin-bottom:3px;">
-          <progress class="progress is-info" value="<?php echo $storagePercent; ?>" max="100" style="height: 10px; margin-bottom:0;">
+          <progress class="progress is-info" value="<?php echo $storagePercent; ?>" max="100"
+            style="height: 10px; margin-bottom:0;">
             <?php echo $storagePercent; ?>%
           </progress>
         </div>
@@ -468,8 +538,8 @@ ob_start();
             <p class="heading">Timers</p>
             <p class="title"><?php echo $timerCount; ?></p>
             <p class="subtitle is-size-6">
-              <span class="has-text-success"><?php echo $enabledTimerCount; ?> Enabled</span> 
-              &nbsp;/&nbsp; 
+              <span class="has-text-success"><?php echo $enabledTimerCount; ?> Enabled</span>
+              &nbsp;/&nbsp;
               <span class="has-text-danger"><?php echo $disabledTimerCount; ?> Disabled</span>
             </p>
           </div>
@@ -477,11 +547,11 @@ ob_start();
             <p class="heading">Online Status</p>
             <p class="title"><?php echo $activeStatus; ?></p>
             <?php if ($isLive): ?>
-            <p class="subtitle is-size-6">
-              <span class="has-text-info"><?php echo number_format($viewerCount); ?> viewers</span>
-              &nbsp;/&nbsp; 
-              <span class="has-text-info"><?php echo $streamUptime; ?> uptime</span>
-            </p>
+              <p class="subtitle is-size-6">
+                <span class="has-text-info"><?php echo number_format($viewerCount); ?> viewers</span>
+                &nbsp;/&nbsp;
+                <span class="has-text-info"><?php echo $streamUptime; ?> uptime</span>
+              </p>
             <?php endif; ?>
           </div>
         </div>
@@ -491,52 +561,55 @@ ob_start();
         </div>
       </div>
       <?php if (empty($no_mod_selected)): ?>
-      <div class="box" style="border-radius:10px;">
-        <div class="media">
-          <div class="media-left">
-            <span class="icon is-large has-text-primary">
-              <i class="fas fa-robot fa-3x"></i>
-            </span>
-          </div>
-          <div class="media-content">
-            <p class="title is-5" style="margin-bottom:6px;">Bot Status</p>
-            <p class="is-size-6">
-              <span class="tag <?php echo $bot_running ? 'is-success' : 'is-danger'; ?>" style="margin-right:8px;">
-                <?php echo $bot_running ? 'Running' : 'Stopped'; ?>
+        <div class="box" style="border-radius:10px;">
+          <div class="media">
+            <div class="media-left">
+              <span class="icon is-large has-text-primary">
+                <i class="fas fa-robot fa-3x"></i>
               </span>
-              <?php if (!empty($bot_version)): ?>
-                <span class="tag is-light has-text-dark" title="Bot version">v<?php echo htmlspecialchars($bot_version); ?></span>
-              <?php endif; ?>
-              <span class="tag <?php echo $version_badge_class; ?>" title="Release type" style="margin-left:8px;">
-                <?php echo ucfirst($bot_version_kind); ?>
-              </span>
-            </p>
-            <p style="margin-top:8px;">
-              <strong>PID:</strong> <code style="background:#f5f5f5;padding:2px 6px;border-radius:4px;"><?php echo htmlspecialchars($bot_pid); ?></code>
-              &nbsp;&nbsp;
-              <?php if (!empty($bot_checked_time)): ?>
-                <span class="has-text-grey" style="font-size:0.9em;">Checked: <?php echo $bot_checked_time; ?></span>
-              <?php endif; ?>
-              <?php if (!empty($bot_running_since)): ?>
-                <br>
-                <span class="has-text-weight-semibold">Running since:</span>
-                <span class="has-text-grey" style="font-size:0.95em;"> <?php echo $bot_running_since; ?></span>
-                <?php if (!empty($bot_running_duration)): ?>
-                  <span class="tag is-light has-text-dark" style="margin-left:8px;"><?php echo htmlspecialchars($bot_running_duration); ?></span>
+            </div>
+            <div class="media-content">
+              <p class="title is-5" style="margin-bottom:6px;">Bot Status</p>
+              <p class="is-size-6">
+                <span class="tag <?php echo $bot_running ? 'is-success' : 'is-danger'; ?>" style="margin-right:8px;">
+                  <?php echo $bot_running ? 'Running' : 'Stopped'; ?>
+                </span>
+                <?php if (!empty($bot_version)): ?>
+                  <span class="tag is-light has-text-dark"
+                    title="Bot version">v<?php echo htmlspecialchars($bot_version); ?></span>
                 <?php endif; ?>
-              <?php endif; ?>
-            </p>
+                <span class="tag <?php echo $version_badge_class; ?>" title="Release type" style="margin-left:8px;">
+                  <?php echo ucfirst($bot_version_kind); ?>
+                </span>
+              </p>
+              <p style="margin-top:8px;">
+                <strong>PID:</strong> <code
+                  style="background:#f5f5f5;padding:2px 6px;border-radius:4px;"><?php echo htmlspecialchars($bot_pid); ?></code>
+                &nbsp;&nbsp;
+                <?php if (!empty($bot_checked_time)): ?>
+                  <span class="has-text-grey" style="font-size:0.9em;">Checked: <?php echo $bot_checked_time; ?></span>
+                <?php endif; ?>
+                <?php if (!empty($bot_running_since)): ?>
+                  <br>
+                  <span class="has-text-weight-semibold">Running since:</span>
+                  <span class="has-text-grey" style="font-size:0.95em;"> <?php echo $bot_running_since; ?></span>
+                  <?php if (!empty($bot_running_duration)): ?>
+                    <span class="tag is-light has-text-dark"
+                      style="margin-left:8px;"><?php echo htmlspecialchars($bot_running_duration); ?></span>
+                  <?php endif; ?>
+                <?php endif; ?>
+              </p>
+            </div>
+            <div class="media-right" style="text-align:right;">
+              <a class="button is-small is-info" href="#" onclick="location.reload();return false;">Refresh</a>
+            </div>
           </div>
-          <div class="media-right" style="text-align:right;">
-            <a class="button is-small is-info" href="#" onclick="location.reload();return false;">Refresh</a>
-          </div>
+          <?php if (!$bot_running): ?>
+            <div class="notification is-warning is-light mt-3 mb-0">
+              The bot is not currently running for this channel.
+            </div>
+          <?php endif; ?>
         </div>
-        <?php if (!$bot_running): ?>
-          <div class="notification is-warning is-light mt-3 mb-0">
-            The bot is not currently running for this channel.
-          </div>
-        <?php endif; ?>
-      </div>
       <?php endif; ?>
     </div>
   </div>
