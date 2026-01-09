@@ -147,13 +147,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
             while ($u = $res->fetch_assoc()) {
                 $uname = $u['username'];
                 try {
-                    $status = checkBotRunning($uname, 'stable');
-                    if (isset($status['running']) && $status['running']) {
+                    // Check for stable bot first
+                    $stableStatus = checkBotRunning($uname, 'stable');
+                    if (isset($stableStatus['running']) && $stableStatus['running']) {
                         $running_bots[] = [
                             'username' => $uname,
-                            'pid' => $status['pid'] ?? 'unknown',
-                            'version' => $status['version'] ?? ''
+                            'pid' => $stableStatus['pid'] ?? 'unknown',
+                            'bot_type' => 'stable',
+                            'version' => $stableStatus['version'] ?? ''
                         ];
+                    } else {
+                        // If stable is not running, check for beta bot
+                        $betaStatus = checkBotRunning($uname, 'beta');
+                        if (isset($betaStatus['running']) && $betaStatus['running']) {
+                            $running_bots[] = [
+                                'username' => $uname,
+                                'pid' => $betaStatus['pid'] ?? 'unknown',
+                                'bot_type' => 'beta',
+                                'version' => $betaStatus['version'] ?? ''
+                            ];
+                        }
                     }
                 } catch (Exception $e) {
                     // Ignore per-user errors but capture in debug
@@ -519,12 +532,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     ob_start();
     header('Content-Type: application/json');
     $username = trim($_POST['username'] ?? '');
-    $originalBotType = trim($_POST['bot_type'] ?? 'stable');
+    $botType = trim($_POST['bot_type'] ?? 'stable');
     $pid = intval($_POST['pid'] ?? 0);
-    // ALWAYS restart users as stable, regardless of what they were running
-    $botType = 'stable';
     // Log the restart attempt
-    error_log("Bot restart request - Username: {$username}, Original Type: {$originalBotType}, Restarting as: {$botType}, PID: {$pid}");
+    error_log("Bot restart request - Username: {$username}, Bot Type: {$botType}, PID: {$pid}");
     $success = false;
     $message = '';
     if (empty($username)) {
@@ -577,8 +588,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     $result = performBotAction('run', $botType, $params);
                     error_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
                     $success = $result['success'];
-                    // Always clarify that stable was started
-                    $message = $result['message'] . " (Stable version)";
+                    // Clarify which bot type was started
+                    $message = $result['message'] . " (" . ucfirst($botType) . " version)";
                 } else {
                     $message = 'Bot access token not found for user';
                 }
@@ -605,12 +616,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
     header('Content-Type: application/json');
     require_once __DIR__ . '/../bot_control_functions.php';
     $username = trim($_POST['username'] ?? '');
+    $botType = trim($_POST['bot_type'] ?? 'stable');
     if (empty($username)) {
         echo json_encode(['success' => false, 'message' => 'Username is required']);
         exit;
     }
     try {
-        // Start the stable bot for the user while capturing incidental output
+        // Start the bot for the user while capturing incidental output
         $handledShutdown = false;
         // Ensure a fresh buffer to capture any HTML/error output produced during bot startup
         while (ob_get_level()) ob_end_clean();
@@ -626,7 +638,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
             }
         });
         try {
-            $result = start_bot_for_user($username, 'stable');
+            $result = start_bot_for_user($username, $botType);
             $debug = '';
             if (ob_get_level()) $debug = ob_get_clean();
             $handledShutdown = true;
@@ -673,15 +685,25 @@ ob_start();
     <h1 class="title is-4"><span class="icon"><i class="fas fa-play-circle"></i></span> Start User Bots</h1>
     <p class="mb-4">Validate tokens and start stable bots for users. The system will automatically check if the token is valid and renew it if necessary before starting the bot.</p>
     
-    <div class="buttons mb-4">
-        <button class="button is-info" onclick="refreshBotStatus()">
-            <span class="icon"><i class="fas fa-sync-alt"></i></span>
-            <span>Refresh Status</span>
-        </button>
-        <button class="button is-warning" id="restart-all-btn" onclick="restartAllBots()" disabled>
-            <span class="icon"><i class="fas fa-redo-alt"></i></span>
-            <span>Restart All Bots</span>
-        </button>
+    <div class="is-flex is-justify-content-space-between is-align-items-center mb-4">
+        <div class="buttons">
+            <button class="button is-info" onclick="refreshBotStatus()">
+                <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                <span>Refresh Status</span>
+            </button>
+            <button class="button is-warning" id="restart-all-btn" onclick="restartAllBots()" disabled>
+                <span class="icon"><i class="fas fa-redo-alt"></i></span>
+                <span>Restart All Bots</span>
+            </button>
+        </div>
+        <div class="field">
+            <p class="control has-icons-left">
+                <input class="input" type="text" id="user-search" placeholder="Search users...">
+                <span class="icon is-left">
+                    <i class="fas fa-search"></i>
+                </span>
+            </p>
+        </div>
     </div>
     <div class="table-container">
         <table class="table is-fullwidth is-striped">
@@ -690,6 +712,7 @@ ob_start();
                     <th>User</th>
                     <th>Twitch ID</th>
                     <th>Bot Status</th>
+                    <th>Bot Type</th>
                     <th>Token Status</th>
                     <th>Mod Status</th>
                     <th>Actions</th>
@@ -717,6 +740,11 @@ ob_start();
                         </span>
                     </td>
                     <td>
+                        <span class="tag is-warning bot-type-tag">
+                            <span>Unknown</span>
+                        </span>
+                    </td>
+                    <td>
                         <span class="tag token-status-tag" data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>">
                             <span class="icon"><i class="fas fa-question"></i></span>
                             <span>Unknown</span>
@@ -737,11 +765,17 @@ ob_start();
                                 <span class="icon"><i class="fas fa-user-shield"></i></span>
                                 <span>Make Bot Mod</span>
                             </button>
-                            <button class="button is-success start-bot-btn" 
-                                    onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>')"
+                            <button class="button is-success start-stable-btn" 
+                                    onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'stable')"
                                     disabled>
                                 <span class="icon"><i class="fas fa-play"></i></span>
-                                <span>Start Bot</span>
+                                <span>Start Stable</span>
+                            </button>
+                            <button class="button is-info start-beta-btn" 
+                                    onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'beta')"
+                                    disabled>
+                                <span class="icon"><i class="fas fa-flask"></i></span>
+                                <span>Start Beta</span>
                             </button>
                             <button class="button is-warning restart-bot-btn" 
                                     onclick="restartBot('<?php echo htmlspecialchars($user['username']); ?>', 'stable', 0, this)" 
@@ -749,6 +783,13 @@ ob_start();
                                     disabled>
                                 <span class="icon"><i class="fas fa-sync-alt"></i></span>
                                 <span>Restart Bot</span>
+                            </button>
+                            <button class="button is-info switch-bot-btn" 
+                                    onclick="switchBotType('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'beta')" 
+                                    style="display: none;" 
+                                    disabled>
+                                <span class="icon"><i class="fas fa-exchange-alt"></i></span>
+                                <span>Switch to Beta</span>
                             </button>
                         </div>
                     </td>
@@ -769,6 +810,28 @@ function escapeHtml(str) {
 document.addEventListener('DOMContentLoaded', function() {
     // Load running bots status on page load
     refreshBotStatus();
+    
+    // Initialize search functionality
+    const searchInput = document.getElementById('user-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#users-table-body tr');
+            
+            rows.forEach(row => {
+                const username = row.querySelector('td:first-child')?.textContent.toLowerCase() || '';
+                const twitchId = row.getAttribute('data-twitch-id')?.toLowerCase() || '';
+                const displayName = row.querySelector('.has-text-grey')?.textContent.toLowerCase() || '';
+                
+                // Show row if search term matches username, display name, or Twitch ID
+                if (username.includes(searchTerm) || displayName.includes(searchTerm) || twitchId.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
 });
 // Debounced refresh - delays the actual refresh to avoid multiple rapid calls
 function scheduleRefresh(delayMs = 2000) {
@@ -800,24 +863,54 @@ function refreshBotStatus() {
                     const twitchId = row.getAttribute('data-twitch-id');
                     const isRunning = runningBots.find(b => b.username === uname);
                     const botTag = row.querySelector('.bot-status-tag');
-                    const startBtn = row.querySelector('.start-bot-btn');
+                    const botTypeTag = row.querySelector('.bot-type-tag');
+                    const startStableBtn = row.querySelector('.start-stable-btn');
+                    const startBetaBtn = row.querySelector('.start-beta-btn');
                     const restartBtn = row.querySelector('.restart-bot-btn');
+                    const switchBtn = row.querySelector('.switch-bot-btn');
                     if (isRunning) {
+                        // Determine bot type once for use in multiple places
+                        const isBeta = isRunning.bot_type === 'beta';
+                        
                         // Show running status
                         if (botTag) {
                             botTag.className = 'tag is-success bot-status-tag';
                             botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running (PID: ' + isRunning.pid + ')</span>';
                         }
-                        // Show restart button and hide start button for running bots
-                        if (startBtn) {
-                            startBtn.disabled = true;
-                            startBtn.style.display = 'none';
+                        // Update bot type tag
+                        if (botTypeTag) {
+                            if (!isRunning.bot_type || (isRunning.bot_type !== 'beta' && isRunning.bot_type !== 'stable')) {
+                                // Bot type is unknown or invalid
+                                botTypeTag.className = 'tag is-warning bot-type-tag';
+                                botTypeTag.innerHTML = '<span>Unknown</span>';
+                            } else {
+                                botTypeTag.className = isBeta ? 'tag is-info bot-type-tag' : 'tag is-success bot-type-tag';
+                                botTypeTag.innerHTML = '<span>' + (isBeta ? 'Beta' : 'Stable') + '</span>';
+                            }
                         }
+                        // Hide both start buttons for running bots
+                        if (startStableBtn) {
+                            startStableBtn.disabled = true;
+                            startStableBtn.style.display = 'none';
+                        }
+                        if (startBetaBtn) {
+                            startBetaBtn.disabled = true;
+                            startBetaBtn.style.display = 'none';
+                        }
+                        // Show restart button with correct bot type and PID
                         if (restartBtn) {
                             restartBtn.style.display = 'inline-flex';
                             restartBtn.disabled = false;
-                            // Update restart button with correct PID
-                            restartBtn.setAttribute('onclick', `restartBot('${uname}', 'stable', ${isRunning.pid}, this)`);
+                            restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`);
+                        }
+                        // Show switch button with opposite bot type
+                        if (switchBtn) {
+                            const targetType = isBeta ? 'stable' : 'beta';
+                            const btnText = isBeta ? 'Switch to Stable' : 'Switch to Beta';
+                            switchBtn.style.display = 'inline-flex';
+                            switchBtn.disabled = false;
+                            switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`);
+                            switchBtn.querySelector('span:last-child').textContent = btnText;
                         }
                         // Validate token to check mod status even for running bots
                         if (twitchId) {
@@ -830,14 +923,27 @@ function refreshBotStatus() {
                             botTag.className = 'tag is-danger bot-status-tag';
                             botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>';
                         }
-                        // Show start button and hide restart button for non-running bots
-                        if (startBtn) {
-                            startBtn.disabled = false;
-                            startBtn.style.display = 'inline-flex';
+                        // Set bot type tag to "Bot Not Running" when not running
+                        if (botTypeTag) {
+                            botTypeTag.className = 'tag is-dark bot-type-tag';
+                            botTypeTag.innerHTML = '<span>Bot Not Running</span>';
+                        }
+                        // Show both start buttons and hide restart button for non-running bots
+                        if (startStableBtn) {
+                            startStableBtn.disabled = false;
+                            startStableBtn.style.display = 'inline-flex';
+                        }
+                        if (startBetaBtn) {
+                            startBetaBtn.disabled = false;
+                            startBetaBtn.style.display = 'inline-flex';
                         }
                         if (restartBtn) {
                             restartBtn.style.display = 'none';
                             restartBtn.disabled = true;
+                        }
+                        if (switchBtn) {
+                            switchBtn.style.display = 'none';
+                            switchBtn.disabled = true;
                         }
                         // Validate token to check mod status
                         if (twitchId) {
@@ -891,7 +997,8 @@ async function validateUserToken(twitchUserId) {
             // Update mod status if returned from server
             if (typeof data.is_mod !== 'undefined') {
                 const modTag = row.querySelector('.mod-status-tag');
-                const startBtn = row.querySelector('.start-bot-btn');
+                const startStableBtn = row.querySelector('.start-stable-btn');
+                const startBetaBtn = row.querySelector('.start-beta-btn');
                 const makeModBtn = row.querySelector('.make-mod-btn');
                 const username = row.getAttribute('data-username');
                 const isRunning = runningBots.find(bot => bot.username === username);
@@ -900,19 +1007,22 @@ async function validateUserToken(twitchUserId) {
                     modTag.className = 'tag is-info mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-info-circle"></i></span><span>Skipped</span>';
                     if (makeModBtn) makeModBtn.style.display = 'none';
-                    if (startBtn && !isRunning) startBtn.disabled = false;
+                    if (startStableBtn && !isRunning) startStableBtn.disabled = false;
+                    if (startBetaBtn && !isRunning) startBetaBtn.disabled = false;
                 } else if (data.is_mod) {
                     modTag.className = 'tag is-success mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
                     if (makeModBtn) makeModBtn.style.display = 'none';
-                    if (startBtn && !isRunning) startBtn.disabled = false;
+                    if (startStableBtn && !isRunning) startStableBtn.disabled = false;
+                    if (startBetaBtn && !isRunning) startBetaBtn.disabled = false;
                 } else {
                     // Not a moderator: show a warning state but allow admins to start the bot
                     modTag.className = 'tag is-warning mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Not a Moderator</span>';
                     if (makeModBtn) makeModBtn.style.display = 'inline-flex';
                     // Allow start button even if the bot is not a moderator (admins can start regardless)
-                    if (startBtn && !isRunning) startBtn.disabled = false;
+                    if (startStableBtn && !isRunning) startStableBtn.disabled = false;
+                    if (startBetaBtn && !isRunning) startBetaBtn.disabled = false;
                     // If the bot is running but missing mod, indicate it visually
                     if (isRunning) {
                         modTag.className = 'tag is-warning mod-status-tag';
@@ -928,8 +1038,10 @@ async function validateUserToken(twitchUserId) {
             if (renewed) {
                 tokenTag.className = 'tag is-success token-status-tag';
                 tokenTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Renewed</span>';
-                const startBtn = row.querySelector('.start-bot-btn');
-                if (startBtn) startBtn.disabled = false;
+                const startStableBtn = row.querySelector('.start-stable-btn');
+                const startBetaBtn = row.querySelector('.start-beta-btn');
+                if (startStableBtn) startStableBtn.disabled = false;
+                if (startBetaBtn) startBetaBtn.disabled = false;
             } else {
                 tokenTag.className = 'tag is-danger token-status-tag';
                 tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Renewal Failed</span>';
@@ -946,7 +1058,8 @@ async function makeBotMod(twitchUserId) {
     const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
     const modTag = row.querySelector('.mod-status-tag');
     const makeModBtn = row.querySelector('.make-mod-btn');
-    const startBtn = row.querySelector('.start-bot-btn');
+    const startStableBtn = row.querySelector('.start-stable-btn');
+    const startBetaBtn = row.querySelector('.start-beta-btn');
     
     makeModBtn.disabled = true;
     makeModBtn.classList.add('is-loading');
@@ -969,7 +1082,8 @@ async function makeBotMod(twitchUserId) {
             modTag.className = 'tag is-success mod-status-tag';
             modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
             makeModBtn.style.display = 'none';
-            startBtn.disabled = false;
+            if (startStableBtn) startStableBtn.disabled = false;
+            if (startBetaBtn) startBetaBtn.disabled = false;
             
             Swal.fire({
                 icon: 'success',
@@ -1043,8 +1157,6 @@ async function renewUserToken(twitchUserId, silent = false) {
                     text: data.message || 'Could not renew token'
                 });
             }
-            // Dump server error details to browser console for debugging
-            try { console.error('Token renew failed details:', data.error_details || data.debug || data.message); } catch (e) {}
             return false;
         }
     } catch (error) {
@@ -1062,29 +1174,45 @@ async function renewUserToken(twitchUserId, silent = false) {
     }
 }
 
-async function startUserBot(username, twitchUserId) {
+async function startUserBot(username, twitchUserId, botType = 'stable') {
     const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
     const botTag = row.querySelector('.bot-status-tag');
     const tokenTag = row.querySelector('.token-status-tag');
-    const startBtn = row.querySelector('.start-bot-btn');
+    const startStableBtn = row.querySelector('.start-stable-btn');
+    const startBetaBtn = row.querySelector('.start-beta-btn');
+    const currentBtn = botType === 'beta' ? startBetaBtn : startStableBtn;
+    const otherBtn = botType === 'beta' ? startStableBtn : startBetaBtn;
     // Check if bot is already running
     const isRunning = runningBots.find(bot => bot.username === username);
     if (isRunning) {
-        // Non-blocking toast for already-running
-        Swal.fire({toast: true, position: 'top-end', icon: 'info', title: `Bot for ${username} is already running`, showConfirmButton: false, timer: 1500});
-        return;
+        // If trying to start same type, just show info
+        if (isRunning.bot_type === botType) {
+            Swal.fire({toast: true, position: 'top-end', icon: 'info', title: `${botType === 'beta' ? 'Beta' : 'Stable'} bot for ${username} is already running`, showConfirmButton: false, timer: 1500});
+            return;
+        }
+        // If switching bot types, confirm with user
+        const result = await Swal.fire({
+            title: 'Switch Bot Type?',
+            text: `This will stop the ${isRunning.bot_type} bot and start the ${botType} bot.`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, switch it!',
+            cancelButtonText: 'Cancel'
+        });
+        if (!result.isConfirmed) return;
     }
     // Start the bot immediately via AJAX without performing token/mod checks to avoid slowing bulk operations
-    if (startBtn) {
-        startBtn.disabled = true;
-        startBtn.classList.add('is-loading');
+    if (currentBtn) {
+        currentBtn.disabled = true;
+        currentBtn.classList.add('is-loading');
     }
     try {
         botTag.className = 'tag is-info bot-status-tag';
-        botTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Starting...</span>';
+        botTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Starting ' + (botType === 'beta' ? 'Beta' : 'Stable') + '...</span>';
         const startFormData = new FormData();
         startFormData.append('start_user_bot', '1');
         startFormData.append('username', username);
+        startFormData.append('bot_type', botType);
         const startResponse = await fetch('', { method: 'POST', body: startFormData });
         const startText = await startResponse.text();
         let startData = null;
@@ -1093,15 +1221,21 @@ async function startUserBot(username, twitchUserId) {
             // Optimistic UI update - immediately mark bot as running
             botTag.className = 'tag is-success bot-status-tag';
             botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running</span>';
-            if (startBtn) {
-                startBtn.style.display = 'none';
+            const botTypeTag = row.querySelector('.bot-type-tag');
+            if (botTypeTag) {
+                botTypeTag.className = botType === 'beta' ? 'tag is-info bot-type-tag' : 'tag is-success bot-type-tag';
+                botTypeTag.innerHTML = '<span>' + (botType === 'beta' ? 'Beta' : 'Stable') + '</span>';
             }
+            if (startStableBtn) startStableBtn.style.display = 'none';
+            if (startBetaBtn) startBetaBtn.style.display = 'none';
+            // Remove old entry if switching types
+            runningBots = runningBots.filter(bot => bot.username !== username);
             // Add to runningBots array optimistically
-            runningBots.push({username: username, bot_type: 'stable', pid: 0});
+            runningBots.push({username: username, bot_type: botType, pid: 0});
             // Hide the row since bot is now running
             row.style.display = 'none';
             // Non-blocking toast notification only
-            Swal.fire({toast: true, position: 'top-end', icon: 'success', title: `Started bot for ${username}`, showConfirmButton: false, timer: 1500});
+            Swal.fire({toast: true, position: 'top-end', icon: 'success', title: `Started ${botType === 'beta' ? 'beta' : 'stable'} bot for ${username}`, showConfirmButton: false, timer: 1500});
             // Schedule a debounced refresh to verify actual status (non-blocking)
             scheduleRefresh(2000);
         } else {
@@ -1116,12 +1250,32 @@ async function startUserBot(username, twitchUserId) {
         console.error('Error starting bot:', error);
         Swal.fire({toast: true, position: 'top-end', icon: 'error', title: 'Error starting bot', showConfirmButton: false, timer: 3000});
     } finally {
-        if (startBtn) {
-            startBtn.disabled = false;
-            startBtn.classList.remove('is-loading');
+        if (currentBtn) {
+            currentBtn.disabled = false;
+            currentBtn.classList.remove('is-loading');
+        }
+        if (otherBtn) {
+            otherBtn.disabled = false;
         }
     }
 }
+
+// Function to switch bot type
+window.switchBotType = async function(username, twitchUserId, targetType) {
+    const result = await Swal.fire({
+        title: 'Switch Bot Type?',
+        text: `This will switch this bot to ${targetType === 'beta' ? 'Beta' : 'Stable'} version.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: `Yes, switch to ${targetType === 'beta' ? 'Beta' : 'Stable'}!`,
+        cancelButtonText: 'Cancel'
+    });
+    
+    if (result.isConfirmed) {
+        // Use the existing startUserBot function which handles stopping and switching
+        await startUserBot(username, twitchUserId, targetType);
+    }
+};
 
 // Function to restart bot
 window.restartBot = function(username, botType, pid, element) {
