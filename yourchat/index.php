@@ -458,8 +458,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         (name && e.user_name === name) ||
                         (id && e.user_id === id)
                     )) {
-                        // remove this entry and return true
-                        console.log('FOUND MATCHING CHAT MESSAGE! Redemption is duplicate, will not show');
                         recentChatMessages.splice(i, 1);
                         return true;
                     }
@@ -1882,15 +1880,19 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     event.user_id || null,
                     redemptionText
                 )) {
-                    console.log('Suppressed redemption because matching chat message was already shown:', redemptionText);
-                    // Don't show the redemption, just cache it in case another chat message arrives
-                    addRecentRedemption(
-                        event.user_login || null,
-                        event.user_name || null,
-                        event.user_id || null,
-                        redemptionText
-                    );
-                    return;
+                    console.log('Found matching chat message, removing it to show redemption instead:', redemptionText);
+                    const chatMessages = overlay.querySelectorAll('.chat-message');
+                    for (let msg of chatMessages) {
+                        const username = msg.querySelector('.chat-username')?.textContent?.replace(':', '');
+                        const text = msg.querySelector('.chat-text')?.textContent;
+                        if (text && text.trim() === redemptionText && username && 
+                            (username.toLowerCase() === (event.user_login || '').toLowerCase() || 
+                             username.toLowerCase() === (event.user_name || '').toLowerCase())) {
+                            msg.remove();
+                            console.log('Removed matching chat message from DOM');
+                            break;
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('Error checking for matching chat message', e);
@@ -1950,15 +1952,19 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     event.user_id || null,
                     redemptionText
                 )) {
-                    console.log('Suppressed custom redemption because matching chat message was already shown:', redemptionText);
-                    // Don't show the redemption, just cache it in case another chat message arrives
-                    addRecentRedemption(
-                        event.user_login || null,
-                        event.user_name || null,
-                        event.user_id || null,
-                        redemptionText
-                    );
-                    return;
+                    // Find and remove the matching chat message from DOM
+                    const chatMessages = overlay.querySelectorAll('.chat-message');
+                    for (let msg of chatMessages) {
+                        const username = msg.querySelector('.chat-username')?.textContent?.replace(':', '');
+                        const text = msg.querySelector('.chat-text')?.textContent;
+                        if (text && text.trim() === redemptionText && username && 
+                            (username.toLowerCase() === (event.user_login || '').toLowerCase() || 
+                             username.toLowerCase() === (event.user_name || '').toLowerCase())) {
+                            msg.remove();
+                            console.log('Removed matching chat message from DOM');
+                            break;
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('Error checking for matching chat message', e);
