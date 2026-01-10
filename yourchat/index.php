@@ -1633,34 +1633,20 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
             messageDiv.setAttribute('data-message-id', event.message_id);
-            // Build badges HTML
-            let badgesHtml = '';
-            if (event.badges && event.badges.length > 0) {
-                badgesHtml = '<span class="chat-badges">';
-                event.badges.forEach(badge => {
-                    // Look up badge URL from cache
-                    const badgeUrl = badgeCache[badge.set_id]?.[badge.id];
-                    if (badgeUrl) {
-                        badgesHtml += `<img class="chat-badge" src="${badgeUrl}" alt="${badge.set_id}" title="${badge.set_id}">`;
-                    }
-                });
-                badgesHtml += '</span>';
-            }
-            // Check for nickname
-            const userId = event.chatter_user_id;
-            const nickname = getNickname(userId);
-            const displayName = nickname || event.chatter_user_name;
-            // Build message HTML with emotes support
-            let messageHtml = event.message.text;
-            if (event.message.fragments) {
-                messageHtml = '';
-                event.message.fragments.forEach(fragment => {
-                    if (fragment.type === 'emote' && fragment.emote) {
-                        messageHtml += `<img src="https://static-cdn.jtvnw.net/emoticons/v2/${fragment.emote.id}/default/dark/1.0" alt="${fragment.text}" title="${fragment.text}" style="vertical-align: middle;">`;
-                    } else {
-                        messageHtml += escapeHtml(fragment.text);
-                    }
-                });
+            // Add special classes based on message_type
+            if (event.message_type) {
+                messageDiv.setAttribute('data-message-type', event.message_type);
+                if (event.message_type === 'user_intro') {
+                    messageDiv.classList.add('first-time-chatter');
+                } else if (event.message_type === 'channel_points_highlighted') {
+                    messageDiv.classList.add('highlighted-message');
+                } else if (event.message_type === 'channel_points_sub_only') {
+                    messageDiv.classList.add('sub-only-message');
+                } else if (event.message_type === 'power_ups_message_effect') {
+                    messageDiv.classList.add('power-ups-effect');
+                } else if (event.message_type === 'power_ups_gigantified_emote') {
+                    messageDiv.classList.add('gigantified-emote');
+                }
             }
             // Format timestamp from event created_at with fallback to current time
             let messageDate;
@@ -1677,17 +1663,76 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const minutes = messageDate.getMinutes().toString().padStart(2, '0');
             const seconds = messageDate.getSeconds().toString().padStart(2, '0');
             const timestamp = `${hours}:${minutes}:${seconds}`;
+            let messageHtml = `<span class="chat-timestamp">${timestamp}</span>`;
+            // Reply context (if this is a reply to another message)
+            if (event.reply) {
+                const replyUsername = (settings?.nicknames && settings.nicknames[event.reply.parent_user_login?.toLowerCase()]) || event.reply.parent_user_name || event.reply.parent_user_login;
+                const replyBody = escapeHtml(event.reply.parent_message_body || '(message)');
+                messageHtml += `
+                    <div class="reply-context">
+                        <span class="reply-icon">↩️</span>
+                        <span class="reply-text">Replying to ${escapeHtml(replyUsername)}: ${replyBody}</span>
+                    </div>
+                `;
+            }
+            // First-time chatter indicator
+            if (event.message_type === 'user_intro') {
+                messageHtml += `<div class="user-intro-badge">🎉 First-Time Chatter!</div>`;
+            }
+            // Build badges HTML
+            // Use source_badges if in shared chat and available, otherwise use regular badges
+            const badgesToDisplay = (event.source_badges && event.source_broadcaster_user_login) ? event.source_badges : event.badges;
+            let badgesHtml = '';
+            if (badgesToDisplay && badgesToDisplay.length > 0) {
+                badgesHtml = '<span class="chat-badges">';
+                badgesToDisplay.forEach(badge => {
+                    // Look up badge URL from cache
+                    const badgeUrl = badgeCache[badge.set_id]?.[badge.id];
+                    if (badgeUrl) {
+                        const badgeTitle = badge.info || badge.set_id;
+                        badgesHtml += `<img class="chat-badge" src="${badgeUrl}" alt="${badge.set_id}" title="${badgeTitle}">`;
+                    }
+                });
+                badgesHtml += '</span>';
+            }
+            // Check for nickname
+            const userId = event.chatter_user_id;
+            const nickname = getNickname(userId);
+            const displayName = nickname || event.chatter_user_name;
+            // Build message text HTML with full fragment support
+            let messageTextHtml = '';
+            if (event.message && event.message.fragments) {
+                event.message.fragments.forEach(fragment => {
+                    if (fragment.type === 'text') {
+                        messageTextHtml += escapeHtml(fragment.text);
+                    } else if (fragment.type === 'emote' && fragment.emote) {
+                        const emoteClass = event.message_type === 'power_ups_gigantified_emote' ? 'chat-emote gigantified' : 'chat-emote';
+                        messageTextHtml += `<img class="${emoteClass}" src="https://static-cdn.jtvnw.net/emoticons/v2/${fragment.emote.id}/default/dark/1.0" alt="${escapeHtml(fragment.text)}" title="${escapeHtml(fragment.text)}" style="vertical-align: middle; height: 1.5em;">`;
+                    } else if (fragment.type === 'cheermote' && fragment.cheermote) {
+                        const cheermoteColor = getCheermoteColor(fragment.cheermote.tier || 1);
+                        const cheermoteText = `${fragment.cheermote.prefix}${fragment.cheermote.bits}`;
+                        messageTextHtml += `<span class="cheermote" data-tier="${fragment.cheermote.tier || 1}" style="color: ${cheermoteColor};" title="${fragment.cheermote.bits} Bits">${escapeHtml(cheermoteText)}</span>`;
+                    } else if (fragment.type === 'mention' && fragment.mention) {
+                        messageTextHtml += `<span class="mention" data-user-id="${fragment.mention.user_id}" title="@${escapeHtml(fragment.mention.user_login)}">${escapeHtml(fragment.text)}</span>`;
+                    } else {
+                        // Fallback for any other fragment type
+                        messageTextHtml += escapeHtml(fragment.text || '');
+                    }
+                });
+            } else {
+                messageTextHtml = escapeHtml(event.message?.text || '');
+            }
             // Check if it's a shared chat message
-            const isSharedChat = event.source_broadcaster_user_id !== null;
+            const isSharedChat = event.source_broadcaster_user_id !== null && event.source_broadcaster_user_login && event.source_broadcaster_user_login.toLowerCase() !== CONFIG.USER_LOGIN.toLowerCase();
             const sharedChatIndicator = isSharedChat ?
-                `<span class="shared-chat-indicator">[from ${event.source_broadcaster_user_name}]</span>` : '';
-            messageDiv.innerHTML = `
-                        <span class="chat-timestamp">${timestamp}</span>
-                        ${badgesHtml}
-                        <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
-                        <span class="chat-text">${messageHtml}</span>
-                        ${sharedChatIndicator}
-                    `;
+                `<span class="shared-chat-indicator">[from ${escapeHtml(event.source_broadcaster_user_name || event.source_broadcaster_user_login)}]</span>` : '';
+            messageHtml += `
+                ${badgesHtml}
+                <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
+                ${sharedChatIndicator}
+                <span class="chat-text">${messageTextHtml}</span>
+            `;
+            messageDiv.innerHTML = messageHtml;
             overlay.appendChild(messageDiv);
             // Auto-scroll to bottom
             overlay.scrollTop = overlay.scrollHeight;
@@ -1698,6 +1743,24 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Save chat history
             saveChatHistory();
         }
+        // Get cheermote color based on tier
+        function getCheermoteColor(tier) {
+            const colors = {
+                1: '#979797',      // Gray (1-99)
+                100: '#9c3ee8',    // Purple (100-999)
+                1000: '#1db2a5',   // Cyan (1000-4999)
+                5000: '#0099fe',   // Blue (5000-9999)
+                10000: '#f43021',  // Red (10000-99999)
+                100000: '#ffa500'  // Gold (100000+)
+            };
+            const tierNum = parseInt(tier) || 1;
+            if (tierNum >= 100000) return colors[100000];
+            if (tierNum >= 10000) return colors[10000];
+            if (tierNum >= 5000) return colors[5000];
+            if (tierNum >= 1000) return colors[1000];
+            if (tierNum >= 100) return colors[100];
+            return colors[1];
+        }
         // Handle message deletion
         function handleMessageDelete(event) {
             const messageId = event.message_id;
@@ -1706,7 +1769,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (messageElement) {
                 // Add deleted class to strike through the message
                 messageElement.classList.add('deleted');
-
                 // Save updated history
                 saveChatHistory();
             }
