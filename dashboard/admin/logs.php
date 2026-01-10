@@ -436,6 +436,70 @@ if (isset($_GET['admin_system_log_type'])) {
             $logPath = "/var/log/apache2/specterbot.app_access.log";
             $result = read_apache2_log_over_ssh($logPath);
             break;
+        case 'ghostbot.au_access':
+            $logPath = "/var/log/apache2/ghostbot_access.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'ghostbot.au_error':
+            $logPath = "/var/log/apache2/ghostbot_error.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'roadmap.botofthespecter.com_access':
+            $logPath = "/var/log/apache2/roadmap_access.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'roadmap.botofthespecter.com_error':
+            $logPath = "/var/log/apache2/roadmap_error.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'extension.botofthespecter.com_access':
+            $logPath = "/var/log/apache2/extension.botofthespecter.com_access.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'extension.botofthespecter.com_error':
+            $logPath = "/var/log/apache2/extension.botofthespecter.com_error.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'help.botofthespecter.com_access':
+            $logPath = "/var/log/apache2/help-botofthespecter-com_access.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'help.botofthespecter.com_error':
+            $logPath = "/var/log/apache2/help-botofthespecter-com_error.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'mybot.specterbot.systems_access':
+            $logPath = "/var/log/apache2/mybot.specterbot.systems-access.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'mybot.specterbot.systems_error':
+            $logPath = "/var/log/apache2/mybot.specterbot.systems-error.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'specterbot.systems_access':
+            $logPath = "/var/log/apache2/specterbot.systems-access.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'specterbot.systems_error':
+            $logPath = "/var/log/apache2/specterbot.systems-error.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'yourchat.botofthespecter.com_access':
+            $logPath = "/var/log/apache2/yourchat_access.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'yourchat.botofthespecter.com_error':
+            $logPath = "/var/log/apache2/yourchat_error.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'yourlinks.click_access':
+            $logPath = "/var/log/apache2/yourlinks.click_access.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
+        case 'yourlinks.click_error':
+            $logPath = "/var/log/apache2/yourlinks.click_error.log";
+            $result = read_apache2_log_over_ssh($logPath);
+            break;
         case 'discordbot':
             // Discord bot log in custom directory (use SSH)
             $logPath = "/home/botofthespecter/logs/specterdiscord/discordbot.txt";
@@ -543,13 +607,21 @@ $systemLogTypes = [
             ['value' => 'botofthespecter.com_access', 'label' => 'Main Site Access'],
             ['value' => 'cdn.botofthespecter.com_access', 'label' => 'CDN Access'],
             ['value' => 'dashboard.botofthespecter.com_access', 'label' => 'Dashboard Access'],
+            ['value' => 'extension.botofthespecter.com_access', 'label' => 'Extension Access'],
+            ['value' => 'help.botofthespecter.com_access', 'label' => 'Help Site Access'],
             ['value' => 'members.botofthespecter.com_access', 'label' => 'Members Access'],
             ['value' => 'overlay.botofthespecter.com_access', 'label' => 'Overlay Access'],
+            ['value' => 'roadmap.botofthespecter.com_access', 'label' => 'Roadmap Access'],
             ['value' => 'soundalerts.botofthespecter.com_access', 'label' => 'Sound Alerts Access'],
             ['value' => 'tts.botofthespecter.com_access', 'label' => 'TTS Access'],
             ['value' => 'videoalerts.botofthespecter.com_access', 'label' => 'Video Alerts Access'],
             ['value' => 'walkons.botofthespecter.com_access', 'label' => 'Walkons Access'],
+            ['value' => 'yourchat.botofthespecter.com_access', 'label' => 'YourChat Access'],
             ['value' => 'specterbot.app_access', 'label' => 'Specterbot App Access'],
+            ['value' => 'mybot.specterbot.systems_access', 'label' => 'MyBot Specterbot Systems Access'],
+            ['value' => 'specterbot.systems_access', 'label' => 'Specterbot Systems Access'],
+            ['value' => 'ghostbot.au_access', 'label' => 'GhostBot AU Access'],
+            ['value' => 'yourlinks.click_access', 'label' => 'YourLinks Click Access'],
         ]
     ],
     [
@@ -559,13 +631,21 @@ $systemLogTypes = [
             ['value' => 'botofthespecter.com_error', 'label' => 'Main Site Errors'],
             ['value' => 'cdn.botofthespecter.com_error', 'label' => 'CDN Errors'],
             ['value' => 'dashboard.botofthespecter.com_error', 'label' => 'Dashboard Errors'],
+            ['value' => 'extension.botofthespecter.com_error', 'label' => 'Extension Errors'],
+            ['value' => 'help.botofthespecter.com_error', 'label' => 'Help Site Errors'],
             ['value' => 'members.botofthespecter.com_error', 'label' => 'Members Errors'],
             ['value' => 'overlay.botofthespecter.com_error', 'label' => 'Overlay Errors'],
+            ['value' => 'roadmap.botofthespecter.com_error', 'label' => 'Roadmap Error'],
             ['value' => 'soundalerts.botofthespecter.com_error', 'label' => 'Sound Alerts Errors'],
             ['value' => 'tts.botofthespecter.com_error', 'label' => 'TTS Errors'],
             ['value' => 'videoalerts.botofthespecter.com_error', 'label' => 'Video Alerts Errors'],
             ['value' => 'walkons.botofthespecter.com_error', 'label' => 'Walkons Errors'],
+            ['value' => 'yourchat.botofthespecter.com_error', 'label' => 'YourChat Errors'],
             ['value' => 'specterbot.app_error', 'label' => 'Specterbot App Error'],
+            ['value' => 'mybot.specterbot.systems_error', 'label' => 'MyBot Specterbot Systems Error'],
+            ['value' => 'specterbot.systems_error', 'label' => 'Specterbot Systems Error'],
+            ['value' => 'ghostbot.au_error', 'label' => 'GhostBot AU Error'],
+            ['value' => 'yourlinks.click_error', 'label' => 'YourLinks Click Error'],
         ]
     ],
     [
