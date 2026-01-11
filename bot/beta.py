@@ -51,6 +51,8 @@ parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
 parser.add_argument("-refresh", dest="refresh_token", required=True, help="Refresh Token for authentication")
 parser.add_argument("-apitoken", dest="api_token", required=False, help="API Token for Websocket Server")
+parser.add_argument("-custom", dest="custom_mode", action="store_true", help="Enable custom bot mode")
+parser.add_argument("-botusername", dest="bot_username", required=False, help="Bot's Twitch username (required when -custom is used)")
 args = parser.parse_args()
 
 # Twitch bot settings
@@ -59,9 +61,10 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
-BOT_USERNAME = "botofthespecter"
+CUSTOM_MODE = args.custom_mode
+BOT_USERNAME = args.bot_username if CUSTOM_MODE else "botofthespecter"
 VERSION = "5.8"
-SYSTEM = "BETA"
+SYSTEM = "CUSTOM" if CUSTOM_MODE else "BETA"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -117,7 +120,7 @@ builtin_aliases = {
 # Logs
 logs_root = "/home/botofthespecter/logs"
 logs_directory = os.path.join(logs_root, "logs")
-log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket"]
+log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket", "system", "integrations"]
 
 # Ensure directories exist
 for log_type in log_types:
@@ -157,6 +160,8 @@ api_logger = loggers['api']
 chat_history_logger = loggers['chat_history']
 event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
+system_logger = loggers['system']
+integrations_logger = loggers['integrations']
 
 # Log startup messages
 startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION} {SYSTEM})"
@@ -715,27 +720,27 @@ async def connect_to_streamelements():
     uri = "https://realtime.streamelements.com"
     # Check if we have a valid token
     if not streamelements_token:
-        event_logger.error("No StreamElements token available, skipping connection")
         return
+    integrations_logger.info("===== StreamElements =====")
     try:
         @streamelements_socket.event
         async def connect():
-            event_logger.info("Successfully connected to StreamElements websocket")
+            integrations_logger.info("Successfully connected to StreamElements websocket")
             # Authenticate using OAuth2 token (following StreamElements example)
             await streamelements_socket.emit('authenticate', {'method': 'oauth2', 'token': streamelements_token})
         @streamelements_socket.event
         async def disconnect():
-            event_logger.error("Disconnected from StreamElements websocket - will attempt reconnection with fresh token")
+            integrations_logger.error("Disconnected from StreamElements websocket - will attempt reconnection with fresh token")
             # Disconnect detected - the connection manager will handle reconnection with token refresh
         @streamelements_socket.event
         async def authenticated(data):
             channel_id = data.get('channelId')
-            event_logger.info(f"Successfully authenticated to StreamElements channel {channel_id}")
+            integrations_logger.info(f"Successfully authenticated to StreamElements channel {channel_id}")
         @streamelements_socket.event
         async def unauthorized(data):
-            event_logger.error(f"StreamElements authentication failed: {data}")
+            integrations_logger.error(f"StreamElements authentication failed: {data}")
             # Token might be expired or invalid - trigger disconnection so reconnection manager can refresh token
-            event_logger.error("Authentication failed, disconnecting to trigger token refresh and reconnection")
+            integrations_logger.error("Authentication failed, disconnecting to trigger token refresh and reconnection")
             await streamelements_socket.disconnect()
         @streamelements_socket.event
         async def event(*args):
@@ -746,14 +751,14 @@ async def connect_to_streamelements():
                     # Only process tip events from StreamElements
                     if data.get('type') == 'tip':
                         sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
-                        event_logger.info(f"StreamElements Tip Event: {sanitized_data}")
+                        integrations_logger.info(f"StreamElements Tip Event: {sanitized_data}")
                         await process_tipping_message(data, "StreamElements")
                     else:
                         # Log other events for debugging but don't process them
                         event_type = data.get('type', 'unknown')
-                        event_logger.debug(f"StreamElements event ignored (type: {event_type})")
+                        integrations_logger.debug(f"StreamElements event ignored (type: {event_type})")
                 except Exception as e:
-                    event_logger.error(f"Error processing StreamElements event: {e}")
+                    integrations_logger.error(f"Error processing StreamElements event: {e}")
         @streamelements_socket.event
         async def event_test(*args):
             if args:
@@ -762,60 +767,63 @@ async def connect_to_streamelements():
                 try:
                     if data.get('type') == 'tip':
                         sanitized_data = json.dumps(data).replace(streamelements_token, "[REDACTED]")
-                        event_logger.info(f"StreamElements Test Tip Event: {sanitized_data}")
+                        integrations_logger.info(f"StreamElements Test Tip Event: {sanitized_data}")
                         # Note: Usually test events shouldn't trigger actual processing
                     else:
                         event_type = data.get('type', 'unknown')
-                        event_logger.debug(f"StreamElements test event ignored (type: {event_type})")
+                        integrations_logger.debug(f"StreamElements test event ignored (type: {event_type})")
                 except Exception as e:
-                    event_logger.error(f"Error processing StreamElements test event: {e}")
+                    integrations_logger.error(f"Error processing StreamElements test event: {e}")
         @streamelements_socket.event
         async def event_update(*args):
             if args:
                 data = args[0]
                 # Session update events - not processing these since we only care about tips
                 try:
-                    event_logger.debug("StreamElements session update event received (ignored)")
+                    integrations_logger.debug("StreamElements session update event received (ignored)")
                 except Exception as e:
-                    event_logger.error(f"Error handling StreamElements update event: {e}")
-                
+                    integrations_logger.error(f"Error handling StreamElements update event: {e}")
         @streamelements_socket.event
         async def event_reset(*args):
             if args:
                 data = args[0]
                 # Session reset events - not processing these since we only care about tips
                 try:
-                    event_logger.debug("StreamElements session reset event received (ignored)")
+                    integrations_logger.debug("StreamElements session reset event received (ignored)")
                 except Exception as e:
-                    event_logger.error(f"Error handling StreamElements reset event: {e}")
+                    integrations_logger.error(f"Error handling StreamElements reset event: {e}")
         # Connect to StreamElements with websocket transport only (as per example)
         await streamelements_socket.connect(uri, transports=['websocket'])
         await streamelements_socket.wait()
     except ConnectionExecptionError as e:
-        event_logger.error(f"StreamElements WebSocket connection error: {e}")
+        integrations_logger.error(f"StreamElements WebSocket connection error: {e}")
+        integrations_logger.info("===== End StreamElements =====")
         # Should attempt reconnection with backoff
         raise
     except Exception as e:
-        event_logger.error(f"StreamElements WebSocket error: {e}")
+        integrations_logger.error(f"StreamElements WebSocket error: {e}")
+        integrations_logger.info("===== End StreamElements =====")
         raise
 
 async def connect_to_streamlabs():
     global streamlabs_token
     uri = f"wss://sockets.streamlabs.com/socket.io/?token={streamlabs_token}&EIO=3&transport=websocket"
-    sanitized_uri = uri.replace(streamlabs_token, "[REDACTED]")
+    integrations_logger.info("===== StreamLabs =====")
     try:
         async with WebSocketConnect(uri) as streamlabs_websocket:
-            event_logger.info(f"Connected to StreamLabs WebSocket with URI: {sanitized_uri}")
+            integrations_logger.info(f"Connected to StreamLabs WebSocket")
             # Listen for messages
             while True:
                 message = await streamlabs_websocket.recv()
                 sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
-                event_logger.info(f"StreamLabs Message: {sanitized_message}")
+                integrations_logger.info(f"StreamLabs Message: {sanitized_message}")
                 await process_message(message, "StreamLabs")
     except WebSocketConnectionClosed as e:
-        event_logger.error(f"StreamLabs WebSocket connection closed: {e}")
+        integrations_logger.error(f"StreamLabs WebSocket connection closed: {e}")
+        integrations_logger.info("===== End StreamLabs =====")
     except Exception as e:
-        event_logger.error(f"StreamLabs WebSocket error: {e}")
+        integrations_logger.error(f"StreamLabs WebSocket error: {e}")
+        integrations_logger.info("===== End StreamLabs =====")
 
 async def process_message(message, source):
     global streamelements_token, streamlabs_token
@@ -833,12 +841,12 @@ async def process_message(message, source):
                     break
             # If the entire message is just digits (like "40"), skip processing
             if json_start == 0 and message_str.isdigit():
-                event_logger.debug(f"StreamLabs Socket.IO control frame: {message_str}")
+                integrations_logger.debug(f"StreamLabs Socket.IO control frame: {message_str}")
                 return
             # Extract JSON part
             json_message = message_str[json_start:]
             if not json_message:
-                event_logger.debug(f"StreamLabs message has no JSON content: {message_str}")
+                integrations_logger.debug(f"StreamLabs message has no JSON content: {message_str}")
                 return
             message = json_message
         data = json.loads(message)
@@ -850,7 +858,7 @@ async def process_message(message, source):
                     handle_streamelements_error(data['error'], sanitized_message)
                 else:
                     sanitized_message = data['data']['message'].replace(streamelements_token, "[REDACTED]") if 'message' in data['data'] else None
-                    event_logger.info(f"StreamElements subscription success: {sanitized_message}")
+                    integrations_logger.info(f"StreamElements subscription success: {sanitized_message}")
             else:
                 sanitized_message = json.dumps(data).replace(streamelements_token, "[REDACTED]")
                 await process_tipping_message(json.loads(sanitized_message), source)
@@ -858,7 +866,7 @@ async def process_message(message, source):
             sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
             await process_tipping_message(json.loads(sanitized_message), source)
     except Exception as e:
-        event_logger.error(f"Error processing message from {source}: {e}")
+        integrations_logger.error(f"Error processing message from {source}: {e}")
 
 def handle_streamelements_error(error, message):
     global streamelements_token
@@ -871,7 +879,7 @@ def handle_streamelements_error(error, message):
     }
     sanitized_message = message.replace(streamelements_token, "[REDACTED]") if message else "N/A"
     error_message = error_messages.get(error, "Unknown error occurred.")
-    event_logger.error(f"StreamElements error: {error_message} - {sanitized_message}")
+    integrations_logger.error(f"StreamElements error: {error_message} - {sanitized_message}")
 
 async def process_tipping_message(data, source):
     try:
@@ -895,14 +903,14 @@ async def process_tipping_message(data, source):
             amount_text = f"{currency}{amount}" if currency else str(amount)
             message_part = f" Message: {tip_message}" if tip_message else ""
             send_message = f"{user} just tipped {amount_text}!{message_part}"
-            event_logger.info(f"StreamElements Tip: {send_message} (ID: {tip_id})")
+            integrations_logger.info(f"StreamElements Tip: {send_message} (ID: {tip_id})")
         elif source == "StreamLabs" and 'event' in data and data['event'] == 'donation':
             for donation in data['data']['donations']:
                 user = donation['name']
                 amount = donation['amount']
                 tip_message = donation['message']
                 send_message = f"{user} just tipped {amount}! Message: {tip_message}"
-                event_logger.info(f"StreamLabs Tip: {send_message}")
+                integrations_logger.info(f"StreamLabs Tip: {send_message}")
         if send_message and user and amount is not None:
             await send_chat_message(send_message)
             # Save tipping data to database
@@ -923,11 +931,11 @@ async def process_tipping_message(data, source):
                         )
                     await connection.commit()
             except MySQLError as err:
-                event_logger.error(f"Database error saving tip: {err}")
+                integrations_logger.error(f"Database error saving tip: {err}")
             finally:
                 pass
     except Exception as e:
-        event_logger.error(f"Error processing tipping message: {e}")
+        integrations_logger.error(f"Error processing tipping message: {e}")
 
 async def process_twitch_eventsub_message(message):
     try:
@@ -1520,8 +1528,6 @@ async def specter_websocket():
             # Reset failure counter on successful connection
             consecutive_failures = 0
             websocket_logger.info("Successfully connected and registered with Internal WebSocket Server")
-            websocket_logger.info(f"Connected with session ID: {specterSocket.sid}")
-            websocket_logger.info(f"Transport method: {specterSocket.transport()}")
             # Keep the connection alive and handle messages
             await specterSocket.wait()
         except ConnectionExecptionError as e:
@@ -1728,7 +1734,7 @@ async def hyperate_websocket_persistent():
             bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
             hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
             async with WebSocketConnect(hyperate_websocket_uri) as hyperate_websocket:
-                bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
+                bot_logger.info("HypeRate info: Successfully connected to the WebSocket")
                 # Send 'phx_join' message to join the appropriate channel using the DB-provided code
                 await join_channel(hyperate_websocket, heartrate_code)
                 # Send the heartbeat every 10 seconds and keep a handle to cancel it later
@@ -1815,6 +1821,7 @@ async def join_channel(hyperate_websocket, heartrate_code):
 # Stream Bingo WebSocket integration
 async def stream_bingo_websocket():
     global CHANNEL_ID
+    integrations_logger.info("===== Stream Bingo =====")
     while True:
         try:
             # Retrieve Stream Bingo API key from database
@@ -1833,38 +1840,39 @@ async def stream_bingo_websocket():
                 continue
             # Construct WebSocket URL
             websocket_url = f"wss://api.stream-bingo.com/games/{CHANNEL_ID}/{stream_bingo_api_key}/notifications"
-            sanitized_url = websocket_url.replace(stream_bingo_api_key, "[REDACTED]")
-            bot_logger.info(f"Stream Bingo: Attempting to connect to WebSocket: {sanitized_url}")
+            integrations_logger.info("Attempting to connect to Stream Bingo WebSocket")
             async with WebSocketConnect(websocket_url) as stream_bingo_ws:
-                bot_logger.info("Stream Bingo: Successfully connected to WebSocket")
+                integrations_logger.info("Successfully connected to Stream Bingo WebSocket")
                 while True:
                     try:
                         message = await stream_bingo_ws.recv()
-                        bot_logger.info(f"Stream Bingo: Received message: {message}")
+                        integrations_logger.info(f"Stream Bingo: Received message: {message}")
                         # Parse JSON message
                         try:
                             data = json.loads(message)
                             # Process bingo events here
                             await process_stream_bingo_message(data)
                         except json.JSONDecodeError as e:
-                            bot_logger.error(f"Stream Bingo: Failed to parse JSON message: {e}")
+                            integrations_logger.error(f"Stream Bingo: Failed to parse JSON message: {e}")
                         except Exception as e:
-                            bot_logger.error(f"Stream Bingo: Error processing message: {e}")
+                            integrations_logger.error(f"Stream Bingo: Error processing message: {e}")
                             
                     except WebSocketConnectionClosed:
-                        bot_logger.error("Stream Bingo: WebSocket connection closed, reconnecting...")
+                        integrations_logger.error("Stream Bingo: WebSocket connection closed, reconnecting...")
                         break
                     except Exception as e:
-                        bot_logger.error(f"Stream Bingo: Error receiving message: {e}")
+                        integrations_logger.error(f"Stream Bingo: Error receiving message: {e}")
+                        integrations_logger.info("===== End Stream Bingo =====")
                         break
         except Exception as e:
-            bot_logger.error(f"Stream Bingo: WebSocket connection error: {e}")
+            integrations_logger.error(f"Stream Bingo: WebSocket connection error: {e}")
+            integrations_logger.info("===== End Stream Bingo =====")
             await sleep(10)  # Wait before retrying
 
 async def process_stream_bingo_message(data):
     try:
         event_type = data.get('type', 'unknown')
-        bot_logger.info(f"Stream Bingo: Processing event type: {event_type}")
+        integrations_logger.info(f"Stream Bingo: Processing event type: {event_type}")
         # Connect to user database for storing bingo data
         user_db = await mysql_handler.get_connection()
         try:
@@ -1888,7 +1896,7 @@ async def process_stream_bingo_message(data):
                         status = 'active'
                     """, (game_id, len(events), is_sub_only, random_call_only))
                     await user_db.commit()
-                bot_logger.info(f"Stream Bingo: Bingo game started - Game ID: {game_id}, Events: {len(events)}, Sub-only: {is_sub_only}, Random-only: {random_call_only}")
+                integrations_logger.info(f"Stream Bingo: Bingo game started - Game ID: {game_id}, Events: {len(events)}, Sub-only: {is_sub_only}, Random-only: {random_call_only}")
                 # You can add chat notifications or other actions here
             elif event_type in ['bingo_ended', 'GAME_ENDED']:
                 # Handle bingo game ended
@@ -1901,7 +1909,7 @@ async def process_stream_bingo_message(data):
                         WHERE game_id = %s
                     """, (game_id,))
                     await user_db.commit()
-                bot_logger.info(f"Stream Bingo: Bingo game ended - Game ID: {game_id}")
+                integrations_logger.info(f"Stream Bingo: Bingo game ended - Game ID: {game_id}")
                 # You can add chat notifications or other actions here
             elif event_type in ['number_called', 'EVENT_CALLED']:
                 # Handle number called
@@ -1911,17 +1919,17 @@ async def process_stream_bingo_message(data):
                 event_name = data.get('eventName')
                 game_id = data.get('game_id')
                 if event_name:
-                    bot_logger.info(f"Stream Bingo: Event called - Event: {event_name} (ID: {event_id})")
+                    integrations_logger.info(f"Stream Bingo: Event called - Event: {event_name} (ID: {event_id})")
                 elif number:
-                    bot_logger.info(f"Stream Bingo: Number called - Game ID: {game_id}, Number: {number}")
+                    integrations_logger.info(f"Stream Bingo: Number called - Game ID: {game_id}, Number: {number}")
                 elif display_number:
-                    bot_logger.info(f"Stream Bingo: Display number called - {display_number}")
+                    integrations_logger.info(f"Stream Bingo: Display number called - {display_number}")
                 # You can add chat notifications or other actions here
             elif event_type == 'PLAYER_JOINED':
                 # Handle player joined
                 player_name = data.get('playerName')
                 player_id = data.get('playerId')
-                bot_logger.info(f"Stream Bingo: Player joined - {player_name} (ID: {player_id})")
+                integrations_logger.info(f"Stream Bingo: Player joined - {player_name} (ID: {player_id})")
                 # You can add chat notifications or other actions here
             elif event_type == 'BINGO_REGISTERED':
                 # Handle bingo registered (player got bingo)
@@ -1936,40 +1944,40 @@ async def process_stream_bingo_message(data):
                         VALUES (%s, %s, %s, %s)
                     """, (game_id, player_name, player_id, rank))
                     await user_db.commit()
-                bot_logger.info(f"Stream Bingo: Bingo registered - {player_name} (ID: {player_id}) got bingo! Rank: {rank}")
+                integrations_logger.info(f"Stream Bingo: Bingo registered - {player_name} (ID: {player_id}) got bingo! Rank: {rank}")
                 # You can add chat notifications or other actions here
             elif event_type == 'EXTRA_CARD_WITH_BITS':
                 # Handle extra card purchased with bits
                 player_name = data.get('playerName')
                 player_id = data.get('playerId')
                 bits = data.get('bits')
-                bot_logger.info(f"Stream Bingo: Extra card purchased - {player_name} (ID: {player_id}) bought extra card for {bits} bits")
+                integrations_logger.info(f"Stream Bingo: Extra card purchased - {player_name} (ID: {player_id}) bought extra card for {bits} bits")
                 # You can add chat notifications or other actions here
             elif event_type == 'VOTE_STARTED':
                 # Handle vote started
-                bot_logger.info("Stream Bingo: Voting has started")
+                integrations_logger.info("Stream Bingo: Voting has started")
                 # You can add chat notifications or other actions here
             elif event_type == 'EXTRA_VOTE_WITH_BITS':
                 # Handle extra vote purchased with bits
                 player_name = data.get('playerName')
                 player_id = data.get('playerId')
                 bits = data.get('bits')
-                bot_logger.info(f"Stream Bingo: Extra vote purchased - {player_name} (ID: {player_id}) bought extra vote for {bits} bits")
+                integrations_logger.info(f"Stream Bingo: Extra vote purchased - {player_name} (ID: {player_id}) bought extra vote for {bits} bits")
                 # You can add chat notifications or other actions here
             elif event_type == 'VOTE_ENDED':
                 # Handle vote ended
-                bot_logger.info("Stream Bingo: Voting has ended")
+                integrations_logger.info("Stream Bingo: Voting has ended")
                 # You can add chat notifications or other actions here
             elif event_type == 'ALL_EVENTS_CALLED':
                 # Handle all events called
-                bot_logger.info("Stream Bingo: All events have been called")
+                integrations_logger.info("Stream Bingo: All events have been called")
                 # You can add chat notifications or other actions here
             else:
-                bot_logger.debug(f"Stream Bingo: Unhandled event type: {event_type}")
+                integrations_logger.debug(f"Stream Bingo: Unhandled event type: {event_type}")
         finally:
             user_db.close()
     except Exception as e:
-        bot_logger.error(f"Stream Bingo: Error processing message: {e}")
+        integrations_logger.error(f"Stream Bingo: Error processing message: {e}")
 
 # Bot classes
 class GameNotFoundException(Exception):
@@ -7931,14 +7939,14 @@ async def fetch_json(url, headers=None):
 
 # Function to process fourthwall events
 async def process_fourthwall_event(data):
-    event_logger.info(f"Fourthwall event received: {data}")
+    integrations_logger.info("===== Fourthwall =====")
     # Check if 'data' is a string and needs to be parsed
     if isinstance(data.get('data'), str):
         try:
             # Parse the string to convert it to a dictionary
             data['data'] = ast.literal_eval(data['data'])
         except (ValueError, SyntaxError) as e:
-            event_logger.error(f"Failed to parse data: {e}")
+            integrations_logger.error(f"Failed to parse data: {e}")
             return
     # Extract the event type and the nested event data
     event_type = data.get('data', {}).get('type')
@@ -7953,7 +7961,7 @@ async def process_fourthwall_event(data):
             total_price = event_data['amounts']['total']['value']
             currency = event_data['amounts']['total']['currency']
             # Log the order details
-            event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
+            integrations_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
             # Prepare the message to send
             message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
             await send_chat_message(message)
@@ -7964,10 +7972,10 @@ async def process_fourthwall_event(data):
             message_from_supporter = event_data.get('message', '')
             # Log the donation details and prepare the message
             if message_from_supporter:
-                event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency} with message: {message_from_supporter}")
+                integrations_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency} with message: {message_from_supporter}")
                 message = f"💰 {donor_username} just donated {donation_amount} {currency}! Message: {message_from_supporter}"
             else:
-                event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency}")
+                integrations_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency}")
                 message = f"💰 {donor_username} just donated {donation_amount} {currency}! Thank you!"
             await send_chat_message(message)
         elif event_type == 'GIVEAWAY_PURCHASED':
@@ -7976,7 +7984,7 @@ async def process_fourthwall_event(data):
             total_price = event_data['amounts']['total']['value']
             currency = event_data['amounts']['total']['currency']
             # Log the giveaway purchase details
-            event_logger.info(f"New Giveaway Purchase: {purchaser_username} purchased giveaway '{item_name}' for {total_price} {currency}")
+            integrations_logger.info(f"New Giveaway Purchase: {purchaser_username} purchased giveaway '{item_name}' for {total_price} {currency}")
             # Prepare and send the message
             message = f"🎁 {purchaser_username} just purchased a giveaway: {item_name} for {total_price} {currency}!"
             await send_chat_message(message)
@@ -7986,7 +7994,7 @@ async def process_fourthwall_event(data):
                 winner = gift.get('winner', {})
                 winner_username = winner.get('username', "No winner yet")
                 # Log each gift's status and winner details
-                event_logger.info(f"Gift {idx} is {gift_status} with winner: {winner_username}")
+                integrations_logger.info(f"Gift {idx} is {gift_status} with winner: {winner_username}")
                 # Prepare and send the gift status message
                 gift_message = f"🎁 Gift {idx}: Status - {gift_status}. Winner: {winner_username}."
                 await send_chat_message(gift_message)
@@ -7997,34 +8005,37 @@ async def process_fourthwall_event(data):
             amount = subscription_variant['amount']['value']
             currency = subscription_variant['amount']['currency']
             # Log the subscription purchase details
-            event_logger.info(f"New Subscription: {subscriber_nickname} subscribed {interval} for {amount} {currency}")
+            integrations_logger.info(f"New Subscription: {subscriber_nickname} subscribed {interval} for {amount} {currency}")
             # Prepare and send the message
             message = f"🎉 {subscriber_nickname} just subscribed for {interval}, paying {amount} {currency}!"
             await send_chat_message(message)
         else:
-            event_logger.info(f"Unhandled Fourthwall event: {event_type}")
+            integrations_logger.info(f"Unhandled Fourthwall event: {event_type}")
     except KeyError as e:
-        event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
+        integrations_logger.error(f"Error processing event '{event_type}': Missing key {e}")
     except Exception as e:
-        event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
+        integrations_logger.error(f"Unexpected error processing event '{event_type}': {e}")
+    finally:
+        integrations_logger.info("===== End Fourthwall =====")
 
 # Function to process KOFI events
 async def process_kofi_event(data):
+    integrations_logger.info("===== Ko-fi =====")
     if isinstance(data.get('data'), str):
         try:
             data['data'] = ast.literal_eval(data['data'])
         except (ValueError, SyntaxError) as e:
-            event_logger.error(f"Failed to parse data: {e}")
+            integrations_logger.error(f"Failed to parse data: {e}")
             return
     if not isinstance(data.get('data'), dict):
-        event_logger.error(f"Unexpected data structure: {data}")
+        integrations_logger.error(f"Unexpected data structure: {data}")
         return
     # Extract event type and data
     event_type = data.get('data', {}).get('type', None)
     event_data = data.get('data', {})
     message_to_send = None
     if event_type is None:
-        event_logger.info(f"Unhandled KOFI event: {event_type}")
+        integrations_logger.info(f"Unhandled KOFI event: {event_type}")
         return
     # Process the event based on type
     try:
@@ -8035,10 +8046,10 @@ async def process_kofi_event(data):
             message = event_data.get('message', None)
             # Log the donation details and build the message to send to chat
             if message:
-                event_logger.info(f"Donation: {donor_name} donated {amount} {currency} with message: {message}")
+                integrations_logger.info(f"Donation: {donor_name} donated {amount} {currency} with message: {message}")
                 message_to_send = f"💰 {donor_name} donated {amount} {currency}. Message: {message}"
             else:
-                event_logger.info(f"Donation: {donor_name} donated {amount} {currency}")
+                integrations_logger.info(f"Donation: {donor_name} donated {amount} {currency}")
                 message_to_send = f"💰 {donor_name} donated {amount} {currency}. Thank you!"
         elif event_type == 'Subscription':
             subscriber_name = event_data.get('from_name', 'Unknown')
@@ -8048,10 +8059,10 @@ async def process_kofi_event(data):
             tier_name = event_data.get('tier_name', 'None')
             # Log the subscription details and build the message to send to chat
             if is_first_payment:
-                event_logger.info(f"Subscription: {subscriber_name} subscribed to {tier_name} for {amount} {currency} (First payment)")
+                integrations_logger.info(f"Subscription: {subscriber_name} subscribed to {tier_name} for {amount} {currency} (First payment)")
                 message_to_send = f"🎉 {subscriber_name} subscribed to {tier_name} for {amount} {currency} (First payment)!"
             else:
-                event_logger.info(f"Subscription: {subscriber_name} renewed {tier_name} for {amount} {currency}")
+                integrations_logger.info(f"Subscription: {subscriber_name} renewed {tier_name} for {amount} {currency}")
                 message_to_send = f"🎉 {subscriber_name} renewed {tier_name} for {amount} {currency}!"
         elif event_type == 'Shop Order':
             purchaser_name = event_data.get('from_name', 'Unknown')
@@ -8061,17 +8072,19 @@ async def process_kofi_event(data):
             item_summary = ", ".join([f"{item['quantity']} x {item['variation_name']}" for item in shop_items])
             message_to_send = f"🛒 {purchaser_name} purchased items for {amount} {currency}. Items: {item_summary}"
             # Log the shop order details
-            event_logger.info(f"Shop Order: {purchaser_name} ordered items for {amount} {currency}. Items: {item_summary}")
+            integrations_logger.info(f"Shop Order: {purchaser_name} ordered items for {amount} {currency}. Items: {item_summary}")
         else:
-            event_logger.info(f"Unhandled KOFI event: {event_type}")
+            integrations_logger.info(f"Unhandled KOFI event: {event_type}")
             return
         # Only send a message if it was successfully created
         if message_to_send:
             await send_chat_message(message_to_send)
     except KeyError as e:
-        event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
+        integrations_logger.error(f"Error processing event '{event_type}': Missing key {e}")
     except Exception as e:
-        event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
+        integrations_logger.error(f"Unexpected error processing event '{event_type}': {e}")
+    finally:
+        integrations_logger.info("===== End Ko-fi =====")
 
 async def process_patreon_event(data):
     # Extract the data from the event
@@ -9451,6 +9464,8 @@ async def update_version_control():
         elif SYSTEM == "CUSTOM":
             file_name = f"{CHANNEL_NAME}_custom_version_control.txt"
             directory = "/home/botofthespecter/logs/version/custom/"
+            # Define the full file path
+            file_path = os.path.join(directory, file_name)
         else:
             raise ValueError("Invalid SYSTEM value. Expected STABLE, BETA, or CUSTOM.")
         # Delete the file if it exists
@@ -10917,20 +10932,60 @@ async def track_chat_message():
     finally:
         pass
 
+# Function to get custom bot credentials from database
+async def get_custom_bot_credentials():
+    connection = await mysql_handler.get_connection('website')
+    if connection is None:
+        system_logger.error("Failed to get connection for website database to fetch custom bot credentials")
+        return None
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(
+                "SELECT bot_channel_id, access_token FROM custom_bots WHERE bot_username = %s AND is_verified = 1",
+                (BOT_USERNAME,)
+            )
+            result = await cursor.fetchone()
+            if result:
+                return {
+                    'bot_channel_id': result['bot_channel_id'],
+                    'access_token': result['access_token']
+                }
+            else:
+                system_logger.error(f"No verified custom bot found for username: {BOT_USERNAME}")
+                return None
+    except Exception as e:
+        system_logger.error(f"Error fetching custom bot credentials: {e}")
+        return None
+
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     if len(message) > 500:
         chat_logger.error(f"Message too long: {len(message)} characters (max 500)")
         return False
+    # Determine credentials based on mode
+    if CUSTOM_MODE:
+        # Fetch custom bot credentials from database
+        credentials = await get_custom_bot_credentials()
+        if not credentials:
+            chat_logger.error(f"Failed to get custom bot credentials for {BOT_USERNAME}")
+            return False
+        sender_id = credentials['bot_channel_id']
+        access_token = credentials['access_token']
+        client_id = CLIENT_ID  # Use the same client ID
+    else:
+        # Use main bot credentials from environment
+        sender_id = "971436498"
+        access_token = TWITCH_OAUTH_API_TOKEN
+        client_id = TWITCH_OAUTH_API_CLIENT_ID
     url = "https://api.twitch.tv/helix/chat/messages"
     headers = {
-        "Authorization": f"Bearer {TWITCH_OAUTH_API_TOKEN}",
-        "Client-Id": TWITCH_OAUTH_API_CLIENT_ID,
+        "Authorization": f"Bearer {access_token}",
+        "Client-Id": client_id,
         "Content-Type": "application/json"
     }
     data = {
         "broadcaster_id": CHANNEL_ID,
-        "sender_id": "971436498",
+        "sender_id": sender_id,
         "message": message
     }
     if reply_parent_message_id:
@@ -11079,18 +11134,42 @@ async def process_chat_message_event(user_id: str, user_name: str, message: str 
     except Exception as e:
         event_logger.error(f"Error processing chat message event for {user_name}: {e}")
 
+# Determine the correct OAuth token based on mode
+if CUSTOM_MODE:
+    # In custom mode, use the channel's auth token as the bot token
+    BOT_OAUTH_TOKEN = CHANNEL_AUTH
+    bot_logger.info(f"Running in CUSTOM mode with bot username: {BOT_USERNAME}")
+else:
+    # In standard mode, use the main bot OAuth token from environment
+    BOT_OAUTH_TOKEN = OAUTH_TOKEN
+    bot_logger.info(f"Running in BETA mode with bot username: {BOT_USERNAME}")
+
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
-    token=OAUTH_TOKEN,
+    token=BOT_OAUTH_TOKEN,
     prefix='!',
     channel_name=CHANNEL_NAME
 )
 
 # Initialize SSH Connection Manager
-ssh_manager = SSHConnectionManager(bot_logger)
+ssh_manager = SSHConnectionManager(system_logger)
 
 # Run the bot
 def start_bot():
+    # Validate configuration before starting
+    if CUSTOM_MODE and not BOT_USERNAME:
+        system_logger.error("Custom mode requires -botusername argument")
+        raise ValueError("Custom mode enabled but no bot username provided. Use -botusername flag.")
+    if not BOT_OAUTH_TOKEN:
+        system_logger.error(f"No OAuth token available for bot mode: {'CUSTOM' if CUSTOM_MODE else 'BETA'}")
+        raise ValueError("OAuth token is missing. Check configuration.")
+    system_logger.info("===== Initializing Twitch Bot =====")
+    system_logger.info(f"Starting bot for channel: {CHANNEL_NAME}")
+    system_logger.info(f"Bot username: {BOT_USERNAME}")
+    system_logger.info(f"System: {'Custom Bot Name' if SYSTEM == 'CUSTOM' else SYSTEM}")
+    system_logger.info(f"Version: {VERSION}")
+    system_logger.info(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    system_logger.info("===== Initialization Complete =====")
     # Start the bot
     BOTS_TWITCH_BOT.run()
 
