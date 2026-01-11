@@ -1315,10 +1315,21 @@ async function makeBotMod(twitchUserId) {
 async function checkBotModStatus(twitchUserId) {
     const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
     const modTag = row.querySelector('.mod-status-tag');
+    const makeModBtn = row.querySelector('.make-mod-btn');
+    const startStableBtn = row.querySelector('.start-stable-btn');
+    const startBetaBtn = row.querySelector('.start-beta-btn');
+    const username = row.getAttribute('data-username');
+    const isRunning = runningBots.find(bot => bot.username === username);
+    // Skip mod check for BotOfTheSpecter's own channel
+    if (twitchUserId === '971436498') {
+        modTag.className = 'tag is-info mod-status-tag';
+        modTag.innerHTML = '<span class="icon"><i class="fas fa-info-circle"></i></span><span>Skipped</span>';
+        if (makeModBtn) makeModBtn.style.display = 'none';
+        if (startStableBtn && !isRunning) startStableBtn.disabled = false;
+        if (startBetaBtn && !isRunning) startBetaBtn.disabled = false;
+        return;
+    }
     try {
-        // First validate the token to ensure we have a valid access token
-        await validateUserToken(twitchUserId);
-        // Now check mod status
         modTag.className = 'tag is-info mod-status-tag';
         modTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Checking...</span>';
         const formData = new FormData();
