@@ -726,6 +726,7 @@ ob_start();
                             <option value="event_log">Event Log</option>
                             <option value="websocket">Websocket Log</option>
                             <option value="system">System Log</option>
+                            <option value="integrations">Integrations Log</option>
                         </select>
                     </div>
                 </div>
