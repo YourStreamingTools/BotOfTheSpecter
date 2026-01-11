@@ -500,6 +500,7 @@ return [
     'logs_type_chat_history' => 'Historique du chat',
     'logs_type_event_log' => 'Journal des événements',
     'logs_type_websocket' => 'Journal Websocket',
+    'logs_type_system' => 'Journal système',
     'logs_type_discord' => 'Journal du bot Discord',
     'logs_time_is' => 'L\'heure du journal est',
     'logs_current_time' => 'Heure actuelle du journal :',

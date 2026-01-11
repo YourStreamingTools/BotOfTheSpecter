@@ -133,14 +133,40 @@ function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
 }
 // Helper function to highlight log dates in a string, add <br> at end of each line, and reverse order
 function highlight_log_dates($text) {
-    $style = 'style="color: #e67e22; font-weight: bold;"';
+    $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
+    $infoStyle = 'style="color: #3498db; font-weight: bold;"';
+    $errorStyle = 'style="color: #e74c3c; font-weight: bold;"';
+    $warningStyle = 'style="color: #f39c12; font-weight: bold;"';
+    $debugStyle = 'style="color: #95a5a6; font-weight: bold;"';
     $escaped = htmlspecialchars($text);
     $lines = explode("\n", $escaped);
     $lines = array_reverse($lines);
     foreach ($lines as &$line) {
+        // Highlight date
         $line = preg_replace(
             '/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/',
-            '<span ' . $style . '>$1</span>',
+            '<span ' . $dateStyle . '>$1</span>',
+            $line
+        );
+        // Highlight log levels
+        $line = preg_replace(
+            '/ - (info) - /',
+            ' - <span ' . $infoStyle . '>$1</span> - ',
+            $line
+        );
+        $line = preg_replace(
+            '/ - (error) - /',
+            ' - <span ' . $errorStyle . '>$1</span> - ',
+            $line
+        );
+        $line = preg_replace(
+            '/ - (warning) - /',
+            ' - <span ' . $warningStyle . '>$1</span> - ',
+            $line
+        );
+        $line = preg_replace(
+            '/ - (debug) - /',
+            ' - <span ' . $debugStyle . '>$1</span> - ',
             $line
         );
     }
