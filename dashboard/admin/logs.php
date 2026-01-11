@@ -131,7 +131,7 @@ function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
     // This function is not implemented - return an error
     return ['error' => 'not_implemented'];
 }
-// Helper function to highlight log dates in a string, add <br> at end of each line, and reverse order
+// Helper function to highlight log dates in a string and add <br> at end of each line
 function highlight_log_dates($text) {
     $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
     $infoStyle = 'style="color: #3498db; font-weight: bold;"';
@@ -140,7 +140,6 @@ function highlight_log_dates($text) {
     $debugStyle = 'style="color: #95a5a6; font-weight: bold;"';
     $escaped = htmlspecialchars($text);
     $lines = explode("\n", $escaped);
-    $lines = array_reverse($lines);
     foreach ($lines as &$line) {
         // Highlight date
         $line = preg_replace(
@@ -798,6 +797,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const tokenLogTypeControl = document.getElementById('token-log-type-control');
     const tokenTypeSelect = document.getElementById('admin-token-log-type-select');
     const autoRefreshBtn = document.getElementById('admin-log-auto-refresh');
+    // Function to scroll log container to bottom
+    function scrollLogToBottom() {
+        logTextarea.scrollTop = logTextarea.scrollHeight;
+    }
     const systemLogTypes = <?php echo json_encode($systemLogTypes); ?>;
     let adminLogCategory = '';
     let adminLogUser = '';
@@ -990,6 +993,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 logTextarea.innerHTML = json.data;
             }
+            scrollLogToBottom();
         } catch (e) {
             logTextarea.innerHTML = "Unable to connect to the logging system.";
             console.error(e);
@@ -1019,6 +1023,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 logTextarea.innerHTML = json.data;
             }
+            scrollLogToBottom();
         } catch (e) {
             logTextarea.innerHTML = "Unable to connect to the logging system.";
             console.error(e);
@@ -1048,6 +1053,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 logTextarea.innerHTML = json.data;
             }
+            scrollLogToBottom();
         } catch (e) {
             logTextarea.innerHTML = "Unable to connect to the logging system.";
             console.error(e);
