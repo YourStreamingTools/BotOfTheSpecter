@@ -581,12 +581,17 @@ async def subscribe_to_events(session_id):
     # Subscribe concurrently
     responses = []
     async with httpClientSession() as session:
+        twitch_logger.info("===== Subscribing to Twitch EventSub Events =====")
         tasks = []
         for payload in payloads:
             task = session.post(url, headers=headers, json=payload)
             tasks.append(task)
         # Gather all responses
         results = await gather(*tasks, return_exceptions=True)
+        subscribed_events = 0
+        failed_events = 0
+        events_subscribed_to = []
+        events_failed_to_subscribe = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 twitch_logger.error(f"Error subscribing to {payloads[i]['type']}: {result}")
@@ -594,10 +599,17 @@ async def subscribe_to_events(session_id):
                 response = result
                 if response.status in (200, 202):
                     responses.append(await response.json())
-                    twitch_logger.info(f"Subscribed to {payloads[i]['type']} successfully.")
+                    subscribed_events += 1
+                    events_subscribed_to.append(payloads[i]['type'])
                 else:
                     error_text = await response.text()
                     twitch_logger.error(f"Failed to subscribe to {payloads[i]['type']}: HTTP {response.status} - {error_text}")
+                    failed_events += 1
+                    events_failed_to_subscribe.append(payloads[i]['type'])
+        twitch_logger.info(f"Subscribed to {subscribed_events} Twitch EventSub events. Events: {', '.join(events_subscribed_to)}")
+        if events_failed_to_subscribe:
+            twitch_logger.error(f"Failed to subscribe to {failed_events} events: {', '.join(events_failed_to_subscribe)}")
+    twitch_logger.info("===== Twitch EventSub Subscription Complete =====")
 
 async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
     while True:
@@ -1459,7 +1471,6 @@ async def process_twitch_eventsub_message(message):
                             current_chat.append(chat_entry)
                             with chat_file.open('w', encoding='utf-8') as f:
                                 json.dump(current_chat, f, ensure_ascii=False, indent=2)
-                            
                     except Exception as e:
                         event_logger.error(f"Error logging chat for ad break: {e}")
                     create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
@@ -2011,7 +2022,6 @@ class SSHConnectionManager:
             await get_event_loop().run_in_executor(None, lambda: ssh_client.connect(**connect_kwargs))
             # Store connection info
             self.connections[server_name] = {'client': ssh_client,'last_used': time.time(),'hostname': hostname}
-            self.logger.info(f"SSH connection established to {server_name} ({hostname})")
             return ssh_client
         except Exception as e:
             self.logger.error(f"Failed to create SSH connection to {server_name} ({hostname}): {e}")
@@ -8320,14 +8330,11 @@ async def update_timed_messages():
             # Fetch all enabled messages
             await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger FROM timed_messages WHERE status = 1")
             current_messages = await cursor.fetchall()
-            chat_logger.info(f"Found {len(current_messages)} enabled timed messages in database")
             if not current_messages:
-                chat_logger.info("No enabled timed messages found in database")
                 return
             # Convert to dictionary for easy lookup
             current_message_dict = {row["id"]: row for row in current_messages}
             current_message_ids = set(current_message_dict.keys())
-            chat_logger.info(f"Message IDs found: {current_message_ids}")
             active_message_ids = set(active_timed_messages.keys())
             # Find new messages to add
             new_message_ids = current_message_ids - active_message_ids
@@ -8476,7 +8483,6 @@ async def send_timed_message(message_id, message, delay):
         try:
             await send_chat_message(message)
             last_message_time = get_event_loop().time()
-            chat_logger.info(f"Message sent successfully")
         except Exception as e:
             bot_logger.error(f"Error sending message: {e}")
             bot_logger.error(f"BOTS_TWITCH_BOT state: {BOTS_TWITCH_BOT._connection._status}")
