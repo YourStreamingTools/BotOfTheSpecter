@@ -822,6 +822,11 @@ async def connect_to_streamlabs():
                 message = await streamlabs_websocket.recv()
                 sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
                 integrations_logger.info(f"StreamLabs Message: {sanitized_message}")
+                # Handle Socket.IO ping (frame type 2) - respond with pong (frame type 3)
+                if message == "2":
+                    await streamlabs_websocket.send("3")
+                    integrations_logger.debug("StreamLabs pong sent")
+                    continue
                 await process_message(message, "StreamLabs")
     except WebSocketConnectionClosed as e:
         integrations_logger.error(f"StreamLabs WebSocket connection closed: {e}")
