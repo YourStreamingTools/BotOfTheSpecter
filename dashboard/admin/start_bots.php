@@ -1028,6 +1028,11 @@ function refreshRunningStatus() {
         showConfirmButton: false,
         timer: 1500
     });
+    // Update all bot status tags to show "Checking..." while we fetch
+    document.querySelectorAll('.bot-status-tag').forEach(tag => {
+        tag.className = 'tag is-info bot-status-tag';
+        tag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Checking...</span>';
+    });
     fetch('?get_running_bots=1')
         .then(response => response.json())
         .then(data => {
