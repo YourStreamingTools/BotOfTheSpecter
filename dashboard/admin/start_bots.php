@@ -731,7 +731,19 @@ ob_start();
         <div class="buttons">
             <button class="button is-info" onclick="refreshBotStatus()">
                 <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                <span>Refresh All</span>
+            </button>
+            <button class="button is-primary" onclick="refreshRunningStatus()">
+                <span class="icon"><i class="fas fa-tasks"></i></span>
                 <span>Refresh Status</span>
+            </button>
+            <button class="button is-info" onclick="refreshTokenStatus()">
+                <span class="icon"><i class="fas fa-key"></i></span>
+                <span>Refresh Token Status</span>
+            </button>
+            <button class="button is-light" onclick="refreshModStatus()">
+                <span class="icon"><i class="fas fa-user-shield"></i></span>
+                <span>Refresh Mod Status</span>
             </button>
             <button class="button is-warning" id="restart-all-btn" onclick="restartAllBots()" disabled>
                 <span class="icon"><i class="fas fa-redo-alt"></i></span>
@@ -995,6 +1007,81 @@ function refreshBotStatus() {
         .catch(error => {
             console.error('Error fetching running bots:', error);
         });
+}
+// Refresh only running bots status (PIDs, bot type, buttons) without touching tokens/mods
+function refreshRunningStatus() {
+    fetch('?get_running_bots=1')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                runningBots = data.bots;
+                const restartAllBtn = document.getElementById('restart-all-btn');
+                if (restartAllBtn) restartAllBtn.disabled = runningBots.length === 0;
+                const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
+                rows.forEach(row => {
+                    const uname = row.getAttribute('data-username');
+                    const twitchId = row.getAttribute('data-twitch-id');
+                    const isRunning = runningBots.find(b => b.username === uname);
+                    const botTag = row.querySelector('.bot-status-tag');
+                    const botTypeTag = row.querySelector('.bot-type-tag');
+                    const startStableBtn = row.querySelector('.start-stable-btn');
+                    const startBetaBtn = row.querySelector('.start-beta-btn');
+                    const restartBtn = row.querySelector('.restart-bot-btn');
+                    const switchBtn = row.querySelector('.switch-bot-btn');
+                    if (isRunning) {
+                        const isBeta = isRunning.bot_type === 'beta';
+                        if (botTag) {
+                            botTag.className = 'tag is-success bot-status-tag';
+                            botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running (PID: ' + isRunning.pid + ')</span>';
+                        }
+                        if (botTypeTag) {
+                            botTypeTag.className = isBeta ? 'tag is-info bot-type-tag' : 'tag is-success bot-type-tag';
+                            botTypeTag.innerHTML = '<span>' + (isBeta ? 'Beta' : 'Stable') + '</span>';
+                        }
+                        if (startStableBtn) { startStableBtn.disabled = true; startStableBtn.style.display = 'none'; }
+                        if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
+                        if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
+                        if (switchBtn) { const targetType = isBeta ? 'stable' : 'beta'; const btnText = isBeta ? 'Switch to Stable' : 'Switch to Beta'; switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
+                        // Hide the row if desired (maintain existing UX)
+                        row.style.display = 'none';
+                    } else {
+                        if (botTag) { botTag.className = 'tag is-danger bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
+                        if (botTypeTag) { botTypeTag.className = 'tag is-dark bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
+                        if (startStableBtn) { startStableBtn.disabled = false; startStableBtn.style.display = 'inline-flex'; }
+                        if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
+                        if (restartBtn) { restartBtn.style.display = 'none'; restartBtn.disabled = true; }
+                        if (switchBtn) { switchBtn.style.display = 'none'; switchBtn.disabled = true; }
+                        // Ensure row is visible for non-running bots
+                        row.style.display = '';
+                    }
+                });
+            }
+        })
+        .catch(error => console.error('Error fetching running bots:', error));
+}
+// Refresh token status for all users: validate tokens and attempt renew when needed
+function refreshTokenStatus() {
+    const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
+    let validateDelay = 0;
+    rows.forEach(row => {
+        const twitchId = row.getAttribute('data-twitch-id');
+        if (twitchId) {
+            setTimeout(() => validateUserToken(twitchId), validateDelay);
+            validateDelay += 200;
+        }
+    });
+}
+// Refresh moderator status for all users: checks if bot is a mod or banned
+function refreshModStatus() {
+    const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
+    let delay = 0;
+    rows.forEach(row => {
+        const twitchId = row.getAttribute('data-twitch-id');
+        if (twitchId) {
+            setTimeout(() => checkBotModStatus(twitchId), delay);
+            delay += 200;
+        }
+    });
 }
 function updateBotStatusDisplay() {
     // Only update visible rows (those not hidden because bot is running)
