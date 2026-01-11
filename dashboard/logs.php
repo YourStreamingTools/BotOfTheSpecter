@@ -36,6 +36,56 @@ $logPath = "/home/botofthespecter/logs/logs";
 // Include SSH configuration
 include_once "/var/www/config/ssh.php";
 
+// Helper function to list available rotated log files via SSH
+function list_rotated_logs($log_type, $username) {
+  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+  try {
+    $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+    $logDir = "/home/botofthespecter/logs/logs/$log_type";
+    $baseFileName = "$username.txt";
+    // List all files matching the pattern username.txt*
+    $listCommand = "ls -1 " . escapeshellarg("$logDir/$baseFileName") . "* 2>/dev/null || echo ''";
+    $result = SSHConnectionManager::executeCommandNoMarker($connection, $listCommand);
+    
+    if (trim($result) === '') {
+      return [];
+    }
+    $files = explode("\n", trim($result));
+    $rotatedLogs = [];
+    foreach ($files as $file) {
+      if (empty($file)) continue;
+      $fileName = basename($file);
+      
+      // Get modification date for this file
+      $dateCommand = "stat -c '%y' " . escapeshellarg($file) . " 2>/dev/null || date -r " . escapeshellarg($file) . " '+%Y-%m-%d %H:%M:%S' 2>/dev/null";
+      $dateResult = SSHConnectionManager::executeCommandNoMarker($connection, $dateCommand);
+      $fileDate = 'Unknown';
+      
+      if (!empty(trim($dateResult))) {
+        // Extract just the date part (YYYY-MM-DD)
+        if (preg_match('/(\d{4}-\d{2}-\d{2})/', $dateResult, $dateMatches)) {
+          $fileDate = $dateMatches[1];
+        }
+      }
+      
+      // Match username.txt or username.txt.N
+      if ($fileName === $baseFileName) {
+        $rotatedLogs[] = ['file' => $fileName, 'rotation' => 0, 'label' => "Current ($fileDate)"];
+      } elseif (preg_match('/^' . preg_quote($baseFileName, '/') . '\.(\d+)$/', $fileName, $matches)) {
+        $rotation = (int)$matches[1];
+        $rotatedLogs[] = ['file' => $fileName, 'rotation' => $rotation, 'label' => $fileDate];
+      }
+    }
+    // Sort by rotation number (0 first, then 1, 2, 3...)
+    usort($rotatedLogs, function($a, $b) {
+      return $a['rotation'] - $b['rotation'];
+    });
+    return $rotatedLogs;
+  } catch (Exception $e) {
+    return [];
+  }
+}
+
 // Helper function to read log file via SSH
 function read_log_file($file_path) {
   global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
@@ -108,6 +158,48 @@ function highlight_log_dates($text) {
   return implode("<br>", $lines);
 }
 
+// AJAX handler to download log file
+if (isset($_GET['download_log'])) {
+  $logType = $_GET['download_log'];
+  $rotation = isset($_GET['rotation']) ? (int)$_GET['rotation'] : 0;
+  $currentUser = $_SESSION['username'];
+  // Build file path with rotation
+  if ($rotation === 0) {
+    $log = "$logPath/$logType/$currentUser.txt";
+    $downloadFileName = "{$currentUser}_{$logType}_current.txt";
+  } else {
+    $log = "$logPath/$logType/$currentUser.txt.$rotation";
+    $downloadFileName = "{$currentUser}_{$logType}_rotation{$rotation}.txt";
+  }
+  // Read the log file via SSH
+  $result = read_log_file($log);
+  if (isset($result['error'])) {
+    // If file not found or error, send empty file
+    header('Content-Type: text/plain');
+    header('Content-Disposition: attachment; filename="' . $downloadFileName . '"');
+    echo "(log file is empty or not found)";
+    exit();
+  }
+  $logContent = $result['logContent'];
+  // Set headers for file download
+  header('Content-Type: text/plain');
+  header('Content-Disposition: attachment; filename="' . $downloadFileName . '"');
+  header('Content-Length: ' . strlen($logContent));
+  header('Cache-Control: no-cache, must-revalidate');
+  header('Pragma: no-cache');
+  echo $logContent;
+  exit();
+}
+
+// AJAX handler to list available rotated log files
+if (isset($_GET['list_rotations'])) {
+  header('Content-Type: application/json');
+  $logType = $_GET['list_rotations'];
+  $currentUser = $_SESSION['username'];
+  $rotatedLogs = list_rotated_logs($logType, $currentUser);
+  echo json_encode(['rotations' => $rotatedLogs]);
+  exit();
+}
 // AJAX handler for log fetching - must be before any output!
 if (isset($_GET['log'])) {
   // Suppress warnings/notices for clean JSON output
@@ -118,8 +210,14 @@ if (isset($_GET['log'])) {
   header('Expires: 0');
   header('Pragma: no-cache');
   $logType = $_GET['log'];
+  $rotation = isset($_GET['rotation']) ? (int)$_GET['rotation'] : 0;
   $currentUser = $_SESSION['username'];
-  $log = "$logPath/$logType/$currentUser.txt";
+  // Build file path with rotation
+  if ($rotation === 0) {
+    $log = "$logPath/$logType/$currentUser.txt";
+  } else {
+    $log = "$logPath/$logType/$currentUser.txt.$rotation";
+  }
   // Read the log file via SSH
   $result = read_log_file($log);
   if (isset($result['error'])) {
@@ -179,7 +277,7 @@ ob_start();
 </div>
 <div class="columns">
   <div class="column is-one-quarter">
-    <div class="box" style="height: 403px;">
+    <div class="box" style="height: 500px;">
       <p class="title is-5"><?php echo t('logs_select_log'); ?></p>
       <div class="field">
         <div class="control">
@@ -199,6 +297,16 @@ ob_start();
           </div>
         </div>
       </div>
+      <div class="field" id="rotation-selector" style="display: none;">
+        <label class="label">Log Rotation:</label>
+        <div class="control">
+          <div class="select is-fullwidth">
+            <select id="logs-rotation-select">
+              <option value="0">Current</option>
+            </select>
+          </div>
+        </div>
+      </div>
       <div class="content" id="logs-options">
         <?php echo t('logs_time_is'); ?> GMT+<span id="timezone-offset"></span>
         <div id="current-time-display" class="mt-2">
@@ -209,6 +317,10 @@ ob_start();
       <div class="buttons buttons-container mt-4" style="display: none;">
         <button class="button is-link mr-2 mb-2" id="reload-log"><?php echo t('logs_reload_btn'); ?></button>
         <button class="button is-info toggle-button mr-2 mb-2" id="toggle-auto-refresh"><?php echo t('logs_auto_refresh'); ?>: OFF</button>
+        <button class="button is-success mr-2 mb-2" id="download-log">
+          <span class="icon"><i class="fas fa-download"></i></span>
+          <span>Download</span>
+        </button>
       </div>
     </div>
   </div>
@@ -221,7 +333,7 @@ ob_start();
             <div
               id="logs-log-html"
               class="admin-log-content"
-              style="max-height: 400px; min-height: 200px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"
+              style="max-height: 450px; min-height: 450px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"
               contenteditable="false"
             ><?php echo $logContent; ?></div>
           </div>
@@ -239,6 +351,7 @@ ob_start();
 <script>
 var autoRefresh = false;
 var currentLogName = ''; // Track the currently selected log
+var currentRotation = 0; // Track the currently selected rotation
 var logtext = document.getElementById("logs-log-textarea");
 var logHtml = document.getElementById("logs-log-html");
 // Function to scroll log container to bottom
@@ -247,7 +360,10 @@ function scrollLogToBottom() {
 }
 const reloadButton = document.getElementById("reload-log");
 const autoRefreshButton = document.getElementById("toggle-auto-refresh");
+const downloadButton = document.getElementById("download-log");
 const logSelect = document.getElementById("logs-select");
+const rotationSelect = document.getElementById("logs-rotation-select");
+const rotationSelector = document.getElementById("rotation-selector");
 const buttonsContainer = document.querySelector(".buttons-container"); // Target the buttons container
 const autoRefreshInterval = 5000; // Auto-refresh interval in milliseconds (5 seconds by default)
 
@@ -265,14 +381,53 @@ function toggleButtonsContainer(show) {
   }
 }
 
-async function fetchLogData(logname) {
-  // Set the current log name
+// Function to load available rotations for a log type
+async function loadRotations(logname) {
+  try {
+    const response = await fetch(`logs.php?list_rotations=${logname}&_=${Date.now()}`);
+    const json = await response.json();
+    // Clear and populate rotation selector
+    rotationSelect.innerHTML = '';
+    if (json.rotations && json.rotations.length > 0) {
+      json.rotations.forEach(rotation => {
+        const option = document.createElement('option');
+        option.value = rotation.rotation;
+        option.textContent = rotation.label;
+        rotationSelect.appendChild(option);
+      });
+      
+      // Show rotation selector if multiple files exist
+      if (json.rotations.length > 1) {
+        rotationSelector.style.display = 'block';
+      } else {
+        rotationSelector.style.display = 'none';
+      }
+    } else {
+      // No rotations found, hide selector
+      rotationSelector.style.display = 'none';
+      const option = document.createElement('option');
+      option.value = 0;
+      option.textContent = 'Current';
+      rotationSelect.appendChild(option);
+    }
+    
+    currentRotation = 0;
+    rotationSelect.value = 0;
+  } catch (error) {
+    console.error('Error loading rotations:', error);
+    rotationSelector.style.display = 'none';
+  }
+}
+
+async function fetchLogData(logname, rotation = 0) {
+  // Set the current log name and rotation
   if (currentLogName !== logname) {
     currentLogName = logname;
   }
+  currentRotation = rotation;
   try {
-    // Add cache-busting timestamp to URL
-    const response = await fetch(`logs.php?log=${logname}&_=${Date.now()}`);
+    // Add cache-busting timestamp and rotation to URL
+    const response = await fetch(`logs.php?log=${logname}&rotation=${rotation}&_=${Date.now()}`);
     const json = await response.json();
     // Check for errors first
     if (json.error) {
@@ -297,8 +452,8 @@ async function fetchLogData(logname) {
 async function autoUpdateLog() {
   if (autoRefresh && currentLogName !== '') {
     try {
-      // Add cache-busting timestamp to URL
-      const response = await fetch(`logs.php?log=${currentLogName}&_=${Date.now()}`);
+      // Add cache-busting timestamp and rotation to URL
+      const response = await fetch(`logs.php?log=${currentLogName}&rotation=${currentRotation}&_=${Date.now()}`);
       const json = await response.json();
       // Check for errors
       if (json.error) {
@@ -315,18 +470,43 @@ async function autoUpdateLog() {
 }
 
 // Event listener for log type change
-logSelect.addEventListener('change', (event) => {
+logSelect.addEventListener('change', async (event) => {
   const selectedLog = event.target.value;
   if (selectedLog !== 'SELECT A LOG TYPE') {
-    fetchLogData(selectedLog);
+    await loadRotations(selectedLog);
+    fetchLogData(selectedLog, 0);
   } else {
     toggleButtonsContainer(false);
+    rotationSelector.style.display = 'none';
+  }
+});
+
+// Event listener for rotation change
+rotationSelect.addEventListener('change', (event) => {
+  const selectedRotation = parseInt(event.target.value);
+  if (currentLogName) {
+    fetchLogData(currentLogName, selectedRotation);
   }
 });
 
 // Event listener for reload button
 reloadButton.addEventListener('click', () => {
-  fetchLogData(currentLogName);
+  fetchLogData(currentLogName, currentRotation);
+});
+
+// Event listener for download button
+downloadButton.addEventListener('click', () => {
+  if (currentLogName) {
+    // Create download URL with current log type and rotation
+    const downloadUrl = `logs.php?download_log=${currentLogName}&rotation=${currentRotation}&_=${Date.now()}`;
+    // Trigger download by creating a temporary link and clicking it
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = ''; // Let the server decide the filename
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 });
 
 // Event listener for auto-refresh toggle
