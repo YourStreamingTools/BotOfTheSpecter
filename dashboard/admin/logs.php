@@ -702,6 +702,7 @@ ob_start();
                             <option value="chat_history">Chat History</option>
                             <option value="event_log">Event Log</option>
                             <option value="websocket">Websocket Log</option>
+                            <option value="system">System Log</option>
                         </select>
                     </div>
                 </div>
