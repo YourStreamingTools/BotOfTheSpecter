@@ -498,6 +498,7 @@ return [
     'logs_type_event_log' => 'Event-Protokoll',
     'logs_type_websocket' => 'Websocket-Protokoll',
     'logs_type_system' => 'System-Protokoll',
+    'logs_type_integrations' => 'Integrations-Protokoll',
     'logs_type_discord' => 'Discord-Bot-Protokoll',
     'logs_time_is' => 'Protokollzeit ist',
     'logs_current_time' => 'Aktuelle Protokollzeit:',
