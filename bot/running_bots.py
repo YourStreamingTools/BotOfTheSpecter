@@ -6,7 +6,6 @@ import aiohttp
 # Define the script names for stable and beta
 stable_script = "bot.py"
 beta_script = "beta.py"
-custom_script = "custom.py"
 API_VERSIONS_URL = "https://api.botofthespecter.com/versions"
 
 # Function to get version from version control files
@@ -82,6 +81,10 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
     cmdline = [arg.lower() for arg in (process.info['cmdline'] or [])]
     if not cmdline:
         continue
+    
+    # Check if this is a custom bot (has -custom flag)
+    is_custom = "-custom" in cmdline
+    
     # Check for stable bot (bot.py)
     script_match_stable = False
     for arg in cmdline:
@@ -90,6 +93,7 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
             if base_name == stable_script:
                 script_match_stable = True
                 break
+    
     # Check for beta bot (beta.py)
     script_match_beta = False
     for arg in cmdline:
@@ -98,41 +102,27 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
             if base_name == beta_script:
                 script_match_beta = True
                 break
-    # If it's a stable bot, find the channel
-    if script_match_stable:
-        channel_index = -1
-        if "-channel" in cmdline:
-            channel_index = cmdline.index("-channel")
-        if channel_index >= 0 and channel_index + 1 < len(cmdline):
-            channel = cmdline[channel_index + 1]
+    
+    # Find the channel if present
+    channel_index = -1
+    if "-channel" in cmdline:
+        channel_index = cmdline.index("-channel")
+    
+    if channel_index >= 0 and channel_index + 1 < len(cmdline):
+        channel = cmdline[channel_index + 1]
+        
+        # If it's a custom bot (has -custom flag), add to custom_bots
+        if is_custom and (script_match_stable or script_match_beta):
+            version = get_version('custom', channel)
+            custom_bots.append((channel, process.info['pid'], version))
+        # If it's a stable bot (bot.py without -custom)
+        elif script_match_stable and not is_custom:
             version = get_version('stable', channel)
             stable_bots.append((channel, process.info['pid'], version))
-    # If it's a beta bot, find the channel
-    if script_match_beta:
-        channel_index = -1
-        if "-channel" in cmdline:
-            channel_index = cmdline.index("-channel")
-        if channel_index >= 0 and channel_index + 1 < len(cmdline):
-            channel = cmdline[channel_index + 1]
+        # If it's a beta bot (beta.py without -custom)
+        elif script_match_beta and not is_custom:
             version = get_version('beta', channel)
             beta_bots.append((channel, process.info['pid'], version))
-    # If it's a custom bot, find the channel (custom.py)
-    if custom_script:
-        script_match_custom = False
-        for arg in cmdline:
-            if arg.endswith(custom_script):
-                base_name = os.path.basename(arg)
-                if base_name == custom_script:
-                    script_match_custom = True
-                    break
-        if script_match_custom:
-            channel_index = -1
-            if "-channel" in cmdline:
-                channel_index = cmdline.index("-channel")
-            if channel_index >= 0 and channel_index + 1 < len(cmdline):
-                channel = cmdline[channel_index + 1]
-                version = get_version('custom', channel)
-                custom_bots.append((channel, process.info['pid'], version))
 
 # Print results
 print("Stable bots running:")
