@@ -896,6 +896,15 @@ function scheduleRefresh(delayMs = 2000) {
     }, delayMs);
 }
 function refreshBotStatus() {
+    // Show toast notification
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Refreshing all statuses...',
+        showConfirmButton: false,
+        timer: 2000
+    });
     fetch('?get_running_bots=1')
         .then(response => response.json())
         .then(data => {
@@ -1010,6 +1019,15 @@ function refreshBotStatus() {
 }
 // Refresh only running bots status (PIDs, bot type, buttons) without touching tokens/mods
 function refreshRunningStatus() {
+    // Show toast notification
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Refreshing bot status...',
+        showConfirmButton: false,
+        timer: 1500
+    });
     fetch('?get_running_bots=1')
         .then(response => response.json())
         .then(data => {
@@ -1042,8 +1060,8 @@ function refreshRunningStatus() {
                         if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
                         if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
                         if (switchBtn) { const targetType = isBeta ? 'stable' : 'beta'; const btnText = isBeta ? 'Switch to Stable' : 'Switch to Beta'; switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
-                        // Hide the row if desired (maintain existing UX)
-                        row.style.display = 'none';
+                        // Keep row visible for running bots
+                        row.style.display = '';
                     } else {
                         if (botTag) { botTag.className = 'tag is-danger bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
                         if (botTypeTag) { botTypeTag.className = 'tag is-dark bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
@@ -1055,6 +1073,15 @@ function refreshRunningStatus() {
                         row.style.display = '';
                     }
                 });
+                // Show completion toast
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Bot status refreshed',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
             }
         })
         .catch(error => console.error('Error fetching running bots:', error));
@@ -1062,6 +1089,16 @@ function refreshRunningStatus() {
 // Refresh token status for all users: validate tokens and attempt renew when needed
 function refreshTokenStatus() {
     const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
+    const totalUsers = rows.length;
+    // Show toast notification
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: `Refreshing token status for ${totalUsers} user(s)...`,
+        showConfirmButton: false,
+        timer: 2000
+    });
     let validateDelay = 0;
     rows.forEach(row => {
         const twitchId = row.getAttribute('data-twitch-id');
@@ -1070,10 +1107,31 @@ function refreshTokenStatus() {
             validateDelay += 200;
         }
     });
+    // Show completion toast after all validations are scheduled
+    setTimeout(() => {
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Token status refresh complete',
+            showConfirmButton: false,
+            timer: 2000
+        });
+    }, validateDelay + 500);
 }
 // Refresh moderator status for all users: checks if bot is a mod or banned
 function refreshModStatus() {
     const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
+    const totalUsers = rows.length;
+    // Show toast notification
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: `Refreshing mod status for ${totalUsers} user(s)...`,
+        showConfirmButton: false,
+        timer: 2000
+    });
     let delay = 0;
     rows.forEach(row => {
         const twitchId = row.getAttribute('data-twitch-id');
@@ -1082,6 +1140,17 @@ function refreshModStatus() {
             delay += 200;
         }
     });
+    // Show completion toast after all checks are scheduled
+    setTimeout(() => {
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Mod status refresh complete',
+            showConfirmButton: false,
+            timer: 2000
+        });
+    }, delay + 500);
 }
 function updateBotStatusDisplay() {
     // Only update visible rows (those not hidden because bot is running)
