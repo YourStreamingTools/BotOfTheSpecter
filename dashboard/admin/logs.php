@@ -298,8 +298,12 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     $logPath = "/home/botofthespecter/logs/logs/$logType/$selectedUser.txt";
     $result = read_bot_log_over_ssh($logPath);
     if (isset($result['error'])) {
-        if ($result['error'] === 'not_found') { echo json_encode(['error' => 'not_found']); }
-        else { echo json_encode(['error' => 'connection_failed']); }
+        // If file not found, return empty log message
+        if ($result['error'] === 'not_found') {
+            echo json_encode(['data' => '(log file is empty)']);
+        } else {
+            echo json_encode(['error' => 'connection_failed']);
+        }
         exit();
     }
     if (isset($result['empty']) && $result['empty']) {

@@ -123,7 +123,12 @@ if (isset($_GET['log'])) {
   // Read the log file via SSH
   $result = read_log_file($log);
   if (isset($result['error'])) {
-    echo json_encode(['error' => $result['error']]);
+    // If file not found, treat as empty log
+    if ($result['error'] === 'Log file not found: ' . $log || strpos($result['error'], 'not found') !== false) {
+      echo json_encode(['data' => '(log file is empty)']);
+    } else {
+      echo json_encode(['error' => $result['error']]);
+    }
     exit();
   }
   $logContent = $result['logContent'];
@@ -143,7 +148,12 @@ if (isset($_GET['logType'])) {
   // Read the log file via SSH
   $result = read_log_file($log);
   if (isset($result['error'])) {
-    $logContent = "Error: " . $result['error'];
+    // If file not found, treat as empty log
+    if (strpos($result['error'], 'not found') !== false) {
+      $logContent = "(log file is empty)";
+    } else {
+      $logContent = "Error: " . $result['error'];
+    }
   } else {
     $logContent = $result['logContent'];
     if (trim($logContent) === '') {
