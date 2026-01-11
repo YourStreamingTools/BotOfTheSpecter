@@ -159,7 +159,7 @@ event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
 
 # Log startup messages
-startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION}{SYSTEM})"
+startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION} {SYSTEM})"
 for logger in loggers.values():
     logger.info(startup_msg)
 
@@ -372,7 +372,7 @@ class MySQLHandler:
             except (MySQLError, MySQLOtherErrors) as e:
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
-                    bot_logger.warning(f"Failed to create pool for {db_name} (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
+                    bot_logger.error(f"Failed to create pool for {db_name} (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
                     await sleep(wait_time)
                 else:
                     bot_logger.error(f"Failed to create connection pool for {db_name} after {max_retries} attempts: {e}")
@@ -676,7 +676,7 @@ async def connect_to_tipping_services():
                 tasks.append(connect_to_streamlabs())
             # If no tokens were found for either service, stop early
             if not tasks:
-                event_logger.warning("No valid tokens found for either StreamElements or StreamLabs. Aborting tipping service connection.")
+                event_logger.error("No valid tokens found for either StreamElements or StreamLabs. Aborting tipping service connection.")
                 return
             await gather(*tasks)
     except MySQLError as err:
@@ -702,7 +702,7 @@ async def streamelements_connection_manager():
                 if attempt < max_retries - 1:
                     # Calculate delay with exponential backoff
                     delay = min(base_delay * (2 ** attempt), max_delay)
-                    event_logger.warning(f"StreamElements connection failed: {e}. Retrying in {delay} seconds...")
+                    event_logger.error(f"StreamElements connection failed: {e}. Retrying in {delay} seconds...")
                     await sleep(delay)
                 else:
                     event_logger.error(f"Failed to connect to StreamElements after {max_retries} attempts: {e}")
@@ -715,7 +715,7 @@ async def connect_to_streamelements():
     uri = "https://realtime.streamelements.com"
     # Check if we have a valid token
     if not streamelements_token:
-        event_logger.warning("No StreamElements token available, skipping connection")
+        event_logger.error("No StreamElements token available, skipping connection")
         return
     try:
         @streamelements_socket.event
@@ -725,7 +725,7 @@ async def connect_to_streamelements():
             await streamelements_socket.emit('authenticate', {'method': 'oauth2', 'token': streamelements_token})
         @streamelements_socket.event
         async def disconnect():
-            event_logger.warning("Disconnected from StreamElements websocket - will attempt reconnection with fresh token")
+            event_logger.error("Disconnected from StreamElements websocket - will attempt reconnection with fresh token")
             # Disconnect detected - the connection manager will handle reconnection with token refresh
         @streamelements_socket.event
         async def authenticated(data):
@@ -735,7 +735,7 @@ async def connect_to_streamelements():
         async def unauthorized(data):
             event_logger.error(f"StreamElements authentication failed: {data}")
             # Token might be expired or invalid - trigger disconnection so reconnection manager can refresh token
-            event_logger.warning("Authentication failed, disconnecting to trigger token refresh and reconnection")
+            event_logger.error("Authentication failed, disconnecting to trigger token refresh and reconnection")
             await streamelements_socket.disconnect()
         @streamelements_socket.event
         async def event(*args):
@@ -1259,7 +1259,7 @@ async def process_twitch_eventsub_message(message):
                         event_logger.info(f"Chat mode '{action}' activated by {moderator_user_name}")
                     else:
                         # Log unknown actions for debugging
-                        event_logger.warning(f"Unknown moderation action '{action}' received: {event_data}")
+                        event_logger.error(f"Unknown moderation action '{action}' received: {event_data}")
                     # Send moderation event to websocket for Discord logging
                     create_task(websocket_notice(event="MODERATION", additional_data=event_data))
                 # Channel Point Rewards Event
@@ -1499,7 +1499,7 @@ async def specter_websocket():
                     await specterSocket.disconnect()
                     websocket_logger.info("Disconnected existing WebSocket connection before reconnection attempt")
                 except Exception as disconnect_error:
-                    websocket_logger.warning(f"Error disconnecting existing connection: {disconnect_error}")
+                    websocket_logger.error(f"Error disconnecting existing connection: {disconnect_error}")
             # Wait 60 seconds before each reconnection attempt (server takes min 2 mins to reboot)
             if consecutive_failures > 0:
                 # Add small jitter to prevent multiple instances from reconnecting simultaneously
@@ -1538,7 +1538,7 @@ async def specter_websocket():
             websocket_logger.error(f"Unexpected error with Internal WebSocket (attempt {consecutive_failures}): {e}")
         # Connection lost or failed, prepare for reconnection
         websocket_connected = False
-        websocket_logger.warning(f"WebSocket connection lost, preparing for reconnection attempt {consecutive_failures + 1}")
+        websocket_logger.error(f"WebSocket connection lost, preparing for reconnection attempt {consecutive_failures + 1}")
         # Small delay before next iteration to prevent tight loop
         await sleep(1)
 
@@ -1578,7 +1578,7 @@ async def connect_error(data):
 async def disconnect():
     global websocket_connected
     websocket_connected = False  # Set flag to false when disconnected
-    websocket_logger.warning("Client disconnected from internal websocket server")
+    websocket_logger.error("Client disconnected from internal websocket server")
     websocket_logger.info("WebSocket will attempt to reconnect automatically")
 
 @specterSocket.event
@@ -1675,13 +1675,13 @@ async def OBS_EVENT_RECEIVED(data):
                 websocket_logger.info(f"OBS scene successfully changed to: {scene}")
                 await send_chat_message(f"OBS scene changed to {scene}!")
             else:
-                websocket_logger.warning("Scene change action received but no scene name provided")
+                websocket_logger.error("Scene change action received but no scene name provided")
         # Handle other OBS actions as needed
         elif action:
             websocket_logger.info(f"OBS action executed: {action}")
             await send_chat_message(f"OBS action executed: {action}")
         else:
-            websocket_logger.warning(f"OBS event received but no action specified: {data}")
+            websocket_logger.error(f"OBS event received but no action specified: {data}")
     except Exception as e:
         websocket_logger.error(f"Error processing OBS event: {e}", exc_info=True)
 
@@ -1738,13 +1738,13 @@ async def hyperate_websocket_persistent():
                         try:
                             raw = await hyperate_websocket.recv()
                         except WebSocketConnectionClosed:
-                            bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
+                            bot_logger.error("HypeRate WebSocket connection closed, reconnecting...")
                             break
                         raw_sanitized = redact(raw)
                         try:
                             data = json.loads(raw)
                         except Exception as e:
-                            bot_logger.warning(
+                            bot_logger.error(
                                 f"HypeRate warning: failed to parse incoming message: {redact(e)} - raw: {raw_sanitized[:200]}"
                             )
                             # Skip malformed messages without tearing down the connection
@@ -1852,7 +1852,7 @@ async def stream_bingo_websocket():
                             bot_logger.error(f"Stream Bingo: Error processing message: {e}")
                             
                     except WebSocketConnectionClosed:
-                        bot_logger.warning("Stream Bingo: WebSocket connection closed, reconnecting...")
+                        bot_logger.error("Stream Bingo: WebSocket connection closed, reconnecting...")
                         break
                     except Exception as e:
                         bot_logger.error(f"Stream Bingo: Error receiving message: {e}")
@@ -2472,7 +2472,7 @@ class TwitchBot(commands.Bot):
                 await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
                 preferences = await cursor.fetchone()
                 if not preferences:
-                    chat_logger.warning(f"No streamer preferences found, using defaults")
+                    chat_logger.error(f"No streamer preferences found, using defaults")
                     # Set default values
                     send_welcome_messages = 1
                     new_default_welcome_message = "(user) is new to the community, let's give them a warm welcome!"
@@ -2616,7 +2616,7 @@ class TwitchBot(commands.Bot):
 
     async def call_command(self, command_name, ctx):
         if command_name in self.running_commands:
-            bot_logger.warning(f"Command '{command_name}' is already running, skipping.")
+            bot_logger.error(f"Command '{command_name}' is already running, skipping.")
             return
         # If ctx doesn't have 'view', it's a Message, create a Context
         if not hasattr(ctx, 'view'):
@@ -2632,7 +2632,7 @@ class TwitchBot(commands.Bot):
             finally:
                 self.running_commands.discard(command_name)
         else:
-            bot_logger.warning(f"Command '{command_name}' not found.")
+            bot_logger.error(f"Command '{command_name}' not found.")
             await send_chat_message(f"Command '{command_name}' not found.")
 
     async def handle_ai_response(self, user_message, user_id, message_author_name):
@@ -6967,7 +6967,7 @@ class TwitchBot(commands.Bot):
                 if action in ['add', 'edit', 'remove', 'complete', 'done']:
                     if not await command_permissions("mod", user):
                         await send_chat_message(f"{user.name}, you do not have the required permissions for this action.")
-                        chat_logger.warning(f"{user.name} attempted to {action} without proper permissions.")
+                        chat_logger.error(f"{user.name} attempted to {action} without proper permissions.")
                         return
                 await actions[action](ctx, params, user_id, connection)
                 chat_logger.info(f"{user.name} executed the action {action} with params {params}.")
@@ -6975,7 +6975,7 @@ class TwitchBot(commands.Bot):
                 add_usage('todo', bucket_key, cooldown_bucket)
             else:
                 await send_chat_message(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
-                chat_logger.warning(f"{user.name} used an unrecognized action: {action}.")
+                chat_logger.error(f"{user.name} used an unrecognized action: {action}.")
         except Exception as e:
             bot_logger.error(f"An error occurred in todo_command: {e}")
 
@@ -9249,7 +9249,7 @@ async def websocket_notice(
 ):
     # Check if websocket is connected before sending notifications
     if not is_websocket_connected():
-        websocket_logger.warning(f"Cannot send event '{event}' - websocket is not connected to internal system")
+        websocket_logger.error(f"Cannot send event '{event}' - websocket is not connected to internal system")
         return
     try:
         connection = await mysql_handler.get_connection()
@@ -9276,7 +9276,7 @@ async def websocket_notice(
                         except Exception as e:
                             websocket_logger.error(f"Error checking walkon file {walkon_file_path} on WEB server: {e}")
                     if not found:
-                        websocket_logger.warning(f"WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/ on WEB server")
+                        websocket_logger.error(f"WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/ on WEB server")
                 elif event == "DEATHS" and death and game:
                     params['death-text'] = death
                     params['game'] = game
@@ -9558,7 +9558,7 @@ async def convert_currency(amount, from_currency, to_currency):
                                 await connection.commit()
                                 api_logger.info(f"Exchangerate API Requests Remaining: {remaining_requests}")
                             else:
-                                api_logger.warning("No exchangerate count found in api_counts table")
+                                api_logger.error("No exchangerate count found in api_counts table")
                     except Exception as e:
                         api_logger.error(f"Error updating API count: {e}")
                     finally:
@@ -9863,10 +9863,10 @@ async def add_task(ctx, params, user_id, connection):
                 chat_logger.info(f"{user.name} added a task: '{task_description}' in category: '{category_name or 'Unknown'}' with ID {task_id}.")
             except (ValueError, IndexError):
                 await send_chat_message(f"{user.name}, please provide a valid task description and optional category ID.")
-                chat_logger.warning(f"{user.name} provided invalid task description or category ID for adding a task.")
+                chat_logger.error(f"{user.name} provided invalid task description or category ID for adding a task.")
         else:
             await send_chat_message(f"{user.name}, please provide a task to add.")
-            chat_logger.warning(f"{user.name} did not provide any task to add.")
+            chat_logger.error(f"{user.name} did not provide any task to add.")
 
 # ToDo List Function - Edit Task
 async def edit_task(ctx, params, user_id, connection):
@@ -9880,17 +9880,17 @@ async def edit_task(ctx, params, user_id, connection):
                 await cursor.execute("UPDATE todos SET objective = %s WHERE id = %s", (new_task, todo_id))
                 if cursor.rowcount == 0:
                     await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
-                    chat_logger.warning(f"{user.name} tried to edit non-existing task ID {todo_id}.")
+                    chat_logger.error(f"{user.name} tried to edit non-existing task ID {todo_id}.")
                 else:
                     await connection.commit()
                     await send_chat_message(f"{user.name}, task {todo_id} has been updated to \"{new_task}\".")
                     chat_logger.info(f"{user.name} edited task ID {todo_id} to new task: '{new_task}'.")
             except ValueError:
                 await send_chat_message(f"{user.name}, please provide the task ID and new description separated by a comma.")
-                chat_logger.warning(f"{user.name} provided invalid format for editing a task.")
+                chat_logger.error(f"{user.name} provided invalid format for editing a task.")
         else:
             await send_chat_message(f"{user.name}, please provide the task ID and new description.")
-            chat_logger.warning(f"{user.name} did not provide task ID and new description for editing.")
+            chat_logger.error(f"{user.name} did not provide task ID and new description for editing.")
 
 # ToDo List Function - Remove Task
 async def remove_task(ctx, params, user_id, connection):
@@ -9906,13 +9906,13 @@ async def remove_task(ctx, params, user_id, connection):
                     chat_logger.info(f"{user.name} initiated removal of task ID {todo_id}.")
                 else:
                     await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
-                    chat_logger.warning(f"{user.name} tried to remove non-existing task ID {todo_id}.")
+                    chat_logger.error(f"{user.name} tried to remove non-existing task ID {todo_id}.")
             except ValueError:
                 await send_chat_message(f"{user.name}, please provide a valid task ID to remove.")
-                chat_logger.warning(f"{user.name} provided invalid task ID for removal.")
+                chat_logger.error(f"{user.name} provided invalid task ID for removal.")
         else:
             await send_chat_message(f"{user.name}, please provide the task ID to remove.")
-            chat_logger.warning(f"{user.name} did not provide task ID for removal.")
+            chat_logger.error(f"{user.name} did not provide task ID for removal.")
 
 # ToDo List Function - Complete Task
 async def complete_task(ctx, params, user_id, connection):
@@ -9924,17 +9924,17 @@ async def complete_task(ctx, params, user_id, connection):
                 await cursor.execute("UPDATE todos SET completed = 'Yes' WHERE id = %s", (todo_id,))
                 if cursor.rowcount == 0:
                     await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
-                    chat_logger.warning(f"{user.name} tried to complete non-existing task ID {todo_id}.")
+                    chat_logger.error(f"{user.name} tried to complete non-existing task ID {todo_id}.")
                 else:
                     await connection.commit()
                     await send_chat_message(f"{user.name}, task {todo_id} has been marked as complete.")
                     chat_logger.info(f"{user.name} marked task ID {todo_id} as complete.")
             except ValueError:
                 await send_chat_message(f"{user.name}, please provide a valid task ID to mark as complete.")
-                chat_logger.warning(f"{user.name} provided invalid task ID for completion.")
+                chat_logger.error(f"{user.name} provided invalid task ID for completion.")
         else:
             await send_chat_message(f"{user.name}, please provide the task ID to mark as complete.")
-            chat_logger.warning(f"{user.name} did not provide task ID for completion.")
+            chat_logger.error(f"{user.name} did not provide task ID for completion.")
 
 # ToDo List Function - Confirm Removal
 async def confirm_removal(ctx, params, user_id, connection):
@@ -9948,7 +9948,7 @@ async def confirm_removal(ctx, params, user_id, connection):
             chat_logger.info(f"{user.name} confirmed and removed task ID {todo_id}.")
         else:
             await send_chat_message(f"{user.name}, you have no pending task removal to confirm.")
-            chat_logger.warning(f"{user.name} tried to confirm removal without pending task.")
+            chat_logger.error(f"{user.name} tried to confirm removal without pending task.")
 
 # ToDo List Function - View Task
 async def view_task(ctx, params, user_id, connection):
@@ -9968,13 +9968,13 @@ async def view_task(ctx, params, user_id, connection):
                     chat_logger.info(f"{user.name} viewed task ID {todo_id}.")
                 else:
                     await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
-                    chat_logger.warning(f"{user.name} tried to view non-existing task ID {todo_id}.")
+                    chat_logger.error(f"{user.name} tried to view non-existing task ID {todo_id}.")
             except ValueError:
                 await send_chat_message(f"{user.name}, please provide a valid task ID to view.")
-                chat_logger.warning(f"{user.name} provided invalid task ID for viewing.")
+                chat_logger.error(f"{user.name} provided invalid task ID for viewing.")
         else:
             await send_chat_message(f"{user.name}, please provide the task ID to view.")
-            chat_logger.warning(f"{user.name} did not provide task ID for viewing.")
+            chat_logger.error(f"{user.name} did not provide task ID for viewing.")
 
 # Function to get Category Names for the ToDo List
 async def fetch_category_name(cursor, category_id):
@@ -10667,7 +10667,7 @@ async def handle_ad_break_start(duration_seconds):
         # Try to send the start message and log if it fails
                 sent_ok = await send_chat_message(ad_start_message)
                 if not sent_ok:
-                    api_logger.warning(f"Ad start message failed to send: {ad_start_message}")
+                    api_logger.error(f"Ad start message failed to send: {ad_start_message}")
             except Exception as e:
                 api_logger.error(f"Exception while sending ad start message: {e}")
 
@@ -10678,7 +10678,7 @@ async def handle_ad_break_start(duration_seconds):
             if settings.get('enable_end_ad_message', True):
                 sent_ok = await send_chat_message(settings['ad_end_message'])
                 if not sent_ok:
-                    api_logger.warning(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+                    api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
         except Exception as e:
             api_logger.error(f"Exception while sending ad end message: {e}")
         # Check for the next ad after this one completes
@@ -10726,7 +10726,7 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                         body = await response.text()
                     except Exception:
                         body = '<could not read response body>'
-                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}, body: {body}")
+                    api_logger.error(f"Failed to fetch ad data. Status: {response.status}, body: {body}")
                     return last_notification_time, last_ad_time, last_snooze_count
                 data = await response.json()
                 ads_data = data.get("data", [])
@@ -10749,7 +10749,7 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                         try:
                             sent_ok = await send_chat_message(snooze_message)
                             if not sent_ok:
-                                api_logger.warning(f"Failed to send snooze message: {snooze_message}")
+                                api_logger.error(f"Failed to send snooze message: {snooze_message}")
                             else:
                                 api_logger.info(f"Sent ad snoozed notification: {snooze_message}")
                         except Exception as e:
@@ -10784,7 +10784,7 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                                     try:
                                         sent_ok = await send_chat_message(message)
                                         if not sent_ok:
-                                            api_logger.warning(f"Failed to send 5-minute ad notification: {message}")
+                                            api_logger.error(f"Failed to send 5-minute ad notification: {message}")
                                         else:
                                             api_logger.info(f"Sent 5-minute ad notification: {message}")
                                     except Exception as e:
@@ -10822,7 +10822,7 @@ async def check_next_ad_after_completion(ads_api_url, headers):
                         body = await response.text()
                     except Exception:
                         body = '<could not read response body>'
-                    api_logger.warning(f"Failed to fetch next ad data after completion. Status: {response.status}, body: {body}")
+                    api_logger.error(f"Failed to fetch next ad data after completion. Status: {response.status}, body: {body}")
                     return
                 try:
                     data = await response.json()
@@ -10859,7 +10859,7 @@ async def check_next_ad_after_completion(ads_api_url, headers):
                                 try:
                                     sent_ok = await send_chat_message(message)
                                     if not sent_ok:
-                                        api_logger.warning(f"Failed to send immediate next-ad notification: {message}")
+                                        api_logger.error(f"Failed to send immediate next-ad notification: {message}")
                                     else:
                                         api_logger.info(f"Sent immediate next-ad notification: {message}")
                                 except Exception as e:
