@@ -67,7 +67,7 @@ function read_log_file($file_path) {
   } catch (Exception $e) { return ['error' => 'SSH connection failed: ' . $e->getMessage()]; }
 }
 
-// Helper function to highlight log dates in a string and add <br> at end of each line, with reverse order
+// Helper function to highlight log dates in a string and add <br> at end of each line
 function highlight_log_dates($text) {
   $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
   $infoStyle = 'style="color: #3498db; font-weight: bold;"';
@@ -76,7 +76,6 @@ function highlight_log_dates($text) {
   $debugStyle = 'style="color: #95a5a6; font-weight: bold;"';
   $escaped = htmlspecialchars($text);
   $lines = explode("\n", $escaped);
-  $lines = array_reverse($lines);
   foreach ($lines as &$line) {
     // Highlight date
     $line = preg_replace(
@@ -231,6 +230,10 @@ var autoRefresh = false;
 var currentLogName = ''; // Track the currently selected log
 var logtext = document.getElementById("logs-log-textarea");
 var logHtml = document.getElementById("logs-log-html");
+// Function to scroll log container to bottom
+function scrollLogToBottom() {
+  logHtml.scrollTop = logHtml.scrollHeight;
+}
 const reloadButton = document.getElementById("reload-log");
 const autoRefreshButton = document.getElementById("toggle-auto-refresh");
 const logSelect = document.getElementById("logs-select");
@@ -273,6 +276,7 @@ async function fetchLogData(logname) {
       logHtml.innerHTML = json["data"];
     }
     toggleButtonsContainer(true);
+    scrollLogToBottom();
   } catch (error) {
     console.error(<?php echo json_encode(t('logs_error_fetching')); ?>, error);
     logHtml.innerHTML = `<span style="color: #ff6b6b;">Network error: Failed to fetch log data</span>`;
@@ -291,6 +295,7 @@ async function autoUpdateLog() {
         return;
       }
       logHtml.innerHTML = json["data"];
+      scrollLogToBottom();
     } catch (error) {
       console.error(<?php echo json_encode(t('logs_error_fetching_auto_refresh')); ?>, error);
       logHtml.innerHTML = `<span style="color: #ff6b6b;">Auto-refresh error: Failed to fetch log data</span>`;
