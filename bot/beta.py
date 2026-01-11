@@ -815,18 +815,18 @@ async def connect_to_streamlabs():
     uri = f"wss://sockets.streamlabs.com/socket.io/?token={streamlabs_token}&EIO=3&transport=websocket"
     integrations_logger.info("===== StreamLabs =====")
     try:
-        async with WebSocketConnect(uri) as streamlabs_websocket:
+        async with WebSocketConnect(uri, ping_interval=None) as streamlabs_websocket:
             integrations_logger.info(f"Connected to StreamLabs WebSocket")
             # Listen for messages
             while True:
                 message = await streamlabs_websocket.recv()
                 sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
-                integrations_logger.info(f"StreamLabs Message: {sanitized_message}")
                 # Handle Socket.IO ping (frame type 2) - respond with pong (frame type 3)
                 if message == "2":
                     await streamlabs_websocket.send("3")
                     integrations_logger.debug("StreamLabs pong sent")
                     continue
+                integrations_logger.info(f"StreamLabs Message: {sanitized_message}")
                 await process_message(message, "StreamLabs")
     except WebSocketConnectionClosed as e:
         integrations_logger.error(f"StreamLabs WebSocket connection closed: {e}")
