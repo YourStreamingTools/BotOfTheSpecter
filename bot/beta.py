@@ -673,17 +673,15 @@ async def connect_to_tipping_services():
                     event_logger.info("StreamLabs entry found but no usable token (socket_token/access_token) present")
             else:
                 event_logger.info("No StreamLabs token record found for this channel")
-            # Start connection tasks
-            tasks = []
+            # Start connection tasks sequentially for cleaner logs
             if streamelements_token:
-                tasks.append(streamelements_connection_manager())
+                await streamelements_connection_manager()
             if streamlabs_token:
-                tasks.append(connect_to_streamlabs())
+                await connect_to_streamlabs()
             # If no tokens were found for either service, stop early
-            if not tasks:
+            if not streamelements_token and not streamlabs_token:
                 event_logger.error("No valid tokens found for either StreamElements or StreamLabs. Aborting tipping service connection.")
                 return
-            await gather(*tasks)
     except MySQLError as err:
         event_logger.error(f"Database error while fetching tipping service tokens: {err}")
     finally:
