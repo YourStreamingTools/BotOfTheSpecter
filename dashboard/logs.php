@@ -184,6 +184,7 @@ ob_start();
               <option value="event_log" <?php echo $logType === 'event_log' ? 'selected' : ''; ?>><?php echo t('logs_type_event_log'); ?></option>
               <option value="websocket" <?php echo $logType === 'websocket' ? 'selected' : ''; ?>><?php echo t('logs_type_websocket'); ?></option>
               <option value="system" <?php echo $logType === 'system' ? 'selected' : ''; ?>><?php echo t('logs_type_system'); ?></option>
+              <option value="integrations" <?php echo $logType === 'integrations' ? 'selected' : ''; ?>><?php echo t('logs_type_integrations'); ?></option>
             </select>
           </div>
         </div>
