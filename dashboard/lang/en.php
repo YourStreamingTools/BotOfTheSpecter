@@ -558,6 +558,7 @@ return [
     'logs_type_event_log' => 'Event Log',
     'logs_type_websocket' => 'Websocket Log',
     'logs_type_system' => 'System Log',
+    'logs_type_integrations' => 'Integrations Log',
     'logs_type_discord' => 'Discord Bot Log',
     'logs_time_is' => 'Log Time is',
     'logs_current_time' => 'Current Log Time:',
