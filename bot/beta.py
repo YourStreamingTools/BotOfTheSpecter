@@ -643,6 +643,14 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
             event_logger.error(f"Error receiving message: {e}")
             break  # Exit the loop on critical error
 
+async def connect_to_integrations():
+    # Start Stream Bingo first
+    looped_tasks["stream_bingo_websocket"] = create_task(stream_bingo_websocket())
+    # Wait 2 seconds for Stream Bingo to connect and log
+    await sleep(2)
+    # Then start tipping services (StreamElements and StreamLabs)
+    looped_tasks["connect_to_tipping_services"] = create_task(connect_to_tipping_services())
+
 async def connect_to_tipping_services():
     global CHANNEL_ID, streamelements_token, streamlabs_token
     connection = await mysql_handler.get_connection(db_name="website")
@@ -673,12 +681,13 @@ async def connect_to_tipping_services():
                     event_logger.info("StreamLabs entry found but no usable token (socket_token/access_token) present")
             else:
                 event_logger.info("No StreamLabs token record found for this channel")
-            # Start connection tasks sequentially for cleaner logs
+            # Start connection tasks with delays for cleaner logs
             if streamelements_token:
-                await streamelements_connection_manager()
+                create_task(streamelements_connection_manager())
+                # Wait 2 seconds for StreamElements to connect and log before starting StreamLabs
+                await sleep(2)
             if streamlabs_token:
-                await connect_to_streamlabs()
-            # If no tokens were found for either service, stop early
+                create_task(connect_to_streamlabs())
             if not streamelements_token and not streamlabs_token:
                 event_logger.error("No valid tokens found for either StreamElements or StreamLabs. Aborting tipping service connection.")
                 return
@@ -795,12 +804,10 @@ async def connect_to_streamelements():
         await streamelements_socket.wait()
     except ConnectionExecptionError as e:
         integrations_logger.error(f"StreamElements WebSocket connection error: {e}")
-        integrations_logger.info("===== End StreamElements =====")
         # Should attempt reconnection with backoff
         raise
     except Exception as e:
         integrations_logger.error(f"StreamElements WebSocket error: {e}")
-        integrations_logger.info("===== End StreamElements =====")
         raise
 
 async def connect_to_streamlabs():
@@ -818,10 +825,8 @@ async def connect_to_streamlabs():
                 await process_message(message, "StreamLabs")
     except WebSocketConnectionClosed as e:
         integrations_logger.error(f"StreamLabs WebSocket connection closed: {e}")
-        integrations_logger.info("===== End StreamLabs =====")
     except Exception as e:
         integrations_logger.error(f"StreamLabs WebSocket error: {e}")
-        integrations_logger.info("===== End StreamLabs =====")
 
 async def process_message(message, source):
     global streamelements_token, streamlabs_token
@@ -1860,11 +1865,9 @@ async def stream_bingo_websocket():
                         break
                     except Exception as e:
                         integrations_logger.error(f"Stream Bingo: Error receiving message: {e}")
-                        integrations_logger.info("===== End Stream Bingo =====")
                         break
         except Exception as e:
             integrations_logger.error(f"Stream Bingo: WebSocket connection error: {e}")
-            integrations_logger.info("===== End Stream Bingo =====")
             await sleep(10)  # Wait before retrying
 
 async def process_stream_bingo_message(data):
@@ -2085,8 +2088,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["twitch_token_refresh"] = create_task(twitch_token_refresh())
         looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
-        looped_tasks["connect_to_tipping_services"] = create_task(connect_to_tipping_services())
-        looped_tasks["stream_bingo_websocket"] = create_task(stream_bingo_websocket())
+        looped_tasks["connect_to_integrations"] = create_task(connect_to_integrations())
         looped_tasks["midnight"] = create_task(midnight())
         looped_tasks["shoutout_worker"] = create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = create_task(periodic_watch_time_update())
@@ -8013,8 +8015,6 @@ async def process_fourthwall_event(data):
         integrations_logger.error(f"Error processing event '{event_type}': Missing key {e}")
     except Exception as e:
         integrations_logger.error(f"Unexpected error processing event '{event_type}': {e}")
-    finally:
-        integrations_logger.info("===== End Fourthwall =====")
 
 # Function to process KOFI events
 async def process_kofi_event(data):
@@ -8081,8 +8081,6 @@ async def process_kofi_event(data):
         integrations_logger.error(f"Error processing event '{event_type}': Missing key {e}")
     except Exception as e:
         integrations_logger.error(f"Unexpected error processing event '{event_type}': {e}")
-    finally:
-        integrations_logger.info("===== End Ko-fi =====")
 
 async def process_patreon_event(data):
     # Extract the data from the event
