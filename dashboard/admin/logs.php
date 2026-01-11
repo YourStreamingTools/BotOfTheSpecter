@@ -176,7 +176,6 @@ function highlight_log_dates($text) {
 function highlight_mysql_logs($text) {
     $escaped = htmlspecialchars($text);
     $lines = explode("\n", $escaped);
-    $lines = array_reverse($lines);
     // Define styles
     $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
     $warningStyle = 'style="color: #f39c12; font-weight: bold;"';
@@ -235,7 +234,6 @@ function highlight_mysql_logs($text) {
 function highlight_apache2_logs($text, $logType) {
     $escaped = htmlspecialchars($text);
     $lines = explode("\n", $escaped);
-    $lines = array_reverse($lines);
     // Define styles
     $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
     $ipStyle = 'style="color: #3498db; font-weight: bold;"';
