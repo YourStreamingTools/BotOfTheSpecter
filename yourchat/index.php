@@ -393,6 +393,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let recentRedemptions = [];
             // Recent chat messages cache for bidirectional deduplication
             let recentChatMessages = [];
+            // Recent bits events cache to deduplicate matching chat messages
+            let recentBitsEvents = [];
             function addRecentChatMessage(user_login, user_name, user_id, text) {
                 const entry = {
                     user_login: user_login ? String(user_login).toLowerCase() : null,
@@ -422,6 +424,21 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const cutoff = Date.now() - 10000;
                 recentRedemptions = recentRedemptions.filter(e => e.ts >= cutoff);
                 console.log('Recent redemptions cache now has', recentRedemptions.length, 'entries');
+            }
+            function addRecentBitsEvent(user_login, user_name, user_id, message) {
+                const entry = {
+                    user_login: user_login ? String(user_login).toLowerCase() : null,
+                    user_name: user_name ? String(user_name).toLowerCase() : null,
+                    user_id: user_id ? String(user_id) : null,
+                    message: message ? String(message).trim() : '',
+                    ts: Date.now()
+                };
+                console.log('Added bits event to cache:', entry);
+                recentBitsEvents.push(entry);
+                // Trim entries older than 10s
+                const cutoff = Date.now() - 10000;
+                recentBitsEvents = recentBitsEvents.filter(e => e.ts >= cutoff);
+                console.log('Recent bits events cache now has', recentBitsEvents.length, 'entries');
             }
             function consumeMatchingRedemption(chatter_login, chatter_name, chatter_id, text) {
                 if (!text) return false;
@@ -475,6 +492,34 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     }
                 }
                 console.log('No matching chat message found');
+                return false;
+            }
+            function consumeMatchingBitsEvent(chatter_login, chatter_name, chatter_id, text) {
+                if (!text) return false;
+                const t = String(text).trim();
+                const login = chatter_login ? String(chatter_login).toLowerCase() : null;
+                const name = chatter_name ? String(chatter_name).toLowerCase() : null;
+                const id = chatter_id ? String(chatter_id) : null;
+                const now = Date.now();
+                console.log('Looking for matching bits event:', { login, name, id, text: t, cacheSize: recentBitsEvents.length });
+                // Consider matches within last 5 seconds
+                for (let i = 0; i < recentBitsEvents.length; i++) {
+                    const e = recentBitsEvents[i];
+                    if (now - e.ts > 5000) continue;
+                    console.log('Checking against bits event:', e, 'age:', (now - e.ts) + 'ms');
+                    // Match if message is identical AND any of: login, name, or id matches
+                    if (e.message === t && (
+                        (login && e.user_login === login) ||
+                        (name && e.user_name === name) ||
+                        (id && e.user_id === id)
+                    )) {
+                        // remove this entry and return true
+                        console.log('FOUND MATCH! Consuming bits event and suppressing chat message');
+                        recentBitsEvents.splice(i, 1);
+                        return true;
+                    }
+                }
+                console.log('No matching bits event found');
                 return false;
             }
             // Presence settings (API-only)
@@ -1626,6 +1671,20 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             } catch (e) {
                 console.error('Error checking recent redemptions cache', e);
             }
+            // Deduplicate: if a recent bits event from same user with identical message exists, skip showing this chat message
+            try {
+                if (consumeMatchingBitsEvent(
+                    event.chatter_user_login || null,
+                    event.chatter_user_name || event.chatter_user_display_name || null,
+                    event.chatter_user_id || null,
+                    chatTextForMatch
+                )) {
+                    console.log('Suppressed chat message because a matching recent bits event was recorded:', chatTextForMatch);
+                    return;
+                }
+            } catch (e) {
+                console.error('Error checking recent bits events cache', e);
+            }
             // Cache this chat message for bidirectional deduplication (in case redemption arrives after)
             try {
                 addRecentChatMessage(
@@ -2108,6 +2167,18 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         // Bits event handling
         function handleBitsEvent(event) {
+            // Cache this bits event for deduplication against chat messages
+            const messageText = (event.type === 'cheer' && event.message && event.message.text) ? event.message.text : '';
+            try {
+                addRecentBitsEvent(
+                    event.user_login || null,
+                    event.user_name || null,
+                    event.user_id || null,
+                    messageText
+                );
+            } catch (e) {
+                console.error('Error caching bits event', e);
+            }
             const overlay = document.getElementById('chat-overlay');
             // Clear placeholder text
             if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
@@ -2202,5 +2273,4 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).</p>
     </footer>
 </body>
-
 </html>
