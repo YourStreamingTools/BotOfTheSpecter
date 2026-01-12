@@ -273,24 +273,16 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     </div>
                 </div>
             </div>
-            <div class="chat-features-panel settings-panel">
-                <h3>Chat Features</h3>
-                <p class="settings-description" style="margin-bottom:8px;">Optional chat UI features you can enable.</p>
-                <label class="feature-item">
-                    <input type="checkbox" id="notify-joins-checkbox">&nbsp;Show join/leave notifications
-                </label>
-            </div>
             <div class="two-column-container">
                 <div class="settings-panel">
-                    <div class="filters-header">
-                        <h3>Filters</h3>
-                    </div>
+                    <h3>Import / Export</h3>
+                    <p class="settings-description">Export your filters to a file or import from a previously saved file.</p>
                     <div style="display:flex; gap:8px; margin-bottom:10px;">
                         <button class="clear-history-btn" id="export-filters-btn">Export Filters</button>
                         <button class="clear-history-btn" id="open-import-filters-btn">Import Filters</button>
                     </div>
                     <!-- Inline import menu shown under Export/Import buttons -->
-                    <div id="import-filters-panel-inline" style="display:none; margin-top:8px; max-width:720px;">
+                    <div id="import-filters-panel-inline" style="display:none; margin-top:8px;">
                         <div style="margin-bottom:8px;">
                             <textarea id="import-filters-textarea"
                                 placeholder='Paste filters JSON here (e.g. {"usernames":[...],"messages":[...]}) or leave empty to attempt legacy import'
@@ -301,6 +293,20 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             <button class="clear-history-btn" id="import-filters-btn">Import Messages</button>
                             <button class="clear-history-btn" id="cancel-import-filters-btn">Cancel</button>
                         </div>
+                    </div>
+                </div>
+                <div class="chat-features-panel settings-panel">
+                    <h3>Chat Features</h3>
+                    <p class="settings-description" style="margin-bottom:8px;">Optional chat UI features you can enable.</p>
+                    <label class="feature-item">
+                        <input type="checkbox" id="notify-joins-checkbox">&nbsp;Show join/leave notifications
+                    </label>
+                </div>
+            </div>
+            <div class="two-column-container">
+                <div class="settings-panel">
+                    <div class="filters-header">
+                        <h3>Filters</h3>
                     </div>
                     <p class="settings-description">
                         Manage username and message filters separately. Each section can be collapsed.
