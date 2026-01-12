@@ -92,13 +92,14 @@ docs/5.8.md
 /billing
 /cdn/music
 /stream/ssl
-/newdashboard
 /bot/ai/chat-history
 /deploy
 /wiki
 /bot/export_queue
 /yourchat/user-settings
 /yourchat/chat-logs
+# Other GitHub repositories within the main repository folder structure to be ignored
+/newdashboard
 /StreamersConnect
 # This will be added later to the commits, for now, we're ignoring it.
 /ghostbot
