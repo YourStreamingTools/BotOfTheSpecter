@@ -101,6 +101,7 @@ docs/5.8.md
 # Other GitHub repositories within the main repository folder structure to be ignored
 /newdashboard
 /StreamersConnect
+config/streamersconnect.php
 # This will be added later to the commits, for now, we're ignoring it.
 /ghostbot
 
