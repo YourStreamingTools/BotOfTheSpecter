@@ -1022,7 +1022,15 @@ ob_start();
                 <div style="margin-bottom:0.5rem;">
                     <?php if (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) !== 1): ?>
                         <span class="tag is-danger">NOT VERIFIED</span>
-                        <span class="help" style="margin-left:0.5rem;">To verify this bot, sign in as the bot at <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a></span>
+                        <div class="help" style="margin-left:0.5rem; margin-top:0.5rem;">
+                            <p><strong>To verify this bot:</strong></p>
+                            <ol style="margin-left:1.5rem; margin-top:0.5rem;">
+                                <li>Open this link in an <strong>incognito/private window</strong>: <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a></li>
+                                <li>Sign in using the <strong>bot account</strong> credentials</li>
+                                <li>Complete the verification process</li>
+                            </ol>
+                            <p style="margin-top:0.5rem;"><em>Note: Using an incognito/private window ensures you don't accidentally sign in with your main account.</em></p>
+                        </div>
                     <?php elseif (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) === 1): ?>
                         <span class="tag is-success">Verified</span>
                     <?php endif; ?>
