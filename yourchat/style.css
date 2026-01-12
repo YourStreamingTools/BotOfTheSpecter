@@ -851,7 +851,8 @@ body {
 }
 
 .fullscreen-mode .header,
-.fullscreen-mode .settings-panel {
+.fullscreen-mode .settings-panel,
+.fullscreen-mode .page-footer {
     display: none;
 }
 
