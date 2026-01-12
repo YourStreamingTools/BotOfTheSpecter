@@ -200,7 +200,7 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
     display: none; /* Safari and Chrome */
 }
 .container.is-fluid {
-    background: #3A3C3D;
+    /*background: rgba(58, 60, 61, 0.8); */
     border-radius: 12px;
     padding: 12px;
     padding-bottom: 28px;
@@ -217,7 +217,7 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
     content: '';
     position: absolute;
     inset: 0px;
-    background: #3A3C3D;
+    /* background-color: rgba(58, 60, 61, 0.8); */
     border-radius: 12px;
     pointer-events: none;
     z-index: 0;
@@ -504,7 +504,7 @@ a, a:visited, a:active {
                 let singleHeight = wrap.scrollHeight / 2;
                 wrap.style.position = 'absolute';
                 // Duration proportional to height (pixels -> seconds), tweak as needed
-                let duration = Math.max(12, singleHeight / 80 * 5); // base speed
+                let duration = Math.max(2, singleHeight / 50); // base speed
                 let start = null;
                 function animateWrap(ts) {
                     if (!start) start = ts;
@@ -573,7 +573,7 @@ a, a:visited, a:active {
                 if (innerGap) innerGap.style.height = gapH + 'px';
             });
             // Animate the inner container vertically by totalH and wrap smoothly
-            const duration = Math.max(8, totalH / 80 * 5);
+            const duration = Math.max(2, totalH / 50);
             const speed = totalH / duration;
             let last = null;
             let offset = 0;
