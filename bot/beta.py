@@ -10655,24 +10655,49 @@ async def handle_ad_break_start(duration_seconds):
             user_content += "Summarize the following recent chat conversation to catch everyone up on what happened since the last break (or start of stream). Be brief and fun. Chat logs:\n"
             for entry in chat_history:
                 user_content += f"{entry.get('user', 'User')}: {entry.get('message', '')}\n"
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ]
             try:
-                response = await openai_client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_content}
-                    ],
-                    max_tokens=150,
-                    temperature=0.7
-                )
-                ai_text = response.choices[0].message.content.strip()
-                await send_chat_message(f"/me 🤖 {ai_text}")
-                ai_message_sent = True
-                event_logger.info(f"Sent AI Ad Break message: {ai_text}")
-                with chat_file.open('w', encoding='utf-8') as f:
-                    json.dump([], f)
+                api_logger.debug("Calling OpenAI chat completion for AI ad break")
+                chat_client = getattr(openai_client, 'chat', None)
+                ai_text = None
+                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
+                    resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
+                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                        choice = resp['choices'][0]
+                        if 'message' in choice and 'content' in choice['message']:
+                            ai_text = choice['message']['content']
+                        elif 'text' in choice:
+                            ai_text = choice['text']
+                    else:
+                        # Try attribute access
+                        choices = getattr(resp, 'choices', None)
+                        if choices and len(choices) > 0:
+                            ai_text = getattr(choices[0].message, 'content', None)
+                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
+                    resp = await openai_client.chat_completions.create(model="gpt-5-nano", messages=messages)
+                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                        ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
+                    else:
+                        choices = getattr(resp, 'choices', None)
+                        if choices and len(choices) > 0:
+                            ai_text = getattr(choices[0].message, 'content', None)
+                else:
+                    api_logger.error("No compatible chat completions method found on openai_client for ad break")
+                    ai_text = None
+                if not ai_text:
+                    api_logger.error(f"Chat completion returned no usable text for ad break: {resp if 'resp' in locals() else 'No response'}")
+                else:
+                    ai_text = ai_text.strip()
+                    await send_chat_message(f"/me {ai_text}")
+                    ai_message_sent = True
+                    api_logger.info(f"Sent AI Ad Break message: {ai_text}")
+                    with chat_file.open('w', encoding='utf-8') as f:
+                        json.dump([], f)
             except Exception as e:
-                event_logger.error(f"OpenAI error during ad break in handle_ad_break_start: {e}")
+                api_logger.error(f"Error calling chat completion API for ad break: {e}")
         except Exception as e:
             event_logger.error(f"Error in AI Ad Break logic in handle_ad_break_start: {e}")
     # 3. Standard Notice (Fallback or if AI disabled)
