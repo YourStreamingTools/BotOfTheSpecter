@@ -44,13 +44,21 @@ if ($method === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submi
 			$message = 'Please enter some feedback before submitting.';
 		} else {
 			// Ensure feedback table exists
-			$create_sql = "CREATE TABLE IF NOT EXISTS feedback (id INT AUTO_INCREMENT PRIMARY KEY,twitch_user_id VARCHAR(64),display_name VARCHAR(255),message TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+			$is_bug_report = isset($_POST['is_bug_report']) ? 1 : 0;
+			$bug_category = $is_bug_report ? trim($_POST['bug_category'] ?? '') : null;
+			$severity = $is_bug_report ? trim($_POST['severity'] ?? '') : null;
+			$steps_to_reproduce = $is_bug_report ? trim($_POST['steps_to_reproduce'] ?? '') : null;
+			$expected_behavior = $is_bug_report ? trim($_POST['expected_behavior'] ?? '') : null;
+			$actual_behavior = $is_bug_report ? trim($_POST['actual_behavior'] ?? '') : null;
+			$browser_info = $is_bug_report ? trim($_POST['browser_info'] ?? '') : null;
+			$error_message = $is_bug_report ? trim($_POST['error_message'] ?? '') : null;
+			$create_sql = "CREATE TABLE IF NOT EXISTS feedback (id INT AUTO_INCREMENT PRIMARY KEY,twitch_user_id VARCHAR(64),display_name VARCHAR(255),message TEXT,is_bug_report TINYINT(1) DEFAULT 0,bug_category VARCHAR(100),severity VARCHAR(50),steps_to_reproduce TEXT,expected_behavior TEXT,actual_behavior TEXT,browser_info VARCHAR(500),error_message TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 			$conn->query($create_sql);
-			$stmt = $conn->prepare("INSERT INTO feedback (twitch_user_id, display_name, message) VALUES (?, ?, ?)");
+			$stmt = $conn->prepare("INSERT INTO feedback (twitch_user_id, display_name, message, is_bug_report, bug_category, severity, steps_to_reproduce, expected_behavior, actual_behavior, browser_info, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 			if ($stmt) {
-				$stmt->bind_param('sss', $twitch_user_id, $display_name, $feedback_text);
+				$stmt->bind_param('sssississss', $twitch_user_id, $display_name, $feedback_text, $is_bug_report, $bug_category, $severity, $steps_to_reproduce, $expected_behavior, $actual_behavior, $browser_info, $error_message);
 				if ($stmt->execute()) {
-					$message = 'Thanks — your feedback has been recorded.';
+					$message = $is_bug_report ? 'Thanks — your bug report has been recorded.' : 'Thanks — your feedback has been recorded.';
 				} else {
 					$message = 'Failed to save feedback (db error).';
 				}
@@ -69,8 +77,6 @@ $state = bin2hex(random_bytes(8));
 $_SESSION['oauth_state'] = $state;
 $scopes = urlencode('user:read:email');
 $authorize_url = "https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=" . urlencode($clientID) . "&redirect_uri=" . urlencode($redirect_uri) . "&scope={$scopes}&state=" . urlencode($state) . "&force_verify=true";
-
-
 ?>
 <!doctype html>
 <html lang="en" data-theme="dark">
@@ -90,6 +96,131 @@ $authorize_url = "https://id.twitch.tv/oauth2/authorize?response_type=code&clien
     <meta name="twitter:title" content="BotOfTheSpecter — Feedback" />
     <meta name="twitter:description" content="<?= htmlspecialchars($pageDescription) ?>" />
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
+	<script>
+	document.addEventListener('DOMContentLoaded', function() {
+		const bugReportCheckbox = document.getElementById('is_bug_report');
+		const bugReportFields = document.getElementById('bug_report_fields');
+		const generalFeedbackSection = document.getElementById('general_feedback_section');
+		const feedbackTextLabel = generalFeedbackSection.querySelector('label');
+		const submitBtn = document.getElementById('submitBtn');
+		const form = document.getElementById('feedbackForm');
+		const browserInfoInput = document.getElementById('browser_info');
+		// Wait for bug_category to be available since it's in the hidden section
+		let bugCategorySelect = null;
+		// Update browser info based on category selection
+		function updateBrowserInfo() {
+			if (!bugCategorySelect) {
+				bugCategorySelect = document.getElementById('bug_category');
+			}
+			const browserInfoDisplay = document.getElementById('browser_info_display');
+			const browserInfoTextArea = document.getElementById('browser_info_text');
+			const differentDeviceCheckbox = document.getElementById('different_device');
+			if (bugReportCheckbox.checked && bugCategorySelect && bugCategorySelect.value === 'dashboard') {
+				// Show browser info section
+				if (browserInfoDisplay) {
+					browserInfoDisplay.style.display = 'block';
+				}
+				// Only auto-populate if not using different device
+				if (!differentDeviceCheckbox || !differentDeviceCheckbox.checked) {
+					const browserInfo = `${navigator.userAgent} | Screen: ${screen.width}x${screen.height}`;
+					browserInfoInput.value = browserInfo;
+					if (browserInfoTextArea) {
+						browserInfoTextArea.value = browserInfo;
+					}
+				}
+			} else {
+				browserInfoInput.value = '';
+				if (browserInfoDisplay) {
+					browserInfoDisplay.style.display = 'none';
+				}
+				if (differentDeviceCheckbox) {
+					differentDeviceCheckbox.checked = false;
+				}
+			}
+		}
+		// Listen for category changes (use event delegation since element might not exist yet)
+		document.addEventListener('change', function(e) {
+			if (e.target && e.target.id === 'bug_category') {
+				bugCategorySelect = e.target;
+				updateBrowserInfo();
+			}
+			// Handle different device toggle
+			if (e.target && e.target.id === 'different_device') {
+				const browserInfoTextArea = document.getElementById('browser_info_text');
+				const browserInfoHelp = document.getElementById('browser_info_help');
+				if (e.target.checked) {
+					// Allow manual entry
+					browserInfoTextArea.removeAttribute('readonly');
+					browserInfoTextArea.style.backgroundColor = '';
+					browserInfoTextArea.style.cursor = '';
+					browserInfoTextArea.value = '';
+					browserInfoTextArea.placeholder = 'Please enter the browser and device info where the bug occurred...';
+					browserInfoHelp.textContent = 'Enter the browser name, version, OS, and any other relevant details';
+				} else {
+					// Back to auto-detect
+					browserInfoTextArea.setAttribute('readonly', true);
+					browserInfoTextArea.style.backgroundColor = '#2b2b2b';
+					browserInfoTextArea.style.cursor = 'not-allowed';
+					browserInfoTextArea.placeholder = 'Browser info will be auto-detected...';
+					browserInfoHelp.textContent = 'This information helps us diagnose browser-specific issues';
+					updateBrowserInfo();
+				}
+			}
+		});
+		bugReportCheckbox.addEventListener('change', function() {
+			if (this.checked) {
+				bugReportFields.style.display = 'block';
+				feedbackTextLabel.innerHTML = 'Bug Summary <span class="has-text-danger">*</span>';
+				document.getElementById('feedback_text').placeholder = 'Brief description of the bug...';
+				submitBtn.textContent = 'Submit Bug Report';
+				updateBrowserInfo();
+			} else {
+				bugReportFields.style.display = 'none';
+				feedbackTextLabel.textContent = 'Do you have any feedback about "BotOfTheSpecter"?';
+				document.getElementById('feedback_text').placeholder = "Tell us what's working, what's not, or what you'd like to see...";
+				submitBtn.textContent = 'Send feedback';
+				browserInfoInput.value = '';
+			}
+		});
+		// Form validation
+		form.addEventListener('submit', function(e) {
+			const isBugReport = bugReportCheckbox.checked;
+			const feedbackText = document.getElementById('feedback_text').value.trim();
+			if (feedbackText === '') {
+				e.preventDefault();
+				alert(isBugReport ? 'Please provide a bug summary.' : 'Please enter some feedback.');
+				return;
+			}
+			if (isBugReport) {
+				const category = document.getElementById('bug_category').value;
+				const severity = document.getElementById('severity').value;
+				const steps = document.getElementById('steps_to_reproduce').value.trim();
+				const expected = document.getElementById('expected_behavior').value.trim();
+				const actual = document.getElementById('actual_behavior').value.trim();
+				if (!category || !severity || !steps || !expected || !actual) {
+					e.preventDefault();
+					alert('Please fill in all required bug report fields.');
+					return;
+				}
+				// Sync visible textarea to hidden field for manual entry
+				if (category === 'dashboard') {
+					const differentDevice = document.getElementById('different_device');
+					const browserInfoText = document.getElementById('browser_info_text');
+					if (differentDevice && differentDevice.checked && browserInfoText) {
+						browserInfoInput.value = browserInfoText.value;
+					}
+				}
+			}
+		});
+		// Auto-dismiss notification
+		const deleteButtons = document.querySelectorAll('.notification .delete');
+		deleteButtons.forEach(button => {
+			button.addEventListener('click', function() {
+				this.parentElement.style.display = 'none';
+			});
+		});
+	});
+	</script>
 </head>
 <body>
 	<section class="section">
@@ -114,18 +245,98 @@ $authorize_url = "https://id.twitch.tv/oauth2/authorize?response_type=code&clien
 							<?php endif; ?>
 							<?php if (!empty($_SESSION['twitch_user_id'])): ?>
 								<p class="mb-4">Signed in as <strong><?= h($_SESSION['twitch_display_name'] ?? $_SESSION['twitch_user_id']) ?></strong> — <a href="?logout=1" class="button is-light is-small">Sign out</a></p>
-								<form method="post" action="feedback.php">
+								<form method="post" action="feedback.php" id="feedbackForm">
 									<input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
 									<input type="hidden" name="action" value="submit_feedback">
+									<input type="hidden" name="browser_info" id="browser_info" value="">
+									<!-- Bug Report Toggle -->
 									<div class="field">
+										<label class="checkbox">
+											<input type="checkbox" id="is_bug_report" name="is_bug_report">
+											Is this a bug report?
+										</label>
+									</div>
+									<!-- General Feedback Field -->
+									<div class="field" id="general_feedback_section">
 										<label class="label" for="feedback_text">Do you have any feedback about "BotOfTheSpecter"?</label>
 										<div class="control">
 											<textarea id="feedback_text" name="feedback_text" class="textarea" rows="5" placeholder="Tell us what's working, what's not, or what you'd like to see..."></textarea>
 										</div>
 									</div>
-									<div class="field is-grouped">
+									<!-- Bug Report Fields (Hidden by default) -->
+									<div id="bug_report_fields" style="display: none;">
+										<div class="field">
+											<label class="label" for="bug_category">Category <span class="has-text-danger">*</span></label>
+											<div class="control">
+												<div class="select is-fullwidth">
+													<select id="bug_category" name="bug_category">
+														<option value="">Select a category...</option>
+													<option value="dashboard">Dashboard/Overlays</option>
+													<option value="websocket">WebSocket</option>
+													<option value="bot">Twitch Bot</option>
+													<option value="discord">Discord Bot</option>
+													<option value="api">API</option>
+													<option value="other">Other</option>
+													</select>
+												</div>
+											</div>
+										</div>
+										<div class="field">
+											<label class="label" for="severity">Severity <span class="has-text-danger">*</span></label>
+											<div class="control">
+												<div class="select is-fullwidth">
+													<select id="severity" name="severity">
+														<option value="">Select severity...</option>
+														<option value="low">Low - Minor inconvenience</option>
+														<option value="medium">Medium - Feature not working as expected</option>
+														<option value="high">High - Major feature broken</option>
+														<option value="critical">Critical - System unusable</option>
+													</select>
+												</div>
+											</div>
+										</div>
+										<div class="field">
+											<label class="label" for="steps_to_reproduce">Steps to Reproduce <span class="has-text-danger">*</span></label>
+											<div class="control">
+												<textarea id="steps_to_reproduce" name="steps_to_reproduce" class="textarea" rows="4" placeholder="1. Go to...&#10;2. Click on...&#10;3. See error"></textarea>
+											</div>
+										</div>
+										<div class="field">
+											<label class="label" for="expected_behavior">Expected Behavior <span class="has-text-danger">*</span></label>
+											<div class="control">
+												<textarea id="expected_behavior" name="expected_behavior" class="textarea" rows="3" placeholder="What should have happened?"></textarea>
+											</div>
+										</div>
+										<div class="field">
+											<label class="label" for="actual_behavior">Actual Behavior <span class="has-text-danger">*</span></label>
+											<div class="control">
+												<textarea id="actual_behavior" name="actual_behavior" class="textarea" rows="3" placeholder="What actually happened?"></textarea>
+											</div>
+										</div>
+										<div class="field">
+											<label class="label" for="error_message">Error Message (if any)</label>
+											<div class="control">
+												<textarea id="error_message" name="error_message" class="textarea" rows="3" placeholder="Paste any error messages here"></textarea>
+											</div>
+										</div>
+										<!-- Browser Info Display (shown only for Dashboard/Overlays) -->
+										<div class="field" id="browser_info_display" style="display: none;">
+											<label class="label">Browser Information</label>
+											<div class="field">
+												<label class="checkbox">
+													<input type="checkbox" id="different_device" name="different_device">
+													I'm reporting this from a different device/browser
+												</label>
+											</div>
+											<div class="control">
+												<textarea id="browser_info_text" class="textarea" rows="2" readonly style="background-color: #2b2b2b; cursor: not-allowed;" placeholder="Browser info will be auto-detected..."></textarea>
+											</div>
+											<p class="help" id="browser_info_help">This information helps us diagnose browser-specific issues</p>
+										</div>
+									</div>
+								<div class="field is-grouped" style="margin-top: 1.5rem;">
 										<div class="control">
-											<button class="button is-primary" type="submit">Send feedback</button>
+											<button class="button is-primary" type="submit" id="submitBtn">Send feedback</button>
 										</div>
 									</div>
 								</form>
