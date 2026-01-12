@@ -110,17 +110,11 @@ $lastLoginFormatted = isset($user['last_login']) ? formatUserDate($user['last_lo
 // Handle profile update
 $message = '';
 $alertClass = '';
-// Custom-bot specific messages (so global $message doesn't duplicate inside the custom bot box)
-$customBotMessage = '';
-$customBotAlertClass = '';
 
-// Show session message after redirect (e.g. after language change)
+// Show session message after redirect (e.g. after language change or bot config save)
 if (isset($_SESSION['profile_message'])) {
-    // Always reload the language file with the session language for the message
-    $langForMsg = $_SESSION['language'] ?? $userLanguage ?? 'EN';
-    include_once __DIR__ . '/lang/i18n.php';
-    $message = t('language_updated_success');
-    $alertClass = $_SESSION['profile_alert_class'] ?? '';
+    $message = $_SESSION['profile_message'];
+    $alertClass = $_SESSION['profile_alert_class'] ?? 'is-success';
     unset($_SESSION['profile_message'], $_SESSION['profile_alert_class']);
 }
 
@@ -310,6 +304,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         session_destroy();
         header('Location: logout.php');
         exit();
+    } elseif ($action === 'save_custom_bot') {
+        // Handle saving custom bot
+        $botName = trim($_POST['bot_username'] ?? '');
+        $botId = trim($_POST['bot_channel_id'] ?? '');
+        if ($botName === '') {
+            $_SESSION['profile_message'] = 'Please provide a bot username.';
+            $_SESSION['profile_alert_class'] = 'is-danger';
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit();
+        } else {
+            // If bot ID not provided, try to resolve via Helix
+            if ($botId === '') {
+                list($resolvedId, $resolveErr) = resolveTwitchUserId($botName);
+                if ($resolvedId === false) {
+                    $_SESSION['profile_message'] = $resolveErr;
+                    $_SESSION['profile_alert_class'] = 'is-danger';
+                    header("Location: " . $_SERVER['REQUEST_URI']);
+                    exit();
+                }
+                $botId = $resolvedId;
+            }
+            // Now insert or update into custom_bots table
+            $channelId = $userId; // channel which is setting up the custom bot
+            // Determine whether an existing custom bot record exists so we only reset verification on changes
+            $isVerified = 0; // default for new records or when changed
+            $selectSQL = "SELECT bot_username, bot_channel_id, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1";
+            $selStmt = mysqli_prepare($conn, $selectSQL);
+            $existingRow = null;
+            if ($selStmt) {
+                mysqli_stmt_bind_param($selStmt, 'i', $channelId);
+                mysqli_stmt_execute($selStmt);
+                $res = mysqli_stmt_get_result($selStmt);
+                if ($res && ($row = mysqli_fetch_assoc($res))) {
+                    $existingRow = $row;
+                }
+                mysqli_stmt_close($selStmt);
+            }
+            // If an existing record exists and the username+id did not change, preserve its verified state
+            if ($existingRow) {
+                $storedName = $existingRow['bot_username'] ?? '';
+                $storedId = $existingRow['bot_channel_id'] ?? '';
+                $storedVerified = intval($existingRow['is_verified'] ?? 0);
+                if (strtolower(trim($storedName)) === strtolower(trim($botName)) && trim($storedId) === trim($botId)) {
+                    // No change to bot identity; keep previous verified state
+                    $isVerified = $storedVerified;
+                } else {
+                    // Bot name or id changed — reset verification
+                    $isVerified = 0;
+                }
+            } else {
+                // No existing record — default not verified
+                $isVerified = 0;
+            }
+            // Determine whether to UPDATE or INSERT based on whether record exists
+            if ($existingRow) {
+                // Record exists, do UPDATE
+                $updateSQL = "UPDATE custom_bots SET bot_username = ?, bot_channel_id = ?, is_verified = ? WHERE channel_id = ?";
+                $stmt = mysqli_prepare($conn, $updateSQL);
+                if ($stmt) {
+                    mysqli_stmt_bind_param($stmt, 'ssii', $botName, $botId, $isVerified, $channelId);
+                    if (mysqli_stmt_execute($stmt)) {
+                        $_SESSION['profile_message'] = t('custom_bot_updated_success');
+                        $_SESSION['profile_alert_class'] = 'is-success';
+                        header("Location: " . $_SERVER['REQUEST_URI']);
+                        exit();
+                    } else {
+                        $_SESSION['profile_message'] = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                        $_SESSION['profile_alert_class'] = 'is-danger';
+                        header("Location: " . $_SERVER['REQUEST_URI']);
+                        exit();
+                    }
+                } else {
+                    $_SESSION['profile_message'] = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                    $_SESSION['profile_alert_class'] = 'is-danger';
+                    header("Location: " . $_SERVER['REQUEST_URI']);
+                    exit();
+                }
+            } else {
+                // No existing record, do INSERT
+                $insertSQL = "INSERT INTO custom_bots (channel_id, bot_username, bot_channel_id, is_verified, access_token, token_expires, refresh_token) VALUES (?, ?, ?, ?, '', NULL, NULL)";
+                $stmt = mysqli_prepare($conn, $insertSQL);
+                if ($stmt) {
+                    mysqli_stmt_bind_param($stmt, 'issi', $channelId, $botName, $botId, $isVerified);
+                    if (mysqli_stmt_execute($stmt)) {
+                        $_SESSION['profile_message'] = t('custom_bot_saved_success');
+                        $_SESSION['profile_alert_class'] = 'is-success';
+                        header("Location: " . $_SERVER['REQUEST_URI']);
+                        exit();
+                    } else {
+                        $_SESSION['profile_message'] = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                        $_SESSION['profile_alert_class'] = 'is-danger';
+                        header("Location: " . $_SERVER['REQUEST_URI']);
+                        exit();
+                    }
+                } else {
+                    $_SESSION['profile_message'] = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
+                    $_SESSION['profile_alert_class'] = 'is-danger';
+                    header("Location: " . $_SERVER['REQUEST_URI']);
+                    exit();
+                }
+            }
+        }
     }
 }
 
@@ -915,90 +1011,6 @@ ob_start();
                 <p>Set a custom bot for your channel by entering the bot's Twitch username. We'll resolve the Twitch user ID for you.</p>
             </div>
             <?php
-            // Handle saving custom bot via POST
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_custom_bot') {
-                $botName = trim($_POST['bot_username'] ?? '');
-                $botId = trim($_POST['bot_channel_id'] ?? '');
-                if ($botName === '') {
-                    $customBotMessage = 'Please provide a bot username.';
-                    $customBotAlertClass = 'is-danger';
-                } else {
-                    // If bot ID not provided, try to resolve via Helix
-                    if ($botId === '') {
-                        list($resolvedId, $resolveErr) = resolveTwitchUserId($botName);
-                        if ($resolvedId === false) {
-                            $customBotMessage = $resolveErr;
-                            $customBotAlertClass = 'is-danger';
-                            goto _custom_bot_output;
-                        }
-                        $botId = $resolvedId;
-                    }
-                    // Now insert or update into custom_bots table
-                    $channelId = $userId; // channel which is setting up the custom bot
-                    // Determine whether an existing custom bot record exists so we only reset verification on changes
-                    $isVerified = 0; // default for new records or when changed
-                    $selectSQL = "SELECT bot_username, bot_channel_id, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1";
-                    $selStmt = mysqli_prepare($conn, $selectSQL);
-                    $existingRow = null;
-                    if ($selStmt) {
-                        mysqli_stmt_bind_param($selStmt, 'i', $channelId);
-                        mysqli_stmt_execute($selStmt);
-                        $res = mysqli_stmt_get_result($selStmt);
-                        if ($res && ($row = mysqli_fetch_assoc($res))) {
-                            $existingRow = $row;
-                        }
-                        mysqli_stmt_close($selStmt);
-                    }
-                    // If an existing record exists and the username+id did not change, preserve its verified state
-                    if ($existingRow) {
-                        $storedName = $existingRow['bot_username'] ?? '';
-                        $storedId = $existingRow['bot_channel_id'] ?? '';
-                        $storedVerified = intval($existingRow['is_verified'] ?? 0);
-                        if (strtolower(trim($storedName)) === strtolower(trim($botName)) && trim($storedId) === trim($botId)) {
-                            // No change to bot identity; keep previous verified state
-                            $isVerified = $storedVerified;
-                        } else {
-                            // Bot name or id changed — reset verification
-                            $isVerified = 0;
-                        }
-                    } else {
-                        // No existing record — default not verified
-                        $isVerified = 0;
-                    }
-                    // Upsert: try update first (set is_verified appropriately), otherwise insert.
-                    $updateSQL = "UPDATE custom_bots SET bot_username = ?, bot_channel_id = ?, is_verified = ? WHERE channel_id = ?";
-                    $stmt = mysqli_prepare($conn, $updateSQL);
-                            if ($stmt) {
-                        mysqli_stmt_bind_param($stmt, 'ssii', $botName, $botId, $isVerified, $channelId);
-                        if (mysqli_stmt_execute($stmt) && mysqli_stmt_affected_rows($stmt) > 0) {
-                            $customBotMessage = t('custom_bot_updated_success');
-                            $customBotAlertClass = 'is-success';
-                        } else {
-                            // Insert if update did not affect rows
-                            $insertSQL = "INSERT INTO custom_bots (channel_id, bot_username, bot_channel_id, is_verified) VALUES (?, ?, ?, ?)";
-                            $stmt2 = mysqli_prepare($conn, $insertSQL);
-                            if ($stmt2) {
-                                mysqli_stmt_bind_param($stmt2, 'issi', $channelId, $botName, $botId, $isVerified);
-                                if (mysqli_stmt_execute($stmt2)) {
-                                    $customBotMessage = t('custom_bot_saved_success');
-                                    $customBotAlertClass = 'is-success';
-                                } else {
-                                    $customBotMessage = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
-                                    $customBotAlertClass = 'is-danger';
-                                }
-                            } else {
-                                $customBotMessage = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
-                                $customBotAlertClass = 'is-danger';
-                            }
-                        }
-                        mysqli_stmt_close($stmt);
-                    } else {
-                        $customBotMessage = t('custom_bot_save_error') . ': ' . mysqli_error($conn);
-                        $customBotAlertClass = 'is-danger';
-                    }
-                }
-            }
-            _custom_bot_output:
             // Load existing custom bot for this channel if present (include verification state)
             $existingBot = null;
             $cbStmt = $conn->prepare("SELECT bot_username, bot_channel_id, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
@@ -1011,12 +1023,6 @@ ob_start();
                 }
             }
             ?>
-            <?php if (!empty($customBotMessage)): ?>
-                <div class="notification <?php echo $customBotAlertClass; ?>">
-                    <button class="delete"></button>
-                    <?php echo htmlspecialchars($customBotMessage); ?>
-                </div>
-            <?php endif; ?>
             <form method="post" id="custom-bot-form" style="margin-top:1rem;">
                 <input type="hidden" name="action" value="save_custom_bot">
                 <div style="margin-bottom:0.5rem;">
