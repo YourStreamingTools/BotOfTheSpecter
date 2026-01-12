@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 enable_ai_ad_breaks = ?";
         $update_stmt = $db->prepare($update_sql);
         $update_stmt->bind_param(
-            'ssssgiiiiissssiiiiii',
+            'ssssiiiiiiissssiiiiiii',
             $ad_upcoming_message,
             $ad_start_message,
             $ad_end_message,
