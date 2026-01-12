@@ -123,13 +123,47 @@ if (($actionMap[$action] ?? '') === 'run' && $username !== 'botofthespecter') {
     exit();
   }
 }
+// Check if custom bot mode is enabled (only for beta)
+$useCustomBot = false;
+$customBotUsername = null;
+if (isset($_POST['use_custom_bot']) && $_POST['use_custom_bot'] === 'true' && $bot === 'beta') {
+  // Query custom_bots table for this channel
+  $stmt = $conn->prepare("SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
+  if ($stmt) {
+    $stmt->bind_param('s', $twitchUserId);
+    $stmt->execute();
+    $result_cb = $stmt->get_result();
+    if ($row = $result_cb->fetch_assoc()) {
+      if ($row['is_verified'] == 1) {
+        $useCustomBot = true;
+        $customBotUsername = $row['bot_username'];
+      } else {
+        // Custom bot exists but not verified
+        ob_clean();
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Custom bot is not verified. Please verify your custom bot in Profile settings.']);
+        exit();
+      }
+    } else {
+      // No custom bot configured
+      ob_clean();
+      header('Content-Type: application/json');
+      echo json_encode(['success' => false, 'message' => 'No custom bot configured. Please configure a custom bot in Profile settings.']);
+      exit();
+    }
+    $stmt->close();
+  }
+}
+
 // Prepare parameters
 $params = [
   'username' => $username,
   'twitch_user_id' => $twitchUserId,
   'auth_token' => $authToken,
   'refresh_token' => $refreshToken,
-  'api_key' => $apiKey
+  'api_key' => $apiKey,
+  'use_custom_bot' => $useCustomBot,
+  'custom_bot_username' => $customBotUsername
 ];
 
 // Perform the bot action with timeout monitoring

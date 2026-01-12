@@ -2524,3 +2524,110 @@ body {
 .tab-content {
     display: none;
 }
+
+/* Custom Bot Toggle Switch */
+.switch[type="checkbox"] {
+    outline: 0;
+    user-select: none;
+    display: inline-block;
+    position: absolute;
+    opacity: 0;
+}
+
+.switch[type="checkbox"] + label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding-left: 3.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    line-height: 1.5rem;
+    margin: 0;
+}
+
+.switch[type="checkbox"] + label::before,
+.switch[type="checkbox"] + label::after {
+    content: '';
+    display: block;
+    position: absolute;
+}
+
+.switch[type="checkbox"] + label::before {
+    width: 3rem;
+    height: 1.5rem;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 1.5rem;
+    background: #b5b5b5;
+    transition: all 0.2s ease;
+}
+
+.switch[type="checkbox"] + label::after {
+    width: 1.25rem;
+    height: 1.25rem;
+    left: 0.125rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 50%;
+    background: #fff;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.switch[type="checkbox"]:checked + label::before {
+    background: #3e8ed0;
+}
+
+.switch[type="checkbox"]:checked + label::after {
+    left: 1.625rem;
+}
+
+.switch[type="checkbox"].is-info:checked + label::before {
+    background: #3e8ed0;
+}
+
+.switch[type="checkbox"].is-rounded + label::before {
+    border-radius: 24px;
+}
+
+.switch[type="checkbox"].is-rounded + label::after {
+    border-radius: 50%;
+}
+
+.switch[type="checkbox"]:focus + label::before {
+    box-shadow: 0 0 0 0.125em rgba(62, 142, 208, 0.25);
+}
+
+.switch[type="checkbox"]:disabled + label {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Technical UI Enhancements */
+.technical-info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+.technical-metric {
+    transition: all 0.3s ease;
+}
+
+.technical-metric:hover {
+    transform: scale(1.05);
+}
+
+.heartbeat.beating {
+    animation: heartbeat 2s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+    0% { transform: scale(1); }
+    14% { transform: scale(1.1); }
+    28% { transform: scale(1); }
+    42% { transform: scale(1.1); }
+    70% { transform: scale(1); }
+}
