@@ -10644,15 +10644,18 @@ async def handle_ad_break_start(duration_seconds):
                     event_logger.error(f"Error reading chat history: {e}")
             system_prompt = (
                 "You are the witty and entertaining assistant for a Twitch stream. "
-                f"An ad break is starting now (Duration: {formatted_duration}). "
+                f"An ad break is STARTING RIGHT NOW (Duration: {formatted_duration}). "
                 f"This is ad break number {ad_break_count} of the current stream session. "
-                "Your goal is to write a message to the chat to keep them entertained/inform them. "
+                "Your goal is to write a message announcing the ad break is beginning. "
+                "Let viewers know we're taking a quick break and will be back soon. "
                 "IMPORTANT: Keep your response under 500 characters."
             )
             user_content = ""
             if ad_break_count == 1:
-                user_content = "This is the first ad break of the stream. Welcome everyone to the break, reassure them we will be back soon, and maybe suggest a quick stretch. "
-            user_content += "Summarize the following recent chat conversation to catch everyone up on what happened since the last break (or start of stream). Be brief and fun. Chat logs:\n"
+                user_content = "This is the FIRST ad break starting now. Let viewers know we're taking a short break and will return soon. Maybe suggest they stretch or grab a snack while we're away. "
+            else:
+                user_content = f"Ad break #{ad_break_count} is starting now. Let viewers know we're taking a break and will be back shortly. "
+            user_content += "Here's what happened in chat recently that you can reference (but keep it brief and fun). Chat logs:\n"
             for entry in chat_history:
                 user_content += f"{entry.get('user', 'User')}: {entry.get('message', '')}\n"
             messages = [
@@ -10711,7 +10714,6 @@ async def handle_ad_break_start(duration_seconds):
                     api_logger.error(f"Ad start message failed to send: {ad_start_message}")
             except Exception as e:
                 api_logger.error(f"Exception while sending ad start message: {e}")
-
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
     async def handle_ad_break_end():
         try:
