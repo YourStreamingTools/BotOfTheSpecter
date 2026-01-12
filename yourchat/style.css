@@ -263,6 +263,20 @@ body {
     color: #333;
 }
 
+/* Two-column layout for desktop, stacked for mobile */
+.two-column-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .two-column-container {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Chat Features panel styling (reuses settings-panel visuals) */
 .chat-features-panel {
     display: block;

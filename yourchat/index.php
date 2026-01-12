@@ -273,59 +273,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     </div>
                 </div>
             </div>
-            <div class="settings-panel">
-                <div class="filters-header">
-                    <h3>Filters</h3>
-                </div>
-                <div style="display:flex; gap:8px; margin-bottom:10px;">
-                    <button class="clear-history-btn" id="export-filters-btn">Export Filters</button>
-                    <button class="clear-history-btn" id="open-import-filters-btn">Import Filters</button>
-                </div>
-                <!-- Inline import menu shown under Export/Import buttons -->
-                <div id="import-filters-panel-inline" style="display:none; margin-top:8px; max-width:720px;">
-                    <div style="margin-bottom:8px;">
-                        <textarea id="import-filters-textarea"
-                            placeholder='Paste filters JSON here (e.g. {"usernames":[...],"messages":[...]}) or leave empty to attempt legacy import'
-                            rows="6"
-                            style="width:100%; box-sizing:border-box; resize:vertical; padding:8px; font-family:monospace;"></textarea>
-                    </div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <button class="clear-history-btn" id="import-filters-btn">Import Messages</button>
-                        <button class="clear-history-btn" id="cancel-import-filters-btn">Cancel</button>
-                    </div>
-                </div>
-                <p class="settings-description">
-                    Manage username and message filters separately. Each section can be collapsed.
-                </p>
-                <div class="sub-filters">
-                    <div class="sub-panel">
-                        <div class="filters-header">
-                            <h4>Username Filters</h4>
-                            <button id="toggle-filters-users-btn" class="toggle-btn" data-target="filter-list-users"
-                                aria-expanded="true">Hide</button>
-                        </div>
-                        <div id="filters-users-body" class="filters-body">
-                            <input type="text" id="filter-user-input" class="filter-input"
-                                placeholder="Enter username to filter (press Enter to add)"
-                                onkeypress="handleFilterInput(event, 'user')">
-                            <div class="filter-list" id="filter-list-users"></div>
-                        </div>
-                    </div>
-                    <div class="sub-panel">
-                        <div class="filters-header">
-                            <h4>Message Filters</h4>
-                            <button id="toggle-filters-msg-btn" class="toggle-btn" data-target="filter-list-msg"
-                                aria-expanded="true">Hide</button>
-                        </div>
-                        <div id="filters-msg-body" class="filters-body">
-                            <input type="text" id="filter-msg-input" class="filter-input"
-                                placeholder="Enter phrase to filter (press Enter to add)"
-                                onkeypress="handleFilterInput(event, 'message')">
-                            <div class="filter-list" id="filter-list-msg"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <div class="chat-features-panel settings-panel">
                 <h3>Chat Features</h3>
                 <p class="settings-description" style="margin-bottom:8px;">Optional chat UI features you can enable.</p>
@@ -333,20 +280,75 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     <input type="checkbox" id="notify-joins-checkbox">&nbsp;Show join/leave notifications
                 </label>
             </div>
-            <div class="settings-panel">
-                <h3>Nickname Management</h3>
-                <p class="settings-description">Set custom nicknames for chatters. Nicknames are tied to user IDs and
-                    persist even if they change their username.</p>
-                <div style="display:flex; gap:8px; margin-bottom:10px;">
-                    <input type="text" id="nickname-username" class="filter-input" placeholder="Enter Twitch username"
-                        style="flex:1;">
-                    <input type="text" id="nickname-value" class="filter-input" placeholder="Enter nickname"
-                        style="flex:1;">
-                    <button onclick="addNickname()"
-                        style="padding:10px 20px; background:#9147ff; color:white; border:none; border-radius:8px; cursor:pointer;">Add
-                        Nickname</button>
+            <div class="two-column-container">
+                <div class="settings-panel">
+                    <div class="filters-header">
+                        <h3>Filters</h3>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-bottom:10px;">
+                        <button class="clear-history-btn" id="export-filters-btn">Export Filters</button>
+                        <button class="clear-history-btn" id="open-import-filters-btn">Import Filters</button>
+                    </div>
+                    <!-- Inline import menu shown under Export/Import buttons -->
+                    <div id="import-filters-panel-inline" style="display:none; margin-top:8px; max-width:720px;">
+                        <div style="margin-bottom:8px;">
+                            <textarea id="import-filters-textarea"
+                                placeholder='Paste filters JSON here (e.g. {"usernames":[...],"messages":[...]}) or leave empty to attempt legacy import'
+                                rows="6"
+                                style="width:100%; box-sizing:border-box; resize:vertical; padding:8px; font-family:monospace;"></textarea>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <button class="clear-history-btn" id="import-filters-btn">Import Messages</button>
+                            <button class="clear-history-btn" id="cancel-import-filters-btn">Cancel</button>
+                        </div>
+                    </div>
+                    <p class="settings-description">
+                        Manage username and message filters separately. Each section can be collapsed.
+                    </p>
+                    <div class="sub-filters">
+                        <div class="sub-panel">
+                            <div class="filters-header">
+                                <h4>Username Filters</h4>
+                                <button id="toggle-filters-users-btn" class="toggle-btn" data-target="filter-list-users"
+                                    aria-expanded="true">Hide</button>
+                            </div>
+                            <div id="filters-users-body" class="filters-body">
+                                <input type="text" id="filter-user-input" class="filter-input"
+                                    placeholder="Enter username to filter (press Enter to add)"
+                                    onkeypress="handleFilterInput(event, 'user')">
+                                <div class="filter-list" id="filter-list-users"></div>
+                            </div>
+                        </div>
+                        <div class="sub-panel">
+                            <div class="filters-header">
+                                <h4>Message Filters</h4>
+                                <button id="toggle-filters-msg-btn" class="toggle-btn" data-target="filter-list-msg"
+                                    aria-expanded="true">Hide</button>
+                            </div>
+                            <div id="filters-msg-body" class="filters-body">
+                                <input type="text" id="filter-msg-input" class="filter-input"
+                                    placeholder="Enter phrase to filter (press Enter to add)"
+                                    onkeypress="handleFilterInput(event, 'message')">
+                                <div class="filter-list" id="filter-list-msg"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div id="nickname-list" class="filter-list"></div>
+                <div class="settings-panel">
+                    <h3>Nickname Management</h3>
+                    <p class="settings-description">Set custom nicknames for chatters. Nicknames are tied to user IDs and
+                        persist even if they change their username.</p>
+                    <div style="display:flex; gap:8px; margin-bottom:10px;">
+                        <input type="text" id="nickname-username" class="filter-input" placeholder="Enter Twitch username"
+                            style="flex:1;">
+                        <input type="text" id="nickname-value" class="filter-input" placeholder="Enter nickname"
+                            style="flex:1;">
+                        <button onclick="addNickname()"
+                            style="padding:10px 20px; background:#9147ff; color:white; border:none; border-radius:8px; cursor:pointer;">Add
+                            Nickname</button>
+                    </div>
+                    <div id="nickname-list" class="filter-list"></div>
+                </div>
             </div>
         </div>
         <div class="chat-overlay" id="chat-overlay">
