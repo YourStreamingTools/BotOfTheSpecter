@@ -460,34 +460,44 @@ a, a:visited, a:active {
                 wrapper.className = 'page-scroll-wrap-container';
                 wrapper.style.position = 'relative';
                 wrapper.style.overflow = 'hidden';
-                // Two panels stacked inside an inner container that we will animate
-                wrapper.innerHTML = '<div class="page-scroll-inner">' +
-                                    '<div class="page-scroll-wrap">' + credits.outerHTML + '</div>' +
-                                    '<div class="page-scroll-wrap">' + credits.outerHTML + '</div>' +
-                                    '</div>';
+                // Two panels stacked inside an inner container that we will animate.
+                // Each panel contains the credits + a small gap so the loop has breathing room.
+                const gapPx = 24; // space between end and start in pixels
+                const panelA = '<div class="page-panel"><div class="page-scroll-wrap">' + credits.outerHTML + '</div><div class="page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
+                const panelB = '<div class="page-panel"><div class="page-scroll-wrap">' + credits.outerHTML + '</div><div class="page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
+                wrapper.innerHTML = '<div class="page-scroll-inner">' + panelA + panelB + '</div>';
                 credits.parentNode.replaceChild(wrapper, credits);
             }
             const pageWrapper = main.querySelector('.page-scroll-wrap-container');
             if (!pageWrapper) return;
             const pageInner = pageWrapper.querySelector('.page-scroll-inner');
-            const firstPanel = pageInner ? pageInner.querySelector('.page-scroll-wrap') : null;
+            const firstPanel = pageInner ? pageInner.querySelector('.page-panel') : null;
             if (!pageInner || !firstPanel) return;
-            // Measure the full height of one panel (the original credits content)
-            const singleH = Math.max(1, Math.round(firstPanel.scrollHeight));
-            // Ensure sizes are fixed so animation covers full panel
-            pageWrapper.style.height = singleH + 'px';
+            // Measure the content height (credits) and compute total panel height including gap
+            const contentBlock = firstPanel.querySelector('.page-scroll-wrap');
+            const gapBlock = firstPanel.querySelector('.page-scroll-gap');
+            const contentH = Math.max(1, Math.round(contentBlock.scrollHeight));
+            const gapH = gapBlock ? Math.max(0, parseInt(gapBlock.style.height || '24', 10)) : 24;
+            const totalH = contentH + gapH;
+            // Set the visible area to the content height so header-aligned region stays correct
+            pageWrapper.style.height = contentH + 'px';
             pageWrapper.style.overflow = 'hidden';
             pageInner.style.willChange = 'transform';
-            pageInner.style.height = (singleH * 2) + 'px';
-            Array.from(pageInner.children).forEach(function(ch) {
-                ch.style.height = singleH + 'px';
+            pageInner.style.height = (totalH * 2) + 'px';
+            // Ensure each panel has consistent sizing
+            Array.from(pageInner.querySelectorAll('.page-panel')).forEach(function(ch) {
+                ch.style.height = totalH + 'px';
                 ch.style.overflow = 'hidden';
                 ch.style.margin = '0';
                 ch.style.padding = '0';
+                const innerWrap = ch.querySelector('.page-scroll-wrap');
+                if (innerWrap) innerWrap.style.height = contentH + 'px';
+                const innerGap = ch.querySelector('.page-scroll-gap');
+                if (innerGap) innerGap.style.height = gapH + 'px';
             });
-            // Animate the inner container vertically by singleH and wrap smoothly
-            const duration = Math.max(12, singleH / 80 * 5);
-            const speed = singleH / duration;
+            // Animate the inner container vertically by totalH and wrap smoothly
+            const duration = Math.max(8, totalH / 80 * 5);
+            const speed = totalH / duration;
             let last = null;
             let offset = 0;
             function animatePage(ts) {
@@ -495,7 +505,7 @@ a, a:visited, a:active {
                 const delta = (ts - last) / 1000;
                 last = ts;
                 offset += speed * delta;
-                if (offset >= singleH) offset -= singleH;
+                if (offset >= totalH) offset -= totalH;
                 pageInner.style.transform = `translateY(${-offset}px)`;
                 requestAnimationFrame(animatePage);
             }
