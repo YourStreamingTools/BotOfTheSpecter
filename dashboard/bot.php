@@ -94,6 +94,25 @@ $stmt->close();
 date_default_timezone_set($timezone);
 $isTechnical = isset($user['is_technical']) ? (bool)$user['is_technical'] : false;
 
+// Check if user has a verified custom bot
+$hasVerifiedCustomBot = false;
+$customBotUsername = null;
+if (isset($user_id)) {
+  $stmt = $conn->prepare("SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
+  if ($stmt) {
+    $stmt->bind_param('s', $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($row = $result->fetch_assoc()) {
+      if ($row['is_verified'] == 1) {
+        $hasVerifiedCustomBot = true;
+        $customBotUsername = $row['bot_username'];
+      }
+    }
+    $stmt->close();
+  }
+}
+
 // Ensure version variables exist to avoid undefined variable notices
 if (!isset($newVersion)) {
   $newVersion = '';
@@ -607,18 +626,30 @@ ob_start();
           <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
             <?php echo t('bot_management_title'); ?>
           </span>
-          <div class="select is-medium" style="background: transparent; border: none;">
-            <select id="bot-selector" onchange="changeBotSelection(this.value)" style="background: #23272f; color: #fff; border: none; font-weight: 600;">
-              <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
-                <?php echo t('bot_stable_bot'); ?>
-              </option>
-              <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
-                <?php echo t('bot_beta_bot'); ?>
-              </option>
-              <option value="v6" <?php if($selectedBot === 'v6') echo 'selected'; ?>>
-                Version 6
-              </option>
-            </select>
+          <div class="is-flex is-align-items-center" style="gap: 1rem;">
+            <!-- Custom Bot Name Toggle (Beta Only - Verified Custom Bot Required) -->
+            <?php if ($hasVerifiedCustomBot): ?>
+            <div id="custom-bot-toggle-container" class="field" style="display: none; margin-bottom: 0; align-items: center;">
+              <input id="custom-bot-toggle" type="checkbox" name="custom-bot-toggle" class="switch is-rounded is-info">
+              <label for="custom-bot-toggle" class="has-text-white" style="white-space: nowrap; display: flex; flex-direction: column; line-height: 1.2;">
+                <span>Custom Bot Name</span>
+                <span class="has-text-grey-light is-size-7" style="margin-top: 2px;"><?php echo htmlspecialchars($customBotUsername); ?></span>
+              </label>
+            </div>
+            <?php endif; ?>
+            <div class="select is-medium" style="background: transparent; border: none;">
+              <select id="bot-selector" onchange="changeBotSelection(this.value)" style="background: #23272f; color: #fff; border: none; font-weight: 600;">
+                <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
+                  <?php echo t('bot_stable_bot'); ?>
+                </option>
+                <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
+                  <?php echo t('bot_beta_bot'); ?>
+                </option>
+                <option value="v6" <?php if($selectedBot === 'v6') echo 'selected'; ?>>
+                  Version 6
+                </option>
+              </select>
+            </div>
           </div>
         </div>
       </header>
@@ -637,6 +668,11 @@ ob_start();
           <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
             <?php echo t('bot_beta_description'); ?>
           </p>
+          <!-- Custom Bot Name Warning -->
+          <div id="custom-bot-warning" class="notification is-info has-text-black has-text-weight-bold mb-4" style="display: none;">
+            <span class="icon"><i class="fas fa-info-circle"></i></span>
+            <strong>Important:</strong> When using a custom bot name, BotOfTheSpecter must still remain a moderator in your channel. Many bot features require the Specter account to maintain mod permissions to function properly.
+          </div>
         <?php elseif ($selectedBot === 'v6'): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             Version 6 Controls (v<?php echo $v6NewVersion; ?>)
@@ -953,37 +989,6 @@ window._seenUpdateNotifications = window._seenUpdateNotifications || new Set();
 const serverStableVersion = <?php echo json_encode($versionRunning); ?>;
 const serverBetaVersion = <?php echo json_encode($betaVersionRunning); ?>;
 const serverV6Version = <?php echo json_encode($v6VersionRunning); ?>;
-// Technical UI Enhancements
-const technicalCSS = `
-  .technical-info-grid {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 0.25rem;
-    align-items: center;
-  }
-  .technical-metric {
-    transition: all 0.3s ease;
-  }
-  .technical-metric:hover {
-    transform: scale(1.05);
-  }
-  .heartbeat.beating {
-    animation: heartbeat 2s ease-in-out infinite;
-  }
-  @keyframes heartbeat {
-    0% { transform: scale(1); }
-    14% { transform: scale(1.1); }
-    28% { transform: scale(1); }
-    42% { transform: scale(1.1); }
-    70% { transform: scale(1); }
-  }
-`;
-// Inject CSS if technical mode is enabled
-if (<?php echo json_encode($isTechnical); ?>) {
-  const style = document.createElement('style');
-  style.textContent = technicalCSS;
-  document.head.appendChild(style);
-}
 document.addEventListener('DOMContentLoaded', function() {
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
   const isBotMod = <?php echo json_encode($BotIsMod); ?>;
@@ -1003,20 +1008,79 @@ document.addEventListener('DOMContentLoaded', function() {
   let botActionInProgress = false;
   const urlParams = new URLSearchParams(window.location.search);
   const selectedBot = urlParams.get('bot') || 'stable';
+  // Custom Bot Toggle functionality
+  // Note: Toggle state is saved in browser's localStorage (client-side only)
+  // This means the preference is saved per browser/device, not server-side
+  const customBotToggleContainer = document.getElementById('custom-bot-toggle-container');
+  const customBotToggle = document.getElementById('custom-bot-toggle');
+  const customBotWarning = document.getElementById('custom-bot-warning');
+  // Only initialize custom bot toggle if element exists (verified custom bot required)
+  if (customBotToggle) {
+  // Function to show/hide custom bot toggle based on selected bot
+  function updateCustomBotToggleVisibility() {
+    const currentBot = getCurrentBotType();
+    if (customBotToggleContainer) {
+      if (currentBot === 'beta') {
+        customBotToggleContainer.style.display = 'block';
+      } else {
+        customBotToggleContainer.style.display = 'none';
+      }
+    }
+  }
+  // Function to update custom bot warning visibility
+  function updateCustomBotWarningVisibility() {
+    const currentBot = getCurrentBotType();
+    if (customBotWarning && currentBot === 'beta') {
+      const isEnabled = customBotToggle ? customBotToggle.checked : false;
+      customBotWarning.style.display = isEnabled ? 'block' : 'none';
+    } else if (customBotWarning) {
+      customBotWarning.style.display = 'none';
+    }
+  }
+  // Load saved toggle state from localStorage
+  function loadCustomBotToggleState() {
+    const savedState = localStorage.getItem('customBotToggleState');
+    if (customBotToggle && savedState !== null) {
+      customBotToggle.checked = (savedState === 'true');
+    }
+    // Update warning visibility after loading state
+    updateCustomBotWarningVisibility();
+  }
+  // Handle toggle change
+  if (customBotToggle) {
+    customBotToggle.addEventListener('change', function() {
+      const isEnabled = this.checked;
+      localStorage.setItem('customBotToggleState', isEnabled);
+      console.log('Custom Bot Name:', isEnabled ? 'Enabled' : 'Disabled');
+      // Update warning visibility
+      updateCustomBotWarningVisibility();
+      if (isEnabled) {
+        showNotification('Custom Bot Name enabled - Your custom bot will be used when starting the beta bot', 'success');
+      } else {
+        showNotification('Custom Bot Name disabled - The default bot will be used', 'info');
+      }
+    });
+  }
+  // Initialize toggle state and visibility (only if toggle exists)
+  if (customBotToggle) {
+    loadCustomBotToggleState();
+    updateCustomBotToggleVisibility();
+  }
+  } // End of custom bot toggle initialization
+  function getCurrentBotType() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let bot = urlParams.get('bot');
+    if (!bot) {
+      bot = getCookie('selectedBot');
+    }
+    if (!bot) {
+      bot = 'stable';
+    }
+    return bot;
+  }
   function attachBotButtonListeners() {
     stopBotBtn = document.getElementById('stop-bot-btn');
     runBotBtn = document.getElementById('run-bot-btn');
-    function getCurrentBotType() {
-      const urlParams = new URLSearchParams(window.location.search);
-      let bot = urlParams.get('bot');
-      if (!bot) {
-        bot = getCookie('selectedBot');
-      }
-      if (!bot) {
-        bot = 'stable';
-      }
-      return bot;
-    }
     if (stopBotBtn) {
       stopBotBtn.addEventListener('click', () => {
         const bot = getCurrentBotType();
@@ -1127,10 +1191,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Use setTimeout to avoid blocking the UI
     setTimeout(() => {
+      // Get custom bot toggle state
+      const useCustomBot = customBotToggle ? customBotToggle.checked : false;
       fetchWithTimeout('bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=${encodeURIComponent(action)}&bot=beta`
+        body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomBot}`
       }, 8000) // Reduced from 15000 to 8000
         .then(response => response.json())
         .then(data => {

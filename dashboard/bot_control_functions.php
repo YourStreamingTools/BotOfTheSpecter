@@ -157,6 +157,8 @@ function performBotAction($action, $botType, $params) {
     $authToken = $params['auth_token'] ?? '';
     $refreshToken = $params['refresh_token'] ?? '';
     $apiKey = $params['api_key'] ?? '';
+    $useCustomBot = $params['use_custom_bot'] ?? false;
+    $customBotUsername = $params['custom_bot_username'] ?? null;
     // Define paths
     $statusScriptPath = "/home/botofthespecter/status.py";
     // Determine bot script and version path based on bot type
@@ -268,8 +270,14 @@ function performBotAction($action, $botType, $params) {
                                     " -channelid " . escapeshellarg($twitchUserId) .
                                     " -token " . escapeshellarg($authToken) .
                                     " -refresh " . escapeshellarg($refreshToken) .
-                                    " -apitoken " . escapeshellarg($apiKey) .
-                                    " > /dev/null 2>&1 &";
+                                    " -apitoken " . escapeshellarg($apiKey);
+                    
+                    // Add custom bot parameters if enabled (beta only)
+                    if ($useCustomBot && $customBotUsername && $botType === 'beta') {
+                        $startCommand .= " -custom -botusername " . escapeshellarg($customBotUsername);
+                    }
+                    
+                    $startCommand .= " > /dev/null 2>&1 &";
                         $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
                         $startOutput = sanitizeSSHOutput($startOutput);
                     if ($startOutput === false || $startOutput === null) {
