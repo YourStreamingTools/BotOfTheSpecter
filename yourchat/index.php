@@ -3,47 +3,31 @@ require_once "/var/www/config/twitch.php";
 
 session_start();
 
-// Handle OAuth callback
-if (isset($_GET['code'])) {
-    $code = $_GET['code'];
-    // Exchange code for access token
-    $token_url = 'https://id.twitch.tv/oauth2/token';
-    $token_data = [
-        'client_id' => $clientID,
-        'client_secret' => $clientSecret,
-        'code' => $code,
-        'grant_type' => 'authorization_code',
-        'redirect_uri' => 'https://yourchat.botofthespecter.com/index.php'
-    ];
-    $ch = curl_init($token_url);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($token_data));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    $response = curl_exec($ch);
-    curl_close($ch);
-    $token_response = json_decode($response, true);
-    if (isset($token_response['access_token'])) {
-        $_SESSION['access_token'] = $token_response['access_token'];
-        $_SESSION['refresh_token'] = $token_response['refresh_token'];
+// Handle OAuth callback from StreamersConnect
+if (isset($_GET['auth_data'])) {
+    $authData = json_decode(base64_decode($_GET['auth_data']), true);
+    if (isset($authData['success']) && $authData['success'] && $authData['service'] === 'twitch') {
+        $_SESSION['access_token'] = $authData['access_token'];
+        $_SESSION['refresh_token'] = $authData['refresh_token'];
         $_SESSION['token_created_at'] = time();
-        // Get user info
-        $user_url = 'https://api.twitch.tv/helix/users';
-        $ch = curl_init($user_url);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $token_response['access_token'],
-            'Client-Id: ' . $clientID
-        ]);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        $user_response = curl_exec($ch);
-        curl_close($ch);
-        $user_data = json_decode($user_response, true);
-        if (isset($user_data['data'][0])) {
-            $_SESSION['user_id'] = $user_data['data'][0]['id'];
-            $_SESSION['user_login'] = $user_data['data'][0]['login'];
-            $_SESSION['user_display_name'] = $user_data['data'][0]['display_name'];
+        // Store user info from StreamersConnect response
+        if (isset($authData['user'])) {
+            $_SESSION['user_id'] = $authData['user']['id'];
+            $_SESSION['user_login'] = $authData['user']['login'];
+            $_SESSION['user_display_name'] = $authData['user']['display_name'];
         }
     }
     // Redirect to clean URL
+    header('Location: https://yourchat.botofthespecter.com/index.php');
+    exit;
+}
+
+// Handle OAuth error from StreamersConnect
+if (isset($_GET['error'])) {
+    $error = htmlspecialchars($_GET['error']);
+    $errorDescription = htmlspecialchars($_GET['error_description'] ?? 'Authentication failed');
+    // You could display this error to the user or log it
+    // For now, just redirect to login
     header('Location: https://yourchat.botofthespecter.com/index.php');
     exit;
 }
@@ -239,14 +223,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 <p class="login-subtitle">Login with Twitch to customize your chat overlay</p>
                 <?php
                 $scopes = 'user:read:chat channel:read:redemptions moderator:read:chatters bits:read';
-                $authUrl = 'https://id.twitch.tv/oauth2/authorize?' . http_build_query([
-                    'client_id' => $clientID,
-                    'redirect_uri' => 'https://yourchat.botofthespecter.com/index.php',
-                    'response_type' => 'code',
-                    'scope' => $scopes
+                $authUrl = 'https://streamersconnect.com/?' . http_build_query([
+                    'service' => 'twitch',
+                    'login' => 'yourchat.botofthespecter.com',
+                    'scopes' => $scopes,
+                    'return_url' => 'https://yourchat.botofthespecter.com/index.php'
                 ]);
                 ?>
                 <a href="<?php echo htmlspecialchars($authUrl); ?>" class="login-btn">Login with Twitch</a>
+                <p class="info-text" style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">Authentication powered by StreamersConnect</p>
             </div>
         <?php else: ?>
             <div class="header">
