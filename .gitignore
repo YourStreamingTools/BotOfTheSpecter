@@ -97,10 +97,11 @@ docs/5.8.md
 /deploy
 /wiki
 /bot/export_queue
-# This will be added later to the commits, for now, we're ignoring it.
-/ghostbot
 /yourchat/user-settings
 /yourchat/chat-logs
+/StreamersConnect
+# This will be added later to the commits, for now, we're ignoring it.
+/ghostbot
 
 # Python Cache files
 bot/__pycache__/
