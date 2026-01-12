@@ -557,6 +557,22 @@ class MySQLHelper:
             if conn:
                 conn.close()
 
+    async def get_bot_access_token(self):
+        try:
+            token_row = await self.fetchone(
+                "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
+                ('971436498',), database_name='website', dict_cursor=True
+            )
+            if token_row and token_row.get('twitch_access_token'):
+                return token_row['twitch_access_token']
+            if self.logger:
+                self.logger.warning("No access token found in database for bot user")
+            return None
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error fetching bot access token from database: {e}")
+            return None
+
 # Setup websocket listener for global actions
 class WebsocketListener:
     def __init__(self, bot, logger=None):
@@ -1585,11 +1601,15 @@ class LiveChannelManager:
     async def twitch_get_streams_by_logins(self, user_logins: list):
         if not user_logins:
             return []
-        # Use config-borne client id and app bearer token
+        # Use config client id and fetch fresh token from database
         client_id = config.twitch_client_id
-        bearer = config.twitch_bearer_token
-        if not client_id or not bearer:
-            self.logger.debug("Missing twitch client id or bearer token for Helix API call")
+        if not client_id:
+            self.logger.debug("Missing twitch client id for Helix API call")
+            return []
+        # Fetch bot access token from database
+        bearer = await self.mysql.get_bot_access_token()
+        if not bearer:
+            self.logger.debug("Missing bearer token for Helix API call")
             return []
         results = []
         # Normalize and ensure we only pass valid lower-case login names. Helix expects lowercase user_login values.
@@ -3060,11 +3080,11 @@ class BotOfTheSpecter(commands.Bot):
             (channel_name,), database_name='website', dict_cursor=True
         )
         twitch_user_id = twitch_user_id["twitch_user_id"]
-        auth_token = await mysql_helper.fetchone(
-            "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
-            (twitch_user_id,), database_name='website', dict_cursor=True
-        )
-        auth_token = auth_token['twitch_access_token']
+        # Use bot's access token
+        auth_token = await mysql_helper.get_bot_access_token()
+        if not auth_token:
+            self.logger.error(f"No bot access token available for get_stream_info")
+            return "Unknown Game", "No Title"
         async with aiohttp.ClientSession() as session:
             headers = {"Client-ID": config.twitch_client_id,"Authorization": f"Bearer {auth_token}"}
             async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
@@ -3098,10 +3118,15 @@ class BotOfTheSpecter(commands.Bot):
 
     async def get_user_profile_image_from_twitch(self, username):
         try:
+            mysql_helper = MySQLHelper(self.logger)
             client_id = config.twitch_client_id
-            bearer = config.twitch_bearer_token
-            if not client_id or not bearer:
-                self.logger.debug(f"Missing Twitch API credentials, cannot fetch profile for {username}")
+            if not client_id:
+                self.logger.debug(f"Missing Twitch client ID, cannot fetch profile for {username}")
+                return None
+            # Use the helper method to fetch bot's access token
+            bearer = await mysql_helper.get_bot_access_token()
+            if not bearer:
+                self.logger.debug(f"No access token available, cannot fetch profile for {username}")
                 return None
             url = f"https://api.twitch.tv/helix/users?login={urllib.parse.quote_plus(str(username).strip().lower())}"
             headers = {
@@ -3119,7 +3144,7 @@ class BotOfTheSpecter(commands.Bot):
                                 if profile_image_url:
                                     return profile_image_url
                         elif resp.status == 401:
-                            self.logger.debug(f"Twitch API authentication failed for profile image request")
+                            self.logger.warning(f"Twitch API authentication failed for profile image request (token may need refresh)")
                         else:
                             self.logger.debug(f"Twitch API request failed for {username}: {resp.status} - {await resp.text()}")
                 except asyncio.TimeoutError:
@@ -3327,12 +3352,9 @@ class BotOfTheSpecter(commands.Bot):
                                     )
                                     if user_row and user_row.get('twitch_user_id'):
                                         twitch_user_id = user_row['twitch_user_id']
-                                        auth_token_row = await mysql_helper.fetchone(
-                                            "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
-                                            (twitch_user_id,), database_name='website', dict_cursor=True
-                                        )
-                                        if auth_token_row:
-                                            auth_token = auth_token_row['twitch_access_token']
+                                        # Use bot's access token
+                                        auth_token = await mysql_helper.get_bot_access_token()
+                                        if auth_token:
                                             async with aiohttp.ClientSession() as session:
                                                 headers = {"Client-ID": config.twitch_client_id, "Authorization": f"Bearer {auth_token}"}
                                                 async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
@@ -5815,23 +5837,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 if not channel_name or not twitch_user_id:
                     self.logger.warning(f"Guild {guild_id} ({guild.name}): Missing user configuration")
                     continue
-                # Get auth token
-                get_auth_token = await self.mysql.fetchone(
-                    "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", 
-                    (twitch_user_id,), database_name='website'
-                )
-                if not get_auth_token:
-                    self.logger.warning(f"Guild {guild_id} ({guild.name}): No auth token found for twitch_user_id {twitch_user_id}")
-                    continue
-                # Handle both dict and tuple response formats for auth token query
-                if isinstance(get_auth_token, dict):
-                    auth_token = get_auth_token.get('twitch_access_token')
-                else:
-                    # Fallback to tuple access (first column)
-                    auth_token = get_auth_token[0] if get_auth_token else None
-                if not auth_token:
-                    self.logger.warning(f"Guild {guild_id} ({guild.name}): No valid auth token available")
-                    continue
+                # Note: auth_token not needed here anymore as check_streams_for_guild fetches bot token directly
                 # Get member streams to monitor
                 users = await self.mysql.fetchall(
                     "SELECT username, stream_url FROM member_streams",
@@ -5842,7 +5848,6 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                         'guild_name': guild.name,
                         'channel_name': channel_name,
                         'twitch_user_id': twitch_user_id,
-                        'auth_token': auth_token,
                         'member_streams_id': member_streams_id,
                         'discord_channel': discord_channel,
                         'users': users,
@@ -5863,9 +5868,19 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
 
     async def check_streams_for_guild(self, guild_id, guild_data):
         users = guild_data['users']
-        auth_token = guild_data['auth_token']
         if not users:
             return []
+        
+        # Fetch bot's access token from database (always use bot token for reliability)
+        bot_token_row = await self.mysql.fetchone(
+            "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
+            ('971436498',), database_name='website', dict_cursor=True
+        )
+        if not bot_token_row or not bot_token_row.get('twitch_access_token'):
+            self.logger.error(f"No bot access token found in database for guild {guild_id}")
+            return []
+        auth_token = bot_token_row['twitch_access_token']
+        
         # Only include usernames that match Twitch login format: lowercase, no spaces, only underscores, numbers, and letters
         twitch_login_regex = re.compile(r'^[a-z0-9_]+$')
         usernames = [str(user['username']).strip().lower().replace(' ', '_') for user in users if user.get('username') and str(user['username']).strip() and twitch_login_regex.match(str(user['username']).strip().lower().replace(' ', '_'))]
@@ -5888,41 +5903,10 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                     self.logger.debug(f"Twitch API params for guild {guild_id}: {params}")
                     async with session.get(url, headers=headers, params=params) as response:
                         if response.status != 200:
-                            if response.status == 401:
-                                # Try to get bot's auth token as fallback
-                                bot_auth_token = await self.mysql.fetchone(
-                                    "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", 
-                                    ("971436498",), database_name='website'
-                                )
-                                if bot_auth_token:
-                                    if isinstance(bot_auth_token, dict):
-                                        bot_auth_token = bot_auth_token.get('twitch_access_token')
-                                    else:
-                                        bot_auth_token = bot_auth_token[0] if bot_auth_token else None
-                                    if bot_auth_token:
-                                        retry_headers = {
-                                            "Client-ID": config.twitch_client_id,
-                                            "Authorization": f"Bearer {bot_auth_token}"
-                                        }
-                                        async with session.get(url, headers=retry_headers, params=params) as retry_response:
-                                            if retry_response.status == 200:
-                                                data = await retry_response.json()
-                                                all_stream_data = data.get('data', [])
-                                            else:
-                                                self.logger.error(f"Failed to fetch streams with bot token for guild {guild_id}: {retry_response.status} {await retry_response.text()} | Params: {params}")
-                                                return []
-                                    else:
-                                        self.logger.error(f"No valid bot auth token available for guild {guild_id}")
-                                        return []
-                                else:
-                                    self.logger.error(f"Could not retrieve bot auth token for guild {guild_id}")
-                                    return []
-                            else:
-                                self.logger.error(f"Failed to fetch streams for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
-                                return []
-                        else:
-                            data = await response.json()
-                            all_stream_data = data.get('data', [])
+                            self.logger.error(f"Failed to fetch streams for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
+                            return []
+                        data = await response.json()
+                        all_stream_data = data.get('data', [])
             except Exception as e:
                 self.logger.error(f"Error checking streams for guild {guild_id}: {e}")
                 return []
@@ -5945,35 +5929,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                         self.logger.debug(f"Twitch API batch params for guild {guild_id}, batch {chunk_index + 1}: {params}")
                         async with session.get(url, headers=headers, params=params) as response:
                             if response.status != 200:
-                                if response.status == 401:
-                                    # Try to get bot's auth token as fallback
-                                    bot_auth_token = await self.mysql.fetchone(
-                                        "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", 
-                                        ("971436498",), database_name='website'
-                                    )
-                                    if bot_auth_token:
-                                        if isinstance(bot_auth_token, dict):
-                                            bot_auth_token = bot_auth_token.get('twitch_access_token')
-                                        else:
-                                            bot_auth_token = bot_auth_token[0] if bot_auth_token else None
-                                        if bot_auth_token:
-                                            retry_headers = {
-                                                "Client-ID": config.twitch_client_id,
-                                                "Authorization": f"Bearer {bot_auth_token}"
-                                            }
-                                            async with session.get(url, headers=retry_headers, params=params) as retry_response:
-                                                if retry_response.status == 200:
-                                                    data = await retry_response.json()
-                                                    batch_streams = data.get('data', [])
-                                                    all_stream_data.extend(batch_streams)
-                                                else:
-                                                    self.logger.error(f"Failed to fetch streams batch {chunk_index + 1} with bot token for guild {guild_id}: {retry_response.status} {await retry_response.text()} | Params: {params}")
-                                        else:
-                                            self.logger.error(f"No valid bot auth token available for guild {guild_id} batch {chunk_index + 1}")
-                                    else:
-                                        self.logger.error(f"Could not retrieve bot auth token for guild {guild_id} batch {chunk_index + 1}")
-                                else:
-                                    self.logger.error(f"Failed to fetch streams batch {chunk_index + 1} for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
+                                self.logger.error(f"Failed to fetch streams batch {chunk_index + 1} for guild {guild_id}: {response.status} {await response.text()} | Params: {params}")
                                 continue
                             data = await response.json()
                             batch_streams = data.get('data', [])
