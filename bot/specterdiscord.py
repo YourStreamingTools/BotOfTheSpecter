@@ -27,7 +27,7 @@ import yt_dlp
 from openai import AsyncOpenAI
 
 # Bot version
-VERSION = "6.0"
+VERSION = "6.1"
 
 # Global configuration class
 class Config:
