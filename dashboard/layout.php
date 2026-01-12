@@ -16,6 +16,30 @@ $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
 
+// Check if dev stream is online
+$devStreamOnline = false;
+try {
+    include '/var/www/config/admin_actions.php';
+    if (!empty($admin_key)) {
+        $apiUrl = "https://api.botofthespecter.com/streamonline?api_key=" . urlencode($admin_key) . "&channel=gfaundead";
+        $ch = curl_init($apiUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($httpCode === 200 && $response) {
+            $data = json_decode($response, true);
+            if (isset($data['online']) && $data['online'] === true) {
+                $devStreamOnline = true;
+            }
+        }
+    }
+} catch (Exception $e) {
+    // Silently fail - don't display errors to end users
+}
+
 // Function to generate a UUID v4 for cache busting
 function uuidv4() {
     return bin2hex(random_bytes(4));
@@ -511,6 +535,14 @@ function uuidv4() {
         </div>
         </div>
     </aside>
+    <?php if ($devStreamOnline): ?>
+    <!-- Dev Stream Online Banner -->
+    <div style="background:rgb(138, 43, 226); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+        <span>
+            <i class="fas fa-video"></i> Dev Stream Online - Watch live at <a href="https://twitch.tv/gfaundead" target="_blank" style="color: #fff; text-decoration: underline;">twitch.tv/gfaundead</a>
+        </span>
+    </div>
+    <?php endif; ?>
     <?php if ($maintenanceMode): $modalAcknowledged = isset($_COOKIE['maintenance_modal_acknowledged']) && $_COOKIE['maintenance_modal_acknowledged'] === 'true'; ?>
     <!-- Maintenance Notice Banner -->
     <div style="background:rgb(255, 165, 0); color: #222; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
