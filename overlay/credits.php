@@ -54,8 +54,12 @@ function build_chatters_section($user_db) {
 
 function build_event_column($user_db, $event, $section_name, $clean_data = false) {
     $column_html = "<div class='column has-text-centered'>";
+    // Put the title inside the scroll area so the title scrolls with the list
+    $column_html .= "<div class='scroll-area'>";
+    // Wrap title+list together so they can be animated as a single block
+    $column_html .= "<div class='scroll-wrap'>";
     $column_html .= "<h2 class='subtitle has-text-white'>$section_name</h2>";
-    $column_html .= "<div class='scroll-area'><ul class='content has-text-white'>";
+    $column_html .= "<ul class='content has-text-white'>";
     $has_data = false;
     if ($clean_data) {
         // For followers, only get distinct usernames
@@ -91,15 +95,19 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
     if (!$has_data) {
         $column_html .= "<li>No " . $section_name . " today</li>";
     }
-    $column_html .= "</ul></div>";
+    $column_html .= "</ul></div></div>";
     $column_html .= "</div>";
     return $column_html;
 }
 
 function build_chatters_column($user_db) {
     $column_html = "<div class='column has-text-centered'>";
+    // Put the title inside the scroll area so the title scrolls with the list
+    $column_html .= "<div class='scroll-area'>";
+    // Wrap title+list together so they can be animated as a single block
+    $column_html .= "<div class='scroll-wrap'>";
     $column_html .= "<h2 class='subtitle has-text-white'>Chatters</h2>";
-    $column_html .= "<div class='scroll-area'><ul class='content has-text-white'>";
+    $column_html .= "<ul class='content has-text-white'>";
     $has_data = false;
     if ($stmt = $user_db->prepare("SELECT DISTINCT username FROM seen_today ORDER BY username ASC")) {
         $stmt->execute();
@@ -116,7 +124,7 @@ function build_chatters_column($user_db) {
     if (!$has_data) {
         $column_html .= "<li>No Chatters today</li>";
     }
-    $column_html .= "</ul></div>";
+    $column_html .= "</ul></div></div>";
     $column_html .= "</div>";
     return $column_html;
 }
@@ -184,12 +192,24 @@ $buildStatus = $status;
 <style>
 body, html {
     background: transparent !important;
+    /* Always hide native page scrollbars; we animate the content instead */
+    overflow: hidden;
+}
+
+/* Hide native scrollbars globally */
+html, body {
+    scrollbar-width: none; /* Firefox */
+}
+html::-webkit-scrollbar, body::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
 }
 .container.is-fluid {
     background: rgba(24, 26, 27, 0.85);
     border-radius: 12px;
     padding: 1.5rem;
     color: #FFFFFF !important;
+    position: relative;
+    overflow: hidden;
 }
 .title,
 .subtitle,
@@ -243,8 +263,14 @@ a, a:visited, a:active {
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
-    overflow-x: auto;
+    /* Prevent native scrollbars while keeping layout intact */
+    overflow-x: hidden;
     gap: 1.5rem;
+    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none; /* Firefox */
+}
+.scrolling-credits .columns::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
 }
 .no-wrap-columns {
     flex-wrap: nowrap !important;
@@ -288,8 +314,18 @@ a, a:visited, a:active {
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    overflow: visible;
-    min-height: auto;
+    /* Hide native scrollbars and allow JS-driven auto-scroll when needed */
+    overflow: hidden;
+    max-height: 60vh;
+    min-height: 6rem;
+}
+.scrolling-credits .scroll-wrap {
+    /* This is the element we will animate (contains title + list) */
+    position: relative;
+    width: 100%;
+}
+.scrolling-credits .scroll-wrap > h2 {
+    margin-bottom: 1rem;
 }
 .scrolling-credits ul {
     list-style-type: none;
@@ -358,37 +394,79 @@ a, a:visited, a:active {
             // Check if list has content
             const listItems = ul.querySelectorAll('li');
             if (listItems.length === 0) return;
-            // Make sure list is visible initially
-            ul.style.position = 'relative';
-            ul.style.transform = 'translateY(0)';
-            // Check initial height
-            let initialHeight = ul.scrollHeight;
-            let areaHeight = area.clientHeight;
-            // Only duplicate and animate if list is tall enough (needs more than area height to scroll)
-            if (initialHeight > areaHeight && listItems.length > 3) {
-                // Duplicate the list for seamless looping
-                ul.innerHTML += ul.innerHTML;
-                let listHeight = ul.scrollHeight / 2;
-                ul.style.position = 'absolute';
-                let duration = Math.max(20, listHeight / 40 * 5); // 5s per 40px, min 20s
+            // Animate the title+list block (.scroll-wrap) if its content is taller than the visible area
+            const wrap = area.querySelector('.scroll-wrap');
+            if (!wrap) return;
+            // Ensure initial state
+            wrap.style.transform = 'translateY(0)';
+            wrap.style.willChange = 'transform';
+            let contentHeight = wrap.scrollHeight;
+            let visibleHeight = area.clientHeight;
+            // If content is taller than the visible area, create a seamless loop and animate
+            if (contentHeight > visibleHeight + 10 && listItems.length > 0) {
+                // Avoid double-duplicating on re-run
+                if (!wrap.dataset.duplicated) {
+                    wrap.innerHTML += wrap.innerHTML;
+                    wrap.dataset.duplicated = '1';
+                }
+                let singleHeight = wrap.scrollHeight / 2;
+                wrap.style.position = 'absolute';
+                // Duration proportional to height (pixels -> seconds), tweak as needed
+                let duration = Math.max(12, singleHeight / 80 * 5); // base speed
                 let start = null;
-                function animateScroll(ts) {
+                function animateWrap(ts) {
                     if (!start) start = ts;
                     let elapsed = (ts - start) / 1000;
                     let progress = (elapsed % duration) / duration;
-                    let translateY = (1 - progress) * listHeight;
-                    ul.style.transform = `translateY(${translateY}px)`;
-                    requestAnimationFrame(animateScroll);
+                    let translateY = -progress * singleHeight;
+                    wrap.style.transform = `translateY(${translateY}px)`;
+                    requestAnimationFrame(animateWrap);
                 }
-                requestAnimationFrame(animateScroll);
+                requestAnimationFrame(animateWrap);
             }
             // Set scroll area height
             area.style.display = 'flex';
             area.style.flexDirection = 'column';
             area.style.justifyContent = 'flex-start';
             area.style.alignItems = 'center';
-            area.style.height = `calc(100% - ${area.previousElementSibling ? area.previousElementSibling.offsetHeight : 0}px)`;
         });
+        // PAGE-LEVEL auto-scroll for the entire credits section
+        (function() {
+            const main = document.querySelector('.container.is-fluid');
+            if (!main) return;
+            const credits = main.querySelector('.scrolling-credits');
+            if (!credits) return;
+            const viewH = window.innerHeight;
+            // If credits content is not taller than the viewport, no page-level scroll needed
+            if (credits.scrollHeight <= viewH - 100) return;
+            // If we've already created the page scroll container, reuse it
+            if (!main.querySelector('.page-scroll-wrap-container')) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'page-scroll-wrap-container';
+                wrapper.style.position = 'relative';
+                wrapper.style.overflow = 'hidden';
+                // Duplicate only the scrolling credits section for seamless looping
+                wrapper.innerHTML = '<div class="page-scroll-wrap">' + credits.outerHTML + '</div>' +
+                                     '<div class="page-scroll-wrap">' + credits.outerHTML + '</div>';
+                credits.parentNode.replaceChild(wrapper, credits);
+            }
+            const firstWrap = main.querySelector('.page-scroll-wrap');
+            if (!firstWrap) return;
+            const singleH = firstWrap.scrollHeight;
+            firstWrap.style.willChange = 'transform';
+            firstWrap.style.position = 'relative';
+            const duration = Math.max(20, singleH / 80 * 5);
+            let start = null;
+            function animatePage(ts) {
+                if (!start) start = ts;
+                const elapsed = (ts - start) / 1000;
+                const progress = (elapsed % duration) / duration;
+                const translateY = -progress * singleH;
+                firstWrap.style.transform = `translateY(${translateY}px)`;
+                requestAnimationFrame(animatePage);
+            }
+            requestAnimationFrame(animatePage);
+        })();
     });
     </script>
 </body>
