@@ -6024,7 +6024,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         title = stream_data['title']
         game_name = stream_data['game_name']
         stream_url = stream_data.get('stream_url', f"https://twitch.tv/{user_login}")
-        # Get user's profile image from database instead of Twitch thumbnail
+        # Get user's profile image for thumbnail
         profile_image_url = await self.bot.get_user_profile_image(user_login)
         embed = discord.Embed(
             description=f"""
@@ -6033,15 +6033,12 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
             """,
             color=discord.Color.purple()
         )
-        # Set thumbnail using user's profile image or fallback
+        # Set thumbnail using user's profile image
         if profile_image_url:
             embed.set_thumbnail(url=profile_image_url)
             self.logger.info(f"Using profile image for {user_login}: {profile_image_url}")
         else:
-            # Fallback to default image if no profile image
-            fallback_url = "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
-            embed.set_thumbnail(url=fallback_url)
-            self.logger.info(f"Using fallback thumbnail for {user_login}: {fallback_url}")
+            self.logger.warning(f"No profile image found for {user_login}")
         embed.add_field(name="Watch Here", value=f"{stream_url}", inline=True)
         embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
         try:
