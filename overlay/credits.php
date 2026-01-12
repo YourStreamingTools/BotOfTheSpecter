@@ -206,7 +206,7 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
 .container.is-fluid {
     background: rgba(24, 26, 27, 0.85);
     border-radius: 12px;
-    padding: 1.5rem;
+    padding: 12px;
     color: #FFFFFF !important;
     position: relative;
     overflow: hidden;
@@ -244,6 +244,21 @@ ul.content {
 .container.is-fluid h1 {
     color: #FFFFFF !important;
 }
+/* Reduce default Bulma section/container spacing inside this overlay */
+.container.is-fluid > .section {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    margin: 0;
+}
+.container.is-fluid > .section .container {
+    padding: 0;
+    margin: 0;
+}
+.container.is-fluid .title {
+    margin-top: 2px;
+    margin-bottom: 6px;
+    padding-top: 0;
+}
 a, a:visited, a:active {
     color: #FFFFFF !important;
     text-decoration: underline;
@@ -255,8 +270,8 @@ a, a:visited, a:active {
     justify-content: center;
     z-index: 10;
     color: #FFFFFF !important;
-    margin-top: 2rem;
-    margin-bottom: 2rem;
+    margin-top: 8px;
+    margin-bottom: 8px;
 }
 .scrolling-credits .columns {
     width: 100%;
@@ -265,7 +280,7 @@ a, a:visited, a:active {
     flex-wrap: nowrap !important;
     /* Prevent native scrollbars while keeping layout intact */
     overflow-x: hidden;
-    gap: 1.5rem;
+    gap: 24px;
     -ms-overflow-style: none; /* IE/Edge */
     scrollbar-width: none; /* Firefox */
 }
@@ -290,7 +305,7 @@ a, a:visited, a:active {
         flex-direction: column !important;
         flex-wrap: wrap !important;
         overflow-x: visible;
-        gap: 2rem;
+        gap: 32px;
     }
     .scrolling-credits .column {
         min-width: 100%;
@@ -302,7 +317,7 @@ a, a:visited, a:active {
     }
 }
 .scrolling-credits .subtitle {
-    margin-bottom: 1rem;
+    margin-bottom: 16px;
     color: #FFFFFF !important;
     z-index: 2;
     font-weight: bold !important;
@@ -317,7 +332,7 @@ a, a:visited, a:active {
     /* Hide native scrollbars and allow JS-driven auto-scroll when needed */
     overflow: hidden;
     max-height: 60vh;
-    min-height: 6rem;
+    min-height: 96px;
 }
 .scrolling-credits .scroll-wrap {
     /* This is the element we will animate (contains title + list) */
@@ -325,7 +340,7 @@ a, a:visited, a:active {
     width: 100%;
 }
 .scrolling-credits .scroll-wrap > h2 {
-    margin-bottom: 1rem;
+    margin-bottom: 16px;
 }
 .scrolling-credits ul {
     list-style-type: none;
@@ -337,7 +352,7 @@ a, a:visited, a:active {
     color: #FFFFFF !important;
 }
 .scrolling-credits li {
-    font-size: 1.5em;
+    font-size: 24px;
     margin: 5px 0;
     color: #FFFFFF !important;
     text-align: center;
@@ -366,7 +381,7 @@ a, a:visited, a:active {
 </style>
 </head>
 <body class="has-text-white">
-    <div class="container is-fluid" style="margin-top:2rem;">
+    <div class="container is-fluid" style="margin-top:8px;">
         <section class="section">
             <div class="container">
                 <h1 class="title">Stream Ending</h1>
@@ -439,30 +454,49 @@ a, a:visited, a:active {
             const viewH = window.innerHeight;
             // If credits content is not taller than the viewport, no page-level scroll needed
             if (credits.scrollHeight <= viewH - 100) return;
-            // If we've already created the page scroll container, reuse it
+            // If we haven't created the page scroll container, create one that contains two stacked copies
             if (!main.querySelector('.page-scroll-wrap-container')) {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'page-scroll-wrap-container';
                 wrapper.style.position = 'relative';
                 wrapper.style.overflow = 'hidden';
-                // Duplicate only the scrolling credits section for seamless looping
-                wrapper.innerHTML = '<div class="page-scroll-wrap">' + credits.outerHTML + '</div>' +
-                                     '<div class="page-scroll-wrap">' + credits.outerHTML + '</div>';
+                // Two panels stacked inside an inner container that we will animate
+                wrapper.innerHTML = '<div class="page-scroll-inner">' +
+                                    '<div class="page-scroll-wrap">' + credits.outerHTML + '</div>' +
+                                    '<div class="page-scroll-wrap">' + credits.outerHTML + '</div>' +
+                                    '</div>';
                 credits.parentNode.replaceChild(wrapper, credits);
             }
-            const firstWrap = main.querySelector('.page-scroll-wrap');
-            if (!firstWrap) return;
-            const singleH = firstWrap.scrollHeight;
-            firstWrap.style.willChange = 'transform';
-            firstWrap.style.position = 'relative';
-            const duration = Math.max(20, singleH / 80 * 5);
-            let start = null;
+            const pageWrapper = main.querySelector('.page-scroll-wrap-container');
+            if (!pageWrapper) return;
+            const pageInner = pageWrapper.querySelector('.page-scroll-inner');
+            const firstPanel = pageInner ? pageInner.querySelector('.page-scroll-wrap') : null;
+            if (!pageInner || !firstPanel) return;
+            // Measure the full height of one panel (the original credits content)
+            const singleH = Math.max(1, Math.round(firstPanel.scrollHeight));
+            // Ensure sizes are fixed so animation covers full panel
+            pageWrapper.style.height = singleH + 'px';
+            pageWrapper.style.overflow = 'hidden';
+            pageInner.style.willChange = 'transform';
+            pageInner.style.height = (singleH * 2) + 'px';
+            Array.from(pageInner.children).forEach(function(ch) {
+                ch.style.height = singleH + 'px';
+                ch.style.overflow = 'hidden';
+                ch.style.margin = '0';
+                ch.style.padding = '0';
+            });
+            // Animate the inner container vertically by singleH and wrap smoothly
+            const duration = Math.max(12, singleH / 80 * 5);
+            const speed = singleH / duration;
+            let last = null;
+            let offset = 0;
             function animatePage(ts) {
-                if (!start) start = ts;
-                const elapsed = (ts - start) / 1000;
-                const progress = (elapsed % duration) / duration;
-                const translateY = -progress * singleH;
-                firstWrap.style.transform = `translateY(${translateY}px)`;
+                if (last == null) last = ts;
+                const delta = (ts - last) / 1000;
+                last = ts;
+                offset += speed * delta;
+                if (offset >= singleH) offset -= singleH;
+                pageInner.style.transform = `translateY(${-offset}px)`;
                 requestAnimationFrame(animatePage);
             }
             requestAnimationFrame(animatePage);
