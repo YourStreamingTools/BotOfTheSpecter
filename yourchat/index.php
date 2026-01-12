@@ -335,7 +335,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     </div>
                 </div>
                 <div class="settings-panel">
-                    <h3>Nickname Management</h3>
+                    <div class="filters-header">
+                        <h3>Nickname Management</h3>
+                        <button id="toggle-nicknames-btn" class="toggle-btn" data-target="nickname-list"
+                            aria-expanded="true">Hide</button>
+                    </div>
                     <p class="settings-description">Set custom nicknames for chatters. Nicknames are tied to user IDs and
                         persist even if they change their username.</p>
                     <div style="display:flex; gap:8px; margin-bottom:10px;">
