@@ -2197,6 +2197,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     </script>
     <?php endif; ?>
     </div>
+    <footer class="page-footer">
+        <p>&copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
+        BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).</p>
+    </footer>
 </body>
 
 </html>
