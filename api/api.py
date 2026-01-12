@@ -1343,11 +1343,19 @@ async def check_key(api_key: str = Query(...)):
     summary="Check if the stream is online",
     include_in_schema=False
 )
-async def stream_online(api_key: str = Query(...)):
-    # Validate the API key and get username (channel name)
-    username = await verify_api_key(api_key)
-    if not username:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
+    # First check if it's an admin key
+    admin_valid = await verify_admin_key(api_key)
+    if admin_valid:
+        # Admin key: channel parameter is required
+        if not channel:
+            raise HTTPException(status_code=400, detail="Channel parameter is required when using admin key")
+        username = channel
+    else:
+        # Regular API key: validate and get username
+        username = await verify_api_key(api_key)
+        if not username:
+            raise HTTPException(status_code=401, detail="Invalid API Key")
     # Check stream status from database
     try:
         conn = await get_mysql_connection_user(username)
