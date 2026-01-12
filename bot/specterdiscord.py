@@ -284,6 +284,90 @@ def setup_logger(name, log_file, level=logging.INFO):
     logger.addHandler(handler)
     return logger
 
+# User-specific logger class for dual logging (admin + user logs)
+class UserLogger:
+    def __init__(self, admin_logger, mysql_helper=None):
+        self.admin_logger = admin_logger
+        self.mysql_helper = mysql_helper
+        self.user_loggers = {}  # Cache of username -> logger instances
+        self.username_cache = {}  # Cache of channel_code -> username
+        
+    def _get_user_log_file(self, username):
+        # Sanitize username for filesystem safety
+        safe_username = re.sub(r'[^a-zA-Z0-9_-]', '_', username.lower())
+        return os.path.join(config.discord_logs, f"{safe_username}.txt")
+    
+    def _get_or_create_user_logger(self, username):
+        if username not in self.user_loggers:
+            log_file = self._get_user_log_file(username)
+            # Create logger with unique name to avoid conflicts
+            logger_name = f'discord_user_{username}'
+            self.user_loggers[username] = setup_logger(logger_name, log_file, level=logging.INFO)
+        return self.user_loggers[username]
+    
+    async def _resolve_username(self, channel_code=None, guild_id=None):
+        # Try channel_code first
+        if channel_code:
+            # Check cache
+            if channel_code in self.username_cache:
+                return self.username_cache[channel_code]
+            # Query database
+            if self.mysql_helper:
+                try:
+                    user_row = await self.mysql_helper.fetchone(
+                        "SELECT username FROM users WHERE api_key = %s",
+                        (channel_code,), database_name='website', dict_cursor=True
+                    )
+                    if user_row and user_row.get('username'):
+                        username = user_row['username']
+                        self.username_cache[channel_code] = username
+                        return username
+                except Exception as e:
+                    self.admin_logger.debug(f"Error resolving username from channel_code {channel_code}: {e}")
+        # Try guild_id if channel_code didn't work
+        if guild_id and self.mysql_helper:
+            try:
+                # Get user_id from discord_users table
+                discord_row = await self.mysql_helper.fetchone(
+                    "SELECT user_id FROM discord_users WHERE guild_id = %s",
+                    (guild_id,), database_name='website', dict_cursor=True
+                )
+                if discord_row and discord_row.get('user_id'):
+                    user_row = await self.mysql_helper.fetchone(
+                        "SELECT username FROM users WHERE id = %s",
+                        (discord_row['user_id'],), database_name='website', dict_cursor=True
+                    )
+                    if user_row and user_row.get('username'):
+                        return user_row['username']
+            except Exception as e:
+                self.admin_logger.debug(f"Error resolving username from guild_id {guild_id}: {e}")
+        return None
+    
+    async def log(self, level, message, channel_code=None, guild_id=None, username=None):
+        # Always log to admin logger
+        log_func = getattr(self.admin_logger, level.lower(), self.admin_logger.info)
+        log_func(message)
+        # Try to resolve username if not provided
+        if not username and (channel_code or guild_id):
+            username = await self._resolve_username(channel_code, guild_id)
+        # Log to user-specific log if we have a username
+        if username:
+            try:
+                user_logger = self._get_or_create_user_logger(username)
+                user_log_func = getattr(user_logger, level.lower(), user_logger.info)
+                user_log_func(message)
+            except Exception as e:
+                self.admin_logger.debug(f"Failed to write to user log for {username}: {e}")
+    # Convenience methods for different log levels
+    async def info(self, message, **kwargs):
+        await self.log('INFO', message, **kwargs)
+    async def warning(self, message, **kwargs):
+        await self.log('WARNING', message, **kwargs)
+    async def error(self, message, **kwargs):
+        await self.log('ERROR', message, **kwargs)
+    async def debug(self, message, **kwargs):
+        await self.log('DEBUG', message, **kwargs)
+
 # MySQLHelper class for database operations
 class MySQLHelper:
     def __init__(self, logger=None):
@@ -1263,8 +1347,24 @@ class LiveChannelManager:
                             try:
                                 if self.bot:
                                     await self.bot.handle_stream_event('ONLINE', event_data)
+                                    self.logger.info(f"Successfully triggered handle_stream_event for fallback online detection of {username}")
                             except Exception as e:
-                                self.logger.debug(f"Error invoking bot.handle_stream_event for fallback announcement: {e}")
+                                self.logger.error(f"Error invoking bot.handle_stream_event for fallback announcement of {username}: {e}", exc_info=True)
+                                # Even if handle_stream_event fails, try to at least update the voice channel status
+                                try:
+                                    mapping = await self.bot.channel_mapping.get_mapping(channel_code)
+                                    if mapping:
+                                        guild = self.bot.get_guild(int(mapping["guild_id"]))
+                                        if guild:
+                                            channel = guild.get_channel(int(mapping["channel_id"]))
+                                            if channel:
+                                                online_text = mapping.get("online_text") or "Stream is now LIVE!"
+                                                channel_update = f"🟢 {online_text}"
+                                                if channel.name != channel_update:
+                                                    await channel.edit(name=channel_update, reason="Stream status update (fallback)")
+                                                    self.logger.info(f"Fallback: Updated voice channel name to '{channel_update}' for {username}")
+                                except Exception as voice_error:
+                                    self.logger.error(f"Fallback: Failed to update voice channel for {username}: {voice_error}")
                     except Exception as e:
                         self.logger.debug(f"Error determining existing online_streams entry for username {username}: {e}")
                     # Save full info now so we persist the online state
@@ -1278,6 +1378,7 @@ class LiveChannelManager:
                     )
                 else:
                     # Not live, remove any existing record
+                    self.logger.info(f"Fallback detected {username} is OFFLINE on channel_code {channel_code}. Updating status.")
                     await self.mark_offline(channel_code)
                     # Also try to remove any live_notifications row (safely)
                     try:
@@ -1289,6 +1390,23 @@ class LiveChannelManager:
                                 await self.mysql.execute("DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s", (guild_id, str(username).lower()), database_name='specterdiscordbot')
                     except Exception:
                         pass
+                    # Update voice channel to show offline status
+                    try:
+                        mapping = await self.bot.channel_mapping.get_mapping(channel_code)
+                        if mapping:
+                            guild = self.bot.get_guild(int(mapping["guild_id"]))
+                            if guild:
+                                channel = guild.get_channel(int(mapping["channel_id"]))
+                                if channel:
+                                    offline_text = mapping.get("offline_text") or "Stream is now OFFLINE"
+                                    channel_update = f"🔴 {offline_text}"
+                                    if channel.name != channel_update:
+                                        await channel.edit(name=channel_update, reason="Stream status update (fallback offline)")
+                                        self.logger.info(f"Fallback: Updated voice channel name to '{channel_update}' for {username}")
+                                    else:
+                                        self.logger.debug(f"Voice channel already shows offline status for {username}")
+                    except Exception as voice_error:
+                        self.logger.error(f"Fallback: Failed to update voice channel to offline for {username}: {voice_error}")
                 return
             except Exception as e:
                 # fallback to old get_stream_info if Helix call fails
@@ -1298,6 +1416,7 @@ class LiveChannelManager:
                 await self.mark_online(channel_code, username=username, twitch_user_id=None, stream_id=None, started_at=None, details=details)
             else:
                 # Not live, remove any existing record
+                self.logger.info(f"Fallback (legacy method) detected stream is OFFLINE on channel_code {channel_code}. Updating status.")
                 await self.mark_offline(channel_code)
                 # Also try to remove any live_notifications row (safely)
                 try:
@@ -1309,6 +1428,23 @@ class LiveChannelManager:
                             await self.mysql.execute("DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s", (guild_id, str(username).lower()), database_name='specterdiscordbot')
                 except Exception:
                     pass
+                # Update voice channel to show offline status
+                try:
+                    mapping = await self.bot.channel_mapping.get_mapping(channel_code)
+                    if mapping:
+                        guild = self.bot.get_guild(int(mapping["guild_id"]))
+                        if guild:
+                            channel = guild.get_channel(int(mapping["channel_id"]))
+                            if channel:
+                                offline_text = mapping.get("offline_text") or "Stream is now OFFLINE"
+                                channel_update = f"🔴 {offline_text}"
+                                if channel.name != channel_update:
+                                    await channel.edit(name=channel_update, reason="Stream status update (fallback offline)")
+                                    self.logger.info(f"Fallback (legacy): Updated voice channel name to '{channel_update}' for stream")
+                                else:
+                                    self.logger.debug(f"Voice channel already shows offline status for channel_code {channel_code}")
+                except Exception as voice_error:
+                    self.logger.error(f"Fallback (legacy): Failed to update voice channel to offline for {channel_code}: {voice_error}")
         except Exception as e:
             self.logger.error(f"Error in fallback_check_and_mark for {channel_code}: {e}")
 
@@ -1487,7 +1623,7 @@ class LiveChannelManager:
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
-    def __init__(self, discord_token, discord_logger, **kwargs):
+    def __init__(self, discord_token, discord_logger, user_logger=None, **kwargs):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.voice_states = True
@@ -1495,6 +1631,7 @@ class BotOfTheSpecter(commands.Bot):
         super().__init__(command_prefix="!", intents=intents, **kwargs)
         self.discord_token = discord_token
         self.logger = discord_logger
+        self.user_logger = user_logger  # UserLogger instance for dual logging
         self.typing_speed = config.typing_speed
         self.processed_messages_file = config.processed_messages_file
         self.version = config.bot_version
@@ -8980,7 +9117,10 @@ class DiscordBotRunner:
             self.loop.close()
 
     async def initialize_bot(self):
-        self.bot = BotOfTheSpecter(self.discord_token, self.logger)
+        # Initialize UserLogger with admin logger and mysql helper
+        mysql_helper = MySQLHelper(logger=self.logger)
+        user_logger = UserLogger(self.logger, mysql_helper)
+        self.bot = BotOfTheSpecter(self.discord_token, self.logger, user_logger)
         await self.bot.start(self.discord_token)
 
 def main():
