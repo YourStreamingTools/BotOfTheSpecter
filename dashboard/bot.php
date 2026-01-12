@@ -25,6 +25,8 @@ function validateTwitchToken($token) {
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
+  session_unset();
+  session_destroy();
   header('Location: login.php');
   exit();
 }
