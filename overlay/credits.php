@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 // Function to sanitize input
 function sanitize_input($input) {
     return htmlspecialchars($input, ENT_QUOTES, 'UTF-8');
@@ -204,12 +200,37 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
     display: none; /* Safari and Chrome */
 }
 .container.is-fluid {
-    background: rgba(24, 26, 27, 0.85);
+    background: #3A3C3D;
     border-radius: 12px;
     padding: 12px;
+    padding-bottom: 28px;
     color: #FFFFFF !important;
     position: relative;
     overflow: hidden;
+    margin-bottom: 12px;
+    outline: 1px solid #ffffff04;
+    box-sizing: border-box;
+    max-height: calc(100vh - 24px);
+}
+/* Paint a dedicated rounded background layer to avoid rendering artifacts */
+.container.is-fluid::before {
+    content: '';
+    position: absolute;
+    inset: 0px;
+    background: #3A3C3D;
+    border-radius: 12px;
+    pointer-events: none;
+    z-index: 0;
+}
+.container.is-fluid > .section,
+.container.is-fluid > .section .container {
+    position: relative;
+    z-index: 1; /* ensure content sits above the bg layer */
+}
+/* Ensure background respects border-radius and is clipped */
+.container.is-fluid {
+    -webkit-background-clip: padding-box;
+    background-clip: padding-box;
 }
 .title,
 .subtitle,
@@ -272,6 +293,62 @@ a, a:visited, a:active {
     color: #FFFFFF !important;
     margin-top: 8px;
     margin-bottom: 8px;
+    padding-bottom: 16px;
+}
+
+/* Ensure the generated page scroll container leaves room at the bottom for rounded corners */
+.page-scroll-wrap-container {
+    box-sizing: border-box;
+    padding-bottom: 16px;
+    background: transparent;
+    border-radius: 12px;
+    overflow: hidden;
+}
+/* inner scrolling structure should be transparent and not paint a square over rounded corners */
+.page-scroll-inner,
+.page-panel,
+.page-scroll-wrap,
+.page-scroll-gap {
+    background: transparent !important;
+}
+.page-scroll-inner {
+    padding-bottom: 16px;
+}
+
+/* Force any nested Bulma/container elements inside the cloned panels to be transparent
+   and not contribute a background box that covers the rounded corners. */
+.page-scroll-wrap-container .container,
+.page-scroll-wrap-container .section,
+.page-scroll-wrap-container .columns,
+.page-scroll-wrap-container .column,
+.page-scroll-wrap-container .scrolling-credits,
+.page-scroll-wrap-container ul,
+.page-scroll-wrap-container li,
+.page-scroll-wrap-container h1,
+.page-scroll-wrap-container h2 {
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: inherit !important;
+}
+
+/* Extra bottom gap inside each panel so content never reaches the rounded corner */
+.page-scroll-wrap-container .page-panel {
+    padding-bottom: 28px;
+    box-sizing: border-box;
+}
+
+/* Aggressive safeguard: ensure nothing inside the cloned panels paints an opaque background */
+.page-scroll-wrap-container, .page-scroll-wrap-container * {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+/* If any cloned element has inline background styles, make sure its computed background is cleared */
+.page-scroll-wrap-container [style] {
+    background-color: transparent !important;
+    background-image: none !important;
 }
 .scrolling-credits .columns {
     width: 100%;
