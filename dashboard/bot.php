@@ -275,7 +275,7 @@ function checkBotIsBanned($broadcasterId, $authToken, $clientID) {
       return ['banned' => false, 'reason' => ''];
     }
     if (!empty($data['data'])) {
-      $banReason = $data['data'][0]['reason'] ?? 'No reason provided';
+      $banReason = $data['data'][0]['reason'] ?? 'No reason given';
       return ['banned' => true, 'reason' => $banReason];
     }
     return ['banned' => false, 'reason' => ''];
@@ -515,13 +515,29 @@ ob_start();
 <?php endif; ?>
 <?php if ($BotIsBanned): ?>
   <div class="notification is-danger has-text-white has-text-weight-bold" style="border: 3px solid #ff3860;">
-    <span class="icon"><i class="fas fa-ban"></i></span>
-    <span><?php echo $BotModMessage; ?></span>
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div>
+        <span class="icon"><i class="fas fa-ban"></i></span>
+        <span><?php echo $BotModMessage; ?></span>
+      </div>
+      <button id="unban-bot-btn" class="button is-light is-rounded" style="margin-left: 15px;" title="Unban Bot">
+        <span class="icon"><i class="fas fa-unlock"></i></span>
+        <span>Unban Bot</span>
+      </button>
+    </div>
   </div>
 <?php elseif (!$BotIsMod && !empty($BotModMessage)): ?>
   <div class="notification is-warning has-text-black has-text-weight-bold">
-    <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-    <span><?php echo $BotModMessage; ?></span>
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div>
+        <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+        <span><?php echo $BotModMessage; ?></span>
+      </div>
+      <button id="make-mod-btn" class="button is-primary is-rounded" style="margin-left: 15px;" title="Make Bot Moderator">
+        <span class="icon"><i class="fas fa-user-shield"></i></span>
+        <span>Make Mod</span>
+      </button>
+    </div>
   </div>
 <?php endif; ?>
 <?php if ($selectedBot === 'custom'): ?>
@@ -2344,6 +2360,91 @@ document.addEventListener('DOMContentLoaded', function() {
   const forceOnlineBtn = document.getElementById('force-online-btn');
   const forceOfflineBtn = document.getElementById('force-offline-btn');
   const apiKey = <?php echo json_encode($user['api_key'] ?? ''); ?>;
+  // Unban Bot Button Handler
+  const unbanBotBtn = document.getElementById('unban-bot-btn');
+  if (unbanBotBtn) {
+    unbanBotBtn.addEventListener('click', async function() {
+      // Disable button and show loading state
+      unbanBotBtn.disabled = true;
+      const originalHTML = unbanBotBtn.innerHTML;
+      unbanBotBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Processing...</span>';
+      try {
+        const response = await fetch('https://api.twitch.tv/helix/moderation/bans?broadcaster_id=<?php echo htmlspecialchars($twitchUserId); ?>&moderator_id=<?php echo htmlspecialchars($twitchUserId); ?>&user_id=971436498', {
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer <?php echo htmlspecialchars($authToken); ?>',
+            'Client-Id': '<?php echo htmlspecialchars($clientID); ?>'
+          }
+        });
+        if (response.status === 204) {
+          // Success - show success notification
+          showNotification('Bot successfully unbanned! Refreshing page...', 'success');
+          // Reload the page after a short delay to show the updated status
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.message || 'Failed to unban bot';
+          showNotification('Error: ' + errorMessage, 'danger');
+          // Re-enable button
+          unbanBotBtn.disabled = false;
+          unbanBotBtn.innerHTML = originalHTML;
+        }
+      } catch (error) {
+        console.error('Error unbanning bot:', error);
+        showNotification('Network error: Could not connect to Twitch API', 'danger');
+        // Re-enable button
+        unbanBotBtn.disabled = false;
+        unbanBotBtn.innerHTML = originalHTML;
+      }
+    });
+  }
+  // Make Mod Button Handler
+  const makeModBtn = document.getElementById('make-mod-btn');
+  if (makeModBtn) {
+    makeModBtn.addEventListener('click', async function() {
+      // Disable button and show loading state
+      makeModBtn.disabled = true;
+      const originalHTML = makeModBtn.innerHTML;
+      makeModBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Processing...</span>';
+      try {
+        const response = await fetch('https://api.twitch.tv/helix/moderation/moderators', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer <?php echo htmlspecialchars($authToken); ?>',
+            'Client-Id': '<?php echo htmlspecialchars($clientID); ?>',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            broadcaster_id: '<?php echo htmlspecialchars($twitchUserId); ?>',
+            user_id: '971436498' // Bot's user ID
+          })
+        });
+        if (response.status === 204) {
+          // Success - show success notification
+          showNotification('Bot successfully added as moderator! Refreshing page...', 'success');
+          // Reload the page after a short delay to show the updated status
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.message || 'Failed to add bot as moderator';
+          showNotification('Error: ' + errorMessage, 'danger');
+          // Re-enable button
+          makeModBtn.disabled = false;
+          makeModBtn.innerHTML = originalHTML;
+        }
+      } catch (error) {
+        console.error('Error making bot moderator:', error);
+        showNotification('Network error: Could not connect to Twitch API', 'danger');
+        // Re-enable button
+        makeModBtn.disabled = false;
+        makeModBtn.innerHTML = originalHTML;
+      }
+    });
+  }
   function fetchAndUpdateChannelStatus() {
     // Only run if no bot action is in progress
     if (botActionInProgress) return;
