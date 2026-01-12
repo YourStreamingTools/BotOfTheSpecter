@@ -123,14 +123,14 @@ if (($actionMap[$action] ?? '') === 'run' && $username !== 'botofthespecter') {
     exit();
   }
 }
-// Check if custom bot mode is enabled (only for beta)
+// Check if custom bot mode is enabled (only for beta and only when starting the bot)
 $useCustomBot = false;
 $customBotUsername = null;
-if (isset($_POST['use_custom_bot']) && $_POST['use_custom_bot'] === 'true' && $bot === 'beta') {
+if ($action === 'run' && isset($_POST['use_custom_bot']) && $_POST['use_custom_bot'] === 'true' && $bot === 'beta') {
   // Query custom_bots table for this channel
   $stmt = $conn->prepare("SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
   if ($stmt) {
-    $stmt->bind_param('s', $twitchUserId);
+    $stmt->bind_param('s', $user_id);
     $stmt->execute();
     $result_cb = $stmt->get_result();
     if ($row = $result_cb->fetch_assoc()) {
