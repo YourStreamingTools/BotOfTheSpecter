@@ -54,8 +54,6 @@ $pid = '';
 $versionRunning = '';
 $betaVersionRunning = '';
 $v6VersionRunning = '';
-$customVersionRunning = '';
-$customNewVersion = '';
 $BotIsMod = false;
 $BotModMessage = "";
 $setupMessage = "";
@@ -67,15 +65,15 @@ $stableLastRestartOutput = '';
 
 $selectedBot = $_GET['bot'] ?? null;
 if (isset($_GET['bot'])) {
-  if (in_array($_GET['bot'], ['stable', 'beta', 'custom', 'v6'])) {
+  if (in_array($_GET['bot'], ['stable', 'beta', 'v6'])) {
     setcookie('selectedBot', $_GET['bot'], time() + (86400 * 30), "/"); // Cookie for 30 days
   }
 }
-else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta', 'custom', 'v6'])) {
+else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta', 'v6'])) {
   $selectedBot = $_COOKIE['selectedBot'];
 }
 else { $selectedBot = 'stable'; }
-if (!in_array($selectedBot, ['stable', 'beta', 'custom', 'v6'])) { $selectedBot = 'stable'; }
+if (!in_array($selectedBot, ['stable', 'beta', 'v6'])) { $selectedBot = 'stable'; }
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
@@ -114,31 +112,6 @@ if (!isset($betaVersionFilePath)) {
 }
 if (!isset($v6VersionFilePath)) {
   $v6VersionFilePath = null;
-}
-
-// Custom bot configuration defaults (ensure defined before use in the UI)
-$customBotConfigured = false;
-$customBotVerified = false;
-$customBotUsername = '';
-$customBotChannelId = '';
-$channelOwnerId = $_SESSION['user_id'] ?? null;
-if ($channelOwnerId) {
-  // Use $conn (from db_connect.php) if available
-  if (isset($conn) && $conn) {
-    $cbStmt = $conn->prepare("SELECT bot_username, bot_channel_id, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
-    if ($cbStmt) {
-      $cbStmt->bind_param('i', $channelOwnerId);
-      $cbStmt->execute();
-      $cbRes = $cbStmt->get_result();
-      if ($cbRes && ($cbRow = $cbRes->fetch_assoc())) {
-        $customBotConfigured = true;
-        $customBotUsername = $cbRow['bot_username'] ?? '';
-        $customBotChannelId = $cbRow['bot_channel_id'] ?? '';
-        $customBotVerified = intval($cbRow['is_verified']) === 1;
-      }
-      $cbStmt->close();
-    }
-  }
 }
 
 function checkSSHFileStatus($username) {
@@ -343,22 +316,13 @@ if ($selectedBot === 'beta' && !$betaAccess) {
     . '</div>';
 }
 
-// Custom bot notice
-$customWarning = '';
-if ($selectedBot === 'custom') {
-  $customWarning = '<div class="notification is-warning has-text-black has-text-weight-bold">'
-    . 'Custom bot is currently in development and is highly experimental.'
-    . '</div>';
-}
-
 // Check running status for all bots to prevent conflicts
 $stableRunning = false; // Will be determined by JavaScript
 $betaRunning = false;   // Will be determined by JavaScript
 $v6Running = false;     // Will be determined by JavaScript
-$customRunning = false; // Will be determined by JavaScript
 $runningBotCount = 0;
 $multiBotWarning = '';
-if ($stableRunning || $betaRunning || $v6Running || $customRunning) {
+if ($stableRunning || $betaRunning || $v6Running) {
   $multiBotWarning = '<div class="notification is-danger has-text-black has-text-weight-bold">'
     . t('bot_multi_bot_warning')
     . '</div>';
@@ -468,17 +432,6 @@ if ($selectedBot === 'stable') {
   if ($v6BotSystemStatus) {
     $v6VersionRunning = getRunningVersion($v6VersionFilePath, $v6NewVersion, 'v6');
   }
-} elseif ($selectedBot === 'custom') {
-  // Custom bot uses the same version controlling as stable.
-  $customStatusOutput = getBotsStatus($statusScriptPath, $username, 'custom');
-  $customBotSystemStatus = strpos($customStatusOutput, 'PID') !== false;
-  if ($customBotSystemStatus) {
-    // Use the same stable version file and version label for custom
-    if (isset($versionFilePath) && isset($newVersion)) {
-      $customVersionRunning = getRunningVersion($versionFilePath, $newVersion, 'custom');
-      $customNewVersion = $newVersion;
-    }
-  }
 }
 
 // Get last modified time of the bot script files using SSH
@@ -512,9 +465,6 @@ ob_start();
 <?php if($multiBotWarning): ?>
   <?php echo $multiBotWarning; ?>
 <?php endif; ?>
-<?php if(!empty($customWarning)): ?>
-  <?php echo $customWarning; ?>
-<?php endif; ?>
 <?php if ($BotIsBanned): ?>
   <div class="notification is-danger has-text-white has-text-weight-bold" style="border: 3px solid #ff3860;">
     <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -541,17 +491,6 @@ ob_start();
       </button>
     </div>
   </div>
-<?php endif; ?>
-<?php if ($selectedBot === 'custom'): ?>
-  <?php if (!$customBotConfigured): ?>
-    <div class="notification is-warning has-text-black has-text-weight-bold">
-      <?php echo 'No custom bot is configured for your channel. Please <a href="profile.php#custom-bot">set up a custom bot on your Profile</a> before starting it.'; ?>
-    </div>
-  <?php elseif (!$customBotVerified): ?>
-    <div class="notification is-warning has-text-black has-text-weight-bold">
-      <?php echo 'Your custom bot is configured but not verified. Please verify the bot on your <a href="profile.php#custom-bot">Profile</a> before starting it.'; ?>
-    </div>
-  <?php endif; ?>
 <?php endif; ?>
 <div class="columns is-variable is-6">
   <div class="column is-4">
@@ -605,8 +544,6 @@ ob_start();
                 <?php
                   if ($selectedBot === 'beta') {
                     echo ($betaVersionRunning ?: $betaNewVersion);
-                  } elseif ($selectedBot === 'custom') {
-                    echo ($customVersionRunning ?: $customNewVersion);
                   } else {
                     echo ($versionRunning ?: $newVersion);
                   }
@@ -681,9 +618,6 @@ ob_start();
               <option value="v6" <?php if($selectedBot === 'v6') echo 'selected'; ?>>
                 Version 6
               </option>
-              <option value="custom" <?php if($selectedBot === 'custom') echo 'selected'; ?>>
-                Custom Bot
-              </option>
             </select>
           </div>
         </div>
@@ -713,18 +647,11 @@ ob_start();
           <div class="notification is-danger has-text-black has-text-weight-bold has-text-centered mb-4">
             A complete rewrite has been started for version 6 and is not recommended to be running at this stage. A notice will be put out on Discord when version 6 is ready for testing.
           </div>
-        <?php elseif ($selectedBot === 'custom'): ?>
-          <h3 class="title is-4 has-text-white has-text-centered mb-2">
-            Custom Bot (Experimental)
-          </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
-            The Custom bot is currently in development and is highly experimental. Features may be incomplete or unstable.
-          </p>
         <?php endif; ?>
         <?php 
         // Only show bot status and controls if the bot is properly configured
         $showBotControls = false;
-        if ($selectedBot === 'stable' || $selectedBot === 'beta' || $selectedBot === 'v6' || $selectedBot === 'custom') {
+        if ($selectedBot === 'stable' || $selectedBot === 'beta' || $selectedBot === 'v6') {
           $showBotControls = true;
         } 
         ?>
@@ -740,8 +667,6 @@ ob_start();
                 $isRunning = $betaRunning;
               } elseif ($selectedBot === 'v6') {
                 $isRunning = $v6Running;
-              } elseif ($selectedBot === 'custom') {
-                $isRunning = $customRunning;
               }
               // Show loading state initially - JavaScript will update with real status
               $heartIcon = '<i class="fas fa-spinner fa-spin fa-2x has-text-info"></i>';
@@ -1019,8 +944,6 @@ ob_start();
 const latestStableVersion = <?php echo json_encode($newVersion); ?>;
 const latestBetaVersion = <?php echo json_encode($betaNewVersion); ?>;
 const latestV6Version = <?php echo json_encode($v6NewVersion); ?>;
-const customBotVerified = <?php echo json_encode($customBotVerified); ?>;
-const customBotConfigured = <?php echo json_encode($customBotConfigured); ?>;
 // Make versions accessible globally for updates
 window.latestStableVersion = latestStableVersion;
 window.latestBetaVersion = latestBetaVersion;
@@ -1100,7 +1023,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bot === 'stable') handleStableBotAction('stop');
         else if (bot === 'beta') handleBetaBotAction('stop');
         else if (bot === 'v6') handleV6BotAction('stop');
-        else if (bot === 'custom') handleCustomBotAction('stop');
       });
     }
     if (runBotBtn) {
@@ -1109,7 +1031,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bot === 'stable') handleStableBotAction('run');
         else if (bot === 'beta') handleBetaBotAction('run');
         else if (bot === 'v6') handleV6BotAction('run');
-        else if (bot === 'custom') handleCustomBotAction('run');
       });
     }
   }
@@ -1257,56 +1178,6 @@ document.addEventListener('DOMContentLoaded', function() {
           btn.disabled = false;
         });
     }, 10); // Small delay to prevent UI blocking
-  }
-  function handleCustomBotAction(action) {
-    if (action === 'run' && !isBotMod) {
-      showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
-      return;
-    }
-    const btn = action === 'stop' ? stopBotBtn : runBotBtn;
-    const originalContent = btn.innerHTML;
-    // Show immediate feedback that action was initiated
-    showNotification(`Custom bot ${action} command sent...`, 'info');
-    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
-    btn.disabled = true;
-    // Set global flag for run operations
-    if (action === 'run') {
-      botRunOperationInProgress = true;
-      currentBotBeingStarted = 'custom';
-    }
-    // Use setTimeout to avoid blocking the UI
-    setTimeout(() => {
-      fetchWithTimeout('bot_action.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=${encodeURIComponent(action)}&bot=custom`
-      }, 8000)
-        .then(response => response.json())
-        .then(data => {
-          console.log('Custom bot action response:', data);
-          if (data.success) {
-            const expectedRunning = (action === 'run');
-            updateUIOptimistically(expectedRunning, 'Custom');
-            if (data.message) { showNotification(data.message, 'success'); }
-            btn.innerHTML = originalContent;
-            btn.disabled = false;
-            startStatusVerification('custom', expectedRunning, 0);
-            if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
-          } else {
-            if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
-            showNotification(`Failed to ${action} custom bot: ${data.message}`, 'danger');
-            btn.innerHTML = originalContent;
-            btn.disabled = false;
-          }
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
-          showNotification(`Error processing request: ${error}`, 'danger');
-          btn.innerHTML = originalContent;
-          btn.disabled = false;
-        });
-    }, 10);
   }
   function handleV6BotAction(action) {
     if (action === 'run' && !isBotMod) {
@@ -1635,7 +1506,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         // Show Run button
         buttonContainer.innerHTML = `
-          <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || (selectedBot === 'custom' && !customBotVerified)) ? 'disabled' : ''}>
+          <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess)) ? 'disabled' : ''}>
             <span class="icon"><i class="fas fa-play"></i></span>
             <span><?php echo addslashes(t('bot_run')); ?></span>
           </button>
@@ -1837,7 +1708,7 @@ document.addEventListener('DOMContentLoaded', function() {
               } else {
                 // Show Run button
                 buttonContainer.innerHTML = `
-                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || (selectedBot === 'custom' && !customBotVerified)) ? 'disabled' : ''}>
+                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess)) ? 'disabled' : ''}>
                     <span class="icon"><i class="fas fa-play"></i></span>
                     <span><?php echo addslashes(t('bot_run')); ?></span>
                   </button>

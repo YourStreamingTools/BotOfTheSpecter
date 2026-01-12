@@ -42,8 +42,6 @@ function checkBotRunning($username, $botType = 'stable') {
         $versionFilePath .= "/beta/{$username}_beta_version_control.txt";
     } elseif ($botType === 'v6') {
         $versionFilePath .= "/v6/{$username}_v6_version_control.txt";
-    } elseif ($botType === 'custom') {
-        $versionFilePath .= "/custom/{$username}_custom_version_control.txt";
     } else {
         $versionFilePath .= "/{$username}_version_control.txt";
     }
@@ -52,8 +50,6 @@ function checkBotRunning($username, $botType = 'stable') {
         $botScriptPath = "/home/botofthespecter/beta.py";
     } elseif ($botType === 'v6') {
         $botScriptPath = "/home/botofthespecter/beta-v6.py";
-    } elseif ($botType === 'custom') {
-        $botScriptPath = "/home/botofthespecter/custom.py";
     } else {
         $botScriptPath = "/home/botofthespecter/bot.py";
     }
@@ -170,9 +166,6 @@ function performBotAction($action, $botType, $params) {
     } elseif ($botType === 'v6') {
         $botScriptPath = "/home/botofthespecter/beta-v6.py";
         $versionFilePath = "/home/botofthespecter/logs/version/v6/{$username}_v6_version_control.txt";
-    } elseif ($botType === 'custom') {
-        $botScriptPath = "/home/botofthespecter/custom.py";
-        $versionFilePath = "/home/botofthespecter/logs/version/custom/{$username}_custom_version_control.txt";
     } else {
         $botScriptPath = "/home/botofthespecter/bot.py";
         $versionFilePath = "/home/botofthespecter/logs/version/{$username}_version_control.txt";
@@ -182,15 +175,12 @@ function performBotAction($action, $botType, $params) {
     $versionInfo = json_decode(@file_get_contents($versionApiUrl), true);
     $newVersion = '';
     if ($versionInfo) {
-        // stable and custom should follow the same public/stable release number
         if ($botType === 'stable') {
             $newVersion = $versionInfo['stable_version'];
         } elseif ($botType === 'beta') {
             $newVersion = $versionInfo['beta_version'];
         } elseif ($botType === 'v6') {
             $newVersion = $versionInfo['v6_version'] ?? '6.0';
-        } elseif ($botType === 'custom') {
-            $newVersion = $versionInfo['custom_version'] ?? $versionInfo['stable_version'];
         } else {
             $newVersion = $versionInfo['stable_version'];
         }
@@ -228,8 +218,8 @@ function performBotAction($action, $botType, $params) {
         switch ($action) {
             case 'run':
                 // Before starting this bot, ensure any other bot types are stopped
-                // We check the full set ['stable','beta','custom','v6'] and stop any that are running
-                $otherTypes = ['stable', 'beta', 'custom', 'v6'];
+                // We check the full set ['stable','beta','v6'] and stop any that are running
+                $otherTypes = ['stable', 'beta', 'v6'];
                 $otherBotStoppedMessage = '';
                 foreach ($otherTypes as $ot) {
                     if ($ot === $botType) continue; // skip the bot we're about to start
@@ -269,49 +259,6 @@ function performBotAction($action, $botType, $params) {
                         $result['message'] = 'Missing required bot parameters (username, tokens, etc.)';
                         break;
                     }
-                    // If this is a custom bot, fetch bot username and bot access token from custom_bots
-                    $extraBotArgs = '';
-                    if ($botType === 'custom') {
-                        try {
-                                // Prefer using pre-fetched custom bot info if provided in params
-                                $botUsernameParam = $params['custom_bot_username'] ?? null;
-                                $botChannelIdParam = $params['custom_bot_channel_id'] ?? null;
-                                if (!empty($botUsernameParam) && !empty($botChannelIdParam)) {
-                                    // We have everything we need from the caller
-                                    // Custom bot fetches access_token from database, so no -bottoken needed
-                                    $extraBotArgs = ' -botusername ' . escapeshellarg($botUsernameParam);
-                                } else {
-                                    // Fallback: strict lookup by site owner id (channel_id) as required
-                                        $searchOwnerId = $params['channel_owner_id'] ?? $params['user_id'] ?? ($_SESSION['user_id'] ?? null);
-                                        if (empty($searchOwnerId)) {
-                                            $result['message'] = 'Missing channel owner id for custom bot lookup.';
-                                            break;
-                                        }
-                                        $stmt = $conn->prepare("SELECT bot_username FROM custom_bots WHERE channel_id = ? LIMIT 1");
-                                        if ($stmt) {
-                                            $stmt->bind_param('s', $searchOwnerId);
-                                            $stmt->execute();
-                                            $res = $stmt->get_result();
-                                            $crow = $res ? $res->fetch_assoc() : null;
-                                            $stmt->close();
-                                            if ($crow && !empty($crow['bot_username'])) {
-                                                $botUsernameParam = $crow['bot_username'];
-                                                // Custom bot fetches access_token from database, so no -bottoken needed
-                                                $extraBotArgs = ' -botusername ' . escapeshellarg($botUsernameParam);
-                                            } else {
-                                                $result['message'] = 'Custom bot configuration missing (bot username). Please verify the custom bot first.';
-                                                break;
-                                            }
-                                        } else {
-                                            $result['message'] = 'Database error preparing custom bot lookup.';
-                                            break;
-                                        }
-                                }
-                            } catch (Exception $e) {
-                                $result['message'] = 'Error fetching custom bot data: ' . $e->getMessage();
-                                break;
-                            }
-                    }
                     // Construct proper bot start command with all required parameters - MAKE IT BACKGROUND
                     // Use escapeshellarg for safety on dynamic fields
                     // V6 uses venv, beta and others use regular python
@@ -322,7 +269,6 @@ function performBotAction($action, $botType, $params) {
                                     " -token " . escapeshellarg($authToken) .
                                     " -refresh " . escapeshellarg($refreshToken) .
                                     " -apitoken " . escapeshellarg($apiKey) .
-                                    $extraBotArgs .
                                     " > /dev/null 2>&1 &";
                         $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
                         $startOutput = sanitizeSSHOutput($startOutput);
