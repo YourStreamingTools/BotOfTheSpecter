@@ -84,7 +84,6 @@ ob_start();
                 <p class="card-header-title has-text-white">
                     <span class="icon mr-2"><i class="fas fa-scroll"></i></span>
                     <?= t('overlays_stream_ending_credits') ?>
-                    <span class="tag is-danger is-light ml-2 is-size-7"><?= t('overlays_coming_soon') ?></span>
                 </p>
             </header>
             <div class="card-content" style="min-height: 200px;">
