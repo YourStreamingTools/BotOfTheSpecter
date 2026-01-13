@@ -361,6 +361,14 @@ if (isset($_GET['admin_system_log_type'])) {
     $logType = $_GET['admin_system_log_type'];
     // Determine log path and read method based on log type
     switch ($logType) {        // Standard Apache2 Logs
+                case 'streamersconnect_ssl_access':
+                    $logPath = "/var/log/apache2/streamersconnect_ssl_access.log";
+                    $result = read_apache2_log_over_ssh($logPath);
+                    break;
+                case 'streamersconnect_ssl_error':
+                    $logPath = "/var/log/apache2/streamersconnect_ssl_error.log";
+                    $result = read_apache2_log_over_ssh($logPath);
+                    break;
         case 'apache2-access':
             $logPath = "/var/log/apache2/access.log";
             $result = read_apache2_log_over_ssh($logPath);
@@ -649,6 +657,7 @@ $systemLogTypes = [
             ['value' => 'specterbot.systems_access', 'label' => 'Specterbot Systems Access'],
             ['value' => 'ghostbot.au_access', 'label' => 'GhostBot AU Access'],
             ['value' => 'yourlinks.click_access', 'label' => 'YourLinks Click Access'],
+            ['value' => 'streamersconnect_ssl_access', 'label' => 'StreamersConnect SSL Access (combined)'],
         ]
     ],
     [
@@ -673,6 +682,7 @@ $systemLogTypes = [
             ['value' => 'specterbot.systems_error', 'label' => 'Specterbot Systems Error'],
             ['value' => 'ghostbot.au_error', 'label' => 'GhostBot AU Error'],
             ['value' => 'yourlinks.click_error', 'label' => 'YourLinks Click Error'],
+            ['value' => 'streamersconnect_ssl_error', 'label' => 'StreamersConnect SSL Error'],
         ]
     ],
     [
