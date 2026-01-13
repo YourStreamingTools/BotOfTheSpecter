@@ -222,7 +222,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 <h1>YourChat - Custom Twitch Chat Overlay</h1>
                 <p class="login-subtitle">Login with Twitch to customize your chat overlay</p>
                 <?php
-                $scopes = 'user:read:chat channel:read:redemptions moderator:read:chatters bits:read';
+                $scopes = 'user:read:chat user:write:chat channel:read:redemptions moderator:read:chatters bits:read';
                 $authUrl = 'https://streamersconnect.com/?' . http_build_query([
                     'service' => 'twitch',
                     'login' => 'yourchat.botofthespecter.com',
@@ -352,6 +352,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 ✕
             </button>
             <p class="chat-placeholder">Connecting to chat...</p>
+        </div>
+        <div class="message-input-container" id="message-input-container">
+            <input type="text" id="message-input" class="message-input" placeholder="Send a message to your chat..." maxlength="500">
+            <button class="send-message-btn" id="send-message-btn" onclick="sendChatMessage()" title="Send Message">Send</button>
         </div>
         <script>
             // Configuration
@@ -2213,6 +2217,83 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Save chat history
             saveChatHistory();
         }
+        // Send chat message function
+        async function sendChatMessage() {
+            const input = document.getElementById('message-input');
+            const sendBtn = document.getElementById('send-message-btn');
+            const message = input.value.trim();
+            if (!message) {
+                return;
+            }
+            // Disable input and button while sending
+            input.disabled = true;
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending...';
+            try {
+                const response = await fetch('https://api.twitch.tv/helix/chat/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${CONFIG.ACCESS_TOKEN}`,
+                        'Client-Id': '<?php echo $clientID; ?>',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        broadcaster_id: CONFIG.USER_ID,
+                        sender_id: CONFIG.USER_ID,
+                        message: message
+                    })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.data && data.data[0] && data.data[0].is_sent) {
+                        // Clear input on success
+                        input.value = '';
+                        // Message will appear via WebSocket event
+                    } else {
+                        throw new Error('Message not sent');
+                    }
+                } else if (response.status === 401) {
+                    // Token expired, try to refresh
+                    Toastify({
+                        text: 'Session expired. Please refresh the page.',
+                        duration: 5000,
+                        gravity: 'top',
+                        position: 'right',
+                        backgroundColor: '#ff4444'
+                    }).showToast();
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || 'Failed to send message');
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                Toastify({
+                    text: `Failed to send message: ${error.message}`,
+                    duration: 5000,
+                    gravity: 'top',
+                    position: 'right',
+                    backgroundColor: '#ff4444'
+                }).showToast();
+            } finally {
+                // Re-enable input and button
+                input.disabled = false;
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+                input.focus();
+            }
+        }
+        // Allow Enter key to send message
+        document.addEventListener('DOMContentLoaded', () => {
+            const input = document.getElementById('message-input');
+            if (input) {
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendChatMessage();
+                    }
+                });
+            }
+        });
         // Initialize
         loadChatHistory();
         async function initializeApp() {
