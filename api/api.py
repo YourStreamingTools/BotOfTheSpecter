@@ -493,6 +493,16 @@ class UserPointsResponse(BaseModel):
     class Config:
         json_schema_extra = {"example": {"username": "testuser", "points": 1000, "point_name": "Points"}}
 
+# Define the response model for User Points Modification
+class UserPointsModificationResponse(BaseModel):
+    username: str = Field(..., example="testuser")
+    previous_points: int = Field(..., example=1000)
+    amount: int = Field(..., example=100)
+    new_points: int = Field(..., example=1100)
+    point_name: str = Field(..., example="Points")
+    class Config:
+        json_schema_extra = {"example": {"username": "testuser", "previous_points": 1000, "amount": 100, "new_points": 1100, "point_name": "Points"}}
+
 # Define the /fourthwall endpoint for handling webhook data
 @app.post(
     "/fourthwall",
@@ -1332,6 +1342,121 @@ async def get_user_points(api_key: str = Query(..., description="API key for aut
     except Exception as e:
         logging.error(f"Error retrieving points for user {username}: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving user points: {str(e)}")
+    finally:
+        conn.close()
+
+# Credit User Points Endpoint
+@app.post(
+    "/user-points/credit",
+    response_model=UserPointsModificationResponse,
+    summary="Credit points to a user",
+    description="Add points to a specific user in the bot_points table. If the user doesn't exist, they will be created with the credited amount.",
+    tags=["Commands"],
+    operation_id="credit_user_points"
+)
+async def credit_user_points(api_key: str = Query(..., description="API key for authentication"), username: str = Query(..., description="Username to credit points to"), amount: int = Query(..., description="Amount of points to credit", gt=0)):
+    # Verify the API key
+    auth_username = await verify_api_key(api_key)
+    if not auth_username:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    try:
+        # Connect to the user's database
+        conn = await get_mysql_connection_user(auth_username)
+        async with conn.cursor(aiomysql.DictCursor) as cursor:
+            # Get current points
+            await cursor.execute(
+                "SELECT points FROM bot_points WHERE user_name = %s",
+                (username,)
+            )
+            result = await cursor.fetchone()
+            previous_points = result['points'] if result else 0
+            new_points = previous_points + amount
+            # Insert or update points
+            if result:
+                await cursor.execute(
+                    "UPDATE bot_points SET points = %s WHERE user_name = %s",
+                    (new_points, username)
+                )
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_name, points) VALUES (%s, %s)",
+                    (username, new_points)
+                )
+            await conn.commit()
+            # Get point_name from settings
+            await cursor.execute("SELECT point_name FROM bot_settings LIMIT 1")
+            settings_result = await cursor.fetchone()
+            point_name = settings_result['point_name'] if settings_result and settings_result['point_name'] else "Points"
+            logging.info(f"Credited {amount} {point_name} to {username} ({previous_points} -> {new_points}) (auth: {auth_username})")
+            return {
+                "username": username,
+                "previous_points": previous_points,
+                "amount": amount,
+                "new_points": new_points,
+                "point_name": point_name
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error crediting points for user {username}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error crediting user points: {str(e)}")
+    finally:
+        conn.close()
+
+# Debit User Points Endpoint
+@app.post(
+    "/user-points/debit",
+    response_model=UserPointsModificationResponse,
+    summary="Debit points from a user",
+    description="Subtract points from a specific user in the bot_points table. User must exist and have sufficient points.",
+    tags=["Commands"],
+    operation_id="debit_user_points"
+)
+async def debit_user_points(api_key: str = Query(..., description="API key for authentication"), username: str = Query(..., description="Username to debit points from"), amount: int = Query(..., description="Amount of points to debit", gt=0), allow_negative: bool = Query(False, description="Allow points to go negative")):
+    # Verify the API key
+    auth_username = await verify_api_key(api_key)
+    if not auth_username:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    try:
+        # Connect to the user's database
+        conn = await get_mysql_connection_user(auth_username)
+        async with conn.cursor(aiomysql.DictCursor) as cursor:
+            # Get current points
+            await cursor.execute(
+                "SELECT points FROM bot_points WHERE user_name = %s",
+                (username,)
+            )
+            result = await cursor.fetchone()
+            if not result:
+                raise HTTPException(status_code=404, detail=f"User '{username}' not found in points table")
+            previous_points = result['points']
+            new_points = previous_points - amount
+            # Check if points would go negative
+            if new_points < 0 and not allow_negative:
+                raise HTTPException(status_code=400, detail=f"Insufficient points. User has {previous_points} points but {amount} requested.")
+            # Update points
+            await cursor.execute(
+                "UPDATE bot_points SET points = %s WHERE user_name = %s",
+                (new_points, username)
+            )
+            await conn.commit()
+            # Get point_name from settings
+            await cursor.execute("SELECT point_name FROM bot_settings LIMIT 1")
+            settings_result = await cursor.fetchone()
+            point_name = settings_result['point_name'] if settings_result and settings_result['point_name'] else "Points"
+            logging.info(f"Debited {amount} {point_name} from {username} ({previous_points} -> {new_points}) (auth: {auth_username})")
+            return {
+                "username": username,
+                "previous_points": previous_points,
+                "amount": amount,
+                "new_points": new_points,
+                "point_name": point_name
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error debiting points for user {username}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error debiting user points: {str(e)}")
     finally:
         conn.close()
 
