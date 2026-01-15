@@ -18,7 +18,7 @@ import time
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, List
 from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
@@ -484,6 +484,14 @@ class PublicAPIDailyResponse(BaseModel):
                 "time_remaining": "3 hours, 24 minutes, 16 seconds",
             }
         }
+
+# Define the response model for User Points
+class UserPointsResponse(BaseModel):
+    username: str = Field(..., example="testuser")
+    points: int = Field(..., example=1000)
+    point_name: str = Field(..., example="Points")
+    class Config:
+        json_schema_extra = {"example": {"username": "testuser", "points": 1000, "point_name": "Points"}}
 
 # Define the /fourthwall endpoint for handling webhook data
 @app.post(
@@ -1285,6 +1293,47 @@ async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)
         raise HTTPException(status_code=400, detail="Invalid JSON format in 'data'")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
+
+# User Points Endpoint
+@app.get(
+    "/user-points",
+    response_model=UserPointsResponse,
+    summary="Get user points",
+    description="Retrieve the number of points for a specific user from the bot_points table.",
+    tags=["Commands"],
+    operation_id="get_user_points"
+)
+async def get_user_points(api_key: str = Query(..., description="API key for authentication"), username: str = Query(..., description="Username to retrieve points for")):
+    # Verify the API key
+    auth_username = await verify_api_key(api_key)
+    if not auth_username:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    try:
+        # Connect to the user's database
+        conn = await get_mysql_connection_user(auth_username)
+        async with conn.cursor(aiomysql.DictCursor) as cursor:
+            # Query the bot_points table for the specified username
+            await cursor.execute(
+                "SELECT points FROM bot_points WHERE user_name = %s",
+                (username,)
+            )
+            result = await cursor.fetchone()
+            points = result['points'] if result else 0
+            # Query the bot_settings table for the point_name
+            await cursor.execute(
+                "SELECT point_name FROM bot_settings LIMIT 1"
+            )
+            settings_result = await cursor.fetchone()
+            point_name = settings_result['point_name'] if settings_result and settings_result['point_name'] else "Points"
+            logging.info(f"Retrieved {points} {point_name} for user {username} (auth: {auth_username})")
+            return {"username": username, "points": points, "point_name": point_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving points for user {username}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving user points: {str(e)}")
+    finally:
+        conn.close()
 
 # Get allowed users for Discord voice calling
 @app.get(
