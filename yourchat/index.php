@@ -1828,10 +1828,17 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const displayName = nickname || event.chatter_user_name;
             // Build message text HTML with full fragment support
             let messageTextHtml = '';
+            let skippedReplyMention = false;
             if (event.message && event.message.fragments) {
-                event.message.fragments.forEach(fragment => {
+                event.message.fragments.forEach((fragment, index) => {
                     if (fragment.type === 'text') {
-                        messageTextHtml += escapeHtml(fragment.text);
+                        let textContent = fragment.text;
+                        // If we just skipped a reply mention, trim leading space from this text fragment
+                        if (skippedReplyMention && textContent.startsWith(' ')) {
+                            textContent = textContent.substring(1);
+                            skippedReplyMention = false;
+                        }
+                        messageTextHtml += escapeHtml(textContent);
                     } else if (fragment.type === 'emote' && fragment.emote) {
                         const emoteClass = event.message_type === 'power_ups_gigantified_emote' ? 'chat-emote gigantified' : 'chat-emote';
                         messageTextHtml += `<img class="${emoteClass}" src="https://static-cdn.jtvnw.net/emoticons/v2/${fragment.emote.id}/default/dark/1.0" alt="${escapeHtml(fragment.text)}" title="${escapeHtml(fragment.text)}" style="vertical-align: middle; height: 1.5em;">`;
@@ -1840,6 +1847,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         const cheermoteText = `${fragment.cheermote.prefix}${fragment.cheermote.bits}`;
                         messageTextHtml += `<span class="cheermote" data-tier="${fragment.cheermote.tier || 1}" style="color: ${cheermoteColor};" title="${fragment.cheermote.bits} Bits">${escapeHtml(cheermoteText)}</span>`;
                     } else if (fragment.type === 'mention' && fragment.mention) {
+                        // Skip the mention if this is a reply and the mention matches the parent user
+                        if (event.reply && fragment.mention.user_login && 
+                            fragment.mention.user_login.toLowerCase() === event.reply.parent_user_login?.toLowerCase()) {
+                            // Skip this mention fragment - it's the "@username" reply indicator
+                            skippedReplyMention = true;
+                            return;
+                        }
                         messageTextHtml += `<span class="mention" data-user-id="${fragment.mention.user_id}" title="@${escapeHtml(fragment.mention.user_login)}">${escapeHtml(fragment.text)}</span>`;
                     } else {
                         // Fallback for any other fragment type
