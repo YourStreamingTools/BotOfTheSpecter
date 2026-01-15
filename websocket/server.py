@@ -216,6 +216,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("TTS", self.tts),
             ("SOUND_ALERT", self.event_handler.handle_sound_alert),
             ("VIDEO_ALERT", self.event_handler.handle_video_alert),
+            ("CUSTOM_COMMAND", self.event_handler.handle_custom_command),
             ("STREAM_ONLINE", self.event_handler.handle_stream_online),
             ("STREAM_OFFLINE", self.event_handler.handle_stream_offline),
             ("DISCORD_JOIN", self.event_handler.handle_discord_join),
