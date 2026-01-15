@@ -1793,7 +1793,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let messageHtml = `<span class="chat-timestamp">${timestamp}</span>`;
             // Reply context (if this is a reply to another message)
             if (event.reply) {
-                const replyUsername = (settings?.nicknames && settings.nicknames[event.reply.parent_user_login?.toLowerCase()]) || event.reply.parent_user_name || event.reply.parent_user_login;
+                const replyUsername = (userSettings?.nicknames && userSettings.nicknames[event.reply.parent_user_login?.toLowerCase()]) || event.reply.parent_user_name || event.reply.parent_user_login;
                 const replyBody = escapeHtml(event.reply.parent_message_body || '(message)');
                 messageHtml += `
                     <div class="reply-context">
