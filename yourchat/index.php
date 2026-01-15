@@ -194,6 +194,88 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_settings' && $_SERVER['R
     exit;
 }
 
+// Handle chat history load
+if (isset($_GET['action']) && $_GET['action'] === 'load_chat_history') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $logsDir = '/var/www/yourchat/chat-logs';
+    $historyFile = $logsDir . '/' . $userId . '_chat_history.json';
+    if (file_exists($historyFile)) {
+        $historyData = file_get_contents($historyFile);
+        $messages = json_decode($historyData, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($messages)) {
+            echo json_encode(['success' => true, 'messages' => $messages]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Invalid history file']);
+        }
+    } else {
+        echo json_encode(['success' => true, 'messages' => []]);
+    }
+    exit;
+}
+
+// Handle chat history save
+if (isset($_GET['action']) && $_GET['action'] === 'save_chat_history' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $logsDir = '/var/www/yourchat/chat-logs';
+    $historyFile = $logsDir . '/' . $userId . '_chat_history.json';
+    // Create directory if it doesn't exist
+    if (!is_dir($logsDir)) {
+        if (!mkdir($logsDir, 0755, true)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to create logs directory']);
+            exit;
+        }
+    }
+    // Get JSON data from request body
+    $jsonData = file_get_contents('php://input');
+    if (empty($jsonData)) {
+        echo json_encode(['success' => false, 'error' => 'No data received']);
+        exit;
+    }
+    $messages = json_decode($jsonData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(['success' => false, 'error' => 'Invalid JSON: ' . json_last_error_msg()]);
+        exit;
+    }
+    // Save to file
+    if (file_put_contents($historyFile, json_encode($messages, JSON_UNESCAPED_UNICODE)) === false) {
+        echo json_encode(['success' => false, 'error' => 'Failed to write history file']);
+        exit;
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+// Handle chat history clear
+if (isset($_GET['action']) && $_GET['action'] === 'clear_chat_history' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $logsDir = '/var/www/yourchat/chat-logs';
+    $historyFile = $logsDir . '/' . $userId . '_chat_history.json';
+    // Delete the file if it exists
+    if (file_exists($historyFile)) {
+        if (!unlink($historyFile)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to delete history file']);
+            exit;
+        }
+    }
+    echo json_encode(['success' => true, 'message' => 'Chat history cleared']);
+    exit;
+}
+
 $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
 
 // Cache busting for CSS file using file modification time
@@ -1020,56 +1102,60 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const nicknames = loadNicknames();
                 return nicknames[userId]?.nickname || null;
             }
-            // Save chat history to localStorage (fallback to cookies for older browsers)
-            function saveChatHistory() {
+            // Save chat history to server
+            async function saveChatHistory() {
                 try {
                     const overlay = document.getElementById('chat-overlay');
                     const messages = Array.from(overlay.children)
                         .filter(child => child.classList.contains('chat-message') || child.classList.contains('reward-message'))
-                        .slice(-10) // Keep only last 10 messages
+                        .slice(-100) // Keep last 100 messages
                         .map(msg => btoa(unescape(encodeURIComponent(msg.outerHTML)))); // Base64 encode
-                    if (window.localStorage) {
-                        localStorage.setItem('chat_history', JSON.stringify(messages));
-                        // Keep cookie in sync as a fallback for other browsers
-                        try { setCookie('chat_history', JSON.stringify(messages), 1); } catch (e) { /* ignore */ }
-                    } else {
-                        setCookie('chat_history', JSON.stringify(messages), 1); // Expire after 1 day
+                    const response = await fetch('?action=save_chat_history', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(messages)
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        console.error('Failed to save chat history:', result.error);
                     }
                 } catch (error) {
                     console.error('Error saving chat history:', error);
                 }
             }
             // Clear chat history
-            function clearChatHistory() {
-                const overlay = document.getElementById('chat-overlay');
-                // Remove all messages from DOM
-                const messages = overlay.querySelectorAll('.chat-message, .automatic-reward, .custom-reward');
-                messages.forEach(msg => msg.remove());
-                // Clear storage
-                if (window.localStorage) {
-                    try { localStorage.removeItem('chat_history'); } catch (e) { /* ignore */ }
-                }
-                // Always remove cookie backup as well
-                try { document.cookie = 'chat_history=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/'; } catch (e) { /* ignore */ }
-                // Add placeholder if chat is empty
-                if (overlay.children.length === 0 || (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn'))) {
-                    const placeholder = document.createElement('p');
-                    placeholder.className = 'chat-placeholder';
-                    placeholder.textContent = 'Chat history cleared. Waiting for messages...';
-                    overlay.appendChild(placeholder);
+            async function clearChatHistory() {
+                try {
+                    const overlay = document.getElementById('chat-overlay');
+                    // Remove all messages from DOM
+                    const messages = overlay.querySelectorAll('.chat-message, .automatic-reward, .custom-reward');
+                    messages.forEach(msg => msg.remove());
+                    // Clear from server
+                    const response = await fetch('?action=clear_chat_history', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        console.error('Failed to clear chat history:', result.error);
+                    }
+                    // Add placeholder if chat is empty
+                    if (overlay.children.length === 0 || (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn'))) {
+                        const placeholder = document.createElement('p');
+                        placeholder.className = 'chat-placeholder';
+                        placeholder.textContent = 'Chat history cleared. Waiting for messages...';
+                        overlay.appendChild(placeholder);
+                    }
+                } catch (error) {
+                    console.error('Error clearing chat history:', error);
                 }
             }
-            // Load chat history from localStorage (fallback to cookies)
-            function loadChatHistory() {
-                let history = null;
+            // Load chat history from server
+            async function loadChatHistory() {
                 try {
-                    if (window.localStorage && localStorage.getItem('chat_history')) {
-                        history = localStorage.getItem('chat_history');
-                    } else {
-                        history = getCookie('chat_history');
-                    }
-                    if (history) {
-                        const messages = JSON.parse(history);
+                    const response = await fetch('?action=load_chat_history');
+                    const result = await response.json();
+                    if (result.success && result.messages && result.messages.length > 0) {
                         const overlay = document.getElementById('chat-overlay');
                         // Preserve any non-message nodes like fullscreen button
                         const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
@@ -1077,7 +1163,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         overlay.innerHTML = '';
                         if (exitBtn) overlay.appendChild(exitBtn);
                         // Restore messages
-                        messages.forEach(encoded => {
+                        result.messages.forEach(encoded => {
                             try {
                                 const html = decodeURIComponent(escape(atob(encoded)));
                                 const div = document.createElement('div');
@@ -1091,26 +1177,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     }
                 } catch (error) {
                     console.error('Error loading chat history:', error);
-                    // Clear corrupted history
-                    if (window.localStorage) localStorage.removeItem('chat_history');
-                    document.cookie = 'chat_history=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
                 }
-            }
-            // Cookie helpers
-            function setCookie(name, value, days) {
-                const expires = new Date();
-                expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-                document.cookie = name + '=' + value + ';expires=' + expires.toUTCString() + ';path=/';
-            }
-            function getCookie(name) {
-                const nameEQ = name + "=";
-                const ca = document.cookie.split(';');
-                for (let i = 0; i < ca.length; i++) {
-                    let c = ca[i];
-                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
-                }
-                return null;
             }
             // Filter management
             function renderFilters() {
@@ -2295,9 +2362,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
         });
         // Initialize
-        loadChatHistory();
         async function initializeApp() {
-            // Load settings from server first
+            // Load chat history first
+            await loadChatHistory();
+            // Load settings from server
             await loadSettingsFromServer();
             // Then initialize UI with server settings
             loadChatHistory();
