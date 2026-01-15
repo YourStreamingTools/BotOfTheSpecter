@@ -954,6 +954,52 @@ async def get_sound_alerts(api_key: str = Query(...)):
         logging.error(f"Error retrieving sound alerts for user '{channel}': {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving sound alerts: {str(e)}")
 
+# Custom Commands Endpoint
+@app.get(
+    "/custom-commands",
+    summary="Get list of custom commands for your account",
+    description="Retrieve a list of all custom commands available for your account from your database.",
+    tags=["Commands"],
+    operation_id="get_custom_commands"
+)
+async def get_custom_commands(api_key: str = Query(...)):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = valid
+    try:
+        # Connect to user's database
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                # Query all custom commands
+                await cursor.execute("""
+                    SELECT command, response, status
+                    FROM custom_commands
+                    ORDER BY command ASC
+                """)
+                commands = await cursor.fetchall()
+            # Format the response
+            command_list = []
+            for cmd in commands:
+                command_list.append({
+                    "command": cmd['command'],
+                    "response": cmd['response'],
+                    "status": cmd['status']
+                })
+            return {
+                "user": username,
+                "total_commands": len(command_list),
+                "commands": command_list
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving custom commands for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving custom commands: {str(e)}")
+
 # Weather Data Endpoint
 @app.get(
     "/weather",
@@ -1131,6 +1177,48 @@ async def websocket_sound_alert(api_key: str = Query(...), sound: str = Query(..
     params = {"event": "SOUND_ALERT", "sound": sound_url}
     await websocket_notice("SOUND_ALERT", params, api_key)
     return {"status": "success"}
+
+# WebSocket Custom Command Trigger
+@app.get(
+    "/websocket/custom_command",
+    summary="Trigger Custom Command via API",
+    description="Trigger a custom command via the WebSocket server. The bot will listen for this event and execute the command in chat.",
+    tags=["Websocket"],
+    operation_id="trigger_websocket_custom_command"
+)
+async def websocket_custom_command(api_key: str = Query(...), command: str = Query(..., description="The custom command to trigger (without the ! prefix)")):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = valid
+    # Verify the command exists in the user's database
+    try:
+        connection = await get_mysql_connection_user(username)
+        async with connection.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("""
+                SELECT command, response, status
+                FROM custom_commands
+                WHERE command = %s
+            """, (command,))
+            cmd_data = await cursor.fetchone()
+        await connection.close()
+        if not cmd_data:
+            raise HTTPException(status_code=404, detail=f"Custom command '{command}' not found")
+        if cmd_data['status'] != 'Enabled':
+            raise HTTPException(status_code=400, detail=f"Custom command '{command}' is not enabled")
+        # Trigger the WebSocket event
+        params = {
+            "event": "CUSTOM_COMMAND",
+            "command": command,
+            "response": cmd_data['response']
+        }
+        await websocket_notice("CUSTOM_COMMAND", params, api_key)
+        return {"status": "success", "command": command, "response": cmd_data['response']}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error triggering custom command '{command}' for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error triggering custom command: {str(e)}")
 
 # WebSocket Stream Online Trigger
 @app.get(
