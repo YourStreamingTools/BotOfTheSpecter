@@ -98,6 +98,13 @@ class EventHandler:
         # Broadcast video alert to clients and global listeners
         await self.broadcast_with_globals("VIDEO_ALERT", data, code)
 
+    async def handle_custom_command(self, sid, data):
+        self.logger.info(f"Custom command event from SID [{sid}]: {data}")
+        # Get the channel code for this SID
+        code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
+        # Broadcast custom command event to clients and global listeners
+        await self.broadcast_with_globals("CUSTOM_COMMAND", data, code)
+
     async def handle_walkon(self, sid, data):
         self.logger.info(f"Walkon event from SID [{sid}]: {data}")
         channel = data.get('channel')
