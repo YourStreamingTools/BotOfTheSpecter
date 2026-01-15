@@ -1194,14 +1194,16 @@ async def websocket_custom_command(api_key: str = Query(...), command: str = Que
     # Verify the command exists in the user's database
     try:
         connection = await get_mysql_connection_user(username)
-        async with connection.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("""
-                SELECT command, response, status
-                FROM custom_commands
-                WHERE command = %s
-            """, (command,))
-            cmd_data = await cursor.fetchone()
-        await connection.close()
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("""
+                    SELECT command, response, status
+                    FROM custom_commands
+                    WHERE command = %s
+                """, (command,))
+                cmd_data = await cursor.fetchone()
+        finally:
+            connection.close()
         if not cmd_data:
             raise HTTPException(status_code=404, detail=f"Custom command '{command}' not found")
         if cmd_data['status'] != 'Enabled':
