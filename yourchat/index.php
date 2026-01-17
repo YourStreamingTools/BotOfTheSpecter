@@ -313,7 +313,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 ]);
                 ?>
                 <a href="<?php echo htmlspecialchars($authUrl); ?>" class="login-btn">Login with Twitch</a>
-                <p class="info-text" style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">Authentication powered by StreamersConnect</p>
+                <p class="info-text" style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">Authentication powered by
+                    StreamersConnect</p>
             </div>
         <?php else: ?>
             <div class="header">
@@ -343,7 +344,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             <div class="two-column-container">
                 <div class="settings-panel">
                     <h3>Import / Export</h3>
-                    <p class="settings-description">Export your filters to a file or import from a previously saved file.</p>
+                    <p class="settings-description">Export your filters to a file or import from a previously saved file.
+                    </p>
                     <div style="display:flex; gap:8px; margin-bottom:10px;">
                         <button class="clear-history-btn" id="export-filters-btn">Export Filters</button>
                         <button class="clear-history-btn" id="open-import-filters-btn">Import Filters</button>
@@ -436,8 +438,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             <p class="chat-placeholder">Connecting to chat...</p>
         </div>
         <div class="message-input-container" id="message-input-container">
-            <input type="text" id="message-input" class="message-input" placeholder="Send a message to your chat..." maxlength="500">
-            <button class="send-message-btn" id="send-message-btn" onclick="sendChatMessage()" title="Send Message">Send</button>
+            <input type="text" id="message-input" class="message-input" placeholder="Send a message to your chat..."
+                maxlength="500">
+            <button class="send-message-btn" id="send-message-btn" onclick="sendChatMessage()"
+                title="Send Message">Send</button>
         </div>
         <script>
             // Configuration
@@ -965,6 +969,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 userSettings.filters_messages = list;
                 saveSettingsToServer();
             }
+            // Cookie helper function
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }
             // Migrate legacy combined filters (cookie/localStorage key 'chat_filters')
             function migrateOldFilters() {
                 try {
@@ -1434,12 +1445,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Display expiry message
             const overlay = document.getElementById('chat-overlay');
             overlay.innerHTML = `
-                                                                        <div class="expired-message">
-                                                                            <h3>Session Expired</h3>
-                                                                            <p>Unable to refresh your session. Please refresh the page to log in again.</p>
-                                                                            <p style="margin-top: 10px; font-size: 14px;">Refresh the page to start a new session.</p>
-                                                                        </div>
-                                                                    `;
+                                                                            <div class="expired-message">
+                                                                                <h3>Session Expired</h3>
+                                                                                <p>Unable to refresh your session. Please refresh the page to log in again.</p>
+                                                                                <p style="margin-top: 10px; font-size: 14px;">Refresh the page to start a new session.</p>
+                                                                            </div>
+                                                                        `;
         }
         // Logout action: destroy PHP session and reload to show login button
         async function logoutUser() {
@@ -1796,11 +1807,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const replyUsername = (userSettings?.nicknames && userSettings.nicknames[event.reply.parent_user_login?.toLowerCase()]) || event.reply.parent_user_name || event.reply.parent_user_login;
                 const replyBody = escapeHtml(event.reply.parent_message_body || '(message)');
                 messageHtml += `
-                    <div class="reply-context">
-                        <span class="reply-icon">↩️</span>
-                        <span class="reply-text">Replying to ${escapeHtml(replyUsername)}: ${replyBody}</span>
-                    </div>
-                `;
+                        <div class="reply-context">
+                            <span class="reply-icon">↩️</span>
+                            <span class="reply-text">Replying to ${escapeHtml(replyUsername)}: ${replyBody}</span>
+                        </div>
+                    `;
             }
             // First-time chatter indicator
             if (event.message_type === 'user_intro') {
@@ -1848,7 +1859,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         messageTextHtml += `<span class="cheermote" data-tier="${fragment.cheermote.tier || 1}" style="color: ${cheermoteColor};" title="${fragment.cheermote.bits} Bits">${escapeHtml(cheermoteText)}</span>`;
                     } else if (fragment.type === 'mention' && fragment.mention) {
                         // Skip the mention if this is a reply and the mention matches the parent user
-                        if (event.reply && fragment.mention.user_login && 
+                        if (event.reply && fragment.mention.user_login &&
                             fragment.mention.user_login.toLowerCase() === event.reply.parent_user_login?.toLowerCase()) {
                             // Skip this mention fragment - it's the "@username" reply indicator
                             skippedReplyMention = true;
@@ -1868,11 +1879,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const sharedChatIndicator = isSharedChat ?
                 `<span class="shared-chat-indicator">[from ${escapeHtml(event.source_broadcaster_user_name || event.source_broadcaster_user_login)}]</span>` : '';
             messageHtml += `
-                ${badgesHtml}
-                <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
-                ${sharedChatIndicator}
-                <span class="chat-text">${messageTextHtml}</span>
-            `;
+                    ${badgesHtml}
+                    <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
+                    ${sharedChatIndicator}
+                    <span class="chat-text">${messageTextHtml}</span>
+                `;
             messageDiv.innerHTML = messageHtml;
             overlay.appendChild(messageDiv);
             // Auto-scroll to bottom
@@ -1946,11 +1957,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 userMessage = `<div class="sub-user-message">${escapeHtml(event.message.text)}</div>`;
             }
             notificationDiv.innerHTML = `
-                                                                        <span class="chat-timestamp">${timestamp}</span>
-                                                                        <span class="sub-icon">⭐</span>
-                                                                        ${escapeHtml(systemMessage)}
-                                                                        ${userMessage}
-                                                                    `;
+                                                                            <span class="chat-timestamp">${timestamp}</span>
+                                                                            <span class="sub-icon">⭐</span>
+                                                                            ${escapeHtml(systemMessage)}
+                                                                            ${userMessage}
+                                                                        `;
             overlay.appendChild(notificationDiv);
             // Auto-scroll to bottom
             overlay.scrollTop = overlay.scrollHeight;
@@ -2088,9 +2099,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     for (let msg of chatMessages) {
                         const username = msg.querySelector('.chat-username')?.textContent?.replace(':', '');
                         const text = msg.querySelector('.chat-text')?.textContent;
-                        if (text && text.trim() === redemptionText && username && 
-                            (username.toLowerCase() === (event.user_login || '').toLowerCase() || 
-                             username.toLowerCase() === (event.user_name || '').toLowerCase())) {
+                        if (text && text.trim() === redemptionText && username &&
+                            (username.toLowerCase() === (event.user_login || '').toLowerCase() ||
+                                username.toLowerCase() === (event.user_name || '').toLowerCase())) {
                             msg.remove();
                             console.log('Removed matching chat message from DOM');
                             break;
@@ -2112,15 +2123,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.error('Error adding redemption to cache', e);
             }
             rewardDiv.innerHTML = `
-                                                                        <div class="reward-header">
-                                                                            <span class="reward-icon">⭐</span>
-                                                                            <span class="reward-user">${escapeHtml(event.user_name)}</span>
-                                                                            <span class="reward-text">redeemed</span>
-                                                                            <span class="reward-name">${escapeHtml(rewardName)}</span>
-                                                                            <span class="reward-cost">(${event.reward.channel_points} pts)</span>
-                                                                        </div>
-                                                                        ${messageHtml ? `<div class="reward-message-text">${messageHtml}</div>` : ''}
-                                                                    `;
+                                                                            <div class="reward-header">
+                                                                                <span class="reward-icon">⭐</span>
+                                                                                <span class="reward-user">${escapeHtml(event.user_name)}</span>
+                                                                                <span class="reward-text">redeemed</span>
+                                                                                <span class="reward-name">${escapeHtml(rewardName)}</span>
+                                                                                <span class="reward-cost">(${event.reward.channel_points} pts)</span>
+                                                                            </div>
+                                                                            ${messageHtml ? `<div class="reward-message-text">${messageHtml}</div>` : ''}
+                                                                        `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
             // Limit messages
@@ -2160,9 +2171,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     for (let msg of chatMessages) {
                         const username = msg.querySelector('.chat-username')?.textContent?.replace(':', '');
                         const text = msg.querySelector('.chat-text')?.textContent;
-                        if (text && text.trim() === redemptionText && username && 
-                            (username.toLowerCase() === (event.user_login || '').toLowerCase() || 
-                             username.toLowerCase() === (event.user_name || '').toLowerCase())) {
+                        if (text && text.trim() === redemptionText && username &&
+                            (username.toLowerCase() === (event.user_login || '').toLowerCase() ||
+                                username.toLowerCase() === (event.user_name || '').toLowerCase())) {
                             msg.remove();
                             console.log('Removed matching chat message from DOM');
                             break;
@@ -2184,17 +2195,17 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.error('Error adding custom redemption to cache', e);
             }
             rewardDiv.innerHTML = `
-                                                                    <div class="reward-header">
-                                                                        ${imageHtml}
-                                                                        <span class="reward-icon">🎁</span>
-                                                                        <span class="reward-user">${escapeHtml(event.user_name)}</span>
-                                                                        <span class="reward-text">redeemed</span>
-                                                                        <span class="reward-name">${escapeHtml(event.reward.title)}</span>
-                                                                        <span class="reward-cost">(${event.reward.cost} pts)</span>
-                                                                    </div>
-                                                                    ${event.reward.prompt ? `<div class="reward-prompt">${escapeHtml(event.reward.prompt)}</div>` : ''}
-                                                                    ${event.user_input ? `<div class="reward-message-text">${escapeHtml(event.user_input)}</div>` : ''}
-                                                                `;
+                                                                        <div class="reward-header">
+                                                                            ${imageHtml}
+                                                                            <span class="reward-icon">🎁</span>
+                                                                            <span class="reward-user">${escapeHtml(event.user_name)}</span>
+                                                                            <span class="reward-text">redeemed</span>
+                                                                            <span class="reward-name">${escapeHtml(event.reward.title)}</span>
+                                                                            <span class="reward-cost">(${event.reward.cost} pts)</span>
+                                                                        </div>
+                                                                        ${event.reward.prompt ? `<div class="reward-prompt">${escapeHtml(event.reward.prompt)}</div>` : ''}
+                                                                        ${event.user_input ? `<div class="reward-message-text">${escapeHtml(event.user_input)}</div>` : ''}
+                                                                    `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
             // Limit messages
@@ -2215,10 +2226,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             raidDiv.className = 'system-message raid';
             const viewerText = event.viewers === 1 ? 'viewer' : 'viewers';
             raidDiv.innerHTML = `
-                                                            <span style="font-weight: bold; color: #ff6b6b;">🎯 RAID!</span>
-                                                            <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.from_broadcaster_user_name)}</span>
-                                                            is raiding with <span style="font-weight: bold; color: #ffd700;">${event.viewers.toLocaleString()}</span> ${viewerText}!
-                                                        `;
+                                                                <span style="font-weight: bold; color: #ff6b6b;">🎯 RAID!</span>
+                                                                <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.from_broadcaster_user_name)}</span>
+                                                                is raiding with <span style="font-weight: bold; color: #ffd700;">${event.viewers.toLocaleString()}</span> ${viewerText}!
+                                                            `;
             overlay.appendChild(raidDiv);
             overlay.scrollTop = overlay.scrollHeight;
             // Limit messages
@@ -2273,10 +2284,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     break;
             }
             let messageHtml = `
-                                             <span style="font-weight: bold; color: #9146ff;">${emoji} BITS!</span>
-                                             <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.user_name)}</span>
-                                             ${bitsText}
-                                            `;
+                                                 <span style="font-weight: bold; color: #9146ff;">${emoji} BITS!</span>
+                                                 <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.user_name)}</span>
+                                                 ${bitsText}
+                                                `;
             // Add the message content if it's a cheer
             if (event.type === 'cheer' && event.message && event.message.text) {
                 messageHtml += `<div style="margin-top: 4px; font-style: italic; color: #e6e6e6;">${escapeHtml(event.message.text)}</div>`;
@@ -2418,7 +2429,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     </div>
     <footer class="page-footer">
         <p>&copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-        BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).</p>
+            BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia
+            (ABN 20 447 022 747).</p>
     </footer>
 </body>
+
 </html>
