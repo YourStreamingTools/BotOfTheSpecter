@@ -459,6 +459,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let sessionId = null;
             let accessToken = CONFIG.ACCESS_TOKEN;
             let tokenCreatedAt = CONFIG.TOKEN_CREATED_AT;
+            let tokenExpiresIn = null; // Actual expires_in from Twitch validation API
+            let tokenValidatedAt = null; // When we last validated the token
             let reconnectAttempts = 0;
             let maxReconnectAttempts = 5;
             let keepaliveTimeoutHandle = null;
@@ -1054,162 +1056,162 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,
                             'Client-Id': '<?php echo $clientID; ?>'
-                            }
-                        });
-                        if (!response.ok) {
-                            throw new Error('Failed to fetch user data');
                         }
-                        const data = await response.json();
-                        if (!data.data || data.data.length === 0) {
-                            Toastify({
-                                text: "User not found on Twitch",
-                                duration: 3000,
-                                gravity: "top",
-                                position: "right",
-                                backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
-                            }).showToast();
-                            return;
-                        }
-                        const userId = data.data[0].id;
-                        const nicknames = loadNicknames();
-                        nicknames[userId] = {
-                            username: username,
-                            nickname: nickname
-                        };
-                        saveNicknames(nicknames);
-                        renderNicknames();
-                        usernameInput.value = '';
-                        nicknameInput.value = '';
+                    });
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch user data');
+                    }
+                    const data = await response.json();
+                    if (!data.data || data.data.length === 0) {
                         Toastify({
-                            text: `Nickname set for ${username}`,
-                            duration: 3000,
-                            gravity: "top",
-                            position: "right",
-                            backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
-                        }).showToast();
-                    } catch (error) {
-                        console.error('Error adding nickname:', error);
-                        Toastify({
-                            text: "Failed to add nickname. Please try again.",
+                            text: "User not found on Twitch",
                             duration: 3000,
                             gravity: "top",
                             position: "right",
                             backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
                         }).showToast();
+                        return;
                     }
-                }
-                function removeNickname(userId) {
+                    const userId = data.data[0].id;
                     const nicknames = loadNicknames();
-                    delete nicknames[userId];
+                    nicknames[userId] = {
+                        username: username,
+                        nickname: nickname
+                    };
                     saveNicknames(nicknames);
                     renderNicknames();
+                    usernameInput.value = '';
+                    nicknameInput.value = '';
                     Toastify({
-                        text: "Nickname removed",
-                        duration: 2000,
+                        text: `Nickname set for ${username}`,
+                        duration: 3000,
                         gravity: "top",
                         position: "right",
                         backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
                     }).showToast();
+                } catch (error) {
+                    console.error('Error adding nickname:', error);
+                    Toastify({
+                        text: "Failed to add nickname. Please try again.",
+                        duration: 3000,
+                        gravity: "top",
+                        position: "right",
+                        backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
+                    }).showToast();
                 }
-                function getNickname(userId) {
-                    const nicknames = loadNicknames();
-                    return nicknames[userId]?.nickname || null;
+            }
+            function removeNickname(userId) {
+                const nicknames = loadNicknames();
+                delete nicknames[userId];
+                saveNicknames(nicknames);
+                renderNicknames();
+                Toastify({
+                    text: "Nickname removed",
+                    duration: 2000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
+                }).showToast();
+            }
+            function getNickname(userId) {
+                const nicknames = loadNicknames();
+                return nicknames[userId]?.nickname || null;
+            }
+            // Save chat history to server
+            async function saveChatHistory() {
+                try {
+                    const overlay = document.getElementById('chat-overlay');
+                    const messages = Array.from(overlay.children)
+                        .filter(child => child.classList.contains('chat-message') || child.classList.contains('reward-message'))
+                        .slice(-100) // Keep last 100 messages
+                        .map(msg => btoa(unescape(encodeURIComponent(msg.outerHTML)))); // Base64 encode
+                    const response = await fetch('?action=save_chat_history', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(messages)
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        console.error('Failed to save chat history:', result.error);
+                    }
+                } catch (error) {
+                    console.error('Error saving chat history:', error);
                 }
-                // Save chat history to server
-                async function saveChatHistory() {
-                    try {
+            }
+            // Clear chat history
+            async function clearChatHistory() {
+                try {
+                    const overlay = document.getElementById('chat-overlay');
+                    // Remove all messages from DOM
+                    const messages = overlay.querySelectorAll('.chat-message, .automatic-reward, .custom-reward');
+                    messages.forEach(msg => msg.remove());
+                    // Clear from server
+                    const response = await fetch('?action=clear_chat_history', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        console.error('Failed to clear chat history:', result.error);
+                    }
+                    // Add placeholder if chat is empty
+                    if (overlay.children.length === 0 || (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn'))) {
+                        const placeholder = document.createElement('p');
+                        placeholder.className = 'chat-placeholder';
+                        placeholder.textContent = 'Chat history cleared. Waiting for messages...';
+                        overlay.appendChild(placeholder);
+                    }
+                } catch (error) {
+                    console.error('Error clearing chat history:', error);
+                }
+            }
+            // Load chat history from server
+            async function loadChatHistory() {
+                try {
+                    const response = await fetch('?action=load_chat_history');
+                    const result = await response.json();
+                    if (result.success && result.messages && result.messages.length > 0) {
                         const overlay = document.getElementById('chat-overlay');
-                        const messages = Array.from(overlay.children)
-                            .filter(child => child.classList.contains('chat-message') || child.classList.contains('reward-message'))
-                            .slice(-100) // Keep last 100 messages
-                            .map(msg => btoa(unescape(encodeURIComponent(msg.outerHTML)))); // Base64 encode
-                        const response = await fetch('?action=save_chat_history', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(messages)
-                        });
-                        const result = await response.json();
-                        if (!result.success) {
-                            console.error('Failed to save chat history:', result.error);
+                        const hasOnlyPlaceholder = overlay.children.length === 0 ||
+                            (overlay.children.length === 1 && overlay.children[0].tagName === 'P') ||
+                            (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn')) ||
+                            (overlay.children.length === 2 && overlay.querySelector('.fullscreen-exit-btn') && overlay.querySelector('.chat-placeholder'));
+                        if (hasOnlyPlaceholder) {
+                            // Preserve any non-message nodes like fullscreen button
+                            const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
+                            // Clear placeholder but keep exit button
+                            overlay.innerHTML = '';
+                            if (exitBtn) overlay.appendChild(exitBtn);
+                            // Restore messages
+                            result.messages.forEach(encoded => {
+                                try {
+                                    const html = decodeURIComponent(escape(atob(encoded)));
+                                    const div = document.createElement('div');
+                                    div.innerHTML = html;
+                                    overlay.appendChild(div.firstChild);
+                                } catch (decodeError) {
+                                    console.log('Skipping invalid history entry');
+                                }
+                            });
+                            overlay.scrollTop = overlay.scrollHeight;
+                        } else {
+                            console.log('Skipping history restore - overlay already has live messages');
                         }
-                    } catch (error) {
-                        console.error('Error saving chat history:', error);
                     }
+                } catch (error) {
+                    console.error('Error loading chat history:', error);
                 }
-                // Clear chat history
-                async function clearChatHistory() {
-                    try {
-                        const overlay = document.getElementById('chat-overlay');
-                        // Remove all messages from DOM
-                        const messages = overlay.querySelectorAll('.chat-message, .automatic-reward, .custom-reward');
-                        messages.forEach(msg => msg.remove());
-                        // Clear from server
-                        const response = await fetch('?action=clear_chat_history', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' }
-                        });
-                        const result = await response.json();
-                        if (!result.success) {
-                            console.error('Failed to clear chat history:', result.error);
-                        }
-                        // Add placeholder if chat is empty
-                        if (overlay.children.length === 0 || (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn'))) {
-                            const placeholder = document.createElement('p');
-                            placeholder.className = 'chat-placeholder';
-                            placeholder.textContent = 'Chat history cleared. Waiting for messages...';
-                            overlay.appendChild(placeholder);
-                        }
-                    } catch (error) {
-                        console.error('Error clearing chat history:', error);
-                    }
-                }
-                // Load chat history from server
-                async function loadChatHistory() {
-                    try {
-                        const response = await fetch('?action=load_chat_history');
-                        const result = await response.json();
-                        if (result.success && result.messages && result.messages.length > 0) {
-                            const overlay = document.getElementById('chat-overlay');
-                            const hasOnlyPlaceholder = overlay.children.length === 0 ||
-                                (overlay.children.length === 1 && overlay.children[0].tagName === 'P') ||
-                                (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn')) ||
-                                (overlay.children.length === 2 && overlay.querySelector('.fullscreen-exit-btn') && overlay.querySelector('.chat-placeholder'));
-                            if (hasOnlyPlaceholder) {
-                                // Preserve any non-message nodes like fullscreen button
-                                const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
-                                // Clear placeholder but keep exit button
-                                overlay.innerHTML = '';
-                                if (exitBtn) overlay.appendChild(exitBtn);
-                                // Restore messages
-                                result.messages.forEach(encoded => {
-                                    try {
-                                        const html = decodeURIComponent(escape(atob(encoded)));
-                                        const div = document.createElement('div');
-                                        div.innerHTML = html;
-                                        overlay.appendChild(div.firstChild);
-                                    } catch (decodeError) {
-                                        console.log('Skipping invalid history entry');
-                                    }
-                                });
-                                overlay.scrollTop = overlay.scrollHeight;
-                            } else {
-                                console.log('Skipping history restore - overlay already has live messages');
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Error loading chat history:', error);
-                    }
-                }
-                // Filter management
-                function renderFilters() {
-                    // usernames
-                    const users = loadFiltersUsernames();
-                    const listUsers = document.getElementById('filter-list-users');
-                    listUsers.innerHTML = '';
-                    users.forEach(filter => {
-                        const tag = document.createElement('div');
-                        tag.className = 'filter-tag';
-                        tag.innerHTML = `${filter} <button onclick="removeFilter('user','${filter.replace(/'/g, "\\'")}')">×</button>`;
+            }
+            // Filter management
+            function renderFilters() {
+                // usernames
+                const users = loadFiltersUsernames();
+                const listUsers = document.getElementById('filter-list-users');
+                listUsers.innerHTML = '';
+                users.forEach(filter => {
+                    const tag = document.createElement('div');
+                    tag.className = 'filter-tag';
+                    tag.innerHTML = `${filter} <button onclick="removeFilter('user','${filter.replace(/'/g, "\\'")}')">×</button>`;
                 listUsers.appendChild(tag);
             });
             // messages
@@ -1386,11 +1388,48 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             return false;
         }
+        // Token validation - fetch actual expires_in from Twitch API
+        async function validateToken() {
+            try {
+                const response = await fetch('https://id.twitch.tv/oauth2/validate', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `OAuth ${accessToken}`
+                    }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    tokenExpiresIn = data.expires_in;
+                    tokenValidatedAt = Math.floor(Date.now() / 1000);
+                    console.log(`Token validated: expires in ${tokenExpiresIn}s (${Math.floor(tokenExpiresIn / 3600)}h ${Math.floor((tokenExpiresIn % 3600) / 60)}m)`);
+                    return true;
+                } else if (response.status === 401) {
+                    console.error('Token validation failed: invalid token');
+                    handleSessionExpiry();
+                    return false;
+                } else {
+                    console.warn('Token validation returned unexpected status:', response.status);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error validating token:', error);
+                return false;
+            }
+        }
         // Token management
         function updateTokenTimer() {
-            const now = Math.floor(Date.now() / 1000);
-            const elapsed = now - tokenCreatedAt;
-            const remaining = (4 * 60 * 60) - elapsed; // 4 hours in seconds
+            let remaining;
+            // If we have validated token data, use it for accurate countdown
+            if (tokenExpiresIn !== null && tokenValidatedAt !== null) {
+                const now = Math.floor(Date.now() / 1000);
+                const elapsedSinceValidation = now - tokenValidatedAt;
+                remaining = tokenExpiresIn - elapsedSinceValidation;
+            } else {
+                // Fallback to calculated time if validation hasn't happened yet
+                const now = Math.floor(Date.now() / 1000);
+                const elapsed = now - tokenCreatedAt;
+                remaining = (4 * 60 * 60) - elapsed; // 4 hours in seconds
+            }
             // Refresh token 5 minutes (300 seconds) before expiry to prevent message loss
             if (remaining <= 300 && remaining > 0 && !isRefreshing) {
                 console.log(`Token refresh triggered with ${remaining}s remaining`);
@@ -1432,6 +1471,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     accessToken = data.access_token;
                     tokenCreatedAt = data.created_at;
                     console.log('Token refreshed successfully');
+                    // Validate new token to get accurate expires_in
+                    await validateToken();
                     // Seamless WebSocket handover: connect new before closing old
                     await seamlessWebSocketReconnect();
                 } else {
@@ -2513,6 +2554,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             initFilterCollapse();
             initImportExportUI();
             fetchBadges(); // Fetch badge data
+            // Validate token on startup to get accurate expires_in
+            await validateToken();
             connectWebSocket();
             updateTokenTimer();
             // Initialize presence checkbox and state (API-only)
@@ -2537,6 +2580,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         initializeApp();
         // Update token timer every second
         setInterval(updateTokenTimer, 1000);
+        // Re-validate token every 30 minutes to keep expires_in accurate
+        setInterval(async () => {
+            if (!isRefreshing) {
+                await validateToken();
+            }
+        }, 30 * 60 * 1000); // 30 minutes
     </script>
     <?php endif; ?>
     </div>
