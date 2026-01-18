@@ -1067,11 +1067,20 @@ document.addEventListener('DOMContentLoaded', function() {
       const isEnabled = this.checked;
       try { window.serverUseCustom = isEnabled ? 1 : 0; } catch (e) { /* ignore */ }
       console.log('Custom Bot Name:', isEnabled ? 'Enabled' : 'Disabled');
-      // Do not forcibly disable Use Self here; user may choose both options.
+      // Enforce mutual exclusivity: enabling custom clears + disables Use Self
+      try {
+        const useSelfEl = document.getElementById('use-self-toggle');
+        if (useSelfEl) {
+          if (isEnabled) {
+            try { useSelfEl.checked = false; } catch(e) {}
+          }
+          try { updateUseSelfWarningVisibility(); } catch(e) {}
+        }
+      } catch (e) { /* ignore */ }
       // Update warning visibility for custom bot
       updateCustomBotWarningVisibility();
-      // Persist custom setting only; do not clear use_self automatically
-      const postBody = `use_custom=${isEnabled ? 1 : 0}`;
+      // Persist custom setting and enforced use_self state to server
+      const postBody = `use_custom=${isEnabled ? 1 : 0}` + (isEnabled ? '&use_self=0' : '');
       fetchWithTimeout('update_use_custom.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1140,9 +1149,19 @@ document.addEventListener('DOMContentLoaded', function() {
       const isEnabled = this.checked;
       // Persist to cookie for server-side and page reload visibility
       document.cookie = 'useSelf=' + (isEnabled ? '1' : '0') + '; path=/';
-      // Persist Use Self to server (do not force-clear custom; user may keep custom enabled)
+      // Enforce mutual exclusivity: enabling Use Self clears + disables Custom
       try {
-        const postBody = `use_self=${isEnabled ? 1 : 0}`;
+        const customEl = document.getElementById('custom-bot-toggle');
+        if (customEl) {
+          if (isEnabled) {
+            try { customEl.checked = false; } catch(e) {}
+          }
+          try { updateCustomBotWarningVisibility(); } catch(e) {}
+        }
+      } catch (e) { /* ignore */ }
+      // Persist Use Self and enforced custom state to server
+      try {
+        const postBody = `use_self=${isEnabled ? 1 : 0}` + (isEnabled ? '&use_custom=0' : '');
         fetchWithTimeout('update_use_custom.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1150,6 +1169,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 8000).then(r => r.json()).then(data => {
           if (data && data.success) {
             try { if (typeof data.use_self !== 'undefined') window.serverUseSelf = parseInt(data.use_self); } catch(e) {}
+            try { if (typeof data.use_custom !== 'undefined') window.serverUseCustom = parseInt(data.use_custom); } catch(e) {}
           } else {
             showNotification('Failed to save Use Self preference', 'danger');
           }
@@ -1165,11 +1185,37 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial visibility update
     updateUseSelfToggleVisibility();
     updateUseSelfWarningVisibility();
-    // No forced disabling on load; respect both server-side values so user can toggle freely.
+    // Enforce initial mutual exclusivity: if both toggles are checked, prefer Custom and clear Use Self.
     try {
-      // If there are server-provided states, ensure UI reflects them but do not disable the other toggle.
-      if (typeof customBotToggle !== 'undefined' && customBotToggle && typeof useSelfToggle !== 'undefined' && useSelfToggle) {
-        // Keep both toggles enabled; warnings/behaviors handled on user action.
+      const customEl = document.getElementById('custom-bot-toggle');
+      const useSelfEl = document.getElementById('use-self-toggle');
+        if (customEl && useSelfEl) {
+        // If both are checked, clear use_self to ensure single active mode
+        if (customEl.checked && useSelfEl.checked) {
+          try { useSelfEl.checked = false; } catch(e) {}
+          updateUseSelfWarningVisibility();
+          // Persist enforced state to server
+          try {
+            fetchWithTimeout('update_use_custom.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: 'use_custom=1&use_self=0'
+            }, 8000).then(r => r.json()).then(data => {
+              if (data && data.success) {
+                try { window.serverUseCustom = parseInt(data.use_custom); } catch(e) {}
+                try { window.serverUseSelf = parseInt(data.use_self); } catch(e) {}
+              }
+            }).catch(() => {});
+          } catch (e) {}
+        } else if (customEl.checked) {
+          // Custom checked: ensure Use Self is off
+          try { useSelfEl.checked = false; } catch(e) {}
+          updateUseSelfWarningVisibility();
+        } else if (useSelfEl.checked) {
+          // Use Self checked: ensure Custom is off
+          try { customEl.checked = false; } catch(e) {}
+          updateCustomBotWarningVisibility();
+        }
       }
     } catch (e) { /* ignore */ }
   }
