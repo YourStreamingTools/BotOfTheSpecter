@@ -126,7 +126,7 @@ if (($actionMap[$action] ?? '') === 'run' && $username !== 'botofthespecter') {
 // Check if custom bot mode is enabled (only for beta and only when starting the bot)
 $useCustomBot = false;
 $customBotUsername = null;
-if ($action === 'run' && isset($_POST['use_custom_bot']) && $_POST['use_custom_bot'] === 'true' && $bot === 'beta') {
+if ($action === 'run' && isset($_POST['use_custom_bot']) && ($_POST['use_custom_bot'] === 'true' || $_POST['use_custom_bot'] === '1') && $bot === 'beta') {
   // Query custom_bots table for this channel
   $stmt = $conn->prepare("SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
   if ($stmt) {
@@ -164,7 +164,7 @@ $params = [
   'api_key' => $apiKey,
   'use_custom_bot' => $useCustomBot,
   'custom_bot_username' => $customBotUsername,
-  'use_self' => (isset($_POST['use_self']) && $_POST['use_self'] === 'true') ? true : false
+  'use_self' => (isset($_POST['use_self']) && ($_POST['use_self'] === 'true' || $_POST['use_self'] === '1')) ? true : false
 ];
 
 // Perform the bot action with timeout monitoring
