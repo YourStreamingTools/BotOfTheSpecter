@@ -96,9 +96,31 @@ function checkBotRunning($username, $botType = 'stable') {
                 $result['running'] = ($pid > 0);
                 $result['pid'] = $pid;
             } else {
-                // No process found - this is normal if bot was never started
-                $result['running'] = false;
-                $result['pid'] = 0;
+                // No process found for the specific bot type
+                // If checking beta, also check custom mode (for -custom or -self flags)
+                if ($botType === 'beta') {
+                    $customCommand = "python $statusScriptPath -system custom -channel $username";
+                    $customStatusOutput = SSHConnectionManager::executeCommand($connection, $customCommand);
+                    $customStatusOutput = sanitizeSSHOutput($customStatusOutput);
+                    if ($customStatusOutput !== false && $customStatusOutput !== null) {
+                        $customStatusOutput = trim($customStatusOutput);
+                        if (preg_match('/process ID:\s*(\d+)/i', $customStatusOutput, $matches) || 
+                            preg_match('/PID\s+(\d+)/i', $customStatusOutput, $matches)) {
+                            $pid = intval($matches[1]);
+                            $result['running'] = ($pid > 0);
+                            $result['pid'] = $pid;
+                        } else {
+                            $result['running'] = false;
+                            $result['pid'] = 0;
+                        }
+                    } else {
+                        $result['running'] = false;
+                        $result['pid'] = 0;
+                    }
+                } else {
+                    $result['running'] = false;
+                    $result['pid'] = 0;
+                }
             }
         }
         // Get version information if the bot is running
@@ -217,6 +239,18 @@ function performBotAction($action, $botType, $params) {
         if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches) || 
             preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
             $currentPid = intval($matches[1]);
+        } else if ($botType === 'beta') {
+            // If checking beta and found nothing, also check custom mode
+            $customCommand = "python $statusScriptPath -system custom -channel $username";
+            $customStatusOutput = SSHConnectionManager::executeCommand($connection, $customCommand);
+            $customStatusOutput = sanitizeSSHOutput($customStatusOutput);
+            if ($customStatusOutput !== false && $customStatusOutput !== null) {
+                $customStatusOutput = trim($customStatusOutput);
+                if (preg_match('/process ID:\s*(\d+)/i', $customStatusOutput, $matches) || 
+                    preg_match('/PID\s+(\d+)/i', $customStatusOutput, $matches)) {
+                    $currentPid = intval($matches[1]);
+                }
+            }
         }
         switch ($action) {
             case 'run':
@@ -272,7 +306,6 @@ function performBotAction($action, $botType, $params) {
                                     " -token " . escapeshellarg($authToken) .
                                     " -refresh " . escapeshellarg($refreshToken) .
                                     " -apitoken " . escapeshellarg($apiKey);
-                    
                     // Add custom bot parameters if enabled (beta only)
                     if ($useCustomBot && $customBotUsername && $botType === 'beta') {
                         $startCommand .= " -custom -botusername " . escapeshellarg($customBotUsername);
@@ -281,7 +314,6 @@ function performBotAction($action, $botType, $params) {
                     if ($useSelf && $botType === 'beta') {
                         $startCommand .= " -self";
                     }
-                    
                     $startCommand .= " > /dev/null 2>&1 &";
                         $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
                         $startOutput = sanitizeSSHOutput($startOutput);
@@ -320,20 +352,42 @@ function performBotAction($action, $botType, $params) {
                 }
                 break;
             case 'stop':
-                if ($currentPid > 0) {
-                    $killCommand = "kill -s kill $currentPid";
-                    $killOutput = SSHConnectionManager::executeCommand($connection, $killCommand);
-                    $killOutput = sanitizeSSHOutput($killOutput);
-                    if ($killOutput === false || $killOutput === null) {
-                        $result['message'] = 'Unable to stop bot. Please try again later.';
-                    } else {
-                        // Don't wait - killing is instant
-                        $result['message'] = 'Bot stop command sent.';
+                // Use pgrep to find ALL processes matching the bot script and channel
+                // This catches bots running with -custom, -self, or any other flags
+                // Use full path for better matching
+                $pgrepCommand = "pgrep -f '" . $botScriptPath . " -channel " . $username . "'";
+                $pgrepOutput = SSHConnectionManager::executeCommand($connection, $pgrepCommand);
+                $pgrepOutput = sanitizeSSHOutput($pgrepOutput);
+                if ($pgrepOutput !== false && $pgrepOutput !== null && !empty(trim($pgrepOutput))) {
+                    // Got PIDs - kill them all
+                    $pids = array_filter(array_map('trim', explode("\n", $pgrepOutput)));
+                    $killedPids = [];
+                    foreach ($pids as $pid) {
+                        if (is_numeric($pid) && $pid > 0) {
+                            $killCommand = "kill -s kill " . intval($pid);
+                            SSHConnectionManager::executeCommand($connection, $killCommand);
+                            $killedPids[] = $pid;
+                        }
+                    }
+                    if (!empty($killedPids)) {
+                        $result['message'] = 'Bot stopped (killed PIDs: ' . implode(', ', $killedPids) . ')';
                         $result['success'] = true;
+                    } else {
+                        $result['message'] = 'Found bot processes but could not kill them.';
+                        $result['success'] = false;
                     }
                 } else {
-                    $result['message'] = 'Bot is not running.';
-                    $result['success'] = true;
+                    // No processes found - try the currentPid as fallback
+                    if ($currentPid > 0) {
+                        $killCommand = "kill -s kill $currentPid";
+                        $killOutput = SSHConnectionManager::executeCommand($connection, $killCommand);
+                        $killOutput = sanitizeSSHOutput($killOutput);
+                        $result['message'] = 'Bot stop command sent (PID: ' . $currentPid . ')';
+                        $result['success'] = true;
+                    } else {
+                        $result['message'] = 'Bot is not running.';
+                        $result['success'] = true;
+                    }
                 }
                 break;
         }

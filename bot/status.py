@@ -8,8 +8,8 @@ parser.add_argument(
     "-system",
     dest="system",
     required=True,
-    choices=["stable", "alpha", "beta", "custom"],
-    help="System to check (stable, alpha, beta, custom)"
+    choices=["stable", "beta", "custom"],
+    help="System to check (stable, beta, custom)"
 )
 parser.add_argument("-channel", dest="channel_username", required=True, help="Channel username to check")
 args = parser.parse_args()
@@ -53,16 +53,13 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
         match = False
         if requested_system == 'custom':
             # custom mode must include the custom flag and be one of the supported scripts
-            if is_custom and script_name in ('bot.py', 'beta.py', 'alpha.py'):
+            if is_custom and script_name in ('bot.py', 'beta.py'):
                 match = True
         elif requested_system == 'stable':
             if script_name == 'bot.py' and not is_custom:
                 match = True
         elif requested_system == 'beta':
-            if script_name == 'beta.py' and not is_custom:
-                match = True
-        elif requested_system == 'alpha':
-            if script_name == 'alpha.py' and not is_custom:
+            if script_name == 'beta.py':
                 match = True
         if match:
             print(f"Bot is running with process ID: {process.info['pid']}")
