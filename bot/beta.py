@@ -212,6 +212,8 @@ ad_settings_cache = None                                # Global cache for ad se
 ad_settings_cache_time = 0                              # Last time the ad settings were cached
 CACHE_DURATION = 60                                     # 1 minute (matches ad check interval)
 ad_upcoming_notified = False                            # Flag to prevent duplicate ad upcoming notifications
+AD_DEDUPE_COOLDOWN_SECONDS = 45                         # Minimum seconds between ad messages per process
+last_ad_message_ts = 0.0                                # Timestamp of last ad message sent by this process
 
 SPOTIFY_ERROR_MESSAGES = {
     400: "It looks like something went wrong with the request. Please try again.",
@@ -10640,8 +10642,71 @@ async def get_ad_settings():
         pass
 
 # Function for AD BREAK
+def analyze_chat_vibe(chat_history):
+    try:
+        if not chat_history:
+            return {"summary": "No recent chat.", "topics": [], "tone": "neutral"}
+        # Keywords mapping to topics
+        keywords = {
+            'coding': ['code', 'coding', 'program', 'pair', 'pair-program', 'pairing', 'co-work', 'co-work', 'collab', 'debug', 'stack', 'merge'],
+            'game': ['pvp', 'pve', 'coop', 'co-op', 'ranked', 'match', 'kill', 'gank', 'gg', 'clutch'],
+            'music': ['song', 'music', 'track', 'banger'],
+            'hype': ['pog', 'poggers', 'hype', ':fire:', ':tada:']
+        }
+        counts = {k: 0 for k in keywords}
+        exclaim = 0
+        emoji_like = 0
+        caps = 0
+        for entry in chat_history[-40:]:
+            msg = (entry.get('message') or '').lower()
+            if not msg:
+                continue
+            exclaim += msg.count('!')
+            emoji_like += msg.count(':')  # rough proxy
+            caps += sum(1 for c in msg if c.isupper())
+            for topic, kwlist in keywords.items():
+                for kw in kwlist:
+                    if kw in msg:
+                        counts[topic] += 1
+        # Determine top topics
+        topics = [t for t, c in sorted(counts.items(), key=lambda x: -x[1]) if c > 0]
+        # Decide tone
+        tone = 'neutral'
+        if exclaim > 8 or emoji_like > 12:
+            tone = 'hype'
+        elif counts.get('coding', 0) > max(counts.get('game', 0), 0):
+            tone = 'focused'
+        elif counts.get('game', 0) > 0:
+            tone = 'gamey'
+        summary = f"Tone: {tone}. Detected topics: {', '.join(topics) if topics else 'none'}."
+        return {"summary": summary, "topics": topics, "tone": tone}
+    except Exception as e:
+        event_logger.error(f"Error analyzing chat vibe: {e}")
+        return {"summary": "No recent chat.", "topics": [], "tone": "neutral"}
+
+def try_mark_ad_message_sent_after(success):
+    global last_ad_message_ts
+    try:
+        if success:
+            last_ad_message_ts = datetime.now(timezone.utc).timestamp()
+            return True
+    except Exception:
+        pass
+    return False
+
+def can_send_ad_message():
+    try:
+        now_ts = datetime.now(timezone.utc).timestamp()
+        if now_ts - last_ad_message_ts < AD_DEDUPE_COOLDOWN_SECONDS:
+            return False
+        return True
+    except Exception:
+        return True
 async def handle_ad_break_start(duration_seconds):
     settings = await get_ad_settings()
+    # Honor global ad-notice toggle — if disabled, do nothing (same behavior as main bot)
+    if not settings.get('enable_ad_notice', True):
+        return
     formatted_duration = format_duration(duration_seconds)
     # 1. Update Ad Break Count
     ad_break_count = 1
@@ -10712,6 +10777,14 @@ async def handle_ad_break_start(duration_seconds):
             user_content += "Here's what happened in chat recently that you can reference (but keep it brief and fun). Chat logs:\n"
             for entry in chat_history:
                 user_content += f"{entry.get('user', 'User')}: {entry.get('message', '')}\n"
+            # Analyze chat vibe so the AI can reference relevant topics/tone and avoid inventing unrelated activities
+            try:
+                vibe = analyze_chat_vibe(chat_history)
+                user_content += f"\nVibe summary: {vibe.get('summary')}\n"
+                if vibe.get('topics'):
+                    user_content += f"Detected topics: {', '.join(vibe.get('topics'))}."
+            except Exception as e:
+                event_logger.debug(f"Could not analyze chat vibe for ad start: {e}")
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
@@ -10752,7 +10825,18 @@ async def handle_ad_break_start(duration_seconds):
                     if "Chaos Crew" in ai_text:
                         ai_text = ai_text.replace("Chaos Crew", "Stream Team")
                         api_logger.info("Filtered 'Chaos Crew' from AI response")
-                    await send_chat_message(f"/me {ai_text}")
+                    # Dedupe: ensure this process hasn't sent an ad message recently
+                    try:
+                        if can_send_ad_message():
+                            sent_ok = await send_chat_message(f"/me {ai_text}")
+                            if sent_ok:
+                                try_mark_ad_message_sent_after(True)
+                            else:
+                                api_logger.error(f"AI Ad start message reported not sent: {ai_text}")
+                        else:
+                            api_logger.info("Skipped AI ad start message due to cooldown")
+                    except Exception as e:
+                        api_logger.error(f"Error sending AI ad start message: {e}")
                     ai_message_sent = True
                     api_logger.info(f"Sent AI Ad Break message: {ai_text}")
             except Exception as e:
@@ -10764,10 +10848,15 @@ async def handle_ad_break_start(duration_seconds):
         if settings['enable_ad_notice'] and settings.get('enable_start_ad_message', True):
             ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
             try:
-                # Try to send the start message and log if it fails
-                sent_ok = await send_chat_message(ad_start_message)
-                if not sent_ok:
-                    api_logger.error(f"Ad start message failed to send: {ad_start_message}")
+                # Dedupe: avoid sending if this process sent a recent ad message
+                if can_send_ad_message():
+                    sent_ok = await send_chat_message(ad_start_message)
+                    if sent_ok:
+                        try_mark_ad_message_sent_after(True)
+                    else:
+                        api_logger.error(f"Ad start message failed to send: {ad_start_message}")
+                else:
+                    api_logger.info("Skipped ad start fallback due to cooldown")
             except Exception as e:
                 api_logger.error(f"Exception while sending ad start message: {e}")
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
@@ -10785,7 +10874,55 @@ async def handle_ad_break_start(duration_seconds):
                     "1. Keep your response under 500 characters. "
                     "2. DO NOT use the phrase 'Chaos Crew' ever."
                 )
+                # Try to include recent ad-break chat and stream context so the AI can personalize the
+                # post-ad message (e.g., reference today's activity, collab, or recent chat jokes).
+                chat_history = []
+                try:
+                    chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
+                    if chat_file.exists():
+                        with chat_file.open('r', encoding='utf-8') as f:
+                            content = f.read()
+                            if content:
+                                chat_history = json.loads(content)
+                except Exception as e:
+                    event_logger.error(f"Error reading ad break chat history for ad end: {e}")
+                # Build a short recent-activity context from global vars (if available)
+                try:
+                    recent_activity = ""
+                    if 'stream_title' in globals() and stream_title:
+                        recent_activity += f"Stream title: {stream_title}. "
+                    if 'current_game' in globals() and current_game:
+                        recent_activity += f"Current category: {current_game}. "
+                except Exception:
+                    recent_activity = ""
+
                 user_content = "Ads are done. Welcome everyone back to the stream! Get them hyped for more content."
+                if recent_activity:
+                    user_content += f" Recent activity: {recent_activity}"
+                if chat_history:
+                    user_content += " Recent chat (brief): "
+                    # Include only a few recent chat lines to keep prompt concise
+                    for entry in chat_history[-6:]:
+                        user_content += f"{entry.get('user','User')}: {entry.get('message','')}\n"
+                # Clear the ad-break chat file after reading so future ad-breaks start fresh
+                try:
+                    if chat_history and chat_file.exists():
+                        with chat_file.open('w', encoding='utf-8') as f:
+                            json.dump([], f)
+                except Exception as e:
+                    event_logger.error(f"Error clearing ad break chat history after ad end read: {e}")
+
+                # Analyze chat vibe and include guidance so the model doesn't invent unrelated activities
+                try:
+                    vibe = analyze_chat_vibe(chat_history)
+                    user_content += f"\nVibe summary: {vibe.get('summary')}\n"
+                    if vibe.get('topics'):
+                        user_content += f"Detected topics: {', '.join(vibe.get('topics'))}."
+                    # Strong instruction: prefer detected topics and do not invent unrelated events
+                    user_content += "\nInstruction: Prefer referencing detected topics/tone. Do not invent activities not present in the recent chat or stream title."
+                except Exception as e:
+                    event_logger.debug(f"Could not analyze chat vibe for ad end: {e}")
+
                 messages = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content}
@@ -10818,7 +10955,18 @@ async def handle_ad_break_start(duration_seconds):
                         ai_text = ai_text.strip()
                         if "Chaos Crew" in ai_text:
                             ai_text = ai_text.replace("Chaos Crew", "Stream Team")
-                        await send_chat_message(f"/me {ai_text}")
+                        # Dedupe check
+                        try:
+                            if can_send_ad_message():
+                                sent_ok = await send_chat_message(f"/me {ai_text}")
+                                if sent_ok:
+                                    try_mark_ad_message_sent_after(True)
+                                else:
+                                    api_logger.error(f"AI Ad end message reported not sent: {ai_text}")
+                            else:
+                                api_logger.info("Skipped AI ad end message due to cooldown")
+                        except Exception as e:
+                            api_logger.error(f"Error sending AI ad end message: {e}")
                         ai_message_sent = True
                         api_logger.info(f"Sent AI Ad Break End message: {ai_text}")
                 except Exception as e:
@@ -10828,9 +10976,17 @@ async def handle_ad_break_start(duration_seconds):
         try:
             # Check individual setting for end message (Standard/Fallback)
             if not ai_message_sent and settings.get('enable_end_ad_message', True):
-                sent_ok = await send_chat_message(settings['ad_end_message'])
-                if not sent_ok:
-                    api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+                try:
+                    if can_send_ad_message():
+                        sent_ok = await send_chat_message(settings['ad_end_message'])
+                        if sent_ok:
+                            try_mark_ad_message_sent_after(True)
+                        else:
+                            api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+                    else:
+                        api_logger.info("Skipped ad end fallback due to cooldown")
+                except Exception as e:
+                    api_logger.error(f"Exception while sending ad end message: {e}")
         except Exception as e:
             api_logger.error(f"Exception while sending ad end message: {e}")
         # Check for the next ad after this one completes
