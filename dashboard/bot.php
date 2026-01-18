@@ -1150,27 +1150,15 @@ document.addEventListener('DOMContentLoaded', function() {
       const isEnabled = this.checked;
       // Persist to cookie for server-side and page reload visibility
       document.cookie = 'useSelf=' + (isEnabled ? '1' : '0') + '; path=/';
-      // If enabling Use Self, disable custom bot toggle (mutually exclusive)
-      if (typeof customBotToggle !== 'undefined' && customBotToggle) {
-        if (isEnabled) {
-          try { customBotToggle.checked = false; } catch(e) {}
-          customBotToggle.disabled = true;
-        } else {
-          customBotToggle.disabled = false;
-        }
-        try { updateCustomBotWarningVisibility(); } catch(e) {}
-      }
-      // Try to persist to server (if endpoint exists), fall back gracefully
+      // Persist Use Self to server (do not force-clear custom; user may keep custom enabled)
       try {
-        // When enabling Use Self, ensure use_custom is cleared on server as well
-        const postBody = `use_self=${isEnabled ? 1 : 0}` + (isEnabled ? '&use_custom=0' : '');
+        const postBody = `use_self=${isEnabled ? 1 : 0}`;
         fetchWithTimeout('update_use_custom.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: postBody
         }, 8000).then(r => r.json()).then(data => {
           if (data && data.success) {
-            try { if (typeof data.use_custom !== 'undefined') window.serverUseCustom = parseInt(data.use_custom); } catch(e) {}
             try { if (typeof data.use_self !== 'undefined') window.serverUseSelf = parseInt(data.use_self); } catch(e) {}
           } else {
             showNotification('Failed to save Use Self preference', 'danger');
@@ -1187,17 +1175,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial visibility update
     updateUseSelfToggleVisibility();
     updateUseSelfWarningVisibility();
-    // Enforce mutual exclusivity on initial load
+    // Enforce mutual exclusivity on initial load: if custom is enabled, disable Use Self.
     try {
       if (typeof customBotToggle !== 'undefined' && customBotToggle && typeof useSelfToggle !== 'undefined' && useSelfToggle) {
         if (customBotToggle.checked) {
           useSelfToggle.checked = false;
           useSelfToggle.disabled = true;
           updateUseSelfWarningVisibility();
-        } else if (useSelfToggle.checked) {
-          customBotToggle.disabled = true;
-          updateCustomBotWarningVisibility();
         }
+        // If Use Self is enabled we do NOT disable custom; user can choose to enable custom which will clear Use Self.
       }
     } catch (e) { /* ignore */ }
   }
