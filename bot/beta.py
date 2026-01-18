@@ -2763,6 +2763,10 @@ class TwitchBot(commands.Bot):
             if not ai_text:
                 api_logger.error(f"Chat completion returned no usable text: {resp}")
                 return "The AI chat service returned an unexpected response."
+            # Filter out "Chaos Crew" hallucination
+            if "Chaos Crew" in ai_text:
+                ai_text = ai_text.replace("Chaos Crew", "Stream Team")
+                api_logger.info("Filtered 'Chaos Crew' from AI response in get_ai_response")
             api_logger.info("AI response received from chat completion")
             # Persist the user message and AI response to per-user history
             try:
@@ -10668,19 +10672,43 @@ async def handle_ad_break_start(duration_seconds):
                             chat_history = json.loads(content)
                 except Exception as e:
                     event_logger.error(f"Error reading chat history: {e}")
+                # Clear the file IMMEDIATELY after reading
+                try:
+                    with chat_file.open('w', encoding='utf-8') as f:
+                        json.dump([], f)
+                except Exception as e:
+                    event_logger.error(f"Error clearing chat history file: {e}")
+            # Check Ad Manager Status (to detect automated start-of-stream ads)
+            uses_ad_manager = False
+            try:
+                # Need access to global creds
+                global CHANNEL_ID, CLIENT_ID, CHANNEL_AUTH
+                ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+                headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
+                async with httpClientSession() as session:
+                    async with session.get(ads_api_url, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            ads_data = data.get("data", [])
+                            if ads_data:
+                                # User indicates that duration > 0 implies Ad Manager is active
+                                if int(ads_data[0].get("duration", 0)) > 0:
+                                    uses_ad_manager = True
+            except Exception as e:
+                api_logger.error(f"Error checking ad manager status: {e}")
             system_prompt = (
                 "You are the witty and entertaining assistant for a Twitch stream. "
                 f"An ad break is STARTING RIGHT NOW (Duration: {formatted_duration}). "
-                f"This is ad break number {ad_break_count} of the current stream session. "
                 "Your goal is to write a message announcing the ad break is beginning. "
                 "Let viewers know we're taking a quick break and will be back soon. "
-                "IMPORTANT: Keep your response under 500 characters."
+                "IMPORTANT: "
+                "1. Keep your response under 500 characters. "
+                "2. DO NOT use the phrase 'Chaos Crew' ever."
             )
-            user_content = ""
-            if ad_break_count == 1:
-                user_content = "This is the FIRST ad break starting now. Let viewers know we're taking a short break and will return soon. Maybe suggest they stretch or grab a snack while we're away. "
+            if ad_break_count == 1 and uses_ad_manager:
+                user_content = "This is the FIRST ad break (automated start-of-stream). Welcome everyone in! Mention we are getting these automated ads out of the way early so we can enjoy the stream. Keep the vibe high and welcoming."
             else:
-                user_content = f"Ad break #{ad_break_count} is starting now. Let viewers know we're taking a break and will be back shortly. "
+                user_content = "An ad break is starting now. Let viewers know we're taking a break and will be back shortly. "
             user_content += "Here's what happened in chat recently that you can reference (but keep it brief and fun). Chat logs:\n"
             for entry in chat_history:
                 user_content += f"{entry.get('user', 'User')}: {entry.get('message', '')}\n"
@@ -10720,11 +10748,13 @@ async def handle_ad_break_start(duration_seconds):
                     api_logger.error(f"Chat completion returned no usable text for ad break: {resp if 'resp' in locals() else 'No response'}")
                 else:
                     ai_text = ai_text.strip()
+                    # Filter out "Chaos Crew" hallucination
+                    if "Chaos Crew" in ai_text:
+                        ai_text = ai_text.replace("Chaos Crew", "Stream Team")
+                        api_logger.info("Filtered 'Chaos Crew' from AI response")
                     await send_chat_message(f"/me {ai_text}")
                     ai_message_sent = True
                     api_logger.info(f"Sent AI Ad Break message: {ai_text}")
-                    with chat_file.open('w', encoding='utf-8') as f:
-                        json.dump([], f)
             except Exception as e:
                 api_logger.error(f"Error calling chat completion API for ad break: {e}")
         except Exception as e:
@@ -10734,7 +10764,7 @@ async def handle_ad_break_start(duration_seconds):
         if settings['enable_ad_notice'] and settings.get('enable_start_ad_message', True):
             ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
             try:
-        # Try to send the start message and log if it fails
+                # Try to send the start message and log if it fails
                 sent_ok = await send_chat_message(ad_start_message)
                 if not sent_ok:
                     api_logger.error(f"Ad start message failed to send: {ad_start_message}")
@@ -10742,9 +10772,62 @@ async def handle_ad_break_start(duration_seconds):
                 api_logger.error(f"Exception while sending ad start message: {e}")
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
     async def handle_ad_break_end():
+        ai_message_sent = False
+        enable_ai = settings.get('enable_ai_ad_breaks', 0)
+        premium_tier = await check_premium_feature(CHANNEL_NAME)
+        if enable_ai and premium_tier >= 2000:
+            try:
+                system_prompt = (
+                    "You are the witty and entertaining assistant for a Twitch stream. "
+                    "The ad break has JUST FINISHED. "
+                    "Your goal is to write a message welcoming viewers back to the stream. "
+                    "IMPORTANT: "
+                    "1. Keep your response under 500 characters. "
+                    "2. DO NOT use the phrase 'Chaos Crew' ever."
+                )
+                user_content = "Ads are done. Welcome everyone back to the stream! Get them hyped for more content."
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ]
+                try:
+                    chat_client = getattr(openai_client, 'chat', None)
+                    ai_text = None
+                    
+                    if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
+                        resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
+                        if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                            choice = resp['choices'][0]
+                            if 'message' in choice and 'content' in choice['message']:
+                                ai_text = choice['message']['content']
+                            elif 'text' in choice:
+                                ai_text = choice['text']
+                        else:
+                            choices = getattr(resp, 'choices', None)
+                            if choices and len(choices) > 0:
+                                ai_text = getattr(choices[0].message, 'content', None)
+                    elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
+                        resp = await openai_client.chat_completions.create(model="gpt-5-nano", messages=messages)
+                        if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                            ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
+                        else:
+                            choices = getattr(resp, 'choices', None)
+                            if choices and len(choices) > 0:
+                                ai_text = getattr(choices[0].message, 'content', None)
+                    if ai_text:
+                        ai_text = ai_text.strip()
+                        if "Chaos Crew" in ai_text:
+                            ai_text = ai_text.replace("Chaos Crew", "Stream Team")
+                        await send_chat_message(f"/me {ai_text}")
+                        ai_message_sent = True
+                        api_logger.info(f"Sent AI Ad Break End message: {ai_text}")
+                except Exception as e:
+                    api_logger.error(f"Error calling chat completion API for ad break end: {e}")
+            except Exception as e:
+                api_logger.error(f"Error in AI Ad Break End logic: {e}")
         try:
-            # Check individual setting for end message
-            if settings.get('enable_end_ad_message', True):
+            # Check individual setting for end message (Standard/Fallback)
+            if not ai_message_sent and settings.get('enable_end_ad_message', True):
                 sent_ok = await send_chat_message(settings['ad_end_message'])
                 if not sent_ok:
                     api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
