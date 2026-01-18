@@ -1067,21 +1067,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const isEnabled = this.checked;
       try { window.serverUseCustom = isEnabled ? 1 : 0; } catch (e) { /* ignore */ }
       console.log('Custom Bot Name:', isEnabled ? 'Enabled' : 'Disabled');
-      // If enabling custom bot, disable Use Self (can't be used together)
-      if (typeof useSelfToggle !== 'undefined' && useSelfToggle) {
-        if (isEnabled) {
-          try { useSelfToggle.checked = false; } catch(e) {}
-          useSelfToggle.disabled = true;
-        } else {
-          useSelfToggle.disabled = false;
-        }
-        // Update warning visibility for Use Self
-        try { updateUseSelfWarningVisibility(); } catch(e) {}
-      }
+      // Do not forcibly disable Use Self here; user may choose both options.
       // Update warning visibility for custom bot
       updateCustomBotWarningVisibility();
-      // Persist both settings (ensure use_self is cleared when custom enabled)
-      const postBody = `use_custom=${isEnabled ? 1 : 0}` + (typeof useSelfToggle !== 'undefined' && useSelfToggle && !isEnabled ? '' : `&use_self=0`);
+      // Persist custom setting only; do not clear use_self automatically
+      const postBody = `use_custom=${isEnabled ? 1 : 0}`;
       fetchWithTimeout('update_use_custom.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1175,15 +1165,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial visibility update
     updateUseSelfToggleVisibility();
     updateUseSelfWarningVisibility();
-    // Enforce mutual exclusivity on initial load: if custom is enabled, disable Use Self.
+    // No forced disabling on load; respect both server-side values so user can toggle freely.
     try {
+      // If there are server-provided states, ensure UI reflects them but do not disable the other toggle.
       if (typeof customBotToggle !== 'undefined' && customBotToggle && typeof useSelfToggle !== 'undefined' && useSelfToggle) {
-        if (customBotToggle.checked) {
-          useSelfToggle.checked = false;
-          useSelfToggle.disabled = true;
-          updateUseSelfWarningVisibility();
-        }
-        // If Use Self is enabled we do NOT disable custom; user can choose to enable custom which will clear Use Self.
+        // Keep both toggles enabled; warnings/behaviors handled on user action.
       }
     } catch (e) { /* ignore */ }
   }
