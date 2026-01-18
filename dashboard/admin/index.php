@@ -771,6 +771,11 @@ $stable_bots = [];
 $beta_bots = [];
 $all_bots = [];
 
+// Message templates for quick send (can be moved to config file later)
+$message_templates = [
+    'Update Complete' => 'Automated update finished for users. Please restart your bot if you notice any issues.',
+    'Scheduled Maintenance' => 'Scheduled maintenance tonight at 02:00 UTC. Bots may restart briefly.'
+];
 // Fetch OpenAI organization usage for completions (show basic stats)
 $ai_model = 'N/A';
 $ai_input_tokens = 'N/A';
@@ -1455,6 +1460,19 @@ ob_start();
                             <input type="checkbox" id="include-offline">
                             Include offline channels
                         </label>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Template</label>
+                    <div class="control">
+                        <div class="select">
+                            <select id="message-template-select">
+                                <option value="">— Choose Template —</option>
+                                <?php foreach ($message_templates as $tpl_key => $tpl_text): ?>
+                                    <option value="<?php echo htmlspecialchars($tpl_key); ?>"><?php echo htmlspecialchars($tpl_key); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="field">
@@ -2347,6 +2365,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const channelSelect = document.getElementById('channel-select');
     const includeOfflineCheckbox = document.getElementById('include-offline');
     const charCountElement = document.getElementById('char-count');
+    // Templates map injected from server
+    const templatesMap = <?php echo json_encode($message_templates, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP); ?>;
+    const templateSelect = document.getElementById('message-template-select');
+    if (templateSelect) {
+        templateSelect.addEventListener('change', function() {
+            const key = this.value;
+            if (key && templatesMap[key]) {
+                // Insert template into the message textarea (replace current contents)
+                messageTextarea.value = templatesMap[key];
+            } else if (!key) {
+                // If user chooses blank, clear textarea
+                // Do not auto-clear to avoid loss; keep current behavior: only clear if blank explicitly desired
+            }
+            updateCharCount();
+            updateSendButtonState();
+            messageTextarea.focus();
+        });
+    }
     function updateCharCount() {
         if (!messageTextarea || !charCountElement) return;
         const length = messageTextarea.value.length;
