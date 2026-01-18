@@ -9,6 +9,95 @@ require_once "/var/www/config/admin_actions.php";
 require_once "/var/www/config/twitch.php";
 include "../userdata.php";
 
+// Collect server-side logs for browser console output instead of writing to server error log
+$client_console_logs = [];
+function client_console_log($msg, $level = 'error') {
+    global $client_console_logs;
+    if (!is_string($msg)) {
+        $msg = print_r($msg, true);
+    }
+    // Basic sanitization to avoid leaking tokens or long binary data
+    $msg = preg_replace('/(Authorization:\s*Bearer\s+)[^\s\\]+/i', '$1[REDACTED]', $msg);
+    $msg = preg_replace('/(access_token|refresh_token|api_key|apiKey)["\']?\s*[:=]\s*[^\s\,\)\}]+/i', '$1: [REDACTED]', $msg);
+    $msg = mb_substr($msg, 0, 2000);
+    $client_console_logs[] = ['level' => $level, 'msg' => $msg];
+}
+
+// Heuristic extractor for OpenAI usage responses: searches nested arrays/objects for token metrics and model names
+function extract_openai_usage_metrics($obj) {
+    $result = [
+        'model' => null,
+        'input_tokens' => null,
+        'output_tokens' => null,
+        'audio_output_tokens' => null
+    ];
+    $seen = [];
+    $stack = [$obj];
+    while (!empty($stack)) {
+        $cur = array_pop($stack);
+        if (is_array($cur)) {
+            foreach ($cur as $k => $v) {
+                // push child for further scanning
+                if (is_array($v) || is_object($v)) {
+                    $stack[] = $v;
+                    continue;
+                }
+                // only inspect scalar values here
+                $key = is_string($k) ? $k : '';
+                $lower = strtolower($key);
+                if ($result['model'] === null && $lower === 'model' && is_string($v)) {
+                    $result['model'] = $v;
+                }
+                if ($result['input_tokens'] === null && preg_match('/input.*token/', $lower) && is_numeric($v)) {
+                    $result['input_tokens'] = intval($v);
+                }
+                if ($result['output_tokens'] === null && preg_match('/output.*token/', $lower) && is_numeric($v)) {
+                    $result['output_tokens'] = intval($v);
+                }
+                if ($result['audio_output_tokens'] === null && preg_match('/audio.*output.*token|output.*audio.*token/i', $key) && is_numeric($v)) {
+                    $result['audio_output_tokens'] = intval($v);
+                }
+                // common generic keys
+                if ($result['input_tokens'] === null && in_array($lower, ['input_tokens','input_token','prompt_tokens']) && is_numeric($v)) {
+                    $result['input_tokens'] = intval($v);
+                }
+                if ($result['output_tokens'] === null && in_array($lower, ['output_tokens','output_token','completion_tokens','completion_token','response_tokens','total_tokens']) && is_numeric($v)) {
+                    $result['output_tokens'] = intval($v);
+                }
+            }
+        } elseif (is_object($cur)) {
+            foreach (get_object_vars($cur) as $k => $v) {
+                if (is_array($v) || is_object($v)) {
+                    $stack[] = $v;
+                    continue;
+                }
+                $key = is_string($k) ? $k : '';
+                $lower = strtolower($key);
+                if ($result['model'] === null && $lower === 'model' && is_string($v)) {
+                    $result['model'] = $v;
+                }
+                if ($result['input_tokens'] === null && preg_match('/input.*token/', $lower) && is_numeric($v)) {
+                    $result['input_tokens'] = intval($v);
+                }
+                if ($result['output_tokens'] === null && preg_match('/output.*token/', $lower) && is_numeric($v)) {
+                    $result['output_tokens'] = intval($v);
+                }
+                if ($result['audio_output_tokens'] === null && preg_match('/audio.*output.*token|output.*audio.*token/i', $key) && is_numeric($v)) {
+                    $result['audio_output_tokens'] = intval($v);
+                }
+                if ($result['input_tokens'] === null && in_array($lower, ['input_tokens','input_token','prompt_tokens']) && is_numeric($v)) {
+                    $result['input_tokens'] = intval($v);
+                }
+                if ($result['output_tokens'] === null && in_array($lower, ['output_tokens','output_token','completion_tokens','completion_token','response_tokens','total_tokens']) && is_numeric($v)) {
+                    $result['output_tokens'] = intval($v);
+                }
+            }
+        }
+        // short-circuit if we found everything
+        if ($result['model'] !== null && $result['input_tokens'] !== null && $result['output_tokens'] !== null && $result['audio_output_tokens'] !== null) break;
+    }
+    return $result;
+}
 // Handle service control actions
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_POST['service'])) {
     $action = $_POST['action'];
@@ -55,8 +144,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                     // The most reliable indicator is the exit status code (0 = success)
                     $exit_status = SSHConnectionManager::$last_exit_status ?? null;
                     // Log raw values for debugging
-                    error_log("[admin service control] Raw exit_status type: " . gettype($exit_status) . ", value: " . var_export($exit_status, true));
-                    error_log("[admin service control] Raw output (first 300 chars): " . substr($output, 0, 300));
+                    client_console_log("[admin service control] Raw exit_status type: " . gettype($exit_status) . ", value: " . var_export($exit_status, true));
+                    client_console_log("[admin service control] Raw output (first 300 chars): " . substr($output, 0, 300));
                     // Handle both int and string representations of 0
                     // Also consider it success if we didn't get a non-zero exit code and the command executed without returning false
                     if ($exit_status === 0 || $exit_status === '0' || intval($exit_status) === 0) {
@@ -65,12 +154,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                         // If exit status is null but we got output (command didn't fail), treat as success
                         // The SSH fallback may not have captured the exit code properly
                         $success = true;
-                        error_log("[admin service control] Exit status was null, but command executed - assuming success");
+                        client_console_log("[admin service control] Exit status was null, but command executed - assuming success");
                     } else {
                         // Non-zero exit status means failure
                         $success = false;
                     }
-                    error_log("[admin service control] $service $action - success: " . ($success ? 'true' : 'false') . ", exit_status: " . var_export($exit_status, true));
+                    client_console_log("[admin service control] $service $action - success: " . ($success ? 'true' : 'false') . ", exit_status: " . var_export($exit_status, true));
                     // Provide a user-friendly message even if output is empty
                     if ($success && empty(trim($output))) {
                         $output = "Command executed successfully";
@@ -88,12 +177,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     // Return JSON response instead of redirect. Include command output for diagnostics.
     if (function_exists('ob_get_length') && ob_get_length() !== false && ob_get_length() > 0) {
         $prev = ob_get_clean();
-        @error_log("[admin service control] cleared previous output buffer: " . substr(trim(preg_replace('/\s+/', ' ', $prev)), 0, 1000));
+        @client_console_log("[admin service control] cleared previous output buffer: " . substr(trim(preg_replace('/\s+/', ' ', $prev)), 0, 1000));
         // Start a fresh buffer to ensure headers can be sent
         ob_start();
     }
     // Log the result server-side to aid debugging (will appear in PHP error log)
-    @error_log("[admin service control] service={$service} action={$action} success=" . ($success ? '1' : '0') . " exit_status=" . (SSHConnectionManager::$last_exit_status ?? 'null') . " output=" . str_replace("\n", "\\n", substr($output ?? '', 0, 1000)));
+    @client_console_log("[admin service control] service={$service} action={$action} success=" . ($success ? '1' : '0') . " exit_status=" . (SSHConnectionManager::$last_exit_status ?? 'null') . " output=" . str_replace("\n", "\\n", substr($output ?? '', 0, 1000)));
     header('Content-Type: application/json');
     $exit_status = SSHConnectionManager::$last_exit_status ?? null;
     // Include helpful diagnostics for the browser to show
@@ -196,7 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     // ALWAYS restart users as stable, regardless of what they were running
     $botType = 'stable';
     // Log the restart attempt
-    error_log("Bot restart request - Username: {$username}, Original Type: {$originalBotType}, Restarting as: {$botType}, PID: {$pid}");
+    client_console_log("Bot restart request - Username: {$username}, Original Type: {$originalBotType}, Restarting as: {$botType}, PID: {$pid}");
     $success = false;
     $message = '';
     if (empty($username)) {
@@ -221,20 +310,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                 if ($tokenResult->num_rows > 0) {
                     $tokenData = $tokenResult->fetch_assoc();
                     $botAccessToken = $tokenData['twitch_access_token'];
-                    error_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
+                    client_console_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
                     // Step 1: Stop the bot if it's running
                     if ($pid > 0) {
-                        error_log("RESTART DEBUG - Stopping PID {$pid} (should be {$botType} bot)");
+                        client_console_log("RESTART DEBUG - Stopping PID {$pid} (should be {$botType} bot)");
                         try {
                             $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
                             if ($connection) {
                                 SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
-                                error_log("RESTART DEBUG - Kill command sent for PID {$pid}");
+                                client_console_log("RESTART DEBUG - Kill command sent for PID {$pid}");
                                 // Give it a moment to stop
                                 sleep(1);
                             }
                         } catch (Exception $e) {
-                            error_log("Error stopping bot during restart: " . $e->getMessage());
+                            client_console_log("Error stopping bot during restart: " . $e->getMessage());
                         }
                     }
                     // Step 2: Start the bot with correct tokens
@@ -245,9 +334,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                         'refresh_token' => $refreshToken,  // Refresh token from users table
                         'api_key' => $apiKey
                     ];
-                    error_log("RESTART DEBUG - Calling performBotAction('run', '{$botType}', ...) for {$username}");
+                    client_console_log("RESTART DEBUG - Calling performBotAction('run', '{$botType}', ...) for {$username}");
                     $result = performBotAction('run', $botType, $params);
-                    error_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
+                    client_console_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
                     $success = $result['success'];
                     // Always clarify that stable was started
                     $message = $result['message'] . " (Stable version)";
@@ -261,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
             $stmt->close();
         } catch (Exception $e) {
             $message = 'Error restarting bot: ' . $e->getMessage();
-            error_log("Bot restart error: " . $e->getMessage());
+            client_console_log("Bot restart error: " . $e->getMessage());
         }
     }
     header('Content-Type: application/json');
@@ -653,6 +742,215 @@ $stable_bots = [];
 $beta_bots = [];
 $all_bots = [];
 
+// Fetch OpenAI organization usage for completions (show basic stats)
+$ai_model = 'N/A';
+$ai_input_tokens = 'N/A';
+$ai_output_tokens = 'N/A';
+$ai_output_audio_tokens = 'N/A';
+$openai_config = null;
+$configPath = '/var/www/config/openai.php';
+if (file_exists($configPath)) {
+    $openai_config = require $configPath;
+}
+$openai_key = null;
+if (is_array($openai_config)) {
+    $openai_key = $openai_config['admin_key'] ?? null;
+}
+// NOTE: do not fallback to environment variables; rely on config file per project conventions
+if (!empty($openai_key)) {
+    // Determine bucket width (config only) and map to defaults and caps per API docs
+    $bucket_width = is_array($openai_config) ? ($openai_config['bucket_width'] ?? '1d') : '1d';
+    if (!in_array($bucket_width, ['1m','1h','1d'])) $bucket_width = '1d';
+    if ($bucket_width === '1m') { $default_limit = 60; $max_limit = 1440; $bucket_seconds = 60; }
+    elseif ($bucket_width === '1h') { $default_limit = 24; $max_limit = 168; $bucket_seconds = 3600; }
+    else { $default_limit = 7; $max_limit = 31; $bucket_seconds = 86400; }
+    // Determine limit (respect config, clamp to max, fallback to default)
+    if (is_array($openai_config) && isset($openai_config['limit'])) {
+        $limit = max(1, intval($openai_config['limit']));
+        if ($limit > $max_limit) $limit = $max_limit;
+    } else {
+        $limit = $default_limit;
+    }
+    // Determine end_time (optional in config)
+    if (is_array($openai_config) && isset($openai_config['end_time'])) {
+        $end_time = is_numeric($openai_config['end_time']) ? intval($openai_config['end_time']) : strtotime($openai_config['end_time']);
+    } else {
+        $end_time = time();
+    }
+    // Determine start_time: required by API; use config if present, otherwise compute from end_time and limit*buckets
+    if (is_array($openai_config) && isset($openai_config['start_time'])) {
+        $start_cfg = $openai_config['start_time'];
+        $start_time = is_numeric($start_cfg) ? intval($start_cfg) : strtotime($start_cfg);
+    } else {
+        $start_time = $end_time - ($limit * $bucket_seconds);
+    }
+    $base = 'https://api.openai.com/v1';
+    // Build query params using documented fields. Only include optional params if present in config.
+    $queryParams = [
+        'start_time' => $start_time,
+        'bucket_width' => $bucket_width,
+        'limit' => $limit
+    ];
+    if (is_array($openai_config) && !empty($openai_config['api_key_ids'])) $queryParams['api_key_ids'] = $openai_config['api_key_ids'];
+    if (is_array($openai_config) && isset($openai_config['batch'])) $queryParams['batch'] = $openai_config['batch'] ? 'true' : 'false';
+    if (is_array($openai_config) && !empty($openai_config['group_by'])) $queryParams['group_by'] = $openai_config['group_by'];
+    else $queryParams['group_by'] = ['model'];
+    if (is_array($openai_config) && !empty($openai_config['models'])) $queryParams['models'] = $openai_config['models'];
+    if (is_array($openai_config) && !empty($openai_config['project_ids'])) $queryParams['project_ids'] = $openai_config['project_ids'];
+    if (is_array($openai_config) && !empty($openai_config['user_ids'])) $queryParams['user_ids'] = $openai_config['user_ids'];
+    if (is_array($openai_config) && !empty($openai_config['page'])) $queryParams['page'] = $openai_config['page'];
+    if (is_array($openai_config) && isset($openai_config['end_time'])) $queryParams['end_time'] = $end_time;
+
+    $qs = http_build_query($queryParams);
+    $requests = [
+        [ 'method' => 'GET', 'url' => $base . '/organization/usage/completions?' . $qs, 'timeout' => 10 ],
+        [ 'method' => 'GET', 'url' => $base . '/organization/usage/audio_speeches?' . $qs, 'timeout' => 10 ]
+    ];
+    $results = openai_multi_curl($requests, $openai_config, $openai_key);
+    // results[0] -> completions, results[1] -> audio_speeches
+    if (isset($results[0]) && isset($results[0]['http_code']) && $results[0]['http_code'] >= 200 && $results[0]['http_code'] < 300) {
+        $data = json_decode($results[0]['response'], true);
+        if ($data) {
+            // Try direct extraction first
+            $row = $data;
+            if (isset($data[0]) && is_array($data[0])) $row = $data[0];
+            $ai_model = $row['model'] ?? $ai_model;
+            $ai_input_tokens = isset($row['input_tokens']) ? number_format($row['input_tokens']) : $ai_input_tokens;
+            $ai_output_tokens = isset($row['output_tokens']) ? number_format($row['output_tokens']) : $ai_output_tokens;
+            // Heuristic extraction fallback if still N/A
+            if ($ai_model === 'N/A' || $ai_input_tokens === 'N/A' || $ai_output_tokens === 'N/A') {
+                $metrics = extract_openai_usage_metrics($data);
+                if ($metrics['model'] !== null) $ai_model = $metrics['model'];
+                if ($metrics['input_tokens'] !== null) $ai_input_tokens = number_format($metrics['input_tokens']);
+                if ($metrics['output_tokens'] !== null) $ai_output_tokens = number_format($metrics['output_tokens']);
+            }
+        } else {
+            client_console_log('OpenAI completions: invalid JSON response');
+        }
+    } else {
+        $err = $results[0]['curl_error'] ?? ($results[0]['response'] ?? null);
+        client_console_log('OpenAI completions request failed: ' . ($results[0]['http_code'] ?? 'no-code') . ' err=' . substr((string)$err,0,200));
+    }
+    if (isset($results[1]) && isset($results[1]['http_code']) && $results[1]['http_code'] >= 200 && $results[1]['http_code'] < 300) {
+        $data = json_decode($results[1]['response'], true);
+        if ($data) {
+            $row = $data;
+            if (isset($data[0]) && is_array($data[0])) $row = $data[0];
+            // audio_speeches may provide audio token usage under a key; try known keys
+            if (isset($row['output_audio_tokens'])) {
+                $ai_output_audio_tokens = number_format($row['output_audio_tokens']);
+            } elseif (isset($row['audio_output_tokens'])) {
+                $ai_output_audio_tokens = number_format($row['audio_output_tokens']);
+            }
+            // Heuristic fallback
+            if ($ai_output_audio_tokens === 'N/A') {
+                $metrics = extract_openai_usage_metrics($data);
+                if ($metrics['audio_output_tokens'] !== null) $ai_output_audio_tokens = number_format($metrics['audio_output_tokens']);
+                if ($ai_model === 'N/A' && $metrics['model'] !== null) $ai_model = $metrics['model'];
+            }
+        } else {
+            client_console_log('OpenAI audio_speeches: invalid JSON response');
+        }
+    } else {
+        $err = $results[1]['curl_error'] ?? ($results[1]['response'] ?? null);
+        client_console_log('OpenAI audio_speeches request failed: ' . ($results[1]['http_code'] ?? 'no-code') . ' err=' . substr((string)$err,0,200));
+    }
+    // Collect debug info for each request for troubleshooting (do NOT include full API keys)
+    $openai_debug_info = [];
+    foreach ($requests as $i => $req) {
+        $r = $results[$i] ?? null;
+        $metrics = null;
+        if (!empty($r['response'])) {
+            $decoded = json_decode($r['response'], true);
+            if ($decoded !== null) {
+                $metrics = extract_openai_usage_metrics($decoded);
+            }
+        }
+        $openai_debug_info[] = [
+            'method' => $req['method'] ?? 'GET',
+            'url' => $req['url'] ?? '',
+            'http_code' => $r['http_code'] ?? null,
+            'curl_error' => $r['curl_error'] ?? null,
+            'response_snippet' => isset($r['response']) ? substr($r['response'], 0, 2000) : null,
+            'metrics' => $metrics
+        ];
+        @client_console_log(sprintf('[openai debug] req=%d url=%s http=%s curl_err=%s', $i, $req['url'] ?? '', $r['http_code'] ?? 'null', $r['curl_error'] ?? 'none'));
+    }
+} else {
+    // No API key available in config or environment
+}
+
+// Helper: perform multiple OpenAI HTTP requests in parallel using curl_multi
+function openai_multi_curl(array $requests, $openai_config = null, $openai_key = null) {
+    // Prefer key from config; do not fallback to environment variables.
+    if (empty($openai_key) && is_array($openai_config)) {
+        $openai_key = $openai_config['admin_key'] ?? null;
+    }
+    $openai_org = is_array($openai_config) ? ($openai_config['organization'] ?? $openai_config['org'] ?? $openai_config['organization_id'] ?? null) : null;
+    $openai_project = is_array($openai_config) ? ($openai_config['project'] ?? $openai_config['project_id'] ?? null) : null;
+    $multiHandle = curl_multi_init();
+    $handles = [];
+    $results = [];
+    foreach ($requests as $idx => $req) {
+        $method = strtoupper($req['method'] ?? 'GET');
+        $url = $req['url'] ?? '';
+        $body = $req['body'] ?? null;
+        $timeout = isset($req['timeout']) ? intval($req['timeout']) : 10;
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        $headers = [
+            'Authorization: Bearer ' . $openai_key,
+            'Content-Type: application/json'
+        ];
+        if (!empty($openai_org)) $headers[] = 'OpenAI-Organization: ' . $openai_org;
+        if (!empty($openai_project)) $headers[] = 'OpenAI-Project: ' . $openai_project;
+        if (!empty($req['headers']) && is_array($req['headers'])) {
+            foreach ($req['headers'] as $k => $v) {
+                if (is_int($k)) {
+                    $headers[] = $v;
+                } else {
+                    $headers[] = $k . ': ' . $v;
+                }
+            }
+        }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body ?? '');
+        } elseif ($method !== 'GET') {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+            if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        }
+        curl_multi_add_handle($multiHandle, $ch);
+        $handles[$idx] = $ch;
+    }
+    // Execute the multi handles
+    $running = null;
+    do {
+        $mrc = curl_multi_exec($multiHandle, $running);
+        // Wait for activity on any curl-connection
+        curl_multi_select($multiHandle, 0.5);
+    } while ($running > 0 && $mrc == CURLM_OK);
+    // Collect results
+    foreach ($handles as $idx => $ch) {
+        $response = curl_multi_getcontent($ch);
+        $errno = curl_errno($ch);
+        $error = $errno ? curl_error($ch) : null;
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $results[$idx] = [
+            'response' => $response,
+            'http_code' => $http_code,
+            'curl_error' => $error
+        ];
+        curl_multi_remove_handle($multiHandle, $ch);
+        curl_close($ch);
+    }
+    curl_multi_close($multiHandle);
+    return $results;
+}
+
 ob_start();
 ?>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -939,65 +1237,6 @@ ob_start();
         </div>
     </div>
 </div>
-<?php
-// Fetch OpenAI organization usage for completions (show basic stats)
-$ai_model = 'N/A';
-$ai_input_tokens = 'N/A';
-$ai_output_tokens = 'N/A';
-$ai_output_audio_tokens = 'N/A';
-$openai_config = null;
-$configPath = '/var/www/config/openai.php';
-if (file_exists($configPath)) {
-    $openai_config = require $configPath;
-}
-$openai_key = null;
-if (is_array($openai_config)) {
-    $openai_key = $openai_config['admin_key'] ?? null;
-}
-// Fallback to environment variable if not configured
-if (empty($openai_key)) {
-    $openai_key = getenv('OPENAI_ADMIN_KEY') ?: ($_SERVER['OPENAI_ADMIN_KEY'] ?? null);
-}
-if (!empty($openai_key)) {
-    // Determine start_time: support 'today' default in config
-    $start_cfg = is_array($openai_config) ? ($openai_config['start_time'] ?? 'today') : 'today';
-    $start_time = is_numeric($start_cfg) ? intval($start_cfg) : strtotime($start_cfg);
-    $limit = is_array($openai_config) ? intval($openai_config['limit'] ?? 1) : 1;
-    $url = "https://api.openai.com/v1/organization/usage/completions?start_time={$start_time}&limit={$limit}";
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $openai_key,
-        'Content-Type: application/json'
-    ]);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curl_err = curl_error($ch);
-    curl_close($ch);
-    if ($response !== false && $http_code >= 200 && $http_code < 300) {
-        $data = json_decode($response, true);
-        if ($data) {
-            // Support direct object or list responses
-            $row = $data;
-            if (isset($data[0]) && is_array($data[0])) {
-                $row = $data[0];
-            }
-            $ai_model = $row['model'] ?? $ai_model;
-            $ai_input_tokens = isset($row['input_tokens']) ? number_format($row['input_tokens']) : $ai_input_tokens;
-            $ai_output_tokens = isset($row['output_tokens']) ? number_format($row['output_tokens']) : $ai_output_tokens;
-            $ai_output_audio_tokens = isset($row['output_audio_tokens']) ? number_format($row['output_audio_tokens']) : $ai_output_audio_tokens;
-        } else {
-            error_log('OpenAI usage: invalid JSON response');
-        }
-    } else {
-        error_log('OpenAI usage request failed: HTTP ' . $http_code . ' curl_err=' . $curl_err);
-    }
-} else {
-    // No API key available in config or environment
-}
-?>
 <div class="columns is-variable is-3" style="align-items: stretch;">
     <div class="column is-half is-hidden">
         <div class="box" style="height: 100%; display: flex; flex-direction: column;">
@@ -2105,6 +2344,55 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    <?php if (!empty($openai_debug_info)): ?>
+    try {
+        const __openai_debug = <?php echo json_encode($openai_debug_info, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP); ?>;
+        if (Array.isArray(__openai_debug) && __openai_debug.length > 0) {
+            // Print a simple header and plain entries so they appear like the example output
+            console.log('OpenAI Debug (' + __openai_debug.length + ')');
+            __openai_debug.forEach((entry, idx) => {
+                try {
+                    const plain = '#' + idx + ' ' + (entry.method || '') + ' ' + (entry.url || '');
+                    console.log(plain);
+                    // Also emit a Fetch-like finished message for easy grepping in console
+                    console.log('Fetch finished loading: ' + (entry.method || 'GET') + ' "' + (entry.url || '') + '".');
+                    // Keep the grouped detailed view as well
+                    const title = '#' + idx + ' ' + (entry.method || '') + ' ' + (entry.url || '');
+                    console.groupCollapsed(title);
+                    console.error('HTTP code:', entry.http_code, '| curl_error:', entry.curl_error);
+                    if (entry.response_snippet) console.error('Response snippet:', entry.response_snippet);
+                    console.groupEnd();
+                } catch (innerErr) {
+                    console.error('OpenAI debug render error:', innerErr);
+                }
+            });
+            console.groupEnd();
+        }
+    } catch (e) {
+        console.error('Failed to parse OpenAI debug info:', e);
+    }
+    <?php endif; ?>
+    <?php if (!empty($client_console_logs)): ?>
+    try {
+        const __client_logs = <?php echo json_encode($client_console_logs, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP); ?>;
+        if (Array.isArray(__client_logs) && __client_logs.length > 0) {
+            console.groupCollapsed('Server Logs (' + __client_logs.length + ')');
+            __client_logs.forEach((entry, idx) => {
+                try {
+                    const title = '#' + idx + ' ' + (entry.level || 'error');
+                    console.groupCollapsed(title);
+                    console.error(entry.msg);
+                    console.groupEnd();
+                } catch (innerErr) {
+                    console.error('Server log render error:', innerErr);
+                }
+            });
+            console.groupEnd();
+        }
+    } catch (e) {
+        console.error('Failed to parse server logs:', e);
+    }
+    <?php endif; ?>
 });
 </script>
 <?php
