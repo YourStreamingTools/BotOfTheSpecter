@@ -28,73 +28,55 @@ function extract_openai_usage_metrics($obj) {
     $result = [
         'model' => null,
         'input_tokens' => null,
-        'output_tokens' => null,
-        'audio_output_tokens' => null
+        'output_tokens' => null
     ];
-    $seen = [];
     $stack = [$obj];
+    // Pattern to match model-like identifiers including hyphens, underscores and dots
+    $modelPattern = '/\b(?:gpt|claude|anthropic|mistral|llama)[-_0-9a-zA-Z\.]+/i';
     while (!empty($stack)) {
         $cur = array_pop($stack);
-        if (is_array($cur)) {
-            foreach ($cur as $k => $v) {
-                // push child for further scanning
-                if (is_array($v) || is_object($v)) {
-                    $stack[] = $v;
-                    continue;
-                }
-                // only inspect scalar values here
-                $key = is_string($k) ? $k : '';
-                $lower = strtolower($key);
-                if ($result['model'] === null && $lower === 'model' && is_string($v)) {
+        // Normalize objects to arrays for consistent handling
+        if (is_object($cur)) $cur = get_object_vars($cur);
+        if (!is_array($cur)) continue;
+        // If this node looks like a grouped bucket with 'group' or 'by' keys, prioritize scanning its children
+        if (isset($cur['group']) && (is_array($cur['group']) || is_object($cur['group']))) {
+            $stack[] = $cur['group'];
+        }
+        if (isset($cur['by']) && (is_array($cur['by']) || is_object($cur['by']))) {
+            $stack[] = $cur['by'];
+        }
+        foreach ($cur as $k => $v) {
+            // If the key itself looks like a model name (e.g., grouped responses keyed by model), capture it
+            if ($result['model'] === null && is_string($k) && preg_match($modelPattern, $k)) {
+                $result['model'] = $k;
+            }
+            if (is_array($v) || is_object($v)) {
+                $stack[] = $v;
+                continue;
+            }
+            $key = is_string($k) ? strtolower($k) : '';
+            // Heuristics for model identification from scalar values
+            if ($result['model'] === null && is_string($v)) {
+                if (in_array($key, ['model','model_id','modelname','model_name','modelid','id','by']) && strlen($v) > 0 && preg_match($modelPattern, $v)) {
                     $result['model'] = $v;
-                }
-                if ($result['input_tokens'] === null && preg_match('/input.*token/', $lower) && is_numeric($v)) {
-                    $result['input_tokens'] = intval($v);
-                }
-                if ($result['output_tokens'] === null && preg_match('/output.*token/', $lower) && is_numeric($v)) {
-                    $result['output_tokens'] = intval($v);
-                }
-                if ($result['audio_output_tokens'] === null && preg_match('/audio.*output.*token|output.*audio.*token/i', $key) && is_numeric($v)) {
-                    $result['audio_output_tokens'] = intval($v);
-                }
-                // common generic keys
-                if ($result['input_tokens'] === null && in_array($lower, ['input_tokens','input_token','prompt_tokens']) && is_numeric($v)) {
-                    $result['input_tokens'] = intval($v);
-                }
-                if ($result['output_tokens'] === null && in_array($lower, ['output_tokens','output_token','completion_tokens','completion_token','response_tokens','total_tokens']) && is_numeric($v)) {
-                    $result['output_tokens'] = intval($v);
+                } elseif (preg_match($modelPattern, $v)) {
+                    $result['model'] = $v;
                 }
             }
-        } elseif (is_object($cur)) {
-            foreach (get_object_vars($cur) as $k => $v) {
-                if (is_array($v) || is_object($v)) {
-                    $stack[] = $v;
-                    continue;
-                }
-                $key = is_string($k) ? $k : '';
-                $lower = strtolower($key);
-                if ($result['model'] === null && $lower === 'model' && is_string($v)) {
-                    $result['model'] = $v;
-                }
-                if ($result['input_tokens'] === null && preg_match('/input.*token/', $lower) && is_numeric($v)) {
-                    $result['input_tokens'] = intval($v);
-                }
-                if ($result['output_tokens'] === null && preg_match('/output.*token/', $lower) && is_numeric($v)) {
-                    $result['output_tokens'] = intval($v);
-                }
-                if ($result['audio_output_tokens'] === null && preg_match('/audio.*output.*token|output.*audio.*token/i', $key) && is_numeric($v)) {
-                    $result['audio_output_tokens'] = intval($v);
-                }
-                if ($result['input_tokens'] === null && in_array($lower, ['input_tokens','input_token','prompt_tokens']) && is_numeric($v)) {
-                    $result['input_tokens'] = intval($v);
-                }
-                if ($result['output_tokens'] === null && in_array($lower, ['output_tokens','output_token','completion_tokens','completion_token','response_tokens','total_tokens']) && is_numeric($v)) {
-                    $result['output_tokens'] = intval($v);
-                }
+            // Token detection
+            if ($result['input_tokens'] === null && (preg_match('/input.*token/', $key) || in_array($key, ['input_tokens','input_token','prompt_tokens']))) {
+                if (is_numeric($v)) $result['input_tokens'] = intval($v);
+            }
+            if ($result['output_tokens'] === null && (preg_match('/output.*token/', $key) || preg_match('/completion|response|total/', $key) || in_array($key, ['output_tokens','output_token','completion_tokens','completion_token','response_tokens','total_tokens']))) {
+                if (is_numeric($v)) $result['output_tokens'] = intval($v);
+            }
+            // Sometimes model name appears under generic keys like 'name' or 'title'
+            if ($result['model'] === null && in_array($key, ['name','title']) && is_string($v) && preg_match($modelPattern, $v)) {
+                $result['model'] = $v;
             }
         }
-        // short-circuit if we found everything
-        if ($result['model'] !== null && $result['input_tokens'] !== null && $result['output_tokens'] !== null && $result['audio_output_tokens'] !== null) break;
+        // Early exit if we've at least discovered a model and any token metric
+        if ($result['model'] !== null && ($result['input_tokens'] !== null || $result['output_tokens'] !== null)) break;
     }
     return $result;
 }
@@ -109,7 +91,7 @@ function find_all_metrics($obj) {
             $isAssoc = array_keys($cur) !== range(0, count($cur) - 1);
             if ($isAssoc) {
                 $m = extract_openai_usage_metrics($cur);
-                if ($m['model'] !== null || $m['input_tokens'] !== null || $m['output_tokens'] !== null || $m['audio_output_tokens'] !== null) {
+                if ($m['model'] !== null || $m['input_tokens'] !== null || $m['output_tokens'] !== null) {
                     $results[] = $m;
                 }
             }
@@ -119,7 +101,7 @@ function find_all_metrics($obj) {
         } elseif (is_object($cur)) {
             $vars = get_object_vars($cur);
             $m = extract_openai_usage_metrics($vars);
-            if ($m['model'] !== null || $m['input_tokens'] !== null || $m['output_tokens'] !== null || $m['audio_output_tokens'] !== null) {
+            if ($m['model'] !== null || $m['input_tokens'] !== null || $m['output_tokens'] !== null) {
                 $results[] = $m;
             }
             foreach ($vars as $v) {
@@ -138,11 +120,10 @@ function parse_openai_grouped_usage($data) {
         $model = $m['model'] ?? 'unknown';
         if (empty($model)) $model = 'unknown';
         if (!isset($map[$model])) {
-            $map[$model] = ['input' => 0, 'output' => 0, 'audio' => 0];
+            $map[$model] = ['input' => 0, 'output' => 0];
         }
         if (!empty($m['input_tokens'])) $map[$model]['input'] += intval($m['input_tokens']);
         if (!empty($m['output_tokens'])) $map[$model]['output'] += intval($m['output_tokens']);
-        if (!empty($m['audio_output_tokens'])) $map[$model]['audio'] += intval($m['audio_output_tokens']);
     }
     return $map;
 }
@@ -435,7 +416,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
             curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             $response = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curl_errno = curl_errno($ch);
             $curl_error = curl_error($ch);
             curl_close($ch);
             if ($curl_errno) {
@@ -795,7 +775,6 @@ $all_bots = [];
 $ai_model = 'N/A';
 $ai_input_tokens = 'N/A';
 $ai_output_tokens = 'N/A';
-$ai_output_audio_tokens = 'N/A';
 $openai_config = null;
 $configPath = '/var/www/config/openai.php';
 if (file_exists($configPath)) {
@@ -818,7 +797,16 @@ if (!empty($openai_key)) {
         $limit = max(1, intval($openai_config['limit']));
         if ($limit > $max_limit) $limit = $max_limit;
     } else {
-        $limit = $default_limit;
+        // Default to 30 days for daily buckets to increase coverage (but respect API max)
+        if ($bucket_width === '1d') {
+            $limit = min(30, $max_limit);
+        } else {
+            $limit = $default_limit;
+        }
+    }
+    // If no start_time is specified and using daily buckets, extend limit to 30 days for better coverage
+    if (is_array($openai_config) && !isset($openai_config['start_time']) && $bucket_width === '1d') {
+        if ($limit < 30) $limit = min(30, $max_limit);
     }
     // Determine end_time (optional in config)
     if (is_array($openai_config) && isset($openai_config['end_time'])) {
@@ -832,6 +820,15 @@ if (!empty($openai_key)) {
         $start_time = is_numeric($start_cfg) ? intval($start_cfg) : strtotime($start_cfg);
     } else {
         $start_time = $end_time - ($limit * $bucket_seconds);
+    }
+    // Force a 30-day window override to ensure we capture models across the month.
+    // This will replace computed start_time/limit unless a config explicitly provides a start_time.
+    $forceThirtyDays = true;
+    if ($forceThirtyDays && !(is_array($openai_config) && isset($openai_config['start_time']))) {
+        $start_time = time() - (30 * 86400);
+        $end_time = time();
+        $limit = min(30, $max_limit);
+        @client_console_log('[openai override] forcing 30-day window start_time=' . $start_time . ' limit=' . $limit);
     }
     $base = 'https://api.openai.com/v1';
     // Build query params using documented fields. Only include optional params if present in config.
@@ -850,94 +847,123 @@ if (!empty($openai_key)) {
     if (is_array($openai_config) && !empty($openai_config['page'])) $queryParams['page'] = $openai_config['page'];
     if (is_array($openai_config) && isset($openai_config['end_time'])) $queryParams['end_time'] = $end_time;
     $qs = http_build_query($queryParams);
-    $requests = [
-        [ 'method' => 'GET', 'url' => $base . '/organization/usage/completions?' . $qs, 'timeout' => 10 ],
-        [ 'method' => 'GET', 'url' => $base . '/organization/usage/audio_speeches?' . $qs, 'timeout' => 10 ]
-    ];
-    $results = openai_multi_curl($requests, $openai_config, $openai_key);
+    // Helper: fetch all paginated pages for an OpenAI usage endpoint
+    function openai_get_all_pages($path, $baseQuery, $openai_config = null, $openai_key = null, $maxPages = 20) {
+        $allBuckets = [];
+        $page = null;
+        $pagesFetched = 0;
+        $debug_entries = [];
+        do {
+            $qp = $baseQuery;
+            if ($page !== null) $qp['page'] = $page;
+            $qs = http_build_query($qp);
+            $url = 'https://api.openai.com/v1' . $path . '?' . $qs;
+            $resArr = openai_multi_curl([['method'=>'GET','url'=>$url,'timeout'=>30]], $openai_config, $openai_key);
+            $r = $resArr[0] ?? null;
+            if (!$r) break;
+            $pagesFetched++;
+            $body = $r['response'] ?? null;
+            $decoded = $body ? json_decode($body, true) : null;
+            // record debug info for this fetch
+            $debug_entries[] = [
+                'url' => $url,
+                'http_code' => $r['http_code'] ?? null,
+                'curl_error' => $r['curl_error'] ?? null,
+                'response_snippet' => $body ? mb_substr($body, 0, 4000) : null
+            ];
+            if (is_array($decoded) && isset($decoded['data']) && is_array($decoded['data'])) {
+                // append buckets
+                foreach ($decoded['data'] as $bucket) {
+                    $allBuckets[] = $bucket;
+                }
+            }
+            if (is_array($decoded) && !empty($decoded['next_page'])) {
+                $page = $decoded['next_page'];
+            } else {
+                $page = null;
+            }
+            // stop if API indicates no more or we've hit maxPages
+        } while ($page !== null && $pagesFetched < $maxPages);
+        return ['object'=>'page','data'=>$allBuckets,'has_more'=>false,'next_page'=>null,'pages_fetched'=>$pagesFetched,'debug'=>$debug_entries];
+    }
+    // Increase timeout for larger time windows and fetch all pages for each endpoint
+    $results_completions = openai_get_all_pages('/organization/usage/completions', $queryParams, $openai_config, $openai_key);
     // Prepare per-model stats map
     $ai_model_stats = [];
-    // results[0] -> completions, results[1] -> audio_speeches
-    if (isset($results[0]) && isset($results[0]['http_code']) && $results[0]['http_code'] >= 200 && $results[0]['http_code'] < 300) {
-        $data = json_decode($results[0]['response'], true);
-        if ($data) {
-            // Try direct extraction first
-            $row = $data;
-            if (isset($data[0]) && is_array($data[0])) $row = $data[0];
-            $ai_model = $row['model'] ?? $ai_model;
-            $ai_input_tokens = isset($row['input_tokens']) ? number_format($row['input_tokens']) : $ai_input_tokens;
-            $ai_output_tokens = isset($row['output_tokens']) ? number_format($row['output_tokens']) : $ai_output_tokens;
-            // Heuristic extraction fallback if still N/A
-            if ($ai_model === 'N/A' || $ai_input_tokens === 'N/A' || $ai_output_tokens === 'N/A') {
-                $metrics = extract_openai_usage_metrics($data);
-                if ($metrics['model'] !== null) $ai_model = $metrics['model'];
-                if ($metrics['input_tokens'] !== null) $ai_input_tokens = number_format($metrics['input_tokens']);
-                if ($metrics['output_tokens'] !== null) $ai_output_tokens = number_format($metrics['output_tokens']);
+    // completions: $results_completions is a combined page-like structure
+    $data = is_array($results_completions) ? $results_completions : null;
+    if ($data) {
+        // Try direct extraction first
+        $row = $data;
+        if (isset($data[0]) && is_array($data[0])) $row = $data[0];
+        $ai_model = $row['model'] ?? $ai_model;
+        $ai_input_tokens = isset($row['input_tokens']) ? number_format($row['input_tokens']) : $ai_input_tokens;
+        $ai_output_tokens = isset($row['output_tokens']) ? number_format($row['output_tokens']) : $ai_output_tokens;
+        // Heuristic extraction fallback if still N/A
+        if ($ai_model === 'N/A' || $ai_input_tokens === 'N/A' || $ai_output_tokens === 'N/A') {
+            $metrics = extract_openai_usage_metrics($data);
+            if ($metrics['model'] !== null) $ai_model = $metrics['model'];
+            if ($metrics['input_tokens'] !== null) $ai_input_tokens = number_format($metrics['input_tokens']);
+            if ($metrics['output_tokens'] !== null) $ai_output_tokens = number_format($metrics['output_tokens']);
+        }
+        // Explicit parsing for documented page/bucket/results shape
+        $explicit_map = [];
+        if (isset($data['data']) && is_array($data['data'])) {
+            foreach ($data['data'] as $bucket) {
+                if (!is_array($bucket)) continue;
+                if (isset($bucket['results']) && is_array($bucket['results'])) {
+                    foreach ($bucket['results'] as $res) {
+                        if (!is_array($res)) continue;
+                        $mname = $res['model'] ?? ($res['model_name'] ?? null);
+                        if (empty($mname)) $mname = 'unknown';
+                        if (!isset($explicit_map[$mname])) $explicit_map[$mname] = ['input' => 0, 'output' => 0];
+                        if (!empty($res['input_tokens'])) $explicit_map[$mname]['input'] += intval($res['input_tokens']);
+                        if (!empty($res['output_tokens'])) $explicit_map[$mname]['output'] += intval($res['output_tokens']);
+                        // audio output tokens omitted (audio endpoint disabled)
+                    }
+                }
             }
-            // Aggregate grouped usage into model stats
-            $map = parse_openai_grouped_usage($data);
-            foreach ($map as $mname => $vals) {
-                if (!isset($ai_model_stats[$mname])) $ai_model_stats[$mname] = ['input' => 0, 'output' => 0, 'audio' => 0];
+        }
+        if (!empty($explicit_map)) {
+            @client_console_log('[openai explicit_map completions] ' . json_encode($explicit_map));
+            foreach ($explicit_map as $mname => $vals) {
+                if (!isset($ai_model_stats[$mname])) $ai_model_stats[$mname] = ['input' => 0, 'output' => 0];
                 $ai_model_stats[$mname]['input'] += $vals['input'];
                 $ai_model_stats[$mname]['output'] += $vals['output'];
             }
-        } else {
-            client_console_log('OpenAI completions: invalid JSON response');
+        }
+        // Aggregate grouped usage into model stats
+        $map = parse_openai_grouped_usage($data);
+        foreach ($map as $mname => $vals) {
+            if (!isset($ai_model_stats[$mname])) $ai_model_stats[$mname] = ['input' => 0, 'output' => 0];
+            $ai_model_stats[$mname]['input'] += $vals['input'];
+            $ai_model_stats[$mname]['output'] += $vals['output'];
         }
     } else {
-        $err = $results[0]['curl_error'] ?? ($results[0]['response'] ?? null);
-        client_console_log('OpenAI completions request failed: ' . ($results[0]['http_code'] ?? 'no-code') . ' err=' . substr((string)$err,0,200));
+        client_console_log('OpenAI completions: no data returned');
     }
-    if (isset($results[1]) && isset($results[1]['http_code']) && $results[1]['http_code'] >= 200 && $results[1]['http_code'] < 300) {
-        $data = json_decode($results[1]['response'], true);
-        if ($data) {
-            $row = $data;
-            if (isset($data[0]) && is_array($data[0])) $row = $data[0];
-            // audio_speeches may provide audio token usage under a key; try known keys
-            if (isset($row['output_audio_tokens'])) {
-                $ai_output_audio_tokens = number_format($row['output_audio_tokens']);
-            } elseif (isset($row['audio_output_tokens'])) {
-                $ai_output_audio_tokens = number_format($row['audio_output_tokens']);
-            }
-            // Heuristic fallback and aggregate audio tokens per model
-            if ($ai_output_audio_tokens === 'N/A') {
-                $metrics = extract_openai_usage_metrics($data);
-                if ($metrics['audio_output_tokens'] !== null) $ai_output_audio_tokens = number_format($metrics['audio_output_tokens']);
-                if ($ai_model === 'N/A' && $metrics['model'] !== null) $ai_model = $metrics['model'];
-            }
-            $map2 = parse_openai_grouped_usage($data);
-            foreach ($map2 as $mname => $vals) {
-                if (!isset($ai_model_stats[$mname])) $ai_model_stats[$mname] = ['input' => 0, 'output' => 0, 'audio' => 0];
-                $ai_model_stats[$mname]['audio'] += $vals['audio'];
-            }
-        } else {
-            client_console_log('OpenAI audio_speeches: invalid JSON response');
-        }
-    } else {
-        $err = $results[1]['curl_error'] ?? ($results[1]['response'] ?? null);
-        client_console_log('OpenAI audio_speeches request failed: ' . ($results[1]['http_code'] ?? 'no-code') . ' err=' . substr((string)$err,0,200));
-    }
-    // Collect debug info for each request for troubleshooting (do NOT include full API keys)
+    // Note: audio_speeches endpoint disabled to conserve calls.
+    // Log aggregated per-model stats for browser console inspection (sanitized)
+    @client_console_log('[openai models] ' . json_encode($ai_model_stats));
+    // Collect debug info for the completions request (do NOT include full API keys)
     $openai_debug_info = [];
-    foreach ($requests as $i => $req) {
-        $r = $results[$i] ?? null;
-        $metrics = null;
-        if (!empty($r['response'])) {
-            $decoded = json_decode($r['response'], true);
-            if ($decoded !== null) {
-                $metrics = extract_openai_usage_metrics($decoded);
-            }
-        }
-        $openai_debug_info[] = [
-            'method' => $req['method'] ?? 'GET',
-            'url' => $req['url'] ?? '',
-            'http_code' => $r['http_code'] ?? null,
-            'curl_error' => $r['curl_error'] ?? null,
-            'response_snippet' => isset($r['response']) ? substr($r['response'], 0, 2000) : null,
-            'metrics' => $metrics
-        ];
-        @client_console_log(sprintf('[openai debug] req=%d url=%s http=%s curl_err=%s', $i, $req['url'] ?? '', $r['http_code'] ?? 'null', $r['curl_error'] ?? 'none'));
-    }
+    $completions_url = $base . '/organization/usage/completions?' . http_build_query($queryParams);
+    $metrics = extract_openai_usage_metrics($results_completions);
+    // If the page-fetcher returned debug entries, include them for per-page visibility
+    $pages_fetched = $results_completions['pages_fetched'] ?? null;
+    $page_debug = $results_completions['debug'] ?? null;
+    $openai_debug_info[] = [
+        'method' => 'GET',
+        'url' => $completions_url,
+        'http_code' => null,
+        'curl_error' => null,
+        'pages_fetched' => $pages_fetched,
+        'page_debug' => $page_debug,
+        'response_snippet' => isset($results_completions['data']) ? mb_substr(json_encode($results_completions), 0, 4000) : null,
+        'metrics' => $metrics,
+        'query_params' => $queryParams
+    ];
+    @client_console_log(sprintf('[openai debug] url=%s pages=%s', $completions_url, var_export($pages_fetched, true)));
 } else {
     // No API key available in config or environment
 }
@@ -957,7 +983,7 @@ function openai_multi_curl(array $requests, $openai_config = null, $openai_key =
         $method = strtoupper($req['method'] ?? 'GET');
         $url = $req['url'] ?? '';
         $body = $req['body'] ?? null;
-        $timeout = isset($req['timeout']) ? intval($req['timeout']) : 10;
+        $timeout = isset($req['timeout']) ? intval($req['timeout']) : 30;
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -1331,6 +1357,32 @@ ob_start();
     <div class="column is-half">
         <div class="box" style="height: 100%">
             <h2 class="title is-4"><span class="icon"><i class="fas fa-brain"></i></span> Ai Platform Stats</h2>
+            <?php
+                $total_input_tokens = 0;
+                $total_output_tokens = 0;
+                if (is_array($ai_model_stats)) {
+                    foreach ($ai_model_stats as $mvals) {
+                        $total_input_tokens += isset($mvals['input']) ? intval($mvals['input']) : 0;
+                        $total_output_tokens += isset($mvals['output']) ? intval($mvals['output']) : 0;
+                    }
+                }
+            ?>
+            <div class="level" style="margin-bottom: 0.5rem;">
+                <div class="level-left">
+                    <div class="level-item">
+                        <div>
+                            <p class="heading">Total Input Tokens</p>
+                            <p class="title is-5"><?php echo number_format($total_input_tokens); ?></p>
+                        </div>
+                    </div>
+                    <div class="level-item">
+                        <div>
+                            <p class="heading">Total Output Tokens</p>
+                            <p class="title is-5"><?php echo number_format($total_output_tokens); ?></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div style="overflow:auto;">
                 <table class="table is-fullwidth is-striped is-narrow">
                     <thead>
@@ -1338,7 +1390,6 @@ ob_start();
                             <th>Model</th>
                             <th>Input Tokens</th>
                             <th>Output Tokens</th>
-                            <th>Output Audio Tokens</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1347,7 +1398,6 @@ ob_start();
                             <td><?php echo htmlspecialchars($mname); ?></td>
                             <td><?php echo isset($vals['input']) ? number_format($vals['input']) : '0'; ?></td>
                             <td><?php echo isset($vals['output']) ? number_format($vals['output']) : '0'; ?></td>
-                            <td><?php echo isset($vals['audio']) ? number_format($vals['audio']) : '0'; ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
@@ -2426,19 +2476,37 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
         const __openai_debug = <?php echo json_encode($openai_debug_info, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP); ?>;
         if (Array.isArray(__openai_debug) && __openai_debug.length > 0) {
-            // Print a simple header and plain entries so they appear like the example output
-            console.log('OpenAI Debug (' + __openai_debug.length + ')');
+            console.groupCollapsed('OpenAI Debug (' + __openai_debug.length + ')');
             __openai_debug.forEach((entry, idx) => {
                 try {
-                    const plain = '#' + idx + ' ' + (entry.method || '') + ' ' + (entry.url || '');
-                    console.log(plain);
-                    // Also emit a Fetch-like finished message for easy grepping in console
-                    console.log('Fetch finished loading: ' + (entry.method || 'GET') + ' "' + (entry.url || '') + '".');
-                    // Keep the grouped detailed view as well
-                    const title = '#' + idx + ' ' + (entry.method || '') + ' ' + (entry.url || '');
+                    // Plain line for quick scanning
+                    const method = entry.method || 'GET';
+                    const url = entry.url || '';
+                    console.log('#' + idx + ' ' + method + ' ' + url);
+                    // Emit a Fetch-like finished line
+                    console.log('Fetch finished loading: ' + method + ' "' + url + '".');
+                    // Detailed grouped info (collapsed)
+                    const title = '#' + idx + ' ' + method + ' ' + url;
                     console.groupCollapsed(title);
-                    console.error('HTTP code:', entry.http_code, '| curl_error:', entry.curl_error);
+                    if (entry.http_code !== null) console.error('HTTP code:', entry.http_code);
+                    if (entry.curl_error) console.error('curl_error:', entry.curl_error);
+                    if (entry.pages_fetched !== undefined) console.error('pages_fetched:', entry.pages_fetched);
+                    if (entry.query_params) console.error('query_params:', entry.query_params);
+                    if (entry.page_debug && Array.isArray(entry.page_debug)) {
+                        console.groupCollapsed('Per-page debug (' + entry.page_debug.length + ')');
+                        entry.page_debug.forEach((p, pi) => {
+                            try {
+                                console.groupCollapsed('#' + pi + ' ' + (p.url || 'page'));
+                                if (p.http_code !== undefined) console.error('HTTP code:', p.http_code);
+                                if (p.curl_error) console.error('curl_error:', p.curl_error);
+                                if (p.response_snippet) console.error('Response snippet:', p.response_snippet);
+                                console.groupEnd();
+                            } catch (pe) { console.error('page debug render error', pe); }
+                        });
+                        console.groupEnd();
+                    }
                     if (entry.response_snippet) console.error('Response snippet:', entry.response_snippet);
+                    if (entry.metrics) console.error('metrics:', entry.metrics);
                     console.groupEnd();
                 } catch (innerErr) {
                     console.error('OpenAI debug render error:', innerErr);
