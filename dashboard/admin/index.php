@@ -773,8 +773,8 @@ $all_bots = [];
 
 // Message templates for quick send (can be moved to config file later)
 $message_templates = [
-    'Update Complete' => 'Automated update finished for users. Please restart your bot if you notice any issues.',
-    'Scheduled Maintenance' => 'Scheduled maintenance tonight at 02:00 UTC. Bots may restart briefly.'
+    'Update Complete' => 'An automated update has been applied, no further action is needed.',
+    'Scheduled Maintenance' => 'An automated update is being applied. Bots will automatically restart during the process and a follow-up message will be sent once the restart completes.',
 ];
 // Fetch OpenAI organization usage for completions (show basic stats)
 $ai_model = 'N/A';
