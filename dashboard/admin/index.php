@@ -939,6 +939,65 @@ ob_start();
         </div>
     </div>
 </div>
+<?php
+// Fetch OpenAI organization usage for completions (show basic stats)
+$ai_model = 'N/A';
+$ai_input_tokens = 'N/A';
+$ai_output_tokens = 'N/A';
+$ai_output_audio_tokens = 'N/A';
+$openai_config = null;
+$configPath = '/var/www/config/openai.php';
+if (file_exists($configPath)) {
+    $openai_config = require $configPath;
+}
+$openai_key = null;
+if (is_array($openai_config)) {
+    $openai_key = $openai_config['admin_key'] ?? null;
+}
+// Fallback to environment variable if not configured
+if (empty($openai_key)) {
+    $openai_key = getenv('OPENAI_ADMIN_KEY') ?: ($_SERVER['OPENAI_ADMIN_KEY'] ?? null);
+}
+if (!empty($openai_key)) {
+    // Determine start_time: support 'today' default in config
+    $start_cfg = is_array($openai_config) ? ($openai_config['start_time'] ?? 'today') : 'today';
+    $start_time = is_numeric($start_cfg) ? intval($start_cfg) : strtotime($start_cfg);
+    $limit = is_array($openai_config) ? intval($openai_config['limit'] ?? 1) : 1;
+    $url = "https://api.openai.com/v1/organization/usage/completions?start_time={$start_time}&limit={$limit}";
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $openai_key,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_err = curl_error($ch);
+    curl_close($ch);
+    if ($response !== false && $http_code >= 200 && $http_code < 300) {
+        $data = json_decode($response, true);
+        if ($data) {
+            // Support direct object or list responses
+            $row = $data;
+            if (isset($data[0]) && is_array($data[0])) {
+                $row = $data[0];
+            }
+            $ai_model = $row['model'] ?? $ai_model;
+            $ai_input_tokens = isset($row['input_tokens']) ? number_format($row['input_tokens']) : $ai_input_tokens;
+            $ai_output_tokens = isset($row['output_tokens']) ? number_format($row['output_tokens']) : $ai_output_tokens;
+            $ai_output_audio_tokens = isset($row['output_audio_tokens']) ? number_format($row['output_audio_tokens']) : $ai_output_audio_tokens;
+        } else {
+            error_log('OpenAI usage: invalid JSON response');
+        }
+    } else {
+        error_log('OpenAI usage request failed: HTTP ' . $http_code . ' curl_err=' . $curl_err);
+    }
+} else {
+    // No API key available in config or environment
+}
+?>
 <div class="columns is-variable is-3" style="align-items: stretch;">
     <div class="column is-half is-hidden">
         <div class="box" style="height: 100%; display: flex; flex-direction: column;">
@@ -965,6 +1024,17 @@ ob_start();
                         <span>Manage Users</span>
                     </a>
                 </div>
+            </div>
+        </div>
+    </div>
+    <div class="column is-half">
+        <div class="box" style="height: 100%">
+            <h2 class="title is-4"><span class="icon"><i class="fas fa-brain"></i></span> Ai Platform Stats</h2>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                <div><strong>Model:</strong> <?php echo htmlspecialchars($ai_model); ?></div>
+                <div><strong>Input Tokens:</strong> <?php echo htmlspecialchars($ai_input_tokens); ?></div>
+                <div><strong>Output Tokens:</strong> <?php echo htmlspecialchars($ai_output_tokens); ?></div>
+                <div><strong>Output Audio Tokens:</strong> <?php echo htmlspecialchars($ai_output_audio_tokens); ?></div>
             </div>
         </div>
     </div>
