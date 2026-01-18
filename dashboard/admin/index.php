@@ -864,12 +864,28 @@ if (!empty($openai_key)) {
             $pagesFetched++;
             $body = $r['response'] ?? null;
             $decoded = $body ? json_decode($body, true) : null;
-            // record debug info for this fetch
+            // Build a compact per-page summary (models and token totals) to avoid dumping full JSON into the page
+            $page_summary = null;
+            if (is_array($decoded) && isset($decoded['data']) && is_array($decoded['data'])) {
+                $page_summary = [];
+                foreach ($decoded['data'] as $bucket) {
+                    if (!is_array($bucket) || empty($bucket['results'])) continue;
+                    foreach ($bucket['results'] as $res) {
+                        $m = $res['model'] ?? ($res['model_name'] ?? 'unknown');
+                        if (empty($m)) $m = 'unknown';
+                        if (!isset($page_summary[$m])) $page_summary[$m] = ['input' => 0, 'output' => 0, 'count' => 0];
+                        $page_summary[$m]['input'] += !empty($res['input_tokens']) ? intval($res['input_tokens']) : 0;
+                        $page_summary[$m]['output'] += !empty($res['output_tokens']) ? intval($res['output_tokens']) : 0;
+                        $page_summary[$m]['count'] += 1;
+                    }
+                }
+            }
+            // record debug info for this fetch (keep only compact summary)
             $debug_entries[] = [
                 'url' => $url,
                 'http_code' => $r['http_code'] ?? null,
                 'curl_error' => $r['curl_error'] ?? null,
-                'response_snippet' => $body ? mb_substr($body, 0, 4000) : null
+                'summary' => $page_summary
             ];
             if (is_array($decoded) && isset($decoded['data']) && is_array($decoded['data'])) {
                 // append buckets
@@ -949,9 +965,14 @@ if (!empty($openai_key)) {
     $openai_debug_info = [];
     $completions_url = $base . '/organization/usage/completions?' . http_build_query($queryParams);
     $metrics = extract_openai_usage_metrics($results_completions);
-    // If the page-fetcher returned debug entries, include them for per-page visibility
+    // If the page-fetcher returned debug entries, include them for per-page visibility, but only with compact summaries
     $pages_fetched = $results_completions['pages_fetched'] ?? null;
     $page_debug = $results_completions['debug'] ?? null;
+    // Build an overall compact summary from the fetched data to present in the UI instead of raw JSON
+    $response_summary = null;
+    if (is_array($results_completions) && isset($results_completions['data'])) {
+        $response_summary = parse_openai_grouped_usage($results_completions);
+    }
     $openai_debug_info[] = [
         'method' => 'GET',
         'url' => $completions_url,
@@ -959,7 +980,7 @@ if (!empty($openai_key)) {
         'curl_error' => null,
         'pages_fetched' => $pages_fetched,
         'page_debug' => $page_debug,
-        'response_snippet' => isset($results_completions['data']) ? mb_substr(json_encode($results_completions), 0, 4000) : null,
+        'response_summary' => $response_summary,
         'metrics' => $metrics,
         'query_params' => $queryParams
     ];
@@ -1383,6 +1404,7 @@ ob_start();
                     </div>
                 </div>
             </div>
+            <br>
             <div style="overflow:auto;">
                 <table class="table is-fullwidth is-striped is-narrow">
                     <thead>
@@ -2493,19 +2515,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (entry.pages_fetched !== undefined) console.error('pages_fetched:', entry.pages_fetched);
                     if (entry.query_params) console.error('query_params:', entry.query_params);
                     if (entry.page_debug && Array.isArray(entry.page_debug)) {
-                        console.groupCollapsed('Per-page debug (' + entry.page_debug.length + ')');
+                        console.groupCollapsed('Per-page summaries (' + entry.page_debug.length + ')');
                         entry.page_debug.forEach((p, pi) => {
                             try {
                                 console.groupCollapsed('#' + pi + ' ' + (p.url || 'page'));
                                 if (p.http_code !== undefined) console.error('HTTP code:', p.http_code);
                                 if (p.curl_error) console.error('curl_error:', p.curl_error);
-                                if (p.response_snippet) console.error('Response snippet:', p.response_snippet);
+                                if (p.summary) console.error('summary:', p.summary);
                                 console.groupEnd();
                             } catch (pe) { console.error('page debug render error', pe); }
                         });
                         console.groupEnd();
                     }
-                    if (entry.response_snippet) console.error('Response snippet:', entry.response_snippet);
+                    if (entry.response_summary) console.error('response_summary:', entry.response_summary);
                     if (entry.metrics) console.error('metrics:', entry.metrics);
                     console.groupEnd();
                 } catch (innerErr) {
