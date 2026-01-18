@@ -464,6 +464,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let keepaliveTimeoutHandle = null;
             let keepaliveTimeoutSeconds = 10; // Default, will be updated from session
             let badgeCache = {}; // Cache for badge URLs
+            let messageBuffer = []; // Buffer for messages during reconnection
+            let isReconnecting = false; // Flag to track reconnection state
             // Recent redemptions cache to deduplicate matching chat messages
             let recentRedemptions = [];
             // Recent chat messages cache for bidirectional deduplication
@@ -1052,162 +1054,162 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,
                             'Client-Id': '<?php echo $clientID; ?>'
+                            }
+                        });
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch user data');
                         }
-                    });
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch user data');
-                    }
-                    const data = await response.json();
-                    if (!data.data || data.data.length === 0) {
+                        const data = await response.json();
+                        if (!data.data || data.data.length === 0) {
+                            Toastify({
+                                text: "User not found on Twitch",
+                                duration: 3000,
+                                gravity: "top",
+                                position: "right",
+                                backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
+                            }).showToast();
+                            return;
+                        }
+                        const userId = data.data[0].id;
+                        const nicknames = loadNicknames();
+                        nicknames[userId] = {
+                            username: username,
+                            nickname: nickname
+                        };
+                        saveNicknames(nicknames);
+                        renderNicknames();
+                        usernameInput.value = '';
+                        nicknameInput.value = '';
                         Toastify({
-                            text: "User not found on Twitch",
+                            text: `Nickname set for ${username}`,
+                            duration: 3000,
+                            gravity: "top",
+                            position: "right",
+                            backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
+                        }).showToast();
+                    } catch (error) {
+                        console.error('Error adding nickname:', error);
+                        Toastify({
+                            text: "Failed to add nickname. Please try again.",
                             duration: 3000,
                             gravity: "top",
                             position: "right",
                             backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
                         }).showToast();
-                        return;
                     }
-                    const userId = data.data[0].id;
+                }
+                function removeNickname(userId) {
                     const nicknames = loadNicknames();
-                    nicknames[userId] = {
-                        username: username,
-                        nickname: nickname
-                    };
+                    delete nicknames[userId];
                     saveNicknames(nicknames);
                     renderNicknames();
-                    usernameInput.value = '';
-                    nicknameInput.value = '';
                     Toastify({
-                        text: `Nickname set for ${username}`,
-                        duration: 3000,
+                        text: "Nickname removed",
+                        duration: 2000,
                         gravity: "top",
                         position: "right",
                         backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
                     }).showToast();
-                } catch (error) {
-                    console.error('Error adding nickname:', error);
-                    Toastify({
-                        text: "Failed to add nickname. Please try again.",
-                        duration: 3000,
-                        gravity: "top",
-                        position: "right",
-                        backgroundColor: "linear-gradient(to right, #ff416c, #ff4b2b)",
-                    }).showToast();
                 }
-            }
-            function removeNickname(userId) {
-                const nicknames = loadNicknames();
-                delete nicknames[userId];
-                saveNicknames(nicknames);
-                renderNicknames();
-                Toastify({
-                    text: "Nickname removed",
-                    duration: 2000,
-                    gravity: "top",
-                    position: "right",
-                    backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
-                }).showToast();
-            }
-            function getNickname(userId) {
-                const nicknames = loadNicknames();
-                return nicknames[userId]?.nickname || null;
-            }
-            // Save chat history to server
-            async function saveChatHistory() {
-                try {
-                    const overlay = document.getElementById('chat-overlay');
-                    const messages = Array.from(overlay.children)
-                        .filter(child => child.classList.contains('chat-message') || child.classList.contains('reward-message'))
-                        .slice(-100) // Keep last 100 messages
-                        .map(msg => btoa(unescape(encodeURIComponent(msg.outerHTML)))); // Base64 encode
-                    const response = await fetch('?action=save_chat_history', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(messages)
-                    });
-                    const result = await response.json();
-                    if (!result.success) {
-                        console.error('Failed to save chat history:', result.error);
-                    }
-                } catch (error) {
-                    console.error('Error saving chat history:', error);
+                function getNickname(userId) {
+                    const nicknames = loadNicknames();
+                    return nicknames[userId]?.nickname || null;
                 }
-            }
-            // Clear chat history
-            async function clearChatHistory() {
-                try {
-                    const overlay = document.getElementById('chat-overlay');
-                    // Remove all messages from DOM
-                    const messages = overlay.querySelectorAll('.chat-message, .automatic-reward, .custom-reward');
-                    messages.forEach(msg => msg.remove());
-                    // Clear from server
-                    const response = await fetch('?action=clear_chat_history', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    const result = await response.json();
-                    if (!result.success) {
-                        console.error('Failed to clear chat history:', result.error);
-                    }
-                    // Add placeholder if chat is empty
-                    if (overlay.children.length === 0 || (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn'))) {
-                        const placeholder = document.createElement('p');
-                        placeholder.className = 'chat-placeholder';
-                        placeholder.textContent = 'Chat history cleared. Waiting for messages...';
-                        overlay.appendChild(placeholder);
-                    }
-                } catch (error) {
-                    console.error('Error clearing chat history:', error);
-                }
-            }
-            // Load chat history from server
-            async function loadChatHistory() {
-                try {
-                    const response = await fetch('?action=load_chat_history');
-                    const result = await response.json();
-                    if (result.success && result.messages && result.messages.length > 0) {
+                // Save chat history to server
+                async function saveChatHistory() {
+                    try {
                         const overlay = document.getElementById('chat-overlay');
-                        const hasOnlyPlaceholder = overlay.children.length === 0 ||
-                            (overlay.children.length === 1 && overlay.children[0].tagName === 'P') ||
-                            (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn')) ||
-                            (overlay.children.length === 2 && overlay.querySelector('.fullscreen-exit-btn') && overlay.querySelector('.chat-placeholder'));
-                        if (hasOnlyPlaceholder) {
-                            // Preserve any non-message nodes like fullscreen button
-                            const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
-                            // Clear placeholder but keep exit button
-                            overlay.innerHTML = '';
-                            if (exitBtn) overlay.appendChild(exitBtn);
-                            // Restore messages
-                            result.messages.forEach(encoded => {
-                                try {
-                                    const html = decodeURIComponent(escape(atob(encoded)));
-                                    const div = document.createElement('div');
-                                    div.innerHTML = html;
-                                    overlay.appendChild(div.firstChild);
-                                } catch (decodeError) {
-                                    console.log('Skipping invalid history entry');
-                                }
-                            });
-                            overlay.scrollTop = overlay.scrollHeight;
-                        } else {
-                            console.log('Skipping history restore - overlay already has live messages');
+                        const messages = Array.from(overlay.children)
+                            .filter(child => child.classList.contains('chat-message') || child.classList.contains('reward-message'))
+                            .slice(-100) // Keep last 100 messages
+                            .map(msg => btoa(unescape(encodeURIComponent(msg.outerHTML)))); // Base64 encode
+                        const response = await fetch('?action=save_chat_history', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(messages)
+                        });
+                        const result = await response.json();
+                        if (!result.success) {
+                            console.error('Failed to save chat history:', result.error);
                         }
+                    } catch (error) {
+                        console.error('Error saving chat history:', error);
                     }
-                } catch (error) {
-                    console.error('Error loading chat history:', error);
                 }
-            }
-            // Filter management
-            function renderFilters() {
-                // usernames
-                const users = loadFiltersUsernames();
-                const listUsers = document.getElementById('filter-list-users');
-                listUsers.innerHTML = '';
-                users.forEach(filter => {
-                    const tag = document.createElement('div');
-                    tag.className = 'filter-tag';
-                    tag.innerHTML = `${filter} <button onclick="removeFilter('user','${filter.replace(/'/g, "\\'")}')">×</button>`;
+                // Clear chat history
+                async function clearChatHistory() {
+                    try {
+                        const overlay = document.getElementById('chat-overlay');
+                        // Remove all messages from DOM
+                        const messages = overlay.querySelectorAll('.chat-message, .automatic-reward, .custom-reward');
+                        messages.forEach(msg => msg.remove());
+                        // Clear from server
+                        const response = await fetch('?action=clear_chat_history', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        const result = await response.json();
+                        if (!result.success) {
+                            console.error('Failed to clear chat history:', result.error);
+                        }
+                        // Add placeholder if chat is empty
+                        if (overlay.children.length === 0 || (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn'))) {
+                            const placeholder = document.createElement('p');
+                            placeholder.className = 'chat-placeholder';
+                            placeholder.textContent = 'Chat history cleared. Waiting for messages...';
+                            overlay.appendChild(placeholder);
+                        }
+                    } catch (error) {
+                        console.error('Error clearing chat history:', error);
+                    }
+                }
+                // Load chat history from server
+                async function loadChatHistory() {
+                    try {
+                        const response = await fetch('?action=load_chat_history');
+                        const result = await response.json();
+                        if (result.success && result.messages && result.messages.length > 0) {
+                            const overlay = document.getElementById('chat-overlay');
+                            const hasOnlyPlaceholder = overlay.children.length === 0 ||
+                                (overlay.children.length === 1 && overlay.children[0].tagName === 'P') ||
+                                (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn')) ||
+                                (overlay.children.length === 2 && overlay.querySelector('.fullscreen-exit-btn') && overlay.querySelector('.chat-placeholder'));
+                            if (hasOnlyPlaceholder) {
+                                // Preserve any non-message nodes like fullscreen button
+                                const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
+                                // Clear placeholder but keep exit button
+                                overlay.innerHTML = '';
+                                if (exitBtn) overlay.appendChild(exitBtn);
+                                // Restore messages
+                                result.messages.forEach(encoded => {
+                                    try {
+                                        const html = decodeURIComponent(escape(atob(encoded)));
+                                        const div = document.createElement('div');
+                                        div.innerHTML = html;
+                                        overlay.appendChild(div.firstChild);
+                                    } catch (decodeError) {
+                                        console.log('Skipping invalid history entry');
+                                    }
+                                });
+                                overlay.scrollTop = overlay.scrollHeight;
+                            } else {
+                                console.log('Skipping history restore - overlay already has live messages');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error loading chat history:', error);
+                    }
+                }
+                // Filter management
+                function renderFilters() {
+                    // usernames
+                    const users = loadFiltersUsernames();
+                    const listUsers = document.getElementById('filter-list-users');
+                    listUsers.innerHTML = '';
+                    users.forEach(filter => {
+                        const tag = document.createElement('div');
+                        tag.className = 'filter-tag';
+                        tag.innerHTML = `${filter} <button onclick="removeFilter('user','${filter.replace(/'/g, "\\'")}')">×</button>`;
                 listUsers.appendChild(tag);
             });
             // messages
@@ -1389,15 +1391,18 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const now = Math.floor(Date.now() / 1000);
             const elapsed = now - tokenCreatedAt;
             const remaining = (4 * 60 * 60) - elapsed; // 4 hours in seconds
-            // Refresh token 30 seconds before expiry
-            if (remaining <= 30 && remaining > 0) {
+            // Refresh token 5 minutes (300 seconds) before expiry to prevent message loss
+            if (remaining <= 300 && remaining > 0 && !isRefreshing) {
+                console.log(`Token refresh triggered with ${remaining}s remaining`);
                 refreshToken();
                 return;
             }
             if (remaining <= 0) {
                 // Token expired without successful refresh
                 document.getElementById('token-timer').textContent = 'Refreshing...';
-                refreshToken();
+                if (!isRefreshing) {
+                    refreshToken();
+                }
                 return;
             }
             const hours = Math.floor(remaining / 3600);
@@ -1410,8 +1415,16 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         async function refreshToken() {
             if (isRefreshing) return;
             isRefreshing = true;
+            isReconnecting = true;
             console.log('Refreshing access token...');
             updateStatus(false, 'Refreshing Token...');
+            Toastify({
+                text: 'Refreshing connection...',
+                duration: 3000,
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: '#9147ff'
+            }).showToast();
             try {
                 const response = await fetch('?action=refresh_token');
                 const data = await response.json();
@@ -1419,11 +1432,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     accessToken = data.access_token;
                     tokenCreatedAt = data.created_at;
                     console.log('Token refreshed successfully');
-                    // Reconnect WebSocket with new token
-                    if (ws) {
-                        ws.close();
-                    }
-                    connectWebSocket();
+                    // Seamless WebSocket handover: connect new before closing old
+                    await seamlessWebSocketReconnect();
                 } else {
                     console.error('Token refresh failed:', data.error);
                     handleSessionExpiry();
@@ -1433,6 +1443,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 handleSessionExpiry();
             } finally {
                 isRefreshing = false;
+                isReconnecting = false;
+                // Process any buffered messages
+                processMessageBuffer();
             }
         }
         async function handleSessionExpiry() {
@@ -1506,6 +1519,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             };
             ws.onmessage = async (event) => {
                 const message = JSON.parse(event.data);
+                // Buffer messages during reconnection
+                if (isReconnecting) {
+                    console.log('Buffering message during reconnection');
+                    messageBuffer.push(message);
+                    return;
+                }
                 // Update keepalive timeout value if provided in this message
                 if (message.payload?.session?.keepalive_timeout_seconds) {
                     keepaliveTimeoutSeconds = message.payload.session.keepalive_timeout_seconds;
@@ -1520,13 +1539,100 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             };
             ws.onclose = () => {
                 console.log('WebSocket closed');
-                updateStatus(false, 'Disconnected');
-                // Attempt to reconnect
-                if (reconnectAttempts < maxReconnectAttempts) {
-                    reconnectAttempts++;
-                    setTimeout(connectWebSocket, 5000);
+                if (!isReconnecting) {
+                    updateStatus(false, 'Disconnected');
+                    // Attempt to reconnect only if not part of token refresh
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        setTimeout(connectWebSocket, 5000);
+                    }
                 }
             };
+        }
+        async function seamlessWebSocketReconnect() {
+            console.log('Starting seamless WebSocket reconnect...');
+            const oldWs = ws;
+            return new Promise((resolve) => {
+                const newWs = new WebSocket(CONFIG.EVENTSUB_WS_URL);
+                newWs.onopen = () => {
+                    console.log('New WebSocket connected');
+                };
+                newWs.onmessage = async (event) => {
+                    const message = JSON.parse(event.data);
+                    // Buffer messages during reconnection
+                    if (isReconnecting) {
+                        console.log('Buffering message during reconnection');
+                        messageBuffer.push(message);
+                        return;
+                    }
+                    // Update keepalive timeout value if provided in this message
+                    if (message.payload?.session?.keepalive_timeout_seconds) {
+                        keepaliveTimeoutSeconds = message.payload.session.keepalive_timeout_seconds;
+                    }
+                    // Reset keepalive timeout on EVERY message received
+                    setupKeepaliveTimeout(keepaliveTimeoutSeconds);
+                    await handleWebSocketMessage(message);
+                };
+                newWs.onerror = (error) => {
+                    console.error('New WebSocket error:', error);
+                    updateStatus(false, 'Error');
+                };
+                newWs.onclose = () => {
+                    console.log('New WebSocket closed');
+                    if (!isReconnecting) {
+                        updateStatus(false, 'Disconnected');
+                        if (reconnectAttempts < maxReconnectAttempts) {
+                            reconnectAttempts++;
+                            setTimeout(connectWebSocket, 5000);
+                        }
+                    }
+                };
+                // Wait for session_welcome before closing old connection
+                const welcomeHandler = async (event) => {
+                    const message = JSON.parse(event.data);
+                    if (message.metadata?.message_type === 'session_welcome') {
+                        console.log('New session established, closing old connection');
+                        // Close old WebSocket
+                        if (oldWs && oldWs.readyState === WebSocket.OPEN) {
+                            oldWs.close();
+                        }
+                        // Switch to new WebSocket
+                        ws = newWs;
+                        sessionId = message.payload.session.id;
+                        console.log('New Session ID:', sessionId);
+                        updateStatus(true, 'Connected');
+                        reconnectAttempts = 0;
+                        // Subscribe to events with new session
+                        await subscribeToEvents();
+                        // Setup keepalive timeout
+                        const keepaliveTimeout = message.payload.session.keepalive_timeout_seconds;
+                        setupKeepaliveTimeout(keepaliveTimeout);
+                        console.log('Seamless reconnect complete');
+                        Toastify({
+                            text: 'Connection refreshed successfully',
+                            duration: 2000,
+                            gravity: 'top',
+                            position: 'right',
+                            backgroundColor: '#00b09b'
+                        }).showToast();
+                        resolve();
+                    }
+                };
+                newWs.addEventListener('message', welcomeHandler, { once: true });
+            });
+        }
+        function processMessageBuffer() {
+            if (messageBuffer.length > 0) {
+                console.log(`Processing ${messageBuffer.length} buffered messages`);
+                messageBuffer.forEach(async (message) => {
+                    try {
+                        await handleWebSocketMessage(message);
+                    } catch (error) {
+                        console.error('Error processing buffered message:', error);
+                    }
+                });
+                messageBuffer = [];
+            }
         }
         async function handleWebSocketMessage(message) {
             const metadata = message.metadata;
