@@ -1345,11 +1345,23 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
       // Use server-backed custom bot setting. Fallback to checkbox if needed.
       const useCustomBot = (typeof serverUseCustom !== 'undefined') ? (serverUseCustom === 1) : (customBotToggle ? customBotToggle.checked : false);
-      const useSelfFlag = (typeof serverUseSelf !== 'undefined' && serverUseSelf === 1) ? 1 : 0;
+      // Prefer the current checkbox state (immediate UI) over the server-provided value
+      let useCustomNow;
+      if (typeof customBotToggle !== 'undefined' && customBotToggle) {
+        useCustomNow = customBotToggle.checked;
+      } else {
+        useCustomNow = (typeof serverUseCustom !== 'undefined') ? (serverUseCustom === 1) : false;
+      }
+      let useSelfNow;
+      if (typeof useSelfToggle !== 'undefined' && useSelfToggle) {
+        useSelfNow = useSelfToggle.checked ? 1 : 0;
+      } else {
+        useSelfNow = (typeof serverUseSelf !== 'undefined' && serverUseSelf === 1) ? 1 : 0;
+      }
       fetchWithTimeout('bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomBot ? 1 : 0}&use_self=${useSelfFlag}`
+        body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomNow ? 1 : 0}&use_self=${useSelfNow}`
       }, 8000) // Reduced from 15000 to 8000
         .then(response => response.json())
         .then(data => {
