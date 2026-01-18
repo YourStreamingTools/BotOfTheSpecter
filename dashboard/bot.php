@@ -627,7 +627,7 @@ ob_start();
             <?php echo t('bot_management_title'); ?>
           </span>
           <div class="is-flex is-align-items-center" style="gap: 1rem;">
-            <!-- Custom Bot Name Toggle (Beta Only - Verified Custom Bot Required) -->
+            <!-- Custom Bot Name Toggle (Verified Custom Bot Required) -->
             <?php if ($hasVerifiedCustomBot): ?>
             <div id="custom-bot-toggle-container" class="field" style="display: none; margin-bottom: 0; align-items: center;">
               <input id="custom-bot-toggle" type="checkbox" name="custom-bot-toggle" class="switch is-rounded is-info">
@@ -637,6 +637,13 @@ ob_start();
               </label>
             </div>
             <?php endif; ?>
+            <!-- Use Self Toggle -->
+            <div id="use-self-toggle-container" class="field" style="display: none; margin-bottom: 0; align-items: center;">
+              <input id="use-self-toggle" type="checkbox" name="use-self-toggle" class="switch is-rounded is-info" <?php echo ($use_self ? 'checked' : ''); ?>>
+              <label for="use-self-toggle" class="has-text-white has-tooltip-arrow" data-tooltip="Send messages as your connected account when enabled" data-tooltip-pos="top" style="white-space: nowrap; display: flex; align-items: center; line-height: 1.2; margin-left: 6px;">
+                <span>Use Self</span>
+              </label>
+            </div>
             <div class="select is-medium" style="background: transparent; border: none;">
               <select id="bot-selector" onchange="changeBotSelection(this.value)" style="background: #23272f; color: #fff; border: none; font-weight: 600;">
                 <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
@@ -668,10 +675,15 @@ ob_start();
           <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
             <?php echo t('bot_beta_description'); ?>
           </p>
-          <!-- Custom Bot Name Warning -->
+          <!-- Custom Bot Name -->
           <div id="custom-bot-warning" class="notification is-info has-text-black has-text-weight-bold mb-4" style="display: none;">
             <span class="icon"><i class="fas fa-info-circle"></i></span>
             <strong>Important:</strong> When using a custom bot name, BotOfTheSpecter must still remain a moderator in your channel. Many bot features require the Specter account to maintain mod permissions to function properly.
+          </div>
+          <!-- Use Self -->
+          <div id="use-self-warning" class="notification is-info has-text-black has-text-weight-bold mb-4" style="display: none;">
+            <span class="icon"><i class="fas fa-info-circle"></i></span>
+            <strong>Note:</strong> When Use Self is enabled the bot will send messages using your connected Twitch account. The Specter account must still be a moderator for some features to work.
           </div>
         <?php elseif ($selectedBot === 'v6'): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
@@ -991,6 +1003,8 @@ const serverBetaVersion = <?php echo json_encode($betaVersionRunning); ?>;
 const serverV6Version = <?php echo json_encode($v6VersionRunning); ?>;
 // Server-side setting for using custom bot name (from userdata.php)
 const serverUseCustom = <?php echo json_encode((int)($use_custom ?? 0)); ?>;
+// Server-side setting for using your own account to send messages
+const serverUseSelf = <?php echo json_encode((int)($use_self ?? 0)); ?>;
 document.addEventListener('DOMContentLoaded', function() {
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
   const isBotMod = <?php echo json_encode($BotIsMod); ?>;
@@ -1051,13 +1065,23 @@ document.addEventListener('DOMContentLoaded', function() {
   if (customBotToggle) {
     customBotToggle.addEventListener('change', function() {
       const isEnabled = this.checked;
-      // Update the local JS copy of the server setting for this page load only
       try { window.serverUseCustom = isEnabled ? 1 : 0; } catch (e) { /* ignore */ }
       console.log('Custom Bot Name:', isEnabled ? 'Enabled' : 'Disabled');
-      // Update warning visibility
+      // If enabling custom bot, disable Use Self (can't be used together)
+      if (typeof useSelfToggle !== 'undefined' && useSelfToggle) {
+        if (isEnabled) {
+          try { useSelfToggle.checked = false; } catch(e) {}
+          useSelfToggle.disabled = true;
+        } else {
+          useSelfToggle.disabled = false;
+        }
+        // Update warning visibility for Use Self
+        try { updateUseSelfWarningVisibility(); } catch(e) {}
+      }
+      // Update warning visibility for custom bot
       updateCustomBotWarningVisibility();
-      // Persist new setting to server
-      const postBody = `use_custom=${isEnabled ? 1 : 0}`;
+      // Persist both settings (ensure use_self is cleared when custom enabled)
+      const postBody = `use_custom=${isEnabled ? 1 : 0}` + (typeof useSelfToggle !== 'undefined' && useSelfToggle && !isEnabled ? '' : `&use_self=0`);
       fetchWithTimeout('update_use_custom.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1067,6 +1091,7 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(data => {
         if (data && data.success) {
           try { window.serverUseCustom = parseInt(data.use_custom); } catch(e) {}
+          try { if (typeof data.use_self !== 'undefined') window.serverUseSelf = parseInt(data.use_self); } catch(e) {}
         } else {
           // Revert toggle on failure
           try { customBotToggle.checked = !isEnabled; } catch(e) {}
@@ -1092,6 +1117,90 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCustomBotToggleVisibility();
   }
   } // End of custom bot toggle initialization
+  // Initialize "Use Self" toggle behavior
+  const useSelfToggle = document.getElementById('use-self-toggle');
+  if (useSelfToggle) {
+    // Initialize from server-side value or cookie
+    try {
+      const cookieMatch = document.cookie.match(/(?:^|; )useSelf=(\d)/);
+      if (cookieMatch) {
+        useSelfToggle.checked = cookieMatch[1] === '1';
+      } else {
+        useSelfToggle.checked = (serverUseSelf === 1);
+      }
+    } catch (e) { /* ignore */ }
+    // Functions to show/hide the toggle and warning based on selected bot
+    function updateUseSelfToggleVisibility() {
+      const currentBot = getCurrentBotType();
+      const container = document.getElementById('use-self-toggle-container');
+      if (container) {
+        container.style.display = (currentBot === 'beta') ? 'flex' : 'none';
+      }
+    }
+    function updateUseSelfWarningVisibility() {
+      const currentBot = getCurrentBotType();
+      const warning = document.getElementById('use-self-warning');
+      if (warning && currentBot === 'beta') {
+        warning.style.display = useSelfToggle.checked ? 'block' : 'none';
+      } else if (warning) {
+        warning.style.display = 'none';
+      }
+    }
+    useSelfToggle.addEventListener('change', function() {
+      const isEnabled = this.checked;
+      // Persist to cookie for server-side and page reload visibility
+      document.cookie = 'useSelf=' + (isEnabled ? '1' : '0') + '; path=/';
+      // If enabling Use Self, disable custom bot toggle (mutually exclusive)
+      if (typeof customBotToggle !== 'undefined' && customBotToggle) {
+        if (isEnabled) {
+          try { customBotToggle.checked = false; } catch(e) {}
+          customBotToggle.disabled = true;
+        } else {
+          customBotToggle.disabled = false;
+        }
+        try { updateCustomBotWarningVisibility(); } catch(e) {}
+      }
+      // Try to persist to server (if endpoint exists), fall back gracefully
+      try {
+        // When enabling Use Self, ensure use_custom is cleared on server as well
+        const postBody = `use_self=${isEnabled ? 1 : 0}` + (isEnabled ? '&use_custom=0' : '');
+        fetchWithTimeout('update_use_custom.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: postBody
+        }, 8000).then(r => r.json()).then(data => {
+          if (data && data.success) {
+            try { if (typeof data.use_custom !== 'undefined') window.serverUseCustom = parseInt(data.use_custom); } catch(e) {}
+            try { if (typeof data.use_self !== 'undefined') window.serverUseSelf = parseInt(data.use_self); } catch(e) {}
+          } else {
+            showNotification('Failed to save Use Self preference', 'danger');
+          }
+        }).catch(() => {
+          // network/save failure is non-fatal
+        });
+      } catch (e) {
+        // ignore
+      }
+      updateUseSelfWarningVisibility();
+      showNotification(isEnabled ? 'Use Self enabled' : 'Use Self disabled', isEnabled ? 'success' : 'info');
+    });
+    // Initial visibility update
+    updateUseSelfToggleVisibility();
+    updateUseSelfWarningVisibility();
+    // Enforce mutual exclusivity on initial load
+    try {
+      if (typeof customBotToggle !== 'undefined' && customBotToggle && typeof useSelfToggle !== 'undefined' && useSelfToggle) {
+        if (customBotToggle.checked) {
+          useSelfToggle.checked = false;
+          useSelfToggle.disabled = true;
+          updateUseSelfWarningVisibility();
+        } else if (useSelfToggle.checked) {
+          customBotToggle.disabled = true;
+          updateCustomBotWarningVisibility();
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
   function getCurrentBotType() {
     const urlParams = new URLSearchParams(window.location.search);
     let bot = urlParams.get('bot');
