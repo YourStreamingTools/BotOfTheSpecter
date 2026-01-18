@@ -98,6 +98,55 @@ function extract_openai_usage_metrics($obj) {
     }
     return $result;
 }
+
+// Find all metric-bearing sub-objects in a JSON structure
+function find_all_metrics($obj) {
+    $results = [];
+    $stack = [$obj];
+    while (!empty($stack)) {
+        $cur = array_pop($stack);
+        if (is_array($cur)) {
+            $isAssoc = array_keys($cur) !== range(0, count($cur) - 1);
+            if ($isAssoc) {
+                $m = extract_openai_usage_metrics($cur);
+                if ($m['model'] !== null || $m['input_tokens'] !== null || $m['output_tokens'] !== null || $m['audio_output_tokens'] !== null) {
+                    $results[] = $m;
+                }
+            }
+            foreach ($cur as $v) {
+                if (is_array($v) || is_object($v)) $stack[] = $v;
+            }
+        } elseif (is_object($cur)) {
+            $vars = get_object_vars($cur);
+            $m = extract_openai_usage_metrics($vars);
+            if ($m['model'] !== null || $m['input_tokens'] !== null || $m['output_tokens'] !== null || $m['audio_output_tokens'] !== null) {
+                $results[] = $m;
+            }
+            foreach ($vars as $v) {
+                if (is_array($v) || is_object($v)) $stack[] = $v;
+            }
+        }
+    }
+    return $results;
+}
+
+// Aggregate a JSON usage response into a map of model => metrics
+function parse_openai_grouped_usage($data) {
+    $map = [];
+    $items = find_all_metrics($data);
+    foreach ($items as $m) {
+        $model = $m['model'] ?? 'unknown';
+        if (empty($model)) $model = 'unknown';
+        if (!isset($map[$model])) {
+            $map[$model] = ['input' => 0, 'output' => 0, 'audio' => 0];
+        }
+        if (!empty($m['input_tokens'])) $map[$model]['input'] += intval($m['input_tokens']);
+        if (!empty($m['output_tokens'])) $map[$model]['output'] += intval($m['output_tokens']);
+        if (!empty($m['audio_output_tokens'])) $map[$model]['audio'] += intval($m['audio_output_tokens']);
+    }
+    return $map;
+}
+
 // Handle service control actions
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_POST['service'])) {
     $action = $_POST['action'];
@@ -800,13 +849,14 @@ if (!empty($openai_key)) {
     if (is_array($openai_config) && !empty($openai_config['user_ids'])) $queryParams['user_ids'] = $openai_config['user_ids'];
     if (is_array($openai_config) && !empty($openai_config['page'])) $queryParams['page'] = $openai_config['page'];
     if (is_array($openai_config) && isset($openai_config['end_time'])) $queryParams['end_time'] = $end_time;
-
     $qs = http_build_query($queryParams);
     $requests = [
         [ 'method' => 'GET', 'url' => $base . '/organization/usage/completions?' . $qs, 'timeout' => 10 ],
         [ 'method' => 'GET', 'url' => $base . '/organization/usage/audio_speeches?' . $qs, 'timeout' => 10 ]
     ];
     $results = openai_multi_curl($requests, $openai_config, $openai_key);
+    // Prepare per-model stats map
+    $ai_model_stats = [];
     // results[0] -> completions, results[1] -> audio_speeches
     if (isset($results[0]) && isset($results[0]['http_code']) && $results[0]['http_code'] >= 200 && $results[0]['http_code'] < 300) {
         $data = json_decode($results[0]['response'], true);
@@ -823,6 +873,13 @@ if (!empty($openai_key)) {
                 if ($metrics['model'] !== null) $ai_model = $metrics['model'];
                 if ($metrics['input_tokens'] !== null) $ai_input_tokens = number_format($metrics['input_tokens']);
                 if ($metrics['output_tokens'] !== null) $ai_output_tokens = number_format($metrics['output_tokens']);
+            }
+            // Aggregate grouped usage into model stats
+            $map = parse_openai_grouped_usage($data);
+            foreach ($map as $mname => $vals) {
+                if (!isset($ai_model_stats[$mname])) $ai_model_stats[$mname] = ['input' => 0, 'output' => 0, 'audio' => 0];
+                $ai_model_stats[$mname]['input'] += $vals['input'];
+                $ai_model_stats[$mname]['output'] += $vals['output'];
             }
         } else {
             client_console_log('OpenAI completions: invalid JSON response');
@@ -842,11 +899,16 @@ if (!empty($openai_key)) {
             } elseif (isset($row['audio_output_tokens'])) {
                 $ai_output_audio_tokens = number_format($row['audio_output_tokens']);
             }
-            // Heuristic fallback
+            // Heuristic fallback and aggregate audio tokens per model
             if ($ai_output_audio_tokens === 'N/A') {
                 $metrics = extract_openai_usage_metrics($data);
                 if ($metrics['audio_output_tokens'] !== null) $ai_output_audio_tokens = number_format($metrics['audio_output_tokens']);
                 if ($ai_model === 'N/A' && $metrics['model'] !== null) $ai_model = $metrics['model'];
+            }
+            $map2 = parse_openai_grouped_usage($data);
+            foreach ($map2 as $mname => $vals) {
+                if (!isset($ai_model_stats[$mname])) $ai_model_stats[$mname] = ['input' => 0, 'output' => 0, 'audio' => 0];
+                $ai_model_stats[$mname]['audio'] += $vals['audio'];
             }
         } else {
             client_console_log('OpenAI audio_speeches: invalid JSON response');
@@ -1269,11 +1331,27 @@ ob_start();
     <div class="column is-half">
         <div class="box" style="height: 100%">
             <h2 class="title is-4"><span class="icon"><i class="fas fa-brain"></i></span> Ai Platform Stats</h2>
-            <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                <div><strong>Model:</strong> <?php echo htmlspecialchars($ai_model); ?></div>
-                <div><strong>Input Tokens:</strong> <?php echo htmlspecialchars($ai_input_tokens); ?></div>
-                <div><strong>Output Tokens:</strong> <?php echo htmlspecialchars($ai_output_tokens); ?></div>
-                <div><strong>Output Audio Tokens:</strong> <?php echo htmlspecialchars($ai_output_audio_tokens); ?></div>
+            <div style="overflow:auto;">
+                <table class="table is-fullwidth is-striped is-narrow">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>Input Tokens</th>
+                            <th>Output Tokens</th>
+                            <th>Output Audio Tokens</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($ai_model_stats as $mname => $vals): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($mname); ?></td>
+                            <td><?php echo isset($vals['input']) ? number_format($vals['input']) : '0'; ?></td>
+                            <td><?php echo isset($vals['output']) ? number_format($vals['output']) : '0'; ?></td>
+                            <td><?php echo isset($vals['audio']) ? number_format($vals['audio']) : '0'; ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
