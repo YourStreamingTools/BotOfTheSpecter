@@ -1056,6 +1056,29 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('Custom Bot Name:', isEnabled ? 'Enabled' : 'Disabled');
       // Update warning visibility
       updateCustomBotWarningVisibility();
+      // Persist new setting to server
+      const postBody = `use_custom=${isEnabled ? 1 : 0}`;
+      fetchWithTimeout('update_use_custom.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: postBody
+      }, 8000)
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.success) {
+          try { window.serverUseCustom = parseInt(data.use_custom); } catch(e) {}
+        } else {
+          // Revert toggle on failure
+          try { customBotToggle.checked = !isEnabled; } catch(e) {}
+          showNotification('Failed to save preference: ' + (data.message || 'Unknown'), 'danger');
+          updateCustomBotWarningVisibility();
+        }
+      })
+      .catch(err => {
+        try { customBotToggle.checked = !isEnabled; } catch(e) {}
+        updateCustomBotWarningVisibility();
+        showNotification('Network error: could not save preference', 'danger');
+      });
       if (isEnabled) {
         showNotification('Custom Bot Name enabled - Your custom bot will be used when starting the beta bot', 'success');
       } else {
