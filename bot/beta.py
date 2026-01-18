@@ -53,6 +53,7 @@ parser.add_argument("-refresh", dest="refresh_token", required=True, help="Refre
 parser.add_argument("-apitoken", dest="api_token", required=False, help="API Token for Websocket Server")
 parser.add_argument("-custom", dest="custom_mode", action="store_true", help="Enable custom bot mode")
 parser.add_argument("-botusername", dest="bot_username", required=False, help="Bot's Twitch username (required when -custom is used)")
+parser.add_argument("-self", dest="self_mode", action="store_true", help="Enable self mode (use broadcaster account)")
 args = parser.parse_args()
 
 # Twitch bot settings
@@ -61,10 +62,19 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
-CUSTOM_MODE = args.custom_mode
-BOT_USERNAME = args.bot_username if CUSTOM_MODE else "botofthespecter"
+SELF_MODE = args.self_mode
+CUSTOM_MODE = args.custom_mode or SELF_MODE
+if args.custom_mode:
+    BOT_USERNAME = args.bot_username
+elif SELF_MODE:
+    BOT_USERNAME = args.target_channel
+else:
+    BOT_USERNAME = "botofthespecter"
 VERSION = "5.8"
-SYSTEM = "CUSTOM" if CUSTOM_MODE else "BETA"
+if CUSTOM_MODE:
+    SYSTEM = "CUSTOM"
+else:
+    SYSTEM = "BETA"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -11252,11 +11262,17 @@ async def get_custom_bot_credentials():
 
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
+    global CLIENT_ID, TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
     if len(message) > 500:
         chat_logger.error(f"Message too long: {len(message)} characters (max 500)")
         return False
     # Determine credentials based on mode
-    if CUSTOM_MODE:
+    if SELF_MODE:
+        global CHANNEL_ID, CHANNEL_AUTH
+        sender_id = CHANNEL_ID
+        access_token = CHANNEL_AUTH
+        client_id = CLIENT_ID
+    elif CUSTOM_MODE:
         # Fetch custom bot credentials from database
         credentials = await get_custom_bot_credentials()
         if not credentials:
@@ -11429,9 +11445,13 @@ async def process_chat_message_event(user_id: str, user_name: str, message: str 
 
 # Determine the correct OAuth token based on mode
 if CUSTOM_MODE:
-    # In custom mode, use the channel's auth token as the bot token
+    # In custom or self mode, use the channel's auth token as the bot token
     BOT_OAUTH_TOKEN = CHANNEL_AUTH
-    bot_logger.info(f"Running in CUSTOM mode with bot username: {BOT_USERNAME}")
+    # Log custom mode; if self_mode was provided, indicate it's the broadcaster account
+    if SELF_MODE and not args.custom_mode:
+        bot_logger.info(f"Running in CUSTOM mode (self) using broadcaster account: {BOT_USERNAME}")
+    else:
+        bot_logger.info(f"Running in CUSTOM mode with bot username: {BOT_USERNAME}")
 else:
     # In standard mode, use the main bot OAuth token from environment
     BOT_OAUTH_TOKEN = OAUTH_TOKEN
