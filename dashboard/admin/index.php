@@ -1386,6 +1386,13 @@ ob_start();
                         $total_input_tokens += isset($mvals['input']) ? intval($mvals['input']) : 0;
                         $total_output_tokens += isset($mvals['output']) ? intval($mvals['output']) : 0;
                     }
+                    // Sort models: most input tokens first, then most output tokens
+                    uasort($ai_model_stats, function($a, $b) {
+                        $ain = $a['input'] ?? 0; $bin = $b['input'] ?? 0;
+                        if ($bin !== $ain) return $bin <=> $ain; // descending input
+                        $aout = $a['output'] ?? 0; $bout = $b['output'] ?? 0;
+                        return $bout <=> $aout; // descending output
+                    });
                 }
             ?>
             <div class="level" style="margin-bottom: 0.5rem;">
