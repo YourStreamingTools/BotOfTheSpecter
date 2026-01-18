@@ -10,6 +10,17 @@ require_once "/var/www/config/ssh.php";
 include '/var/www/config/twitch.php';
 $pageTitle = 'Start User Bots';
 
+// Collect server-side logs for browser console output instead of server-side error_log
+$client_console_logs = [];
+function client_console_log($msg, $level = 'error') {
+    global $client_console_logs;
+    if (!is_string($msg)) $msg = print_r($msg, true);
+    $msg = preg_replace('/(Authorization:\s*Bearer\s+)[^\s\\]+/i', '$1[REDACTED]', $msg);
+    $msg = preg_replace('/(access_token|refresh_token|api_key|apiKey)["\']?\s*[:=]\s*[^\s\,\)\}]+/i', '$1: [REDACTED]', $msg);
+    $msg = mb_substr($msg, 0, 2000);
+    $client_console_logs[] = ['level' => $level, 'msg' => $msg];
+}
+
 // Token cache path
 $tokenCacheFile = '/var/www/cache/tokens/start_bot_tokens.json';
 
@@ -194,7 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
                     }
                 } catch (Exception $e) {
                     // Ignore per-user errors but capture in debug
-                    error_log('checkBotRunning error for ' . $uname . ': ' . $e->getMessage());
+                    client_console_log('checkBotRunning error for ' . $uname . ': ' . $e->getMessage());
                 }
             }
             $stmtUsers->close();
@@ -414,9 +425,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_user_token'])) 
                     'debug' => $debug
                 ]);
             } else {
-                // Log DB update failure for debugging
+                // Log DB update failure for debugging (sent to client console)
                 $dbErr = $stmt->error;
-                error_log('Failed to update auth tokens for twitch_user_id=' . $twitch_user_id . ' stmt_error=' . $dbErr);
+                client_console_log('Failed to update auth tokens for twitch_user_id=' . $twitch_user_id . ' stmt_error=' . $dbErr);
                 $stmt->close();
                 $debug = ob_get_clean();
                 echo json_encode(['success' => false, 'message' => 'Failed to update database', 'debug' => $debug, 'error_details' => ['db_error' => $dbErr]]);
@@ -429,7 +440,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_user_token'])) 
         }
     } catch (Exception $e) {
         $debug = ob_get_clean();
-        error_log('Exception in renew_user_token: ' . $e->getMessage());
+        client_console_log('Exception in renew_user_token: ' . $e->getMessage());
         echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'debug' => $debug, 'error_details' => ['exception' => $e->getMessage()]]);
     }
     exit;
@@ -610,8 +621,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     $username = trim($_POST['username'] ?? '');
     $botType = trim($_POST['bot_type'] ?? 'stable');
     $pid = intval($_POST['pid'] ?? 0);
-    // Log the restart attempt
-    error_log("Bot restart request - Username: {$username}, Bot Type: {$botType}, PID: {$pid}");
+    // Log the restart attempt (send to client console)
+    client_console_log("Bot restart request - Username: {$username}, Bot Type: {$botType}, PID: {$pid}");
     $success = false;
     $message = '';
     if (empty($username)) {
@@ -636,20 +647,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                 if ($tokenResult->num_rows > 0) {
                     $tokenData = $tokenResult->fetch_assoc();
                     $botAccessToken = $tokenData['twitch_access_token'];
-                    error_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
+                    client_console_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
                     // Step 1: Stop the bot if it's running
                     if ($pid > 0) {
-                        error_log("RESTART DEBUG - Stopping PID {$pid} (should be {$botType} bot)");
+                        client_console_log("RESTART DEBUG - Stopping PID {$pid} (should be {$botType} bot)");
                         try {
                             $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
                             if ($connection) {
                                 SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
-                                error_log("RESTART DEBUG - Kill command sent for PID {$pid}");
+                                client_console_log("RESTART DEBUG - Kill command sent for PID {$pid}");
                                 // Give it a moment to stop
                                 sleep(1);
                             }
                         } catch (Exception $e) {
-                            error_log("Error stopping bot during restart: " . $e->getMessage());
+                            client_console_log("Error stopping bot during restart: " . $e->getMessage());
                         }
                     }
                     // Step 2: Start the bot with correct tokens
@@ -660,9 +671,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                         'refresh_token' => $refreshToken,  // Refresh token from users table
                         'api_key' => $apiKey
                     ];
-                    error_log("RESTART DEBUG - Calling performBotAction('run', '{$botType}', ...) for {$username}");
+                    client_console_log("RESTART DEBUG - Calling performBotAction('run', '{$botType}', ...) for {$username}");
                     $result = performBotAction('run', $botType, $params);
-                    error_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
+                    client_console_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
                     $success = $result['success'];
                     // Clarify which bot type was started
                     $message = $result['message'] . " (" . ucfirst($botType) . " version)";
@@ -676,7 +687,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
             $stmt->close();
         } catch (Exception $e) {
             $message = 'Error restarting bot: ' . $e->getMessage();
-            error_log("Bot restart error: " . $e->getMessage());
+            client_console_log("Bot restart error: " . $e->getMessage());
         }
     }
     $debug = ob_get_clean();
@@ -1787,6 +1798,29 @@ ob_start();
         }
     };
 </script>
+<?php if (!empty($client_console_logs)): ?>
+<script>
+try {
+    const __client_logs = <?php echo json_encode($client_console_logs, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP); ?>;
+    if (Array.isArray(__client_logs) && __client_logs.length > 0) {
+        console.groupCollapsed('Server Logs (' + __client_logs.length + ')');
+        __client_logs.forEach((entry, idx) => {
+            try {
+                const title = '#' + idx + ' ' + (entry.level || 'error');
+                console.groupCollapsed(title);
+                console.error(entry.msg);
+                console.groupEnd();
+            } catch (e) {
+                console.error('Server log render error:', e);
+            }
+        });
+        console.groupEnd();
+    }
+} catch (e) {
+    console.error('Failed to parse server logs:', e);
+}
+</script>
+<?php endif; ?>
 <?php
 $content = ob_get_clean();
 include "admin_layout.php";
