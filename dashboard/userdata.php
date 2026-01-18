@@ -34,6 +34,8 @@ $api_key = $user['api_key'];
 $timezone = 'Australia/Sydney';
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
+$use_custom = $user['use_custom'];
+$use_self = $user['use_self'];
 
 $_SESSION['user_id'] = $user_id;
 $_SESSION['username'] = $username;
@@ -42,4 +44,8 @@ $_SESSION['api_key'] = $api_key;
 $_SESSION['access_token'] = $authToken;
 $_SESSION['refresh_token'] = $refreshToken;
 $_SESSION['user_data'] = $user;
+$_SESSION['is_admin'] = $is_admin;
+$_SESSION['beta_access'] = $betaAccess;
+$_SESSION['use_custom'] = $use_custom;
+$_SESSION['use_self'] = $use_self;
 ?>

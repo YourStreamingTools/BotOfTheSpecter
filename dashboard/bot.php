@@ -989,6 +989,8 @@ window._seenUpdateNotifications = window._seenUpdateNotifications || new Set();
 const serverStableVersion = <?php echo json_encode($versionRunning); ?>;
 const serverBetaVersion = <?php echo json_encode($betaVersionRunning); ?>;
 const serverV6Version = <?php echo json_encode($v6VersionRunning); ?>;
+// Server-side setting for using custom bot name (from userdata.php)
+const serverUseCustom = <?php echo json_encode((int)($use_custom ?? 0)); ?>;
 document.addEventListener('DOMContentLoaded', function() {
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
   const isBotMod = <?php echo json_encode($BotIsMod); ?>;
@@ -1009,8 +1011,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const urlParams = new URLSearchParams(window.location.search);
   const selectedBot = urlParams.get('bot') || 'stable';
   // Custom Bot Toggle functionality
-  // Note: Toggle state is saved in browser's localStorage (client-side only)
-  // This means the preference is saved per browser/device, not server-side
+  // Note: Toggle state is provided by server-side `$use_custom` (from userdata.php)
   const customBotToggleContainer = document.getElementById('custom-bot-toggle-container');
   const customBotToggle = document.getElementById('custom-bot-toggle');
   const customBotWarning = document.getElementById('custom-bot-warning');
@@ -1037,11 +1038,11 @@ document.addEventListener('DOMContentLoaded', function() {
       customBotWarning.style.display = 'none';
     }
   }
-  // Load saved toggle state from localStorage
+  // Initialize toggle state from server variable
   function loadCustomBotToggleState() {
-    const savedState = localStorage.getItem('customBotToggleState');
-    if (customBotToggle && savedState !== null) {
-      customBotToggle.checked = (savedState === 'true');
+    // Initialize the checkbox from the server-side value
+    if (customBotToggle) {
+      customBotToggle.checked = (serverUseCustom === 1);
     }
     // Update warning visibility after loading state
     updateCustomBotWarningVisibility();
@@ -1050,7 +1051,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (customBotToggle) {
     customBotToggle.addEventListener('change', function() {
       const isEnabled = this.checked;
-      localStorage.setItem('customBotToggleState', isEnabled);
+      // Update the local JS copy of the server setting for this page load only
+      try { window.serverUseCustom = isEnabled ? 1 : 0; } catch (e) { /* ignore */ }
       console.log('Custom Bot Name:', isEnabled ? 'Enabled' : 'Disabled');
       // Update warning visibility
       updateCustomBotWarningVisibility();
@@ -1191,12 +1193,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Use setTimeout to avoid blocking the UI
     setTimeout(() => {
-      // Get custom bot toggle state
-      const useCustomBot = customBotToggle ? customBotToggle.checked : false;
+      // Use server-backed custom bot setting. Fallback to checkbox if needed.
+      const useCustomBot = (typeof serverUseCustom !== 'undefined') ? (serverUseCustom === 1) : (customBotToggle ? customBotToggle.checked : false);
       fetchWithTimeout('bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomBot}`
+        body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomBot ? 1 : 0}`
       }, 8000) // Reduced from 15000 to 8000
         .then(response => response.json())
         .then(data => {
