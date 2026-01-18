@@ -163,7 +163,8 @@ $params = [
   'refresh_token' => $refreshToken,
   'api_key' => $apiKey,
   'use_custom_bot' => $useCustomBot,
-  'custom_bot_username' => $customBotUsername
+  'custom_bot_username' => $customBotUsername,
+  'use_self' => (isset($_POST['use_self']) && $_POST['use_self'] === 'true') ? true : false
 ];
 
 // Perform the bot action with timeout monitoring

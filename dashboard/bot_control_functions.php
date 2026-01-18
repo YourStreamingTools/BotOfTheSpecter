@@ -159,6 +159,7 @@ function performBotAction($action, $botType, $params) {
     $apiKey = $params['api_key'] ?? '';
     $useCustomBot = $params['use_custom_bot'] ?? false;
     $customBotUsername = $params['custom_bot_username'] ?? null;
+    $useSelf = $params['use_self'] ?? false;
     // Define paths
     $statusScriptPath = "/home/botofthespecter/status.py";
     // Determine bot script and version path based on bot type
@@ -275,6 +276,10 @@ function performBotAction($action, $botType, $params) {
                     // Add custom bot parameters if enabled (beta only)
                     if ($useCustomBot && $customBotUsername && $botType === 'beta') {
                         $startCommand .= " -custom -botusername " . escapeshellarg($customBotUsername);
+                    }
+                    // Add self flag if requested (beta only)
+                    if ($useSelf && $botType === 'beta') {
+                        $startCommand .= " -self";
                     }
                     
                     $startCommand .= " > /dev/null 2>&1 &";
