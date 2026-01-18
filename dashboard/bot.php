@@ -1345,10 +1345,11 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
       // Use server-backed custom bot setting. Fallback to checkbox if needed.
       const useCustomBot = (typeof serverUseCustom !== 'undefined') ? (serverUseCustom === 1) : (customBotToggle ? customBotToggle.checked : false);
+      const useSelfFlag = (typeof serverUseSelf !== 'undefined' && serverUseSelf === 1) ? 1 : 0;
       fetchWithTimeout('bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomBot ? 1 : 0}`
+        body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomBot ? 1 : 0}&use_self=${useSelfFlag}`
       }, 8000) // Reduced from 15000 to 8000
         .then(response => response.json())
         .then(data => {
