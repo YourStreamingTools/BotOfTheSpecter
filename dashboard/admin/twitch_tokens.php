@@ -228,6 +228,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
             exit;
         }
         $upd->close();
+        // Also update/replace the bot access token in twitch_bot_access so any services using
+        // the bot access token will use the newly issued token (invalidating the old one)
+        $upd2 = $conn->prepare("INSERT INTO twitch_bot_access (twitch_user_id, twitch_access_token) VALUES (?, ?) ON DUPLICATE KEY UPDATE twitch_access_token = VALUES(twitch_access_token)");
+        if ($upd2) {
+            $upd2->bind_param('ss', $userId, $newAccess);
+            if (!$upd2->execute()) {
+                // non-fatal: log or include in response
+                $upd2->close();
+                echo json_encode(['success' => false, 'error' => 'Failed to update twitch_bot_access: ' . $conn->error]);
+                exit;
+            }
+            $upd2->close();
+        } else {
+            // non-fatal but inform caller
+            echo json_encode(['success' => false, 'error' => 'Failed to prepare twitch_bot_access update: ' . $conn->error]);
+            exit;
+        }
         echo json_encode([
             'success' => true,
             'new_token' => $newAccess,
