@@ -503,6 +503,60 @@ class UserPointsModificationResponse(BaseModel):
     class Config:
         json_schema_extra = {"example": {"username": "testuser", "previous_points": 1000, "amount": 100, "new_points": 1100, "point_name": "Points"}}
 
+# Define the response model for Account information
+class AccountResponse(BaseModel):
+    id: int = Field(..., example=1)
+    username: str = Field(..., example="testuser")
+    twitch_display_name: str = Field(None, example="TestUser")
+    twitch_user_id: str = Field(..., example="123456789")
+    access_token: str = Field(None, example="abcdef123456")
+    refresh_token: str = Field(None, example="xyz987654")
+    useable_access_token: str = Field(None, example="useable_access_token_here")
+    useable_access_token_updated: str = Field(None, example="2024-01-20 02:30:00")
+    api_key: str = Field(..., example="abc123def456")
+    is_admin: bool = Field(..., example=False)
+    beta_access: bool = Field(..., example=False)
+    is_technical: bool = Field(..., example=False)
+    signup_date: str = Field(..., example="2024-01-01 12:00:00")
+    last_login: str = Field(..., example="2024-01-20 03:00:00")
+    profile_image: str = Field(..., example="https://cdn.botofthespecter.com/profile.png")
+    email: str = Field(None, example="user@example.com")
+    language: str = Field(..., example="EN")
+    use_custom: int = Field(..., example=0)
+    use_self: int = Field(..., example=0)
+    spotify_access_token: str = Field(None, example="spotify_access_token_here")
+    spotify_refresh_token: str = Field(None, example="spotify_refresh_token_here")
+    discord_access_token: str = Field(None, example="discord_access_token_here")
+    discord_refresh_token: str = Field(None, example="discord_refresh_token_here")
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "username": "testuser",
+                "twitch_display_name": "TestUser",
+                "twitch_user_id": "123456789",
+                "access_token": "abcdef123456",
+                "refresh_token": "xyz987654",
+                "useable_access_token": "useable_access_token_here",
+                "useable_access_token_updated": "2024-01-20 02:30:00",
+                "api_key": "abc123def456",
+                "is_admin": False,
+                "beta_access": False,
+                "is_technical": False,
+                "signup_date": "2024-01-01 12:00:00",
+                "last_login": "2024-01-20 03:00:00",
+                "profile_image": "https://cdn.botofthespecter.com/profile.png",
+                "email": "user@example.com",
+                "language": "EN",
+                "use_custom": 0,
+                "use_self": 0,
+                "spotify_access_token": "spotify_access_token_here",
+                "spotify_refresh_token": "spotify_refresh_token_here",
+                "discord_access_token": "discord_access_token_here",
+                "discord_refresh_token": "discord_refresh_token_here"
+            }
+        }
+
 # Define the /fourthwall endpoint for handling webhook data
 @app.post(
     "/fourthwall",
@@ -616,6 +670,77 @@ async def handle_patreon_webhook(request: Request, api_key: str = Query(...)):
             logging.error(f"Error sending Patreon event to websocket server: {e}")
             return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"status": "error", "message": "Error forwarding to websocket server"}) # Return 500 on websocket send failure
     return {"status": "success", "message": "Patreon Webhook received and processed"}
+
+# Account Information Endpoint
+@app.get(
+    "/account",
+    response_model=AccountResponse,
+    summary="Get account information",
+    description="Retrieve all account information for the authenticated user based on their API key.",
+    tags=["BotOfTheSpecter"],
+    operation_id="get_account_info"
+)
+async def get_account_info(api_key: str = Query(...)):
+    username = await verify_api_key(api_key)
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("""
+                SELECT 
+                    u.id, u.username, u.twitch_display_name, u.twitch_user_id,
+                    u.access_token, u.refresh_token, u.api_key,
+                    u.is_admin, u.beta_access, u.is_technical,
+                    u.signup_date, u.last_login, u.profile_image,
+                    u.email, u.language, u.use_custom, u.use_self,
+                    s.access_token AS spotify_access_token,
+                    s.refresh_token AS spotify_refresh_token,
+                    d.access_token AS discord_access_token,
+                    d.refresh_token AS discord_refresh_token,
+                    t.twitch_access_token AS useable_access_token,
+                    t.updated_at AS useable_access_token_updated
+                FROM users u
+                LEFT JOIN spotify_tokens s ON u.id = s.user_id
+                LEFT JOIN discord_users d ON u.id = d.user_id
+                LEFT JOIN twitch_bot_access t ON u.twitch_user_id = t.twitch_user_id
+                WHERE u.api_key = %s
+            """, (api_key,))
+            result = await cur.fetchone()
+            if not result:
+                raise HTTPException(status_code=404, detail="Account not found")
+            return {
+                "id": result["id"],
+                "username": result["username"],
+                "twitch_display_name": result["twitch_display_name"],
+                "twitch_user_id": result["twitch_user_id"],
+                "access_token": result["access_token"],
+                "refresh_token": result["refresh_token"],
+                "useable_access_token": result["useable_access_token"],
+                "useable_access_token_updated": str(result["useable_access_token_updated"]) if result["useable_access_token_updated"] is not None else None,
+                "api_key": result["api_key"],
+                "is_admin": bool(result["is_admin"]),
+                "beta_access": bool(result["beta_access"]),
+                "is_technical": bool(result["is_technical"]),
+                "signup_date": str(result["signup_date"]),
+                "last_login": str(result["last_login"]),
+                "profile_image": result["profile_image"],
+                "email": result["email"],
+                "language": result["language"],
+                "use_custom": result["use_custom"],
+                "use_self": result["use_self"],
+                "spotify_access_token": result["spotify_access_token"],
+                "spotify_refresh_token": result["spotify_refresh_token"],
+                "discord_access_token": result["discord_access_token"],
+                "discord_refresh_token": result["discord_refresh_token"]
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving account info for API key: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving account information")
+    finally:
+        conn.close()
 
 # Quotes endpoint
 @app.get(
