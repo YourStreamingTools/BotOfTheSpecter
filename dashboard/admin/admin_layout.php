@@ -90,7 +90,21 @@ if (!function_exists('isAdmin') || !isAdmin()) {
             <div class="container">
                 <div class="notification is-danger has-text-centered">
                     <h1 class="title is-3">Access Denied</h1>
-                    <p>You do not have permission to access this page.</p>
+                    <p class="mb-4">You do not have permission to access this page.</p>
+                    <div class="buttons is-centered">
+                        <a href="../dashboard.php" class="button is-primary">
+                            <span class="icon">
+                                <i class="fas fa-home"></i>
+                            </span>
+                            <span>Go to Dashboard</span>
+                        </a>
+                        <a href="javascript:history.back()" class="button is-light">
+                            <span class="icon">
+                                <i class="fas fa-arrow-left"></i>
+                            </span>
+                            <span>Go Back</span>
+                        </a>
+                    </div>
                 </div>
             </div>
         </section>
@@ -125,6 +139,8 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
     $active_menu = 'websocket';
 } elseif ($current_file == 'terminal.php') {
     $active_menu = 'terminal';
+} elseif ($current_file == 'api_keys.php') {
+    $active_menu = 'api_keys';
 }
 ?>
 <!DOCTYPE html>
@@ -236,6 +252,12 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
+                    <a href="api_keys.php" class="sidebar-menu-link">
+                        <span class="icon sidebar-menu-icon"><i class="fas fa-key"></i></span>
+                        <span class="sidebar-menu-text">API Keys</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
                     <a href="terminal.php" class="sidebar-menu-link">
                         <span class="icon sidebar-menu-icon"><i class="fas fa-terminal"></i></span>
                         <span class="sidebar-menu-text">Web Terminal</span>
@@ -324,6 +346,13 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                     <span class="sidebar-menu-text">Websocket Clients</span>
                 </a>
                 <div class="sidebar-tooltip">Websocket Clients</div>
+            </li>
+            <li class="sidebar-menu-item">
+                <a href="api_keys.php" class="sidebar-menu-link <?php echo $active_menu == 'api_keys' ? 'active' : ''; ?>">
+                    <span class="icon sidebar-menu-icon"><i class="fas fa-key"></i></span>
+                    <span class="sidebar-menu-text">API Keys</span>
+                </a>
+                <div class="sidebar-tooltip">API Key Management</div>
             </li>
             <li class="sidebar-menu-item">
                 <a href="terminal.php" class="sidebar-menu-link <?php echo $active_menu == 'terminal' ? 'active' : ''; ?>">
@@ -487,7 +516,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
         document.querySelectorAll('.sidebar-menu-link.active').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.navbar-item.is-active').forEach(el => el.classList.remove('is-active'));
         // Admin active menu logic
-        if (currentPath.includes('/admin') && !currentPath.includes('users.php') && !currentPath.includes('start_bots.php') && !currentPath.includes('logs.php') && !currentPath.includes('feedback.php') && !currentPath.includes('twitch_tokens.php') && !currentPath.includes('discordbot_overview.php') && !currentPath.includes('websocket_clients.php') && !currentPath.includes('terminal.php')) {
+        if (currentPath.includes('/admin') && !currentPath.includes('users.php') && !currentPath.includes('start_bots.php') && !currentPath.includes('logs.php') && !currentPath.includes('feedback.php') && !currentPath.includes('twitch_tokens.php') && !currentPath.includes('discordbot_overview.php') && !currentPath.includes('websocket_clients.php') && !currentPath.includes('api_keys.php') && !currentPath.includes('terminal.php')) {
             // Dashboard
             const dashboardLinks = document.querySelectorAll('a[href="/admin"]');
             dashboardLinks.forEach(link => {
@@ -540,6 +569,13 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
             // Websocket Clients
             const websocketLinks = document.querySelectorAll('a[href*="websocket_clients.php"]');
             websocketLinks.forEach(link => {
+                if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
+                if (link.classList.contains('navbar-item')) link.classList.add('is-active');
+            });
+        } else if (currentPath.includes('api_keys.php')) {
+            // API Keys
+            const apiKeysLinks = document.querySelectorAll('a[href*="api_keys.php"]');
+            apiKeysLinks.forEach(link => {
                 if (link.classList.contains('sidebar-menu-link')) link.classList.add('active');
                 if (link.classList.contains('navbar-item')) link.classList.add('is-active');
             });
