@@ -314,6 +314,56 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       $errorMsg .= "Guild not linked or no guild selected.<br>";
     }
   }
+    // Handle FreeStuff (Free Games) settings save
+    if (isset($_POST['save_freestuff_settings'])) {
+      if ($is_linked && $hasGuildId && isset($discord_conn) && !$discord_conn->connect_error) {
+        $fs_twitch = trim($_POST['freestuff_twitch_username'] ?? '');
+        $fs_channel = trim($_POST['freestuff_channel_id'] ?? '');
+        $fs_enabled = isset($_POST['freestuff_enabled']) ? 1 : 0;
+        // Validate required fields
+        if (empty($fs_twitch)) {
+          $errorMsg .= "Twitch username is required for Free Games module.<br>";
+        } else {
+          // Check if record exists
+          $checkStmt = $discord_conn->prepare("SELECT id FROM freestuff_settings WHERE guild_id = ?");
+          $checkStmt->bind_param("s", $existingGuildId);
+          $checkStmt->execute();
+          $checkRes = $checkStmt->get_result();
+          if ($checkRes && $checkRes->num_rows > 0) {
+            // Update
+            $updateStmt = $discord_conn->prepare("UPDATE freestuff_settings SET twitch_username = ?, channel_id = ?, enabled = ? WHERE guild_id = ?");
+            $updateStmt->bind_param("ssis", $fs_twitch, $fs_channel, $fs_enabled, $existingGuildId);
+            // Note: bind types: s=string, i=int; using ssis may be safer but enforce cast
+            $ok = $updateStmt->execute();
+            if ($ok) {
+              $buildStatus .= "Free Games settings updated successfully.<br>";
+              $existingFreestuffEnabled = $fs_enabled;
+              $existingFreestuffChannelID = $fs_channel;
+              $existingFreestuffTwitchUser = $fs_twitch;
+            } else {
+              $errorMsg .= "Failed to update Free Games settings: " . $discord_conn->error . "<br>";
+            }
+            $updateStmt->close();
+          } else {
+            // Insert
+            $insertStmt = $discord_conn->prepare("INSERT INTO freestuff_settings (guild_id, twitch_username, channel_id, enabled) VALUES (?, ?, ?, ?)");
+            $insertStmt->bind_param("sssi", $existingGuildId, $fs_twitch, $fs_channel, $fs_enabled);
+            if ($insertStmt->execute()) {
+              $buildStatus .= "Free Games settings saved successfully.<br>";
+              $existingFreestuffEnabled = $fs_enabled;
+              $existingFreestuffChannelID = $fs_channel;
+              $existingFreestuffTwitchUser = $fs_twitch;
+            } else {
+              $errorMsg .= "Failed to save Free Games settings: " . $discord_conn->error . "<br>";
+            }
+            $insertStmt->close();
+          }
+          $checkStmt->close();
+        }
+      } else {
+        $errorMsg .= "Guild not linked or no guild selected for Free Games settings.<br>";
+      }
+    }
   try {
     // Handle JSON POST requests for server management settings
     $content = file_get_contents('php://input');
@@ -783,6 +833,10 @@ $existingAlertChannelID = $discordData['alert_channel_id'] ?? "";
 $existingTwitchStreamMonitoringID = $discordData['member_streams_id'] ?? "";
 $existingStreamAlertEveryone = $discordData['stream_alert_everyone'] ?? false;
 $existingStreamAlertCustomRole = $discordData['stream_alert_custom_role'] ?? "";
+// FreeStuff (Free Games) default settings
+$existingFreestuffEnabled = 0;
+$existingFreestuffChannelID = "";
+$existingFreestuffTwitchUser = "";
 // Initialize server management log channel IDs as empty (will be loaded from server_management table)
 $existingWelcomeChannelID = "";
 $existingWelcomeMessage = "";
@@ -1003,6 +1057,20 @@ if ($is_linked && $hasGuildId) {
     }
     $serverMgmtStmt->close();
   }
+}
+
+// Load FreeStuff (Free Games) settings from Discord bot DB if available
+if ($is_linked && $hasGuildId && isset($discord_conn) && !$discord_conn->connect_error) {
+  $fsStmt = $discord_conn->prepare("SELECT enabled, channel_id, twitch_username FROM freestuff_settings WHERE guild_id = ?");
+  $fsStmt->bind_param("s", $existingGuildId);
+  $fsStmt->execute();
+  $fsRes = $fsStmt->get_result();
+  if ($fsRow = $fsRes->fetch_assoc()) {
+    $existingFreestuffEnabled = (int)($fsRow['enabled'] ?? 0);
+    $existingFreestuffChannelID = $fsRow['channel_id'] ?? "";
+    $existingFreestuffTwitchUser = $fsRow['twitch_username'] ?? "";
+  }
+  $fsStmt->close();
 }
 
 // Check if any management features are enabled
@@ -3126,6 +3194,42 @@ ob_start();
     <?php endif; ?>
   </div>
 </div>
+<!-- Free Games (FreeStuff) Module -->
+<div class="box">
+  <h2 class="title is-4">Free Games (FreeStuff) Module</h2>
+  <?php if ($is_linked && $hasGuildId) { ?>
+    <form method="POST">
+      <div class="field">
+        <label class="label">Enable Free Games</label>
+        <div class="control">
+          <label class="checkbox">
+            <input type="checkbox" name="freestuff_enabled" <?php echo $existingFreestuffEnabled ? 'checked' : ''; ?>> Enabled
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label class="label">Twitch Username</label>
+        <div class="control">
+          <input class="input" type="text" name="freestuff_twitch_username" value="<?php echo htmlspecialchars($existingFreestuffTwitchUser); ?>" placeholder="Enter Twitch username to monitor">
+        </div>
+      </div>
+      <div class="field">
+        <label class="label">Discord Channel ID</label>
+        <div class="control">
+          <input class="input" type="text" name="freestuff_channel_id" value="<?php echo htmlspecialchars($existingFreestuffChannelID); ?>" placeholder="Channel ID to post announcements">
+        </div>
+      </div>
+      <div class="field">
+        <div class="control">
+          <button class="button is-primary" type="submit" name="save_freestuff_settings">Save Free Games Settings</button>
+        </div>
+      </div>
+    </form>
+  <?php } else { ?>
+    <div class="notification is-warning">Link your Discord guild and select a guild to configure the Free Games module.</div>
+  <?php } ?>
+</div>
+
 <!-- Embed Builder Modal -->
 <div id="embedBuilderModal" class="modal">
   <div class="modal-background"></div>
