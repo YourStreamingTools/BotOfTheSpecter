@@ -3,6 +3,7 @@ import os
 import random
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import asyncio
 import datetime
 import urllib
@@ -45,13 +46,26 @@ if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
 ADMIN_KEY = os.getenv('ADMIN_KEY')
 WEATHER_API = os.getenv('WEATHER_API')
 
-# Setup Logger
+# Setup Logger with rotation
 log_file = "/home/botofthespecter/log.txt" if os.path.exists("/home/botofthespecter") else "/home/fastapi/log.txt"
-logging.basicConfig(
-    level=logging.INFO,
-    filename=log_file,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Create rotating file handler (100MB per file, keep 10 backup files)
+rotating_handler = RotatingFileHandler(
+    log_file,
+    maxBytes=100 * 1024 * 1024,  # 100MB
+    backupCount=10,
+    encoding='utf-8'
 )
+rotating_handler.setLevel(logging.INFO)
+
+# Create formatter
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+rotating_handler.setFormatter(formatter)
+
+# Add handler to logger
+logger.addHandler(rotating_handler)
 
 # Define the tags metadata
 tags_metadata = [
