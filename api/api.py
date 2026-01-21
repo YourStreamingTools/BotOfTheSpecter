@@ -548,6 +548,55 @@ class AccountResponse(BaseModel):
     twitch_user_id: str = Field(..., example="123456789")
     access_token: str = Field(None, example="abcdef123456")
     refresh_token: str = Field(None, example="xyz987654")
+
+# Define the response model for FreeStuff Games
+class FreeStuffGame(BaseModel):
+    id: int = Field(..., example=1)
+    game_id: str = Field(None, example="steam_12345")
+    game_title: str = Field(..., example="Awesome Game")
+    game_org: str = Field(..., example="Steam")
+    game_thumbnail: str = Field(None, example="https://example.com/image.jpg")
+    game_url: str = Field(None, example="https://example.com/game")
+    game_description: str = Field(None, example="An awesome free game")
+    game_price: str = Field(..., example="Was $29.99")
+    received_at: str = Field(..., example="2026-01-22 10:30:00")
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "game_id": "steam_12345",
+                "game_title": "Awesome Game",
+                "game_org": "Steam",
+                "game_thumbnail": "https://example.com/image.jpg",
+                "game_url": "https://example.com/game",
+                "game_description": "An awesome free game",
+                "game_price": "Was $29.99",
+                "received_at": "2026-01-22 10:30:00"
+            }
+        }
+
+class FreeStuffGamesResponse(BaseModel):
+    games: List[FreeStuffGame] = Field(..., example=[])
+    count: int = Field(..., example=5)
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "games": [
+                    {
+                        "id": 1,
+                        "game_id": "steam_12345",
+                        "game_title": "Awesome Game",
+                        "game_org": "Steam",
+                        "game_thumbnail": "https://example.com/image.jpg",
+                        "game_url": "https://example.com/game",
+                        "game_description": "An awesome free game",
+                        "game_price": "Was $29.99",
+                        "received_at": "2026-01-22 10:30:00"
+                    }
+                ],
+                "count": 5
+            }
+        }
     useable_access_token: str = Field(None, example="useable_access_token_here")
     useable_access_token_updated: str = Field(None, example="2024-01-20 02:30:00")
     api_key: str = Field(..., example="abc123def456")
@@ -708,6 +757,73 @@ async def handle_patreon_webhook(request: Request, api_key: str = Query(...)):
             return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"status": "error", "message": "Error forwarding to websocket server"}) # Return 500 on websocket send failure
     return {"status": "success", "message": "Patreon Webhook received and processed"}
 
+async def save_freestuff_game(webhook_data):
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor() as cur:
+                # Create table if it doesn't exist
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS freestuff_games (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        game_id VARCHAR(255),
+                        game_title VARCHAR(500),
+                        game_org VARCHAR(255),
+                        game_thumbnail TEXT,
+                        game_url TEXT,
+                        game_description TEXT,
+                        game_price VARCHAR(50),
+                        received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_received_at (received_at)
+                    )
+                """)
+                await conn.commit()
+                # Extract game data from webhook
+                data = webhook_data.get("data", {})
+                product = data.get("product", {})
+                game_id = product.get("id")
+                game_title = product.get("title", "Unknown Game")
+                game_org = product.get("org", {}).get("name", "Unknown")
+                # Get thumbnail - prefer Steam if available
+                thumbnails = product.get("thumbnails", {})
+                game_thumbnail = thumbnails.get("steam_library_600x900") or thumbnails.get("org_logo") or ""
+                # Get URL
+                urls = product.get("urls", {})
+                game_url = urls.get("default") or urls.get("org") or ""
+                game_description = product.get("description", "")
+                # Get price info
+                prices = product.get("prices", [])
+                game_price = "Free"
+                if prices:
+                    for price in prices:
+                        if price.get("oldValue"):
+                            game_price = f"Was ${price.get('oldValue')/100:.2f}"
+                            break
+                # Insert new game
+                await cur.execute("""
+                    INSERT INTO freestuff_games 
+                    (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price))
+                await conn.commit()
+                # Keep only last 5 games
+                await cur.execute("""
+                    DELETE FROM freestuff_games 
+                    WHERE id NOT IN (
+                        SELECT id FROM (
+                            SELECT id FROM freestuff_games 
+                            ORDER BY received_at DESC 
+                            LIMIT 5
+                        ) AS keep_games
+                    )
+                """)
+                await conn.commit()
+                logging.info(f"Saved FreeStuff game: {game_title} ({game_org})")
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Error saving FreeStuff game to database: {e}")
+
 @app.post(
     "/freestuff",
     summary="Receive and process FreeStuff Webhook Requests",
@@ -728,6 +844,9 @@ async def handle_freestuff_webhook(request: Request, admin_key: str = Query(...)
             raise HTTPException(status_code=400, detail="Invalid webhook: missing type/timestamp")
         event_type = webhook_data.get("type")
         logging.info(f"FreeStuff: {event_type} | ID: {webhook_id} | Compat: {compatibility_date}")
+        # Save game announcement to database
+        if event_type == "fsb:announcement:free-games":
+            await save_freestuff_game(webhook_data)
         if event_type == "fsb:event:ping":
             manual = webhook_data.get("data", {}).get("manual", False)
             logging.info(f"FreeStuff ping ({'manual' if manual else 'automatic'})")
@@ -758,6 +877,39 @@ async def handle_freestuff_webhook(request: Request, admin_key: str = Query(...)
             logging.error(f"Error forwarding FreeStuff: {e}")
             raise HTTPException(status_code=500, detail="Error forwarding to websocket")
     return JSONResponse(status_code=204, content=None, headers={"X-Client-Library": "BotOfTheSpecter/1.0"})
+
+# FreeStuff Games List Endpoint
+@app.get(
+    "/freestuff/games",
+    response_model=FreeStuffGamesResponse,
+    summary="Get recent free games",
+    description="Retrieve the last 5 free games announced via FreeStuff webhooks.",
+    tags=["BotOfTheSpecter"],
+    operation_id="get_freestuff_games"
+)
+async def get_freestuff_games():
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("""
+                    SELECT id, game_id, game_title, game_org, game_thumbnail, 
+                           game_url, game_description, game_price, received_at
+                    FROM freestuff_games
+                    ORDER BY received_at DESC
+                    LIMIT 5
+                """)
+                games = await cur.fetchall()
+                # Convert datetime to string for JSON serialization
+                for game in games:
+                    if game['received_at']:
+                        game['received_at'] = game['received_at'].strftime('%Y-%m-%d %H:%M:%S')
+                return {"games": games, "count": len(games)}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Error fetching FreeStuff games: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching games from database")
 
 # Account Information Endpoint
 @app.get(
