@@ -278,19 +278,43 @@ async def verify_api_key(api_key):
         conn.close()
 
 # Verify the ADMIN API Key Given
-async def verify_admin_key(admin_key: str):
-    global ADMIN_KEY
-    logging.info(f"ADMIN_KEY loaded: {ADMIN_KEY is not None}")
-    if ADMIN_KEY:
-        logging.info(f"ADMIN_KEY length: {len(ADMIN_KEY)}")
-        logging.info(f"Provided key length: {len(admin_key)}")
-        logging.info(f"Keys match: {admin_key == ADMIN_KEY}")
-    else:
-        logging.error("ADMIN_KEY is None or empty")
-    
-    if admin_key != ADMIN_KEY:
+async def verify_admin_key(admin_key: str, service: str = None):
+    try:
+        async with aiomysql.create_pool(
+            host=SQL_HOST,
+            user=SQL_USER,
+            password=SQL_PASSWORD,
+            db="website",
+            port=SQL_PORT,
+            autocommit=True
+        ) as pool:
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    # Get the service for this admin key
+                    await cur.execute(
+                        "SELECT service FROM admin_api_keys WHERE api_key = %s",
+                        (admin_key,)
+                    )
+                    result = await cur.fetchone()
+                    if not result:
+                        return False
+                    key_service = result['service']
+                    is_super_admin = (key_service == 'admin')
+                    # Super admin can access everything
+                    if is_super_admin:
+                        return True
+                    # Service-specific admin can only access their service
+                    if service and key_service.lower() == service.lower():
+                        return True
+                    # Service-specific key used for wrong service or no service specified
+                    if service and key_service.lower() != service.lower():
+                        logging.warning(f"Admin key for service '{key_service}' attempted to access '{service}'")
+                        return False
+                    # No service specified but key is service-specific
+                    return False
+    except Exception as e:
+        logging.error(f"Error verifying admin key: {e}")
         return False
-    return True
 
 # Function to connect to the websocket server and push a notice
 async def websocket_notice(event, params, api_key):
@@ -325,6 +349,19 @@ class DeathsRequest(BaseModel):
 
 class WeatherRequest(BaseModel):
     location: str
+
+class FreeStuffWebhookPayload(BaseModel):
+    type: str = Field(..., description="Event type (ping, announcement_created, product_updated)")
+    timestamp: str = Field(..., description="ISO 8601 timestamp")
+    data: dict = Field(..., description="Event-specific data")
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "type": "fsb:event:announcement_created",
+                "timestamp": "2022-11-03T20:26:10.344522Z",
+                "data": {"id": 12345, "products": [1, 2, 3]}
+            }
+        }
 
 # Define the response model for validation errors
 class ValidationErrorDetail(BaseModel):
@@ -670,6 +707,57 @@ async def handle_patreon_webhook(request: Request, api_key: str = Query(...)):
             logging.error(f"Error sending Patreon event to websocket server: {e}")
             return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"status": "error", "message": "Error forwarding to websocket server"}) # Return 500 on websocket send failure
     return {"status": "success", "message": "Patreon Webhook received and processed"}
+
+@app.post(
+    "/freestuff",
+    summary="Receive and process FreeStuff Webhook Requests",
+    description="Receives FreeStuff webhooks (ping, announcements, product updates) and forwards to WebSocket.",
+    tags=["Webhooks"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="process_freestuff_webhook"
+)
+async def handle_freestuff_webhook(request: Request, admin_key: str = Query(...)):
+    valid = await verify_admin_key(admin_key, service="FreeStuff")
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
+    webhook_id = request.headers.get("Webhook-Id")
+    compatibility_date = request.headers.get("X-Compatibility-Date")
+    try:
+        webhook_data = await request.json()
+        if "type" not in webhook_data or "timestamp" not in webhook_data:
+            raise HTTPException(status_code=400, detail="Invalid webhook: missing type/timestamp")
+        event_type = webhook_data.get("type")
+        logging.info(f"FreeStuff: {event_type} | ID: {webhook_id} | Compat: {compatibility_date}")
+        if event_type == "fsb:event:ping":
+            manual = webhook_data.get("data", {}).get("manual", False)
+            logging.info(f"FreeStuff ping ({'manual' if manual else 'automatic'})")
+            return JSONResponse(status_code=204, content=None, headers={"X-Client-Library": "BotOfTheSpecter/1.0"})
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in FreeStuff webhook: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error processing FreeStuff webhook: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+    async with aiohttp.ClientSession() as session:
+        try:
+            params = {"code": admin_key, "event": "FREESTUFF", "data": webhook_data}
+            encoded_params = urlencode(params)
+            url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    logging.error(f"WebSocket forward failed: {response.status}")
+                    raise HTTPException(status_code=500, detail="Error forwarding to websocket")
+        except asyncio.TimeoutError:
+            logging.error("Timeout forwarding FreeStuff event")
+            raise HTTPException(status_code=500, detail="Timeout forwarding to websocket")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"Error forwarding FreeStuff: {e}")
+            raise HTTPException(status_code=500, detail="Error forwarding to websocket")
+    return JSONResponse(status_code=204, content=None, headers={"X-Client-Library": "BotOfTheSpecter/1.0"})
 
 # Account Information Endpoint
 @app.get(

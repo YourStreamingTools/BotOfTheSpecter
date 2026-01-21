@@ -375,12 +375,18 @@ class BotOfTheSpecter_WebsocketServer:
         name = f"{channel} - {sid_name}"
         # Handle global listener registration
         if is_global_listener:
-            # Validate admin code for global listeners
-            if not self.admin_code:
-                self.logger.warning(f"Global listener registration denied for SID [{sid}] - admin key not configured")
-                await self.sio.emit("ERROR", {"message": "Global listener registration not available - admin key not configured"}, to=sid)
-                return
-            if code != self.admin_code:
+            # Validate admin key for global listeners (check database first, then fallback to env)
+            is_valid_admin = False
+            # Check database for admin key
+            admin_info = await self.verify_admin_key(code)
+            if admin_info['valid'] and admin_info['is_super_admin']:
+                is_valid_admin = True
+                self.logger.info(f"Global listener authenticated with database admin key")
+            # Fallback to environment variable ADMIN_KEY for backward compatibility
+            elif self.admin_code and code == self.admin_code:
+                is_valid_admin = True
+                self.logger.info(f"Global listener authenticated with environment admin key (legacy)")
+            if not is_valid_admin:
                 self.logger.warning(f"Global listener registration denied for SID [{sid}] - invalid admin key provided: '{code}'")
                 await self.sio.emit("ERROR", {"message": "Global listener registration denied - invalid admin key"}, to=sid)
                 return
@@ -519,6 +525,39 @@ class BotOfTheSpecter_WebsocketServer:
                     return code
         return None
 
+    async def verify_admin_key(self, admin_key, service=None):
+        try:
+            query = "SELECT service FROM admin_api_keys WHERE api_key = %s"
+            result = await self.execute_query(query, (admin_key,), database_name='website')
+            if not result:
+                return {'valid': False, 'service': None, 'is_super_admin': False}
+            key_service = result[0]['service']
+            is_super_admin = (key_service == 'admin')
+            # Super admin can access everything
+            if is_super_admin:
+                return {'valid': True, 'service': 'admin', 'is_super_admin': True}
+            # Service-specific admin can only access their service
+            if service and key_service.lower() == service.lower():
+                return {'valid': True, 'service': key_service, 'is_super_admin': False}
+            # Service-specific key used for wrong service
+            if service and key_service.lower() != service.lower():
+                self.logger.warning(f"Admin key for service '{key_service}' attempted to access '{service}'")
+                return {'valid': False, 'service': key_service, 'is_super_admin': False}
+            # No service specified but key is service-specific (shouldn't happen)
+            return {'valid': False, 'service': key_service, 'is_super_admin': False}
+        except Exception as e:
+            self.logger.error(f"Error verifying admin key: {e}")
+            return {'valid': False, 'service': None, 'is_super_admin': False}
+
+    async def verify_user_key(self, api_key):
+        try:
+            query = "SELECT api_key FROM users WHERE api_key = %s"
+            result = await self.execute_query(query, (api_key,), database_name='website')
+            return bool(result)
+        except Exception as e:
+            self.logger.error(f"Error verifying user key: {e}")
+            return False
+
     async def notify_http(self, request):
         # Extract query parameters
         code = request.query.get("code")
@@ -532,9 +571,39 @@ class BotOfTheSpecter_WebsocketServer:
             raise web.HTTPBadRequest(text="400 Bad Request: API Key is missing")
         if not event:
             raise web.HTTPBadRequest(text="400 Bad Request: Event is missing")
-        data = {k: v for k, v in request.query.items()}
-        self.logger.info(f"Notify request data: {data}")
         event = event.upper().replace(" ", "_")
+        # Determine the service for admin key validation
+        service_map = {
+            'FREESTUFF': 'FreeStuff',
+        }
+        required_service = service_map.get(event, None)
+        # Verify the key - check admin keys first, then user keys
+        is_valid_key = False
+        is_admin_key = False
+        admin_info = None
+        if required_service:
+            # Events that require admin keys
+            admin_info = await self.verify_admin_key(code, service=required_service)
+            is_valid_key = admin_info['valid']
+            is_admin_key = True
+            if not is_valid_key:
+                self.logger.warning(f"Invalid or unauthorized admin key for {event} event")
+                raise web.HTTPForbidden(text="403 Forbidden: Invalid or unauthorized admin key")
+        else:
+            # Check if it's an admin key (super admin can do anything)
+            admin_info = await self.verify_admin_key(code)
+            if admin_info['valid'] and admin_info['is_super_admin']:
+                is_valid_key = True
+                is_admin_key = True
+                self.logger.info(f"Super admin key used for {event} event")
+            else:
+                # Check if it's a valid user key
+                is_valid_key = await self.verify_user_key(code)
+                if not is_valid_key:
+                    self.logger.warning(f"Invalid API key for {event} event")
+                    raise web.HTTPForbidden(text="403 Forbidden: Invalid API key")
+        data = {k: v for k, v in request.query.items()}
+        self.logger.info(f"Notify request data: {data} (admin_key: {is_admin_key})")
         count = 0
         if event == "TWITCH_FOLLOW":
             await self.broadcast_event_with_globals(event, data, code)
@@ -561,6 +630,9 @@ class BotOfTheSpecter_WebsocketServer:
         elif event == "PATREON":
             # Handle Patreon-specific event
             await self.handle_patreon_event(code, data)
+        elif event == "FREESTUFF":
+            # Handle FreeStuff-specific event (game announcements)
+            await self.handle_freestuff_event(code, data)
         elif event in ["STREAM_ONLINE", "STREAM_OFFLINE", "POST_REACTION_ROLES_MESSAGE", "POST_RULES_MESSAGE", "POST_STREAM_SCHEDULE_MESSAGE"]:
             # Handle stream status events, reaction roles message, rules message, and stream schedule message with proper global broadcasting
             count = await self.broadcast_event_with_globals(event, data, code)
@@ -681,6 +753,20 @@ class BotOfTheSpecter_WebsocketServer:
     async def handle_patreon_event(self, code, data):
         # Use the donation handler to handle PATREON events
         return await self.donation_handler.handle_patreon_event(code, data)
+
+    async def handle_freestuff_event(self, code, data):
+        # Handle FreeStuff game announcement events - admin key validation done in notify_http
+        webhook_data = data.get('data', {})
+        event_type = webhook_data.get('type')
+        self.logger.info(f"Broadcasting FreeStuff event: {event_type}")
+        # Broadcast to all global listeners (Discord bot)
+        for listener in self.global_listeners:
+            await self.sio.emit('FREESTUFF_ANNOUNCEMENT', {
+                'type': event_type,
+                'timestamp': webhook_data.get('timestamp'),
+                'data': webhook_data.get('data')
+            }, to=listener['sid'])
+            self.logger.info(f"Sent FreeStuff event to global listener {listener['name']}")
 
     async def handle_obs_event(self, sid, data):
         # Redirect OBS events to the dedicated OBS handler

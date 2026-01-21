@@ -685,6 +685,11 @@ class WebsocketListener:
                 await server_mgmt.post_custom_embed(data)
             else:
                 self.logger.warning("ServerManagement cog not loaded, cannot handle custom embed")
+        # Event handler for FreeStuff game announcements
+        @self.specterSocket.on('FREESTUFF_ANNOUNCEMENT')
+        async def freestuff_announcement(data):
+            self.logger.info("FREESTUFF_ANNOUNCEMENT event handler called!")
+            await handle_freestuff_announcement(self.bot, data)
         # Log all other events generically
         @self.specterSocket.on('*')
         async def catch_all(event, data):
@@ -1041,6 +1046,67 @@ class ChannelMapping:
                 self.logger.info(f"Auto-created {created_count} missing channel mappings")
         except Exception as e:
             self.logger.error(f"Error in populate_missing_mappings_from_users: {e}")
+
+async def handle_freestuff_announcement(bot, data):
+    try:
+        event_type = data.get('type')
+        event_data = data.get('data', {})
+        logger = bot.logger if hasattr(bot, 'logger') else logging.getLogger('FreeStuff')
+        mysql = MySQLHelper(logger)
+        logger.info(f"Processing FreeStuff event: {event_type}")
+        # Only handle announcement_created events for now
+        if event_type != 'fsb:event:announcement_created':
+            logger.info(f"Skipping FreeStuff event type: {event_type}")
+            return
+        # Get all users with FreeStuff enabled
+        rows = await mysql.fetchall(
+            "SELECT guild_id, freestuff_channel_id FROM discord_users WHERE freestuff_enabled = 1 AND freestuff_channel_id IS NOT NULL",
+            database_name='website',
+            dict_cursor=True
+        )
+        if not rows:
+            logger.info("No users have FreeStuff enabled")
+            return
+        # Format announcement embed
+        resolved_products = event_data.get('resolvedProducts', [])
+        if not resolved_products:
+            logger.info("No products in announcement")
+            return
+        embed = discord.Embed(
+            title="🎮 New Free Games Available!",
+            description="Free games are now available:",
+            color=discord.Color.green(),
+            timestamp=datetime.now(timezone.utc)
+        )
+        # Add up to 10 products
+        for product in resolved_products[:10]:
+            title = product.get('title', 'Unknown Game')
+            store_name = product.get('store', {}).get('name', 'Unknown Store') if isinstance(product.get('store'), dict) else 'Unknown Store'
+            embed.add_field(name=title, value=f"Available on {store_name}", inline=False)
+        embed.set_footer(text="Powered by FreeStuff")
+        # Post to each configured channel
+        posted_count = 0
+        for row in rows:
+            try:
+                guild_id = row['guild_id']
+                channel_id = row['freestuff_channel_id']
+                if not channel_id:
+                    continue
+                channel = bot.get_channel(int(channel_id))
+                if channel:
+                    await channel.send(embed=embed)
+                    posted_count += 1
+                    logger.info(f"Posted FreeStuff announcement to guild {guild_id}")
+                else:
+                    logger.warning(f"Channel {channel_id} not found for guild {guild_id}")
+            except Exception as e:
+                logger.error(f"Failed to post FreeStuff announcement to guild {row.get('guild_id')}: {e}")
+        logger.info(f"Posted FreeStuff announcement to {posted_count} channels")
+    except Exception as e:
+        if hasattr(bot, 'logger'):
+            bot.logger.error(f"Error in handle_freestuff_announcement: {e}")
+        else:
+            logging.error(f"Error in handle_freestuff_announcement: {e}")
 
 class LiveChannelManager:
     def __init__(self, bot, logger=None, check_interval=60):
