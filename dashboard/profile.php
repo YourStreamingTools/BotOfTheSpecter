@@ -138,7 +138,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($action === 'update_timezone') {
         $timezone = $_POST['timezone'] ?? 'UTC';
-        $updateQuery = "UPDATE profile SET timezone = ?";
+        // Check if profile row exists
+        $checkStmt = mysqli_prepare($db, "SELECT COUNT(*) as cnt FROM profile");
+        mysqli_stmt_execute($checkStmt);
+        $checkResult = mysqli_stmt_get_result($checkStmt);
+        $row = mysqli_fetch_assoc($checkResult);
+        
+        if ($row['cnt'] == 0) {
+            // Insert new row
+            $updateQuery = "INSERT INTO profile (timezone) VALUES (?)";
+        } else {
+            // Update existing row
+            $updateQuery = "UPDATE profile SET timezone = ?";
+        }
+        
         $stmt = mysqli_prepare($db, $updateQuery);
         if ($stmt === false) {
             $message = t('timezone_update_error') . ': ' . mysqli_error($db);
@@ -146,14 +159,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             mysqli_stmt_bind_param($stmt, 's', $timezone);
             if (mysqli_stmt_execute($stmt)) {
-                $message = t('timezone_updated_success');
-                $alertClass = 'is-success';
                 $_SESSION['timezone'] = $timezone;
-                // Reload profile data in a mysqlnd-independent way
-                $row = $db->query($profileQuery);
-                if ($row) {
-                    $profileData = $row->fetch_assoc();
-                }
+                // Store the message in session and reload to show updated value
+                $_SESSION['profile_message'] = t('timezone_updated_success');
+                $_SESSION['profile_alert_class'] = 'is-success';
+                header("Location: " . $_SERVER['REQUEST_URI']);
+                exit();
             } else {
                 $message = t('timezone_update_error') . ': ' . mysqli_error($db);
                 $alertClass = 'is-danger';
@@ -161,7 +172,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'update_weather_location') {
         $weatherLocation = $_POST['weather_location'] ?? '';
-        $updateQuery = "UPDATE profile SET weather_location = ?";
+        // Check if profile row exists
+        $checkStmt = mysqli_prepare($db, "SELECT COUNT(*) as cnt FROM profile");
+        mysqli_stmt_execute($checkStmt);
+        $checkResult = mysqli_stmt_get_result($checkStmt);
+        $row = mysqli_fetch_assoc($checkResult);
+        
+        if ($row['cnt'] == 0) {
+            // Insert new row
+            $updateQuery = "INSERT INTO profile (weather_location) VALUES (?)";
+        } else {
+            // Update existing row
+            $updateQuery = "UPDATE profile SET weather_location = ?";
+        }
         $stmt = mysqli_prepare($db, $updateQuery);
         if ($stmt === false) {
             $message = t('weather_location_update_error') . ': ' . mysqli_error($db);
@@ -169,13 +192,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             mysqli_stmt_bind_param($stmt, 's', $weatherLocation);
             if (mysqli_stmt_execute($stmt)) {
-                $message = t('weather_location_updated_success');
-                $alertClass = 'is-success';
-                // Reload profile data in a mysqlnd-independent way
-                $row = $db->query($profileQuery);
-                if ($row) {
-                    $profileData = $row->fetch_assoc();
-                }
+                // Store the message in session and reload to show updated value
+                $_SESSION['profile_message'] = t('weather_location_updated_success');
+                $_SESSION['profile_alert_class'] = 'is-success';
+                header("Location: " . $_SERVER['REQUEST_URI']);
+                exit();
             } else {
                 $message = t('weather_location_update_error') . ': ' . mysqli_error($db);
                 $alertClass = 'is-danger';
@@ -650,7 +671,7 @@ ob_start();
                     <p class="help mb-0"><?php echo t('timezone_help'); ?></p>
                 </div>
             </div>
-            <form method="post" action="">
+            <form method="post" action="" id="timezone-form">
                 <input type="hidden" name="action" value="update_timezone">
                 <div class="field mb-3">
                     <div class="control">
@@ -682,7 +703,7 @@ ob_start();
                     <p class="help mb-0"><?php echo t('weather_location_help'); ?></p>
                 </div>
             </div>
-            <form method="post" action="">
+            <form method="post" action="" id="weather-form">
                 <input type="hidden" name="action" value="update_weather_location">
                 <div class="field mb-3">
                     <div class="control has-icons-right">
@@ -823,7 +844,7 @@ ob_start();
                 </div>
             </div>
             <div class="content">
-                <form method="post" action="" style="margin-bottom: 1em;">
+                <form method="post" action="" id="heartrate-form" style="margin-bottom: 1em;">
                     <input type="hidden" name="action" value="update_heartrate_code">
                     <div class="field has-addons">
                         <div class="control is-expanded">
@@ -1213,7 +1234,70 @@ function toggleApiKeyVisibility() {
     }
 }
 
+// Show processing overlay when form is submitted
+function showProcessingOverlay(message) {
+    message = message || '<?php echo t('processing'); ?>';
+    const overlay = document.createElement('div');
+    overlay.id = 'processing-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        backdrop-filter: blur(3px);
+    `;
+    overlay.innerHTML = `
+        <div style="
+            background: white;
+            padding: 2rem 3rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        ">
+            <div class="spinner" style="
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #3273dc;
+                border-radius: 50%;
+                width: 50px;
+                height: 50px;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 1rem;
+            "></div>
+            <p style="font-size: 1.2rem; font-weight: 600; color: #363636; margin: 0;">${message}</p>
+        </div>
+    `;
+    // Add spinner animation
+    const style = document.createElement('style');
+    style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+    document.head.appendChild(style);
+    document.body.appendChild(overlay);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Add processing indicator to forms that trigger page reload
+    const formsWithReload = [
+        { id: 'timezone-form', message: '<?php echo t('processing'); ?>...' },
+        { id: 'weather-form', message: '<?php echo t('processing'); ?>...' },
+        { id: 'language-form', message: '<?php echo t('processing'); ?>...' },
+        { id: 'technical-mode-form', message: '<?php echo t('processing'); ?>...' },
+        { id: 'heartrate-form', message: '<?php echo t('processing'); ?>...' },
+        { id: 'custom-bot-form', message: '<?php echo t('processing'); ?>...' }
+    ];
+    formsWithReload.forEach(formConfig => {
+        const form = document.getElementById(formConfig.id);
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Don't prevent default - let the form submit normally
+                showProcessingOverlay(formConfig.message);
+            });
+        }
+    });
     const apiKeyField = document.getElementById('api-key-field');
     if (apiKeyField) {
         apiKeyField.type = 'password';
