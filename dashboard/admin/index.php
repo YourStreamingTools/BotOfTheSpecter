@@ -775,6 +775,7 @@ $all_bots = [];
 $message_templates = [
     'Update Complete' => 'An automated update has been applied, no further action is needed.',
     'Scheduled Maintenance' => 'An automated update is being applied. Bots will automatically restart during the process and a follow-up message will be sent once the restart completes.',
+    'Reconnection Successful' => 'I lost connection to internal services earlier; reboot completed and reconnection successful.',
 ];
 // Fetch OpenAI organization usage for completions (show basic stats)
 $ai_model = 'N/A';
