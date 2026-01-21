@@ -1060,8 +1060,8 @@ async def handle_freestuff_announcement(bot, data):
             return
         # Get all users with FreeStuff enabled
         rows = await mysql.fetchall(
-            "SELECT guild_id, freestuff_channel_id FROM discord_users WHERE freestuff_enabled = 1 AND freestuff_channel_id IS NOT NULL",
-            database_name='website',
+            "SELECT guild_id, channel_id FROM freestuff_settings WHERE enabled = 1 AND channel_id IS NOT NULL",
+            database_name='specterdiscordbot',
             dict_cursor=True
         )
         if not rows:
@@ -1089,7 +1089,7 @@ async def handle_freestuff_announcement(bot, data):
         for row in rows:
             try:
                 guild_id = row['guild_id']
-                channel_id = row['freestuff_channel_id']
+                channel_id = row['channel_id']
                 if not channel_id:
                     continue
                 channel = bot.get_channel(int(channel_id))
