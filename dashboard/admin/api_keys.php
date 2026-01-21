@@ -156,7 +156,7 @@ ob_start();
                             <td>
                                 <div class="field has-addons">
                                     <div class="control is-expanded">
-                                        <input class="input is-family-monospace" type="password" value="<?php echo htmlspecialchars($key['api_key']); ?>" readonly>
+                                        <input class="input is-family-monospace api-key-input" type="text" value="<?php echo htmlspecialchars($key['api_key']); ?>" readonly autocomplete="off" style="-webkit-text-security: disc;">
                                     </div>
                                     <div class="control">
                                         <button class="button is-info toggle-visibility" title="Show/Hide">
@@ -213,12 +213,12 @@ document.addEventListener('DOMContentLoaded', function() {
             toggleBtn.addEventListener('click', function() {
                 const input = this.closest('.field').querySelector('input');
                 const icon = this.querySelector('i');
-                if (input.type === 'password') {
-                    input.type = 'text';
+                if (input.style.webkitTextSecurity === 'disc') {
+                    input.style.webkitTextSecurity = 'none';
                     icon.classList.remove('fa-eye');
                     icon.classList.add('fa-eye-slash');
                 } else {
-                    input.type = 'password';
+                    input.style.webkitTextSecurity = 'disc';
                     icon.classList.remove('fa-eye-slash');
                     icon.classList.add('fa-eye');
                 }
@@ -458,7 +458,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>
                         <div class="field has-addons">
                             <div class="control is-expanded">
-                                <input class="input is-family-monospace" type="password" value="${result.api_key}" readonly>
+                                <input class="input is-family-monospace api-key-input" type="text" value="${result.api_key}" readonly autocomplete="off" style="-webkit-text-security: disc;">
                             </div>
                             <div class="control">
                                 <button class="button is-info toggle-visibility" title="Show/Hide">
