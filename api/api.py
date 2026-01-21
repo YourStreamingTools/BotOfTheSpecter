@@ -8,6 +8,7 @@ import asyncio
 import datetime
 import urllib
 from datetime import datetime, timedelta, timezone
+import traceback
 
 # Third-party imports
 import aiohttp
@@ -611,51 +612,6 @@ class FreeStuffGamesResponse(BaseModel):
                 "count": 5
             }
         }
-    useable_access_token: str = Field(None, example="useable_access_token_here")
-    useable_access_token_updated: str = Field(None, example="2024-01-20 02:30:00")
-    api_key: str = Field(..., example="abc123def456")
-    is_admin: bool = Field(..., example=False)
-    beta_access: bool = Field(..., example=False)
-    is_technical: bool = Field(..., example=False)
-    signup_date: str = Field(..., example="2024-01-01 12:00:00")
-    last_login: str = Field(..., example="2024-01-20 03:00:00")
-    profile_image: str = Field(..., example="https://cdn.botofthespecter.com/profile.png")
-    email: str = Field(None, example="user@example.com")
-    language: str = Field(..., example="EN")
-    use_custom: int = Field(..., example=0)
-    use_self: int = Field(..., example=0)
-    spotify_access_token: str = Field(None, example="spotify_access_token_here")
-    spotify_refresh_token: str = Field(None, example="spotify_refresh_token_here")
-    discord_access_token: str = Field(None, example="discord_access_token_here")
-    discord_refresh_token: str = Field(None, example="discord_refresh_token_here")
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": 1,
-                "username": "testuser",
-                "twitch_display_name": "TestUser",
-                "twitch_user_id": "123456789",
-                "access_token": "abcdef123456",
-                "refresh_token": "xyz987654",
-                "useable_access_token": "useable_access_token_here",
-                "useable_access_token_updated": "2024-01-20 02:30:00",
-                "api_key": "abc123def456",
-                "is_admin": False,
-                "beta_access": False,
-                "is_technical": False,
-                "signup_date": "2024-01-01 12:00:00",
-                "last_login": "2024-01-20 03:00:00",
-                "profile_image": "https://cdn.botofthespecter.com/profile.png",
-                "email": "user@example.com",
-                "language": "EN",
-                "use_custom": 0,
-                "use_self": 0,
-                "spotify_access_token": "spotify_access_token_here",
-                "spotify_refresh_token": "spotify_refresh_token_here",
-                "discord_access_token": "discord_access_token_here",
-                "discord_refresh_token": "discord_refresh_token_here"
-            }
-        }
 
 # Define the /fourthwall endpoint for handling webhook data
 @app.post(
@@ -902,6 +858,7 @@ async def handle_freestuff_webhook(request: Request, admin_key: str = Query(...)
     operation_id="get_freestuff_games"
 )
 async def get_freestuff_games():
+    logging.info("FreeStuff Games endpoint called")
     try:
         conn = await get_mysql_connection()
         try:
@@ -914,16 +871,22 @@ async def get_freestuff_games():
                     LIMIT 5
                 """)
                 games = await cur.fetchall()
+                logging.info(f"Found {len(games) if games else 0} games")
                 # Convert datetime to string for JSON serialization
-                for game in games:
-                    if game['received_at']:
-                        game['received_at'] = game['received_at'].strftime('%Y-%m-%d %H:%M:%S')
-                return {"games": games, "count": len(games)}
+                if games:
+                    for game in games:
+                        if game.get('received_at'):
+                            game['received_at'] = game['received_at'].strftime('%Y-%m-%d %H:%M:%S')
+                
+                result = {"games": games or [], "count": len(games) if games else 0}
+                logging.info(f"Returning result with {result['count']} games")
+                return result
         finally:
             conn.close()
     except Exception as e:
-        logging.error(f"Error fetching FreeStuff games: {e}")
-        raise HTTPException(status_code=500, detail="Error fetching games from database")
+        logging.error(f"Error fetching FreeStuff games: {type(e).__name__}: {str(e)}")
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error fetching games: {str(e)}")
 
 # Account Information Endpoint
 @app.get(
