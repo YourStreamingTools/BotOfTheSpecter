@@ -1125,8 +1125,6 @@ ob_start();
                             if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
                             if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
                             if (switchBtn) { const targetType = isBeta ? 'stable' : 'beta'; const btnText = isBeta ? 'Switch to Stable' : 'Switch to Beta'; switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
-                            // Respect current search filter when showing/hiding rows
-                            row.style.display = matchesSearch(row) ? '' : 'none';
                         } else {
                             if (botTag) { botTag.className = 'tag is-danger bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
                             if (botTypeTag) { botTypeTag.className = 'tag is-dark bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
@@ -1134,8 +1132,6 @@ ob_start();
                             if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
                             if (restartBtn) { restartBtn.style.display = 'none'; restartBtn.disabled = true; }
                             if (switchBtn) { switchBtn.style.display = 'none'; switchBtn.disabled = true; }
-                            // Respect current search filter when showing/hiding rows
-                            row.style.display = matchesSearch(row) ? '' : 'none';
                         }
                     });
                     // Show completion toast
@@ -1216,24 +1212,6 @@ ob_start();
                 timer: 2000
             });
         }, delay + 500);
-    }
-    function updateBotStatusDisplay() {
-        // Only update visible rows (those not hidden because bot is running)
-        document.querySelectorAll('#users-table-body tr').forEach(row => {
-            if (row.style.display === 'none') return;
-            const tag = row.querySelector('.bot-status-tag');
-            const username = tag ? tag.getAttribute('data-username') : row.getAttribute('data-username');
-            const isRunning = runningBots.find(bot => bot.username === username);
-            if (tag) {
-                if (isRunning) {
-                    tag.className = 'tag is-success bot-status-tag';
-                    tag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running (PID: ' + isRunning.pid + ')</span>';
-                } else {
-                    tag.className = 'tag is-danger bot-status-tag';
-                    tag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>';
-                }
-            }
-        });
     }
     async function validateUserToken(twitchUserId) {
         const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
