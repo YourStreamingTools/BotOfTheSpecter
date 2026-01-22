@@ -4,3 +4,4 @@ aiomysql
 paramiko
 python-dotenv
 scp
+openai

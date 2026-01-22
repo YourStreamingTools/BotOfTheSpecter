@@ -1,6 +1,0 @@
-# Requirements for TTS Handler (OpenAI-based)
-# OpenAI client for TTS API
-openai>=1.0.0
-# SSH and file transfer (for remote file transfers)
-paramiko>=2.9.0
-scp>=0.14.0
