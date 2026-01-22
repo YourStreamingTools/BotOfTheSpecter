@@ -422,9 +422,7 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
         <div
             style="background:rgb(255, 165, 0); color: #222; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
             <span style="color:rgb(0, 0, 0);">
-                We are currently experiencing an outage with an external provider that our website relies on.<br>
-                Some functions and services may not be working as expected.
-                We are actively working with the provider to restore full service as soon as possible.
+                <i class="fas fa-tools"></i> Maintenance in progress - Some features may be temporarily unavailable
             </span>
         </div>
         <?php if (!$modalAcknowledged): ?>
@@ -433,18 +431,36 @@ if ($current_file == 'index.php' || $current_uri == '/admin') {
                 <div class="modal-background"></div>
                 <div class="modal-card">
                     <header class="modal-card-head has-background-warning">
-                        <p class="modal-card-title">Scheduled Maintenance</p>
+                        <p class="modal-card-title has-text-dark">
+                            <i class="fas fa-tools"></i> Maintenance Notice
+                        </p>
                         <button class="delete" aria-label="close" onclick="closeMaintenanceModal()"></button>
                     </header>
                     <section class="modal-card-body">
-                        <p>We are currently performing scheduled maintenance on our systems.</p>
-                        <p>During this time, some features may be unavailable or unstable.</p>
-                        <p>We apologize for any inconvenience this may cause.</p>
-                        <p>Please check back later or contact support if you need assistance.</p>
+                        <div class="content">
+                            <p class="has-text-weight-bold">
+                                We are currently performing maintenance on BotOfTheSpecter.
+                            </p>
+                            <p>
+                                During this time, some features may be temporarily unavailable or experience reduced functionality. 
+                                We apologize for any inconvenience and appreciate your patience.
+                            </p>
+                            <p>
+                                <strong>What you can expect:</strong>
+                            </p>
+                            <ul>
+                                <li>The dashboard will remain accessible</li>
+                                <li>Some features may be temporarily disabled</li>
+                                <li>Normal service will resume shortly</li>
+                            </ul>
+                            <p class="has-text-grey">
+                                Thank you for your understanding!
+                            </p>
+                        </div>
                     </section>
                     <footer class="modal-card-foot">
-                        <button class="button is-warning" onclick="dontShowAgain()">Don't Show Again</button>
-                        <button class="button" onclick="closeMaintenanceModal()">Close</button>
+                        <button class="button is-warning" onclick="closeMaintenanceModal()">I Understand</button>
+                        <button class="button" onclick="dontShowAgain()">Don't show again today</button>
                     </footer>
                 </div>
             </div>
