@@ -99,6 +99,105 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_pattern'])) {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['check_duplicates'])) {
+    $duplicates = [];
+    $count = 0;
+    $message = '';
+    try {
+        // Find patterns that appear more than once
+        $sql = "SELECT spam_pattern, COUNT(*) as count, GROUP_CONCAT(id) as ids 
+                FROM spam_patterns 
+                GROUP BY spam_pattern 
+                HAVING count > 1";
+        $result = $spam_conn->query($sql);
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $duplicates[] = [
+                    'pattern' => $row['spam_pattern'],
+                    'count' => $row['count'],
+                    'ids' => $row['ids']
+                ];
+                $count++;
+            }
+            $result->free();
+            $success = true;
+            $message = $count > 0 ? "Found $count duplicates" : "No duplicates found";
+        } else {
+            $success = false;
+            $message = "Database error: " . $spam_conn->error;
+        }
+    } catch (Exception $e) {
+        $success = false;
+        $message = 'Error: ' . $e->getMessage();
+    }
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => $success, 'message' => $message, 'duplicates' => $duplicates], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cleanup_duplicates'])) {
+    $deleted_count = 0;
+    $kept_count = 0;
+    $success = false;
+    $message = '';
+    try {
+        // Start transaction
+        $spam_conn->begin_transaction();
+        // Find patterns that appear more than once
+        $sql = "SELECT spam_pattern, MIN(id) as keep_id, GROUP_CONCAT(id ORDER BY id) as all_ids 
+                FROM spam_patterns 
+                GROUP BY spam_pattern 
+                HAVING COUNT(*) > 1";
+        $result = $spam_conn->query($sql);
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $all_ids = explode(',', $row['all_ids']);
+                $keep_id = $row['keep_id'];
+                // Remove keep_id from the list to get IDs to delete
+                $delete_ids = array_filter($all_ids, function($id) use ($keep_id) {
+                    return $id != $keep_id;
+                });
+                if (!empty($delete_ids)) {
+                    $placeholders = implode(',', array_fill(0, count($delete_ids), '?'));
+                    $stmt = $spam_conn->prepare("DELETE FROM spam_patterns WHERE id IN ($placeholders)");
+                    // Create types string (all integers)
+                    $types = str_repeat('i', count($delete_ids));
+                    $stmt->bind_param($types, ...$delete_ids);
+                    if ($stmt->execute()) {
+                        $deleted_count += $stmt->affected_rows;
+                        $kept_count++;
+                    }
+                    $stmt->close();
+                }
+            }
+            $result->free();
+            // Reset AUTO_INCREMENT to next available ID after the highest existing ID
+            $max_id_result = $spam_conn->query("SELECT MAX(id) as max_id FROM spam_patterns");
+            if ($max_id_result) {
+                $max_row = $max_id_result->fetch_assoc();
+                $next_id = $max_row['max_id'] + 1;
+                $spam_conn->query("ALTER TABLE spam_patterns AUTO_INCREMENT = $next_id");
+                $max_id_result->free();
+            }
+            // Commit transaction
+            $spam_conn->commit();
+            $success = true;
+            $message = "Cleaned up duplicates: kept $kept_count unique patterns, removed $deleted_count duplicates";
+        } else {
+            $spam_conn->rollback();
+            $success = false;
+            $message = "Database error: " . $spam_conn->error;
+        }
+    } catch (Exception $e) {
+        $spam_conn->rollback();
+        $success = false;
+        $message = 'Error: ' . $e->getMessage();
+    }
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => $success, 'message' => $message, 'deleted_count' => $deleted_count, 'kept_count' => $kept_count], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $spam_patterns = [];
 if ($spam_conn) {
     $result = $spam_conn->query("SELECT id, spam_pattern FROM spam_patterns ORDER BY id");
@@ -118,6 +217,14 @@ ob_start();
     <div class="notification is-info is-light">
         <p><strong>Note:</strong> These patterns are used to detect and block spam messages in chat. Patterns may
             contain special Unicode characters to match obfuscated spam.</p>
+    </div>
+    <div class="buttons">
+        <button id="checkDuplicatesBtn" class="button is-warning">
+            <span class="icon">
+                <i class="fas fa-copy"></i>
+            </span>
+            <span>Check for Duplicates</span>
+        </button>
     </div>
 </div>
 <div class="box">
@@ -216,6 +323,122 @@ ob_start();
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+        async function cleanupDuplicates() {
+            try {
+                const formData = new FormData();
+                formData.append('cleanup_duplicates', '1');
+                const response = await fetch('spam_patterns.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    await Swal.fire({
+                        icon: 'success',
+                        title: 'Cleanup Complete',
+                        html: `<p>${result.message}</p><p>Kept: ${result.kept_count} unique patterns<br>Removed: ${result.deleted_count} duplicates</p>`,
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+                    // Reload the page to show updated list
+                    location.reload();
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Cleanup Failed',
+                        text: result.message
+                    });
+                }
+            } catch (error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'An error occurred while cleaning up duplicates'
+                });
+            }
+        }
+        const checkDuplicatesBtn = document.getElementById('checkDuplicatesBtn');
+        if (checkDuplicatesBtn) {
+            checkDuplicatesBtn.addEventListener('click', async function () {
+                try {
+                    checkDuplicatesBtn.classList.add('is-loading');
+                    const formData = new FormData();
+                    formData.append('check_duplicates', '1');
+                    const response = await fetch('spam_patterns.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    checkDuplicatesBtn.classList.remove('is-loading');
+                    if (result.success) {
+                        if (result.duplicates.length > 0) {
+                            let tableHtml = `
+                                <div class="table-container">
+                                    <table class="table is-fullwidth is-striped is-narrow">
+                                        <thead>
+                                            <tr>
+                                                <th>Pattern</th>
+                                                <th>Count</th>
+                                                <th>IDs</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                            `;
+                            result.duplicates.forEach(dup => {
+                                tableHtml += `
+                                    <tr>
+                                        <td>${escapeHtml(dup.pattern)}</td>
+                                        <td>${dup.count}</td>
+                                        <td>${dup.ids}</td>
+                                    </tr>
+                                `;
+                            });
+                            tableHtml += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p class="is-size-7 has-text-grey mt-2">Click "Clean Up" to automatically remove duplicates (keeping the oldest entry).</p>
+                            `;
+                            Swal.fire({
+                                icon: 'warning',
+                                title: `Found ${result.duplicates.length} Duplicates`,
+                                html: tableHtml,
+                                width: '600px',
+                                showCancelButton: true,
+                                confirmButtonText: 'Clean Up Duplicates',
+                                confirmButtonColor: '#f14668',
+                                cancelButtonText: 'Close'
+                            }).then(async (cleanupResult) => {
+                                if (cleanupResult.isConfirmed) {
+                                    await cleanupDuplicates();
+                                }
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Clean Database',
+                                text: 'No duplicate patterns found in the database.',
+                                timer: 3000,
+                                showConfirmButton: false
+                            });
+                        }
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: result.message
+                        });
+                    }
+                } catch (error) {
+                    checkDuplicatesBtn.classList.remove('is-loading');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'An error occurred while checking for duplicates'
+                    });
+                }
+            });
         }
         const addForm = document.getElementById('addPatternForm');
         addForm.addEventListener('submit', async function (e) {
