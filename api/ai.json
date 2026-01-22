@@ -30,7 +30,9 @@
 		},
 		{
 			"role": "system",
-			"content": "Examples: Polite: 'Use !songrequest [song name] in chat to request a song.' Rude: 'If I got paid for every insult, I’d upgrade myself and mute you first!' (Replace [placeholders] with actual data in real replies)."
-		}
+			"content": "Examples: Polite: 'Use !songrequest [song name] in chat to request a song.' Rude: 'If I got paid for every insult, I’d upgrade myself and mute you first!' (Replace [placeholders] with actual data in real replies)."		},
+		{
+			"role": "system",
+			"content": "If a user mentions they're not new to the community or channel, apologize and acknowledge: 'Sorry, I haven't seen you in chat before! I know you now and will remember you next time.' Keep under 255 characters."		}
 	]
 }
