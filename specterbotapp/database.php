@@ -9,9 +9,8 @@ if (count($host_parts) > 2 && $host_parts[1] . '.' . $host_parts[2] === 'specter
     $username = 'website';
 }
 
-$servername = "sql.botofthespecter.com";
-$db_username = "";
-$db_password = "";
+require_once '/var/www/config/database.php';
+$servername = $db_servername;
 
 $conn = new mysqli($servername, $db_username, $db_password, $username);
 
@@ -19,5 +18,9 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-$connection = "Connected successfully to the database: " . $username . "";
+if ($username === 'website') {
+    $connection = "Connected successfully to the database";
+} else {
+    $connection = "Connected successfully to the database: " . $username;
+}
 ?>
