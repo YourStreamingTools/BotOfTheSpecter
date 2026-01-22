@@ -1,37 +1,116 @@
-html, body {
+/* ========================================
+   CSS VARIABLES - Modern Color Palette
+   ======================================== */
+:root {
+    --bg-primary: #101010;
+    --bg-secondary: #1b1b1b;
+    --bg-tertiary: #222222;
+    --bg-elevated: #2a2a2a;
+
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-accent: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+
+    --color-primary: #667eea;
+    --color-primary-light: #8b9cff;
+    --color-accent: #764ba2;
+    --color-success: #10b981;
+    --color-danger: #ef4444;
+    --color-warning: #f59e0b;
+
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+
+    --border-color: rgba(255, 255, 255, 0.1);
+    --hover-glow: rgba(102, 126, 234, 0.2);
+
+    --transition-fast: 150ms ease;
+    --transition-normal: 300ms ease;
+    --transition-slow: 500ms ease;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 0 20px var(--hover-glow);
+}
+
+/* ========================================
+   BASE STYLES
+   ======================================== */
+html,
+body {
     height: 100%;
-    background-color: #101010;
-    color: #ffffff;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 body {
-    color: #ffffff;
+    color: var(--text-primary);
     display: flex;
     flex-direction: column;
 }
 
+/* ========================================
+   NAVBAR
+   ======================================== */
 .navbar {
-    background-color: #1b1b1b;
+    background-color: var(--bg-secondary);
+    box-shadow: var(--shadow-md);
 }
 
-.navbar-item, .navbar-link {
-    color: #ffffff;
+.navbar-item,
+.navbar-link {
+    color: var(--text-primary);
+    transition: color var(--transition-fast);
 }
 
-a, a:hover {
-    color: #ffffff;
+.navbar-item:hover {
+    color: var(--color-primary-light);
+}
+
+a,
+a:hover {
+    color: var(--text-primary);
 }
 
 #profile-image {
+    width: 56px;
+    height: 56px;
+    max-height: none !important;
     border-radius: 50%;
+    border: 2px solid var(--color-primary);
+    object-fit: cover;
+    flex-shrink: 0;
+    transition: transform var(--transition-normal), box-shadow var(--transition-normal);
 }
 
+#profile-image:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px var(--hover-glow);
+}
+
+/* ========================================
+   LAYOUT
+   ======================================== */
 .container {
     margin-top: 100px;
+    width: 90% !important;
+    max-width: 90% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+.column.is-fullwidth {
+    width: 100% !important;
+    max-width: 100% !important;
 }
 
 .title {
-    color: #ffffff;
+    color: var(--text-primary);
+    font-weight: 600;
+    letter-spacing: -0.02em;
 }
 
 .content-wrapper {
@@ -39,48 +118,320 @@ a, a:hover {
 }
 
 .footer {
-    background-color: #333333;
-    color: #ffffff;
+    background-color: var(--bg-elevated);
+    color: var(--text-secondary);
     padding: 1rem;
+    border-top: 1px solid var(--border-color);
 }
 
-.hero.is-primary {
-    background-color: #333333;
-    color: #ffffff;
-    justify-content: center;
+/* ========================================
+   TAB NAVIGATION SYSTEM
+   ======================================== */
+.tabs-container {
+    margin-bottom: 2rem;
+    position: relative;
+}
+
+.tabs-scroll-wrapper {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-primary) var(--bg-tertiary);
+}
+
+.tabs-scroll-wrapper::-webkit-scrollbar {
+    height: 6px;
+}
+
+.tabs-scroll-wrapper::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+}
+
+.tabs-scroll-wrapper::-webkit-scrollbar-thumb {
+    background: var(--color-primary);
+    border-radius: 3px;
+}
+
+.tabs-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primary-light);
+}
+
+.data-tabs {
     display: flex;
-    align-items: left;
-	height: 90px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    position: relative;
+    box-shadow: var(--shadow-md);
+    justify-content: center;
 }
 
-.hero-body .title {
+.tab-item {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 0.4rem;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    white-space: nowrap;
+    position: relative;
+    flex-shrink: 0;
 }
 
+.tab-item i {
+    font-size: 1rem;
+    transition: transform var(--transition-normal);
+    flex-shrink: 0;
+}
+
+.tab-item:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-2px);
+}
+
+.tab-item:hover i {
+    transform: scale(1.1);
+}
+
+.tab-item.active {
+    color: var(--text-primary);
+    background: var(--gradient-primary);
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-glow);
+}
+
+.tab-item.active i {
+    transform: scale(1.15);
+}
+
+/* Mobile: Stack tabs vertically on very small screens */
+@media (max-width: 768px) {
+    .tab-item {
+        font-size: 0.85rem;
+        padding: 0.6rem 1rem;
+    }
+
+    .tab-item i {
+        font-size: 1rem;
+    }
+}
+
+/* ========================================
+   BOX / CARD ENHANCEMENTS
+   ======================================== */
+.box {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: 16px;
+    width: auto;
+    padding: 2rem;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+    transition: all var(--transition-normal);
+    position: relative;
+    overflow: hidden;
+}
+
+.box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--gradient-primary);
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+}
+
+.box:hover::before {
+    opacity: 1;
+}
+
+.box:hover {
+    border-color: rgba(102, 126, 234, 0.3);
+    box-shadow: var(--shadow-lg), var(--shadow-glow);
+}
+
+/* ========================================
+   TABLE ENHANCEMENTS
+   ======================================== */
+.table-wrapper {
+    position: relative;
+    animation: fadeIn var(--transition-slow);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+table {
+    width: 100%;
+    table-layout: auto;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+table thead {
+    background: var(--gradient-primary);
+}
+
+table thead th {
+    background: transparent;
+    padding: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    border: none;
+    color: var(--text-primary);
+}
+
+table thead th:first-child {
+    border-top-left-radius: 10px;
+}
+
+table thead th:last-child {
+    border-top-right-radius: 10px;
+}
+
+table tbody tr {
+    transition: all var(--transition-normal);
+    animation: slideIn var(--transition-normal) ease-out;
+    animation-fill-mode: both;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Stagger animation for rows */
+table tbody tr:nth-child(1) {
+    animation-delay: 50ms;
+}
+
+table tbody tr:nth-child(2) {
+    animation-delay: 100ms;
+}
+
+table tbody tr:nth-child(3) {
+    animation-delay: 150ms;
+}
+
+table tbody tr:nth-child(4) {
+    animation-delay: 200ms;
+}
+
+table tbody tr:nth-child(5) {
+    animation-delay: 250ms;
+}
+
+/* Uniform row background - no stripes */
+table tbody tr {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+table tbody tr:hover {
+    background: rgba(102, 126, 234, 0.1);
+    transform: scale(1.01);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    position: relative;
+    z-index: 5;
+}
+
+table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    word-wrap: break-word;
+    white-space: normal;
+    transition: all var(--transition-fast);
+}
+
+table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 10px;
+}
+
+table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 10px;
+}
+
+table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+th,
+td {
+    max-width: 1px;
+    white-space: nowrap;
+}
+
+/* ========================================
+   BUTTONS
+   ======================================== */
 .button {
-    background-color: #444444;
-    border-color: #444444;
-    color: #ffffff;
+    background-color: var(--bg-elevated);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+    transition: all var(--transition-normal);
+    font-weight: 500;
+    border-radius: 8px;
 }
 
 .button:hover {
-    background-color: #555555;
-    border-color: #555555;
-    color: #ffffff;
+    background: var(--gradient-primary);
+    border-color: var(--color-primary);
+    color: var(--text-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 }
 
+.button:active {
+    transform: translateY(0);
+}
+
+/* ========================================
+   MODAL
+   ======================================== */
 .modal-content {
-    background-color: #222222;
-    color: #ffffff;
-}
-
-.box {
-    background-color: #222222;
-    color: #ffffff;
-    border-radius: 10px;
-    width: auto;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
 }
 
 .modal .modal-content {
@@ -94,17 +445,103 @@ a, a:hover {
     padding: 2rem;
 }
 
-table {
-    width: 100%;
-    table-layout: auto;
+/* ========================================
+   NOTIFICATION
+   ======================================== */
+.notification.is-info {
+    background: var(--gradient-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--color-primary);
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
 }
 
-table td {
-    word-wrap: break-word;
-    white-space: normal;
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+.fade-in {
+    animation: fadeIn var(--transition-slow);
 }
 
-th, td {
-    max-width: 1px;
+.slide-in {
+    animation: slideIn var(--transition-normal);
+}
+
+/* Loading state */
+.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Text utilities */
+.gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Override Bulma's light table background */
+.table {
+    background-color: transparent !important;
+    color: var(--text-primary);
+}
+
+.table td,
+.table th {
+    border-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Fix title visibility - override Bulma */
+.title,
+h1.title,
+h2.title,
+h3.title,
+h4.title,
+h5.title,
+h6.title {
+    color: var(--text-primary) !important;
+}
+
+/* Fix notification banner */
+.notification.is-info {
+    padding: 1rem 1.5rem;
+}
+
+/* ========================================
+   REWARD FILTER BUTTONS
+   ======================================== */
+.reward-filters {
+    display: flex;
+    gap: 0.5rem;
+    margin: 1rem 0 1.5rem 0;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.reward-filter-btn {
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-normal);
     white-space: nowrap;
+}
+
+.reward-filter-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    transform: translateY(-2px);
+}
+
+.reward-filter-btn.active {
+    background: var(--gradient-primary);
+    border-color: var(--color-primary);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-glow);
 }

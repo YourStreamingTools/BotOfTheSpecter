@@ -3,7 +3,13 @@
 require_once "/var/www/config/twitch.php";
 $redirectURI = 'https://members.botofthespecter.com/login.php';
 $IDScope = 'openid user:read:email';
-$info = "Please wait while we redirect you to Twitch for authorization.";
+
+// Check if user just logged out
+if (isset($_GET['logout']) && $_GET['logout'] === 'success') {
+    $info = "You have been successfully logged out.";
+} else {
+    $info = "Please wait while we redirect you to Twitch for authorization.";
+}
 
 // Set session timeout to 24 hours (86400 seconds)
 session_set_cookie_params(86400, "/", "", true, true);
@@ -26,7 +32,8 @@ if (isset($_SESSION['access_token'])) {
 }
 
 // If the user is not logged in and no authorization code is present, redirect to Twitch authorization page
-if (!isset($_SESSION['access_token']) && !isset($_GET['code'])) {
+// UNLESS they just logged out (in which case, show them the logout message)
+if (!isset($_SESSION['access_token']) && !isset($_GET['code']) && !isset($_GET['logout'])) {
     header('Location: https://id.twitch.tv/oauth2/authorize' .
         '?client_id=' . $clientID .
         '&redirect_uri=' . urlencode($redirectURI) .
@@ -139,27 +146,45 @@ if (isset($_GET['code'])) {
 ?>
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>BotOfTheSpecter - Twitch Login</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32" />
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png" />
     <meta name="msapplication-TileImage" content="https://cdn.botofthespecter.com/logo.png" />
 </head>
+
 <body>
-<section class="hero is-fullheight is-dark">
-    <div class="hero-body">
-        <div class="container has-text-centered">
-            <div class="box" style="max-width: 400px; margin: 0 auto;">
-                <figure class="image is-128x128 is-inline-block">
-                    <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo">
-                </figure>
-                <h1 class="title is-4 mt-3">BotOfTheSpecter</h1>
-                <p><?php echo $info; ?></p>
+    <section class="hero is-fullheight is-dark">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+                <div class="box" style="max-width: 400px; margin: 0 auto;">
+                    <figure class="image is-128x128 is-inline-block">
+                        <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo">
+                    </figure>
+                    <h1 class="title is-4 mt-3 has-text-black has-text-weight-bold">BotOfTheSpecter</h1>
+                    <?php if (isset($_GET['logout']) && $_GET['logout'] === 'success'): ?>
+                        <div class="notification is-success is-light">
+                            <p><?php echo $info; ?></p>
+                        </div>
+                        <a href="login.php" class="button is-primary is-fullwidth mt-3">
+                            <span class="icon">
+                                <i class="fab fa-twitch"></i>
+                            </span>
+                            <span>Login with Twitch</span>
+                        </a>
+                    <?php else: ?>
+                        <p>
+                            <?php echo $info; ?>
+                        </p>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 </body>
+
 </html>
