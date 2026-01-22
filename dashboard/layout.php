@@ -547,7 +547,7 @@ function uuidv4() {
     <!-- Maintenance Notice Banner -->
     <div style="background:rgb(255, 165, 0); color: #222; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
         <span style="color:rgb(0, 0, 0);">
-            <!-- ANY MAINTENANCE MESSAGE HERE -->
+            <i class="fas fa-tools"></i> Maintenance in progress - Some features may be temporarily unavailable
         </span>
     </div>
     <?php if (!$modalAcknowledged): ?>
@@ -556,25 +556,36 @@ function uuidv4() {
         <div class="modal-background"></div>
         <div class="modal-card">
             <header class="modal-card-head has-background-warning">
-                <p class="modal-card-title has-text-black"><i class="fas fa-exclamation-triangle"></i> Service Interruption Notice</p>
+                <p class="modal-card-title has-text-dark">
+                    <i class="fas fa-tools"></i> Maintenance Notice
+                </p>
                 <button class="delete" aria-label="close" onclick="closeMaintenanceModal()"></button>
             </header>
             <section class="modal-card-body">
                 <div class="content">
-                    <h4 class="has-text-weight-bold">Current System Status:</h4>
-                    <p>We are currently experiencing an outage with an external provider that our website relies on. This may affect various functions and services across the platform.</p>
-                    <h4 class="has-text-weight-bold mt-4">What This Means:</h4>
+                    <p class="has-text-weight-bold">
+                        We are currently performing maintenance on BotOfTheSpecter.
+                    </p>
+                    <p>
+                        During this time, some features may be temporarily unavailable or experience reduced functionality. 
+                        We apologize for any inconvenience and appreciate your patience.
+                    </p>
+                    <p>
+                        <strong>What you can expect:</strong>
+                    </p>
                     <ul>
-                        <li>Some features may be temporarily unavailable</li>
-                        <li>Response times may be slower than usual</li>
-                        <li>Some integrations might not function properly</li>
+                        <li>The dashboard will remain accessible</li>
+                        <li>Some features may be temporarily disabled</li>
+                        <li>Normal service will resume shortly</li>
                     </ul>
-                    <h4 class="has-text-weight-bold mt-4">What We're Doing:</h4>
-                    <p>Our team is actively working with the provider to resolve these issues and restore full service as quickly as possible. We appreciate your patience during this time.</p>
+                    <p class="has-text-grey">
+                        Thank you for your understanding!
+                    </p>
                 </div>
             </section>
             <footer class="modal-card-foot">
-                <button class="button is-warning" onclick="closeMaintenanceModal()">Acknowledge</button>
+                <button class="button is-warning" onclick="closeMaintenanceModal()">I Understand</button>
+                <button class="button" onclick="dontShowAgain()">Don't show again today</button>
             </footer>
         </div>
     </div>
