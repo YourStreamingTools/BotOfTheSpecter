@@ -212,7 +212,9 @@ try {
                 timezone VARCHAR(255) DEFAULT NULL,
                 weather_location VARCHAR(255) DEFAULT NULL,
                 heartrate_code VARCHAR(8) DEFAULT NULL,
-                stream_bounty_api_key VARCHAR(255)
+                stream_bounty_api_key VARCHAR(255),
+                tanggle_api_token VARCHAR(255) DEFAULT NULL,
+                tanggle_community_uuid VARCHAR(255) DEFAULT NULL
             ) ENGINE=InnoDB",
         'protection' => "
             CREATE TABLE IF NOT EXISTS protection (
@@ -572,7 +574,7 @@ try {
         'seen_users' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'username' => "VARCHAR(255)", 'welcome_message' => "VARCHAR(255) DEFAULT NULL", 'status' => "VARCHAR(255)"],
         'seen_today' => ['user_id' => "VARCHAR(255)", 'username' => "VARCHAR(255)"],
         'timed_messages' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'interval_count' => "INT", 'chat_line_trigger' => "INT DEFAULT 5", 'message' => "TEXT", 'status' => "VARCHAR(10) DEFAULT True"],
-        'profile' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'timezone' => "VARCHAR(255) DEFAULT NULL", 'weather_location' => "VARCHAR(255) DEFAULT NULL", 'heartrate_code' => "VARCHAR(8) DEFAULT NULL", 'stream_bounty_api_key' => "VARCHAR(255)"],
+        'profile' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'timezone' => "VARCHAR(255) DEFAULT NULL", 'weather_location' => "VARCHAR(255) DEFAULT NULL", 'heartrate_code' => "VARCHAR(8) DEFAULT NULL", 'stream_bounty_api_key' => "VARCHAR(255)", 'tanggle_api_token' => "VARCHAR(255) DEFAULT NULL", 'tanggle_community_uuid' => "VARCHAR(255) DEFAULT NULL"],
         'protection' => ['url_blocking' => "VARCHAR(255)"],
         'link_whitelist' => ['link' => "VARCHAR(255)"],
         'link_blacklisting' => ['link' => "VARCHAR(255)"],
