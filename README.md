@@ -6,7 +6,7 @@ BotOfTheSpecter is a helpful Twitch chat bot designed to make your streaming exp
 
 ### Version 5.7.1
 
-[See everything that's new in Version 5.7.1](https://changelog.botofthespecter.com/5.7.1.html)
+[See everything that's new in Version 5.7.2](https://changelog.botofthespecter.com/5.7.2.html)
 
 ### Upcoming: v6 — Complete rewrite (TwitchIO 3.1.0)
 
