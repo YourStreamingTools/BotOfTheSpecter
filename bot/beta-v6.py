@@ -9311,8 +9311,8 @@ async def websocket_notice(
                 elif event == "TTS" and text:
                     # Make a database query to fetch additional information for TTS
                     try:
-                        query = "SELECT voice, language FROM tts_settings WHERE user = %s"
-                        await cursor.execute(query, (user,))
+                        query = "SELECT voice, language FROM tts_settings LIMIT 1"
+                        await cursor.execute(query)
                         result = await cursor.fetchone()
                         if result:
                             params['voice'] = result.get('voice', 'default')
