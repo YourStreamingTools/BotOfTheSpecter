@@ -253,7 +253,19 @@ class BotOfTheSpecter_WebsocketServer:
     async def event(self, sid, event, data):
         # Handle generic events for SocketIO.
         self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
-        if event == "SPECTER_TIMER_CONTROL":
+        # Timer-specific events - route only to Dashboard and Overlay timer clients
+        timer_events = [
+            "SPECTER_TIMER_CONTROL",
+            "SPECTER_TIMER_COMMAND",
+            "SPECTER_SESSION_STATS",
+            "SPECTER_TIMER_STATE",
+            "SPECTER_TIMER_UPDATE",
+            "SPECTER_PHASE",
+            "SPECTER_TASKLIST_UPDATE",
+            "SPECTER_TASKLIST",
+            "SPECTER_STATS_REQUEST"
+        ]
+        if event in timer_events:
             payload_repr = "<empty>"
             if data:
                 try:
@@ -262,13 +274,14 @@ class BotOfTheSpecter_WebsocketServer:
                     payload_repr = str(data)
                 if len(payload_repr) > 400:
                     payload_repr = f"{payload_repr[:400]}..."
-            self.last_timer_control_event = {
-                "sid": sid,
-                "data": data,
-                "timestamp": time.time()
-            }
-            self.logger.info(f"SPECTER_TIMER_CONTROL from [{sid}]: {payload_repr}")
-            await self.broadcast_event_with_globals(event, data, source_sid=sid)
+            if event == "SPECTER_TIMER_CONTROL":
+                self.last_timer_control_event = {
+                    "sid": sid,
+                    "data": data,
+                    "timestamp": time.time()
+                }
+            self.logger.info(f"{event} from [{sid}]: {payload_repr}")
+            await self.broadcast_to_timer_clients_only(event, data, source_sid=sid)
             return
         # Relay NOW_PLAYING and MUSIC_SETTINGS to all clients with same code
         if event in ("NOW_PLAYING", "MUSIC_SETTINGS"):
@@ -486,6 +499,41 @@ class BotOfTheSpecter_WebsocketServer:
             source_info = f" source_sid={source_sid}" if source_sid else ""
             self.logger.info(f"Payload for {event_name}:{source_info} {payload_snippet}")
         self.logger.info(f"Broadcasted {event_name} to {count} clients (code: {effective_code})")
+        return count
+
+    async def broadcast_to_timer_clients_only(self, event_name, data, source_sid=None):
+        count = 0
+        effective_code = None
+        if source_sid:
+            effective_code = self.get_code_by_sid(source_sid)
+        if not effective_code and data and isinstance(data, dict):
+            effective_code = data.get('code') or data.get('channel_code')
+        if not effective_code:
+            self.logger.warning(f"broadcast_to_timer_clients_only: No code found for event {event_name}")
+            return 0
+        if effective_code not in self.registered_clients:
+            self.logger.warning(f"broadcast_to_timer_clients_only: Code {effective_code} not found in registered_clients")
+            return 0
+        timer_clients = []
+        for client in self.registered_clients[effective_code]:
+            channel = client.get('channel', '').lower()
+            name = client.get('name', '').lower()
+            if channel in ['dashboard', 'overlay'] and 'timer' in name:
+                timer_clients.append(client)
+        self.logger.info(f"broadcast_to_timer_clients_only: Routing {event_name} to {len(timer_clients)} timer clients (code: {effective_code})")
+        for client in timer_clients:
+            self.logger.info(f"Emitting {event_name} to {client['sid']} (name: {client.get('name')})")
+            await self.sio.emit(event_name, {**data, "channel_code": effective_code}, to=client['sid'])
+            count += 1
+        if data:
+            try:
+                payload_repr = json.dumps(data, default=str)
+            except Exception:
+                payload_repr = str(data)
+            payload_snippet = payload_repr if len(payload_repr) <= 400 else f"{payload_repr[:400]}..."
+            source_info = f" source_sid={source_sid}" if source_sid else ""
+            self.logger.info(f"Payload for {event_name}:{source_info} {payload_snippet}")
+        self.logger.info(f"Broadcasted {event_name} to {count} timer clients (code: {effective_code})")
         return count
 
     def get_code_by_sid(self, sid):
