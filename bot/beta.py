@@ -192,6 +192,7 @@ permitted_users = {}                                    # Dictionary for permitt
 connected = set()                                       # Set for connected users
 pending_removals = {}                                   # Dictionary for pending removals
 shoutout_tracker = {}                                   # Dictionary for tracking shoutouts
+shoutout_user = {}                                      # Dictionary for temporary shoutout user data
 command_usage = {}                                      # Dictionary for tracking command usage with timestamps
 last_poll_progress_update = 0                           # Variable for last poll progress update
 last_message_time = 0                                   # Variable for last message time
