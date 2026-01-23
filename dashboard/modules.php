@@ -216,6 +216,20 @@ while ($row = $result->fetch_assoc()) {
 }
 $stmt->close();
 
+// Load TTS settings from the database
+$tts_voice = 'Alloy'; // Default voice
+$tts_language = 'en'; // Default language
+$stmt = $db->prepare("SELECT voice, language FROM tts_settings LIMIT 1");
+$stmt->execute();
+$stmt->bind_result($tts_voice_db, $tts_language_db);
+if ($stmt->fetch()) {
+    if (!empty($tts_voice_db))
+        $tts_voice = $tts_voice_db;
+    if (!empty($tts_language_db))
+        $tts_language = $tts_language_db;
+}
+$stmt->close();
+
 // Start output buffering for layout
 ob_start();
 ?>
@@ -296,6 +310,10 @@ ob_start();
                     <button class="button is-info" onclick="loadTab('automated-shoutouts')">
                         <span class="icon"><i class="fas fa-bullhorn"></i></span>
                         <span>Automated Shoutouts</span>
+                    </button>
+                    <button class="button is-info" onclick="loadTab('tts-settings')">
+                        <span class="icon"><i class="fas fa-microphone"></i></span>
+                        <span>TTS Settings</span>
                     </button>
                 </div>
                 <!-- Tab Contents -->
@@ -895,7 +913,8 @@ ob_start();
                                                             </div>
                                                             <!-- Enable/Disable Toggle -->
                                                             <div class="field mt-4">
-                                                                <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                                                <div
+                                                                    class="is-flex is-justify-content-space-between is-align-items-center mb-2">
                                                                     <div>
                                                                         <label class="label has-text-white mb-0">
                                                                             <span class="icon mr-2"><i
@@ -908,18 +927,18 @@ ob_start();
                                                                         </p>
                                                                     </div>
                                                                     <div class="field">
-                                                                        <input id="enable_ad_notice"
-                                                                            type="checkbox"
+                                                                        <input id="enable_ad_notice" type="checkbox"
                                                                             name="enable_ad_notice"
-                                                                            class="switch is-small is-success"
-                                                                            value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>>
+                                                                            class="switch is-small is-success" value="1"
+                                                                            <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>>
                                                                         <label for="enable_ad_notice"></label>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                             <!-- AI Ad Breaks Toggle -->
                                                             <div class="field mt-4">
-                                                                <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                                                <div
+                                                                    class="is-flex is-justify-content-space-between is-align-items-center mb-2">
                                                                     <div>
                                                                         <label class="label has-text-white mb-0">
                                                                             <span class="icon mr-2"><i
@@ -927,16 +946,19 @@ ob_start();
                                                                             Enable AI-Powered Ad Break Messages
                                                                         </label>
                                                                         <p class="help has-text-grey-light mt-2">
-                                                                            <span class="tag is-warning mr-2">Premium Feature</span>
-                                                                            When enabled, the bot will use AI to generate dynamic, context-aware ad break messages based on recent chat activity. Requires Tier 2 subscription or higher.
+                                                                            <span class="tag is-warning mr-2">Premium
+                                                                                Feature</span>
+                                                                            When enabled, the bot will use AI to
+                                                                            generate dynamic, context-aware ad break
+                                                                            messages based on recent chat activity.
+                                                                            Requires Tier 2 subscription or higher.
                                                                         </p>
                                                                     </div>
                                                                     <div class="field">
-                                                                        <input id="enable_ai_ad_breaks"
-                                                                            type="checkbox"
+                                                                        <input id="enable_ai_ad_breaks" type="checkbox"
                                                                             name="enable_ai_ad_breaks"
-                                                                            class="switch is-small is-success"
-                                                                            value="1" <?php echo (!empty($enable_ai_ad_breaks) ? 'checked' : ''); ?>>
+                                                                            class="switch is-small is-success" value="1"
+                                                                            <?php echo (!empty($enable_ai_ad_breaks) ? 'checked' : ''); ?>>
                                                                         <label for="enable_ai_ad_breaks"></label>
                                                                     </div>
                                                                 </div>
@@ -1629,6 +1651,93 @@ ob_start();
                                 <?php endif; ?>
                             </div>
                         </div>
+                    </div>
+                </div>
+                <!-- TTS Settings -->
+                <div class="tab-content" id="tts-settings">
+                    <div class="module-container">
+                        <div class="columns is-vcentered mb-4">
+                            <div class="column">
+                                <h2 class="title is-4 has-text-white mb-2">
+                                    <span class="icon has-text-info"><i class="fas fa-microphone"></i></span>
+                                    Text-to-Speech (TTS) Settings
+                                </h2>
+                                <p class="subtitle is-6 has-text-grey-light">Configure the voice and language for TTS
+                                    messages in your channel.</p>
+                            </div>
+                        </div>
+                        <form method="POST" action="module_data_post.php">
+                            <!-- TTS Configuration -->
+                            <div class="box has-background-grey-dark has-text-white mb-4">
+                                <h3 class="title is-5 has-text-white mb-4">
+                                    <span class="icon has-text-primary"><i class="fas fa-cog"></i></span>
+                                    Voice Configuration
+                                </h3>
+                                <div class="notification is-info is-light mb-4">
+                                    <p class="has-text-dark">
+                                        <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                        <strong>Need help choosing a voice?</strong><br>
+                                        Visit our <a href="https://help.botofthespecter.com/tts_setup.php"
+                                            target="_blank" class="has-text-link"><strong>TTS Setup Guide</strong></a>
+                                        to hear voice samples and learn more about each option.
+                                    </p>
+                                </div>
+                                <div class="columns">
+                                    <div class="column is-6">
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i class="fas fa-volume-up"></i></span>
+                                                TTS Voice
+                                            </label>
+                                            <div class="control">
+                                                <div class="select is-fullwidth">
+                                                    <select name="tts_voice" required>
+                                                        <option value="Alloy" <?php echo ($tts_voice === 'Alloy') ? 'selected' : ''; ?>>Alloy [default]</option>
+                                                        <option value="Ash" <?php echo ($tts_voice === 'Ash') ? 'selected' : ''; ?>>Ash</option>
+                                                        <option value="Ballad" <?php echo ($tts_voice === 'Ballad') ? 'selected' : ''; ?>>Ballad</option>
+                                                        <option value="Coral" <?php echo ($tts_voice === 'Coral') ? 'selected' : ''; ?>>Coral</option>
+                                                        <option value="Echo" <?php echo ($tts_voice === 'Echo') ? 'selected' : ''; ?>>Echo</option>
+                                                        <option value="Fable" <?php echo ($tts_voice === 'Fable') ? 'selected' : ''; ?>>Fable</option>
+                                                        <option value="Nova" <?php echo ($tts_voice === 'Nova') ? 'selected' : ''; ?>>Nova</option>
+                                                        <option value="Onyx" <?php echo ($tts_voice === 'Onyx') ? 'selected' : ''; ?>>Onyx</option>
+                                                        <option value="Sage" <?php echo ($tts_voice === 'Sage') ? 'selected' : ''; ?>>Sage</option>
+                                                        <option value="Shimmer" <?php echo ($tts_voice === 'Shimmer') ? 'selected' : ''; ?>>Shimmer</option>
+                                                        <option value="Verse" <?php echo ($tts_voice === 'Verse') ? 'selected' : ''; ?>>Verse</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <p class="help has-text-grey-light">Select the voice that will read TTS
+                                                messages in your channel.</p>
+                                        </div>
+                                    </div>
+                                    <div class="column is-6">
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i class="fas fa-globe"></i></span>
+                                                Language
+                                            </label>
+                                            <div class="control">
+                                                <div class="select is-fullwidth">
+                                                    <select name="tts_language" required>
+                                                        <option value="en" <?php echo ($tts_language === 'en') ? 'selected' : ''; ?>>English</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <p class="help has-text-grey-light">Select the language for TTS messages.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="field mt-4">
+                                    <div class="control">
+                                        <button type="submit" class="button is-success">
+                                            <span class="icon"><i class="fas fa-save"></i></span>
+                                            <span>Save TTS Settings</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>

@@ -567,6 +567,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
     }
+    // Handle TTS Settings Update
+    elseif (isset($_POST['tts_voice']) && isset($_POST['tts_language'])) {
+        $activeTab = "tts-settings";
+        $tts_voice = $_POST['tts_voice'];
+        $tts_language = $_POST['tts_language'];
+        $stmt = $db->prepare("INSERT INTO tts_settings (id, voice, language) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE voice = ?, language = ?");
+        $stmt->bind_param('ssss', $tts_voice, $tts_language, $tts_voice, $tts_language);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "TTS settings updated successfully. Voice: " . htmlspecialchars($tts_voice) . ", Language: " . htmlspecialchars($tts_language);
+        } else {
+            $_SESSION['update_message'] = "Error updating TTS settings: " . $stmt->error;
+        }
+        $stmt->close();
+    }
     // For non-AJAX requests, redirect back to the modules page with the active tab
     if (empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) != 'xmlhttprequest') {
         header("Location: modules.php?tab=" . $activeTab);
