@@ -35,7 +35,6 @@ $overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key) . '&time
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
     $action = $_POST['action'];
-    
     // Verify database connection exists
     if (!isset($db) || !$db) {
         echo json_encode(['success' => false, 'error' => 'Database connection not available']);
@@ -81,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     if ($action === 'get_tasks') {
         // Load all tasks for current user from database
-        $username = (string)$_SESSION['username'];
+        $username = (string) $_SESSION['username'];
         $stmt = $db->prepare("SELECT task_id as id, title, priority, completed FROM working_study_overlay_tasks WHERE username = ? ORDER BY created_at DESC");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
@@ -96,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'id' => $row['id'],
                 'title' => $row['title'],
                 'priority' => $row['priority'],
-                'completed' => (bool)$row['completed']
+                'completed' => (bool) $row['completed']
             ];
         }
         $stmt->close();
@@ -105,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     if ($action === 'save_tasks') {
         // Save all tasks for current user to database
-        $username = (string)$_SESSION['username'];
+        $username = (string) $_SESSION['username'];
         $tasks = json_decode($_POST['tasks'] ?? '[]', true);
         if (!is_array($tasks)) {
             echo json_encode(['success' => false, 'error' => 'Invalid tasks format']);
@@ -126,9 +125,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $success = true;
         foreach ($tasks as $task) {
-            $task_id = (string)($task['id'] ?? '');
-            $title = (string)($task['title'] ?? '');
-            $priority = (string)($task['priority'] ?? 'medium');
+            $task_id = (string) ($task['id'] ?? '');
+            $title = (string) ($task['title'] ?? '');
+            $priority = (string) ($task['priority'] ?? 'medium');
             $completed = $task['completed'] ? 1 : 0;
             $stmt->bind_param("ssssi", $username, $task_id, $title, $priority, $completed);
             if (!$stmt->execute()) {
@@ -170,7 +169,7 @@ if ($db && isset($_SESSION['username'])) {
                 'id' => $row['id'],
                 'title' => $row['title'],
                 'priority' => $row['priority'],
-                'completed' => (bool)$row['completed']
+                'completed' => (bool) $row['completed']
             ];
         }
         $stmt->close();
@@ -197,7 +196,8 @@ ob_start();
         <div class="card-content">
             <div class="content">
                 <p><strong>Specter Working/Study Timer Overlay</strong></p>
-                <p>Control a professional productivity timer overlay displayed on your stream. Track focus sessions, breaks, and recharge time with real-time visual feedback.</p>
+                <p>Control a professional productivity timer overlay displayed on your stream. Track focus sessions,
+                    breaks, and recharge time with real-time visual feedback.</p>
                 <ul>
                     <li>Visual progress ring that depletes with time</li>
                     <li>Dynamic color coding for each phase: Orange (focus), Cyan (break), Purple (recharge)</li>
@@ -224,7 +224,8 @@ ob_start();
                                 <div class="control">
                                     <div class="field has-addons">
                                         <p class="control is-expanded">
-                                            <input id="focusLengthMinutes" class="input" type="number" min="1" step="1" value="60" placeholder="Focus minutes">
+                                            <input id="focusLengthMinutes" class="input" type="number" min="1" step="1"
+                                                value="60" placeholder="Focus minutes">
                                         </p>
                                         <p class="control">
                                             <span class="button is-static">min</span>
@@ -247,7 +248,8 @@ ob_start();
                                 <div class="control">
                                     <div class="field has-addons">
                                         <p class="control is-expanded">
-                                            <input id="microBreakMinutes" class="input" type="number" min="1" step="1" value="5" placeholder="Micro break minutes">
+                                            <input id="microBreakMinutes" class="input" type="number" min="1" step="1"
+                                                value="5" placeholder="Micro break minutes">
                                         </p>
                                         <p class="control">
                                             <span class="button is-static">min</span>
@@ -270,7 +272,8 @@ ob_start();
                                 <div class="control">
                                     <div class="field has-addons">
                                         <p class="control is-expanded">
-                                            <input id="breakLengthMinutes" class="input" type="number" min="1" step="1" value="30" placeholder="Break minutes">
+                                            <input id="breakLengthMinutes" class="input" type="number" min="1" step="1"
+                                                value="30" placeholder="Break minutes">
                                         </p>
                                         <p class="control">
                                             <span class="button is-static">min</span>
@@ -292,19 +295,22 @@ ob_start();
                         </span>
                     </h3>
                     <div class="buttons is-flex-wrap-wrap">
-                        <button type="button" class="button is-medium is-danger" data-specter-phase="focus" style="flex: 1; min-width: 100%; margin-bottom: 0.5rem;">
+                        <button type="button" class="button is-medium is-danger" data-specter-phase="focus"
+                            style="flex: 1; min-width: 100%; margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-hourglass-start" aria-hidden="true"></i>
                             </span>
                             <span>Start Focus Sprint</span>
                         </button>
-                        <button type="button" class="button is-medium is-info" data-specter-phase="micro" style="flex: 1; min-width: 100%; margin-bottom: 0.5rem;">
+                        <button type="button" class="button is-medium is-info" data-specter-phase="micro"
+                            style="flex: 1; min-width: 100%; margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-mug-hot" aria-hidden="true"></i>
                             </span>
                             <span>Start Micro Break</span>
                         </button>
-                        <button type="button" class="button is-medium is-warning" data-specter-phase="recharge" style="flex: 1; min-width: 100%; margin-bottom: 0;">
+                        <button type="button" class="button is-medium is-warning" data-specter-phase="recharge"
+                            style="flex: 1; min-width: 100%; margin-bottom: 0;">
                             <span class="icon">
                                 <i class="fas fa-stretch" aria-hidden="true"></i>
                             </span>
@@ -322,31 +328,36 @@ ob_start();
                         </span>
                     </h3>
                     <div class="buttons is-flex-wrap-wrap">
-                        <button type="button" class="button is-medium is-primary" data-specter-control="start" style="flex: 1; min-width: calc(50% - 0.25rem); margin-right: 0.5rem; margin-bottom: 0.5rem;">
+                        <button type="button" class="button is-medium is-primary" data-specter-control="start"
+                            style="flex: 1; min-width: calc(50% - 0.25rem); margin-right: 0.5rem; margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-play" aria-hidden="true"></i>
                             </span>
                             <span>Start</span>
                         </button>
-                        <button type="button" class="button is-medium is-warning" data-specter-control="pause" style="flex: 1; min-width: calc(50% - 0.25rem); margin-bottom: 0.5rem;">
+                        <button type="button" class="button is-medium is-warning" data-specter-control="pause"
+                            style="flex: 1; min-width: calc(50% - 0.25rem); margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-pause" aria-hidden="true"></i>
                             </span>
                             <span>Pause</span>
                         </button>
-                        <button type="button" class="button is-medium is-success" data-specter-control="resume" style="flex: 1; min-width: calc(50% - 0.25rem); margin-right: 0.5rem; margin-bottom: 0.5rem;">
+                        <button type="button" class="button is-medium is-success" data-specter-control="resume"
+                            style="flex: 1; min-width: calc(50% - 0.25rem); margin-right: 0.5rem; margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-redo" aria-hidden="true"></i>
                             </span>
                             <span>Resume</span>
                         </button>
-                        <button type="button" class="button is-medium is-info" data-specter-control="reset" style="flex: 1; min-width: calc(50% - 0.25rem); margin-bottom: 0.5rem;">
+                        <button type="button" class="button is-medium is-info" data-specter-control="reset"
+                            style="flex: 1; min-width: calc(50% - 0.25rem); margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-sync" aria-hidden="true"></i>
                             </span>
                             <span>Reset</span>
                         </button>
-                        <button type="button" class="button is-medium is-danger" data-specter-control="stop" style="flex: 1; min-width: 100%;">
+                        <button type="button" class="button is-medium is-danger" data-specter-control="stop"
+                            style="flex: 1; min-width: 100%;">
                             <span class="icon">
                                 <i class="fas fa-stop" aria-hidden="true"></i>
                             </span>
@@ -363,13 +374,17 @@ ob_start();
                             <span>Live Timer</span>
                         </span>
                     </h3>
-                    <div class="box" style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); text-align: center;">
+                    <div class="box"
+                        style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); text-align: center;">
                         <div style="margin-bottom: 12px;">
                             <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
-                                <span id="livePhaseLabel">Focus Sprint</span> • <span id="livePhaseStatus">Waiting to start</span>
+                                <span id="livePhaseLabel">Focus Sprint</span> • <span id="livePhaseStatus">Waiting to
+                                    start</span>
                             </p>
                         </div>
-                        <p id="liveTimerDisplay" style="font-size: 4rem; font-weight: 700; color: #ff9161; margin: 0; font-variant-numeric: tabular-nums; font-family: 'Monaco', 'Menlo', monospace;">00:00</p>
+                        <p id="liveTimerDisplay"
+                            style="font-size: 4rem; font-weight: 700; color: #ff9161; margin: 0; font-variant-numeric: tabular-nums; font-family: 'Monaco', 'Menlo', monospace;">
+                            00:00</p>
                         <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); margin-top: 8px;">
                             <span id="liveTimerState" style="color: rgba(255, 255, 255, 0.7);">Not Running</span>
                         </p>
@@ -384,19 +399,22 @@ ob_start();
                             <span>Live Session Stats</span>
                         </span>
                     </h3>
-                    <div class="box" style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div class="box"
+                        style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1);">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center;">
                             <div>
                                 <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
                                     <i class="fas fa-hourglass-end" style="margin-right: 6px;"></i>Sessions Completed
                                 </p>
-                                <p id="overlaySessionsCount" style="font-size: 2.5rem; font-weight: 700; color: #ff9161; margin: 0;">0</p>
+                                <p id="overlaySessionsCount"
+                                    style="font-size: 2.5rem; font-weight: 700; color: #ff9161; margin: 0;">0</p>
                             </div>
                             <div>
                                 <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
                                     <i class="fas fa-clock" style="margin-right: 6px;"></i>Total Focus Time
                                 </p>
-                                <p id="overlayTotalTime" style="font-size: 2.5rem; font-weight: 700; color: #6be9ff; margin: 0;">0h 0m</p>
+                                <p id="overlayTotalTime"
+                                    style="font-size: 2.5rem; font-weight: 700; color: #6be9ff; margin: 0;">0h 0m</p>
                             </div>
                         </div>
                     </div>
@@ -433,14 +451,16 @@ ob_start();
         <div class="card-content">
             <div class="content">
                 <p><strong>Display a Task List on Your Stream</strong></p>
-                <p>Create and manage a beautiful task list overlay that shows your productivity goals to viewers. Tasks can be toggled as complete by users watching your stream.</p>
+                <p>Create and manage a beautiful task list overlay that shows your productivity goals to viewers. Tasks
+                    can be toggled as complete by users watching your stream.</p>
             </div>
             <div class="columns is-multiline">
                 <div class="column is-full">
                     <h3 class="title is-6">Add New Task</h3>
                     <div class="field is-grouped">
                         <div class="control is-expanded">
-                            <input id="taskInputTitle" class="input" type="text" placeholder="Enter task title..." maxlength="100">
+                            <input id="taskInputTitle" class="input" type="text" placeholder="Enter task title..."
+                                maxlength="100">
                         </div>
                         <div class="control">
                             <div class="select">
@@ -463,7 +483,8 @@ ob_start();
                 </div>
                 <div class="column is-full">
                     <h3 class="title is-6">Current Tasks</h3>
-                    <div id="taskListDisplay" style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
+                    <div id="taskListDisplay"
+                        style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
                         <div style="padding: 20px; text-align: center; color: rgba(255, 255, 255, 0.5);">
                             <p>No tasks yet. Add one to get started!</p>
                         </div>
@@ -520,7 +541,7 @@ ob_start();
         const tasklistLinkStreamer = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=true`;
         const tasklistLinkUsers = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=false`;
         const tasklistLinkCombined = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist`;
-        
+
         // PHP-injected initial data
         const initialSettings = <?php echo json_encode($initialSettings); ?>;
         const initialTasks = <?php echo json_encode($initialTasks); ?>;
@@ -581,16 +602,16 @@ ob_start();
                 const formData = new FormData();
                 formData.append('action', 'save_tasks');
                 formData.append('tasks', JSON.stringify(taskList));
-                
-                const response = await fetch(window.location.href, { 
-                    method: 'POST', 
-                    body: formData 
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                
+
                 const result = await response.json();
                 if (result.success) {
                     console.log('[Tasks] Saved to dashboard database');
@@ -741,7 +762,7 @@ ob_start();
                 stopBtn.disabled = false;
             }
         };
-        
+
         const formatTotalTime = (totalSeconds) => {
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -750,24 +771,24 @@ ob_start();
             }
             return `${minutes}m`;
         };
-        
+
         const formatTime = (seconds) => {
             const mins = Math.floor(seconds / 60);
             const secs = seconds % 60;
             return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         };
-        
+
         const updateLiveTimer = (timerData) => {
             if (!timerData) return;
             liveTimerDisplay.textContent = formatTime(timerData.remainingSeconds || 0);
             livePhaseLabel.textContent = timerData.phaseLabel || 'Unknown';
             livePhaseStatus.textContent = timerData.phaseStatus || 'Waiting';
-            
+
             // Update timer color based on phase
             if (timerData.phaseColor) {
                 liveTimerDisplay.style.color = timerData.phaseColor;
             }
-            
+
             // Update timer state display
             if (timerData.timerRunning) {
                 liveTimerState.textContent = 'Running';
@@ -780,7 +801,7 @@ ob_start();
                 liveTimerState.style.color = 'rgba(255, 255, 255, 0.7)';
             }
         };
-        
+
         const updateStatsDisplay = () => {
             console.log(`[Timer Dashboard] Session stats updated - Sessions: ${sessionsCompleted}, Total Time: ${formatTotalTime(totalTimeLogged)}`);
         };
@@ -805,10 +826,10 @@ ob_start();
             try {
                 if (!socket || !socket.connected || !socketReady) {
                     console.error('[Timer Dashboard] Socket not connected');
-                    console.log('[Timer Dashboard] Socket state:', { 
-                        exists: !!socket, 
-                        connected: socket?.connected, 
-                        ready: socketReady 
+                    console.log('[Timer Dashboard] Socket state:', {
+                        exists: !!socket,
+                        connected: socket?.connected,
+                        ready: socketReady
                     });
                     showToast('⚠️ Not connected to timer server', 'danger');
                     setButtonsLoading(false);
@@ -1009,7 +1030,7 @@ ob_start();
                 username: currentUsername,
                 createdAt: new Date().toISOString()
             });
-            
+
             taskInputTitle.value = '';
             taskInputPriority.value = 'medium';
             renderTaskList();
@@ -1038,8 +1059,8 @@ ob_start();
                 }
                 const phaseName = phaseNames[phase] || phase;
                 await notifyServer(
-                    { specter_event: 'SPECTER_PHASE', ...payload, ...gatherDurations() }, 
-                    `Started ${phaseName}`, 
+                    { specter_event: 'SPECTER_PHASE', ...payload, ...gatherDurations() },
+                    `Started ${phaseName}`,
                     'success'
                 );
             });
@@ -1050,7 +1071,7 @@ ob_start();
                 console.log(`[Timer Dashboard] Control button clicked: ${action}`);
                 const toastMessage = controlMessages[action] || `Timer ${action}`;
                 await notifyServer(
-                    { specter_event: 'SPECTER_TIMER_CONTROL', action, ...gatherDurations() }, 
+                    { specter_event: 'SPECTER_TIMER_COMMAND', action, ...gatherDurations() },
                     toastMessage
                 );
             });

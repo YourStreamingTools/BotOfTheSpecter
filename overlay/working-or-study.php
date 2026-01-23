@@ -120,17 +120,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         $settings = $result->fetch_assoc();
         $stmt->close();
         if ($settings) {
-            echo json_encode(['success' => true, 'data' => [
-                'focus_minutes' => (int)$settings['focus_minutes'],
-                'micro_break_minutes' => (int)$settings['micro_break_minutes'],
-                'recharge_break_minutes' => (int)$settings['recharge_break_minutes']
-            ]]);
+            echo json_encode([
+                'success' => true,
+                'data' => [
+                    'focus_minutes' => (int) $settings['focus_minutes'],
+                    'micro_break_minutes' => (int) $settings['micro_break_minutes'],
+                    'recharge_break_minutes' => (int) $settings['recharge_break_minutes']
+                ]
+            ]);
         } else {
-            echo json_encode(['success' => true, 'data' => [
-                'focus_minutes' => 60,
-                'micro_break_minutes' => 5,
-                'recharge_break_minutes' => 30
-            ]]);
+            echo json_encode([
+                'success' => true,
+                'data' => [
+                    'focus_minutes' => 60,
+                    'micro_break_minutes' => 5,
+                    'recharge_break_minutes' => 30
+                ]
+            ]);
         }
         exit;
     }
@@ -152,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
                 'id' => $row['id'],
                 'title' => $row['title'],
                 'priority' => $row['priority'],
-                'completed' => (bool)$row['completed']
+                'completed' => (bool) $row['completed']
             ];
         }
         $stmt->close();
@@ -171,42 +177,30 @@ ob_end_clean();
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <link rel="stylesheet" href="index.css">
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-        body {
-            margin: 0;
-            min-height: 100vh;
-            background: transparent;
-            font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-            color: #f8fbff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-    </style>
 </head>
-<body>
+<body class="study-overlay-page">
     <?php if ($error_html): ?>
         <div class="study-overlay-error-screen">
             <h1>Overlay unavailable</h1>
             <p id="overlayErrorMessage"><?php echo $error_html; ?></p>
         </div>
     <?php else: ?>
-        <div class="study-overlay-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>" id="overlayRoot">
+        <div class="study-overlay-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>"
+            id="overlayRoot">
             <section class="study-overlay-timer-card" data-visible="<?php echo $show_timer_panel ? 'true' : 'false'; ?>">
                 <div class="study-overlay-status-row">
                     <span class="study-overlay-connection-status" id="connectionStatus" data-state="connecting">
                         <span class="dot"></span>
                         Connecting…
                     </span>
-                    <span class="study-overlay-label">Overlay for <?php echo htmlspecialchars($username ?: 'Specter'); ?></span>
+                    <span class="study-overlay-label">Overlay for
+                        <?php echo htmlspecialchars($username ?: 'Specter'); ?></span>
                 </div>
                 <div class="study-overlay-timer-ring">
                     <svg viewBox="0 0 220 220">
                         <circle class="study-overlay-ring-bg" cx="110" cy="110" r="98"></circle>
-                        <circle class="study-overlay-ring-progress" id="timerRingProgress" cx="110" cy="110" r="98"></circle>
+                        <circle class="study-overlay-ring-progress" id="timerRingProgress" cx="110" cy="110" r="98">
+                        </circle>
                     </svg>
                     <div class="study-overlay-timer-inner">
                         <div id="phaseLabel" class="study-overlay-phase-label">Focus Sprint</div>
@@ -616,12 +610,14 @@ ob_end_clean();
                 console.log('[Overlay] Socket instance created, registering event listeners...');
                 socket.on('connect', () => {
                     reconnectAttempts = 0;
+                    console.log('[Overlay] Connected to socket server! ID:', socket.id);
                     setConnectionStatus('Connected', 'connected');
                     socket.emit('REGISTER', {
                         code: overlayApiKey,
                         channel: 'Overlay',
                         name: `Working Study Timer - ${overlayUserName}`
                     });
+                    console.log('[Overlay] Sent REGISTER event for code:', overlayApiKey);
                     emitSessionStats();
                     loadSettingsFromAPI();
                     loadTasksFromAPI();
@@ -629,6 +625,7 @@ ob_end_clean();
                 });
                 console.log('[Overlay] Registering all WebSocket event listeners...');
                 socket.on('disconnect', reason => {
+                    console.warn('[Overlay] Disconnected:', reason);
                     setConnectionStatus('Disconnected', 'error');
                     stopStatsTicker();
                     scheduleReconnect();
@@ -640,7 +637,9 @@ ob_end_clean();
                     scheduleReconnect();
                 });
                 socket.on('SUCCESS', payload => {
+                    console.log('[Overlay] Received SUCCESS payload:', payload);
                     if (payload && typeof payload.message === 'string' && payload.message.toLowerCase().includes('registration')) {
+                        console.log('[Overlay] Registration CONFIRMED by server');
                         setConnectionStatus('Registered', 'connected');
                     }
                 });
@@ -657,49 +656,36 @@ ob_end_clean();
                 });
                 socket.on('SPECTER_TIMER_CONTROL', payload => {
                     console.log('[Overlay] SPECTER_TIMER_CONTROL listener triggered');
-                    console.log('[Overlay] SPECTER_TIMER_CONTROL event received:', payload);
+                    handleTimerControl(payload);
+                });
+                socket.on('SPECTER_TIMER_COMMAND', payload => {
+                    console.log('[Overlay] SPECTER_TIMER_COMMAND listener triggered (Bypass)');
+                    handleTimerControl(payload);
+                });
+                const handleTimerControl = (payload) => {
+                    console.log('[Overlay] Timer Control event received:', payload);
                     if (!payload) {
-                        console.log('[Overlay] No payload in SPECTER_TIMER_CONTROL');
+                        console.log('[Overlay] No payload in Timer Control event');
                         return;
                     }
                     const action = (payload.action || payload.command || '').toLowerCase();
                     console.log(`[Overlay] Parsed action: "${action}"`);
                     // Update timer durations from payload
-                    console.log('[Overlay] Updating durations from payload:', { 
-                        focus_minutes: payload.focus_minutes,
-                        micro_minutes: payload.micro_minutes,
-                        break_minutes: payload.break_minutes
-                    });
                     updateDurationsFromPayload(payload);
                     const overrideDuration = parseDurationOverride(payload);
-                    console.log(`[Overlay] Timer control received: ${action}, Override duration: ${overrideDuration}`, payload);
-                    console.log(`[Overlay] Current timerState:`, {
-                        currentPhase: timerState.currentPhase,
-                        durations: timerState.durations,
-                        timerRunning: timerState.timerRunning
-                    });
                     if (action === 'pause') {
-                        console.log('[Overlay] Executing PAUSE');
                         pauseTimer();
                     } else if (action === 'resume') {
-                        console.log('[Overlay] Executing RESUME');
                         resumeTimer();
                     } else if (action === 'reset') {
-                        console.log('[Overlay] Executing RESET');
                         resetTimer();
                     } else if (action === 'stop') {
-                        console.log('[Overlay] Executing STOP');
                         stopTimer();
                     } else if (action === 'start') {
-                        // Start the timer with optional duration override
                         const durationOverride = typeof overrideDuration === 'number' ? overrideDuration : timerState.durations[timerState.currentPhase];
-                        console.log(`[Overlay] Executing START with duration: ${durationOverride}s (${Math.floor(durationOverride / 60)}m)`);
                         setPhase(timerState.currentPhase, { autoStart: true, duration: durationOverride });
-                        console.log(`[Overlay] Timer started successfully`);
-                    } else {
-                        console.warn(`[Overlay] Unknown action received: "${action}"`);
                     }
-                });
+                };
                 socket.on('SPECTER_STATS_REQUEST', () => {
                     emitSessionStats();
                 });
