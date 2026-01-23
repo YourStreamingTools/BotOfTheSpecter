@@ -1,39 +1,81 @@
 # Async Twitch API client
+# Core library for interacting with Twitch chat and APIs using asyncio
 twitchio==3.1.0
 twitchio[starlette]==3.1.0
+
 # Async HTTP client for Python
+# Used by multiple async libraries (TwitchIO, APIs, web calls)
 aiohttp
+
 # WebSocket libraries
+# Required for real-time connections (chat, events, streaming APIs)
 websockets
 python-socketio
+
 # For streaming video/audio
+# Used to access live streams and media sources (pulls in botocore indirectly)
 streamlink
+
 # Timezones
+# Timezone-aware datetime handling
 pytz
+
 # Load environment variables from .env
+# Keeps secrets (tokens, keys) out of source code
 python-dotenv
+
 # Async MySQL client
+# Non-blocking database access for asyncio-based apps
 aiomysql
+
 # Geo-location tools
+# Address lookup, coordinates, distance calculations
 geopy
+
 # Unit conversions
+# Physical unit handling (time, distance, temperature, etc.)
 pint
+
 # Discord API
+# Discord bot integration (async)
 discord.py
+
 # Joke API
+# Fetches jokes from JokeAPI
 jokeapi
-simplejson
+
 # Translation
+# Text translation across multiple services
 deep_translator
+
 # For system monitoring
+# CPU, memory, process metrics
 psutil
+
 # For text-to-speech conversion
+# Offline TTS engine
 pyttsx3
+
 # For cryptographic operations
+# Required by Discord, Paramiko, and secure networking
 PyNaCl
+
 # For SSH connections
+# Secure remote command execution and file transfer
 paramiko
+
 # YouTube video downloader
+# Media extraction; can indirectly depend on AWS-related tooling
 yt_dlp
+
 # OpenAI API client
+# Access to OpenAI models (chat, completions, etc.)
 openai
+
+# JSON query language
+# Required by botocore (pulled indirectly by streamlink / yt_dlp)
+jmespath>=0.7.1,<2.0.0
+
+# Date and time utilities
+# Required by botocore for datetime parsing and timezone handling
+python-dateutil>=2.1,<3.0.0
