@@ -458,14 +458,20 @@ class BotOfTheSpecter_WebsocketServer:
             if not effective_code and data and isinstance(data, dict):
                 effective_code = data.get('code') or data.get('channel_code')
         targeted_clients = self.registered_clients.get(effective_code, []) if effective_code else []
+        # DEBUG LOGGING FOR SPECTER EVENTS
         if event_name.startswith("SPECTER_"):
             client_names = [client.get('name', '<unnamed>') for client in targeted_clients]
-            self.logger.info(f"{event_name} will target {len(client_names)} client(s) for code {effective_code}: {client_names}")
+            self.logger.info(f"debug_broadcast: event={event_name}, effective_code={effective_code}, source_sid={source_sid}")
+            self.logger.info(f"debug_broadcast: found {len(targeted_clients)} targeted clients: {client_names}")
         # Broadcast to specific code clients if code is provided
         if effective_code and effective_code in self.registered_clients:
             for client in self.registered_clients[effective_code]:
+                self.logger.info(f"debug_broadcast: emitting {event_name} to {client['sid']} (name: {client.get('name')})")
                 await self.sio.emit(event_name, {**data, "channel_code": effective_code}, to=client['sid'])
                 count += 1
+        else:
+             if event_name.startswith("SPECTER_"):
+                 self.logger.warning(f"debug_broadcast: effective_code {effective_code} NOT FOUND in registered_clients or has no clients")
         # Broadcast to all global listeners
         channel_code_for_globals = effective_code or "unknown"
         for listener in self.global_listeners:

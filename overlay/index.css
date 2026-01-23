@@ -1,3 +1,18 @@
+* {
+    box-sizing: border-box;
+}
+
+.study-overlay-page {
+    margin: 0;
+    min-height: 100vh;
+    background: transparent;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    color: #f8fbff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 @keyframes slideIn {
     0% {
         transform: translateX(-100%);
