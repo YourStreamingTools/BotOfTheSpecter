@@ -1664,6 +1664,147 @@ class LiveChannelManager:
                 await asyncio.sleep(self.check_interval)
         self._validate_task = asyncio.create_task(_task())
 
+    async def sync_all_channels_on_boot(self):
+        try:
+            self.logger.info("Starting boot-time stream status synchronization...")
+            # Get all active channel mappings
+            if not hasattr(self.bot, 'channel_mapping') or not self.bot.channel_mapping:
+                self.logger.warning("Channel mapping not available, skipping boot sync")
+                return
+            await self.bot.channel_mapping._ready.wait()
+            mappings = self.bot.channel_mapping.mappings.copy()
+            if not mappings:
+                self.logger.info("No channel mappings found, skipping boot sync")
+                return
+            # Collect all usernames to check
+            username_to_code = {}
+            usernames_to_check = []
+            for code, mapping in mappings.items():
+                username = mapping.get('username')
+                if username:
+                    username_lower = str(username).strip().lower()
+                    username_to_code[username_lower] = code
+                    usernames_to_check.append(username_lower)
+            if not usernames_to_check:
+                self.logger.info("No usernames to check, skipping boot sync")
+                return
+            self.logger.info(f"Checking stream status for {len(usernames_to_check)} channels via Twitch API...")
+            # Batch fetch current live status from Twitch API
+            live_streams = await self.twitch_get_streams_by_logins(usernames_to_check)
+            live_usernames = {s['user_login'].lower(): s for s in live_streams} if live_streams else {}
+            self.logger.info(f"Found {len(live_usernames)} live streams from Twitch API")
+            # Track actions for summary
+            updated_voice_channels = 0
+            prevented_duplicates = 0
+            new_notifications = 0
+            cleaned_stale = 0
+            # Process each username
+            for username_lower in usernames_to_check:
+                try:
+                    code = username_to_code.get(username_lower)
+                    mapping = mappings.get(code)
+                    if not mapping:
+                        continue
+                    guild_id = mapping.get('guild_id')
+                    if not guild_id:
+                        continue
+                    is_live = username_lower in live_usernames
+                    # Check current database state
+                    online_stream = await self.get_online_stream_by_username(username_lower)
+                    has_notification = False
+                    if guild_id:
+                        try:
+                            notification = await self.mysql.fetchone(
+                                "SELECT * FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
+                                (guild_id, username_lower),
+                                database_name='specterdiscordbot',
+                                dict_cursor=True
+                            )
+                            has_notification = notification is not None
+                        except Exception as e:
+                            self.logger.debug(f"Error checking notification for {username_lower}: {e}")
+                    # Update voice channel
+                    try:
+                        guild = self.bot.get_guild(int(guild_id))
+                        if guild:
+                            channel_id = mapping.get('channel_id')
+                            if channel_id:
+                                channel = guild.get_channel(int(channel_id))
+                                if channel:
+                                    if is_live:
+                                        online_text = mapping.get('online_text') or 'Stream is now LIVE!'
+                                        channel_name = f"🟢 {online_text}"
+                                    else:
+                                        offline_text = mapping.get('offline_text') or 'Stream is now OFFLINE'
+                                        channel_name = f"🔴 {offline_text}"
+                                    if channel.name != channel_name:
+                                        await channel.edit(name=channel_name, reason="Bot restart sync")
+                                        updated_voice_channels += 1
+                                        self.logger.info(f"Updated voice channel for {username_lower} to: {channel_name}")
+                    except Exception as e:
+                        self.logger.debug(f"Error updating voice channel for {username_lower}: {e}")
+                    # Handle live streams
+                    if is_live:
+                        stream_data = live_usernames[username_lower]
+                        # Mark as online in database
+                        await self.mark_online(
+                            code,
+                            username=stream_data.get('user_login'),
+                            twitch_user_id=stream_data.get('user_id'),
+                            stream_id=stream_data.get('id'),
+                            started_at=stream_data.get('started_at'),
+                            details=stream_data
+                        )
+                        # Check if we need to send a notification
+                        if has_notification:
+                            self.logger.info(f"Stream is live for {username_lower}, but notification already exists - preventing duplicate")
+                            prevented_duplicates += 1
+                        else:
+                            # No notification exists, trigger the announcement flow
+                            self.logger.info(f"Stream is live for {username_lower}, triggering new notification")
+                            event_data = {
+                                'channel_code': code,
+                                'twitch-username': stream_data.get('user_login'),
+                                'twitch_user_id': stream_data.get('user_id'),
+                                'twitch-stream-id': stream_data.get('id'),
+                                'started_at': stream_data.get('started_at'),
+                                'details': stream_data
+                            }
+                            try:
+                                if self.bot:
+                                    await self.bot.handle_stream_event('ONLINE', event_data)
+                                    new_notifications += 1
+                            except Exception as e:
+                                self.logger.error(f"Error sending stream notification for {username_lower}: {e}")
+                    else:
+                        # Stream is offline
+                        # Clean up online_streams if present
+                        if online_stream:
+                            await self.mark_offline_by_username(username_lower)
+                        # Clean up live_notifications if present
+                        if has_notification:
+                            try:
+                                await self.mysql.execute(
+                                    "DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
+                                    (guild_id, username_lower),
+                                    database_name='specterdiscordbot'
+                                )
+                                cleaned_stale += 1
+                                self.logger.info(f"Cleaned stale notification for offline stream: {username_lower}")
+                            except Exception as e:
+                                self.logger.debug(f"Error cleaning notification for {username_lower}: {e}")
+                except Exception as e:
+                    self.logger.error(f"Error processing boot sync for {username_lower}: {e}")
+            # Log summary
+            self.logger.info(
+                f"Boot sync complete: {updated_voice_channels} voice channels updated, "
+                f"{prevented_duplicates} duplicate notifications prevented, "
+                f"{new_notifications} new notifications sent, "
+                f"{cleaned_stale} stale notifications cleaned"
+            )
+        except Exception as e:
+            self.logger.error(f"Error in sync_all_channels_on_boot: {e}")
+
     async def twitch_get_streams_by_logins(self, user_logins: list):
         if not user_logins:
             return []
@@ -1792,20 +1933,8 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.error(f"Failed to update Discord bot version file: {e}")
         # Auto-populate missing channel mappings from users table
         await self.channel_mapping.populate_missing_mappings_from_users(self)
-        # Set the initial presence and check stream status for each guild
-        for guild in self.guilds:
-            # Automatic mapping: get Twitch display name from SQL
-            resolver = DiscordChannelResolver(self.logger)
-            discord_info = await resolver.get_discord_info_from_guild_id(guild.id)
-            if discord_info:
-                twitch_display_name = discord_info.get('twitch_display_name', guild.name)
-                channel_key = twitch_display_name.lower().replace(' ', '')
-                # Combine mapping and status into a single log entry
-                online = self.read_stream_status(channel_key)
-                self.logger.info(
-                    f"Guild '{guild.name}' (ID: {guild.id}) auto-mapped to Twitch user '{twitch_display_name}', "
-                    f"stream is {'online' if online else 'offline'} for channel key '{channel_key}'."
-                )
+        # Sync stream status using Twitch API (replaces old filesystem checks)
+        asyncio.create_task(self.live_channel_manager.sync_all_channels_on_boot())
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(UtilityCog(self, self.logger))
