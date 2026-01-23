@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.1"
+VERSION = "5.7.2"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -8949,8 +8949,8 @@ async def websocket_notice(
                 elif event == "TTS" and text:
                     # Make a database query to fetch additional information for TTS
                     try:
-                        query = "SELECT voice, language FROM tts_settings WHERE user = %s"
-                        await cursor.execute(query, (user,))
+                        query = "SELECT voice, language FROM tts_settings LIMIT 1"
+                        await cursor.execute(query)
                         result = await cursor.fetchone()
                         if result:
                             params['voice'] = result.get('voice', 'default')
