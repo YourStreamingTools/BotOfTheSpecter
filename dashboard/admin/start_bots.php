@@ -12,9 +12,11 @@ $pageTitle = 'Start User Bots';
 
 // Collect server-side logs for browser console output instead of server-side error_log
 $client_console_logs = [];
-function client_console_log($msg, $level = 'error') {
+function client_console_log($msg, $level = 'error')
+{
     global $client_console_logs;
-    if (!is_string($msg)) $msg = print_r($msg, true);
+    if (!is_string($msg))
+        $msg = print_r($msg, true);
     $msg = preg_replace('/(Authorization:\s*Bearer\s+)[^\s\\]+/i', '$1[REDACTED]', $msg);
     $msg = preg_replace('/(access_token|refresh_token|api_key|apiKey)["\']?\s*[:=]\s*[^\s\,\)\}]+/i', '$1: [REDACTED]', $msg);
     $msg = mb_substr($msg, 0, 2000);
@@ -1597,11 +1599,10 @@ ob_start();
                                 position: 'top-end',
                                 icon: 'success',
                                 title: data.message || 'Bot restarted successfully',
+                                html: 'Click "Refresh Status" to update PID',
                                 showConfirmButton: false,
                                 timer: 3000
                             });
-                            // Refresh the bot status to update the display
-                            setTimeout(() => refreshBotStatus(), 1500);
                         } else {
                             Swal.fire({
                                 toast: true,
@@ -1746,8 +1747,6 @@ ob_start();
             restartAllBtn.disabled = false;
             restartAllBtn.classList.remove('is-loading');
         }
-        // Refresh the bot status one final time
-        await refreshBotStatus();
         // Close the progress toast before showing final results
         Swal.close();
         // Show final results
@@ -1777,27 +1776,27 @@ ob_start();
     };
 </script>
 <?php if (!empty($client_console_logs)): ?>
-<script>
-try {
-    const __client_logs = <?php echo json_encode($client_console_logs, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP); ?>;
-    if (Array.isArray(__client_logs) && __client_logs.length > 0) {
-        console.groupCollapsed('Server Logs (' + __client_logs.length + ')');
-        __client_logs.forEach((entry, idx) => {
-            try {
-                const title = '#' + idx + ' ' + (entry.level || 'error');
-                console.groupCollapsed(title);
-                console.error(entry.msg);
+    <script>
+        try {
+            const __client_logs = <?php echo json_encode($client_console_logs, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+            if (Array.isArray(__client_logs) && __client_logs.length > 0) {
+                console.groupCollapsed('Server Logs (' + __client_logs.length + ')');
+                __client_logs.forEach((entry, idx) => {
+                    try {
+                        const title = '#' + idx + ' ' + (entry.level || 'error');
+                        console.groupCollapsed(title);
+                        console.error(entry.msg);
+                        console.groupEnd();
+                    } catch (e) {
+                        console.error('Server log render error:', e);
+                    }
+                });
                 console.groupEnd();
-            } catch (e) {
-                console.error('Server log render error:', e);
             }
-        });
-        console.groupEnd();
-    }
-} catch (e) {
-    console.error('Failed to parse server logs:', e);
-}
-</script>
+        } catch (e) {
+            console.error('Failed to parse server logs:', e);
+        }
+    </script>
 <?php endif; ?>
 <?php
 $content = ob_get_clean();
