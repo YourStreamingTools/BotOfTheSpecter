@@ -17,7 +17,7 @@ function client_console_log($msg, $level = 'error')
     global $client_console_logs;
     if (!is_string($msg))
         $msg = print_r($msg, true);
-    $msg = preg_replace('/(Authorization:\s*Bearer\s+)[^\s\\]+/i', '$1[REDACTED]', $msg);
+    $msg = preg_replace('/(Authorization:\s*Bearer\s+)[^\s\\\]]+/i', '$1[REDACTED]', $msg);
     $msg = preg_replace('/(access_token|refresh_token|api_key|apiKey)["\']?\s*[:=]\s*[^\s\,\)\}]+/i', '$1: [REDACTED]', $msg);
     $msg = mb_substr($msg, 0, 2000);
     $client_console_logs[] = ['level' => $level, 'msg' => $msg];
