@@ -2625,7 +2625,7 @@ ob_start();
     <?php if ($hasEnabledFeatures && $is_linked && !$needs_relink && $hasGuildId): ?>
       <div class="columns is-multiline">
         <div class="column is-6 is-flex" id="feature-box-welcomeMessage"
-          style="display: <?php echo $serverManagementSettings['welcomeMessage'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['welcomeMessage'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -2716,7 +2716,7 @@ ob_start();
           </div>
         </div>
         <div class="column is-6 is-flex" id="feature-box-autoRole"
-          style="display: <?php echo $serverManagementSettings['autoRole'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['autoRole'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -2771,7 +2771,7 @@ ob_start();
           </div>
         </div>
         <div class="column is-6 is-flex" id="feature-box-roleHistory"
-          style="display: <?php echo $serverManagementSettings['roleHistory'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['roleHistory'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -2832,7 +2832,7 @@ ob_start();
           </div>
         </div>
         <div class="column is-6 is-flex" id="feature-box-messageTracking"
-          style="display: <?php echo $serverManagementSettings['messageTracking'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['messageTracking'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -2891,7 +2891,7 @@ ob_start();
           </div>
         </div>
         <div class="column is-6 is-flex" id="feature-box-roleTracking"
-          style="display: <?php echo $serverManagementSettings['roleTracking'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['roleTracking'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -2950,7 +2950,7 @@ ob_start();
           </div>
         </div>
         <div class="column is-6 is-flex" id="feature-box-serverRoleManagement"
-          style="display: <?php echo $serverManagementSettings['serverRoleManagement'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['serverRoleManagement'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -3013,7 +3013,7 @@ ob_start();
           </div>
         </div>
         <div class="column is-6 is-flex" id="feature-box-userTracking"
-          style="display: <?php echo $serverManagementSettings['userTracking'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['userTracking'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -3088,7 +3088,7 @@ ob_start();
           </div>
         </div>
         <div class="column is-6 is-flex" id="feature-box-reactionRoles"
-          style="display: <?php echo $serverManagementSettings['reactionRoles'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['reactionRoles'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -3177,7 +3177,7 @@ ob_start();
           </div>
         </div>
         <div class="column is-6 is-flex" id="feature-box-rulesConfiguration"
-          style="display: <?php echo $serverManagementSettings['rulesConfiguration'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['rulesConfiguration'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -3287,7 +3287,7 @@ ob_start();
           </div>
         </div>
         <div class="column is-6 is-flex" id="feature-box-streamSchedule"
-          style="display: <?php echo $serverManagementSettings['streamSchedule'] ? 'flex' : 'none !important'; ?>;">
+          style="display: <?php echo $serverManagementSettings['streamSchedule'] ? 'flex' : 'none'; ?>;">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -3395,7 +3395,7 @@ ob_start();
         </div>
         <!-- Free Games Configuration Section -->
         <div class="column is-6 is-flex" id="feature-box-freeGames"
-          style="display: <?php echo $serverManagementSettings['freeGames'] ? 'flex' : 'none !important'; ?>;">
+          style="<?php echo $serverManagementSettings['freeGames'] ? 'display: flex;' : 'display: none !important;'; ?>">
           <div class="card has-background-grey-darker"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
             <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
@@ -4525,11 +4525,11 @@ ob_start();
           const featureBox = document.getElementById(featureBoxId);
           if (featureBox) {
             if (value) {
-              // Feature enabled - show the box with fade in animation
-              $(featureBox).css('display', 'flex').hide().fadeIn(300);
+              // Feature enabled - show the box
+              featureBox.style.setProperty('display', 'flex', 'important');
             } else {
-              // Feature disabled - hide the box with fade out animation
-              $(featureBox).fadeOut(300);
+              // Feature disabled - hide the box
+              featureBox.style.setProperty('display', 'none', 'important');
             }
           }
         } else {
