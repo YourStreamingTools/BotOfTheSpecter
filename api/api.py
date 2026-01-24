@@ -20,6 +20,7 @@ import time
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
 from typing import Dict, List
 from jokeapi import Jokes
@@ -221,10 +222,14 @@ async def midnight():
 # Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logging.info("=" * 80)
+    logging.info("API SERVER STARTING UP")
+    logging.info("=" * 80)
     midnight_task = asyncio.create_task(midnight())
     # Yield control back to FastAPI (letting it continue with startup and handling requests)
     yield
     # After shutdown, cancel the midnight task
+    logging.info("API SERVER SHUTTING DOWN")
     midnight_task.cancel()
     try:
         await midnight_task
@@ -255,6 +260,34 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all methods, including OPTIONS
     allow_headers=["*"],  # Allow all headers
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logging.error("=" * 80)
+    logging.error("PYDANTIC VALIDATION ERROR")
+    logging.error(f"URL: {request.url}")
+    logging.error(f"Method: {request.method}")
+    logging.error(f"Errors: {exc.errors()}")
+    logging.error(f"Body: {exc.body}")
+    logging.error("=" * 80)
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logging.error("=" * 80)
+    logging.error("UNHANDLED EXCEPTION")
+    logging.error(f"URL: {request.url}")
+    logging.error(f"Method: {request.method}")
+    logging.error(f"Exception: {exc}")
+    logging.error(f"Traceback: {traceback.format_exc()}")
+    logging.error("=" * 80)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "error": str(exc)},
+    )
 
 # Make a connection to the MySQL Server
 async def get_mysql_connection():
@@ -580,12 +613,29 @@ class UserPointsModificationResponse(BaseModel):
 
 # Define the response model for Account information
 class AccountResponse(BaseModel):
-    id: int = Field(..., example=1)
-    username: str = Field(..., example="testuser")
-    twitch_display_name: str = Field(None, example="TestUser")
-    twitch_user_id: str = Field(..., example="123456789")
-    access_token: str = Field(None, example="abcdef123456")
-    refresh_token: str = Field(None, example="xyz987654")
+    id: int
+    username: str
+    twitch_display_name: str | None = None
+    twitch_user_id: str
+    access_token: str | None = None
+    refresh_token: str | None = None
+    useable_access_token: str | None = None
+    useable_access_token_updated: str | None = None
+    api_key: str
+    is_admin: bool
+    beta_access: bool
+    is_technical: bool
+    signup_date: str
+    last_login: str
+    profile_image: str | None = None
+    email: str | None = None
+    language: str | None = None
+    use_custom: int | None = None
+    use_self: int | None = None
+    spotify_access_token: str | None = None
+    spotify_refresh_token: str | None = None
+    discord_access_token: str | None = None
+    discord_refresh_token: str | None = None
 
 # Define the response model for FreeStuff Games
 class FreeStuffGame(BaseModel):
@@ -946,8 +996,8 @@ async def get_account_info(api_key: str = Query(...), channel: str = Query(None)
                 LEFT JOIN spotify_tokens s ON u.id = s.user_id
                 LEFT JOIN discord_users d ON u.id = d.user_id
                 LEFT JOIN twitch_bot_access t ON u.twitch_user_id = t.twitch_user_id
-                WHERE u.api_key = %s
-            """, (api_key,))
+                WHERE u.username = %s
+            """, (username,))
             result = await cur.fetchone()
             if not result:
                 raise HTTPException(status_code=404, detail="Account not found")
@@ -979,8 +1029,9 @@ async def get_account_info(api_key: str = Query(...), channel: str = Query(None)
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error retrieving account info for API key: {e}")
-        raise HTTPException(status_code=500, detail="Error retrieving account information")
+        logging.error(f"Error retrieving account info for username '{username}': {e}")
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving account information: {str(e)}")
     finally:
         conn.close()
 
