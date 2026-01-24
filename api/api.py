@@ -331,6 +331,25 @@ async def verify_admin_key(admin_key: str, service: str = None):
         logging.error(f"Error verifying admin key: {e}")
         return False
 
+async def verify_key(api_key: str, service: str = None) -> dict | None:
+    admin_result = await verify_admin_key(api_key, service)
+    if admin_result:
+        return {"type": "admin", "service": service}
+    username = await verify_api_key(api_key)
+    if username:
+        return {"type": "user", "username": username}
+    return None
+
+def resolve_username(key_info: dict, username_param: str = None) -> str:
+    if key_info["type"] == "admin":
+        if not username_param:
+            raise HTTPException(
+                status_code=400,
+                detail="Username parameter required when using admin key"
+            )
+        return username_param
+    return key_info["username"]
+
 # Function to connect to the websocket server and push a notice
 async def websocket_notice(event, params, api_key):
     valid = await verify_api_key(api_key)  # Validate the API key before proceeding
@@ -800,11 +819,12 @@ async def save_freestuff_game(webhook_data):
     description="Receives FreeStuff webhooks (ping, announcements, product updates) and forwards to WebSocket.",
     tags=["Webhooks"],
     status_code=status.HTTP_204_NO_CONTENT,
-    operation_id="process_freestuff_webhook"
+    operation_id="process_freestuff_webhook",
+    include_in_schema=False
 )
-async def handle_freestuff_webhook(request: Request, admin_key: str = Query(...)):
-    valid = await verify_admin_key(admin_key, service="FreeStuff")
-    if not valid:
+async def handle_freestuff_webhook(request: Request, api_key: str = Query(...)):
+    key_info = await verify_key(api_key, service="FreeStuff")
+    if not key_info or key_info["type"] != "admin":
         raise HTTPException(status_code=401, detail="Invalid Admin API Key")
     webhook_id = request.headers.get("Webhook-Id")
     compatibility_date = request.headers.get("X-Compatibility-Date")
@@ -831,7 +851,7 @@ async def handle_freestuff_webhook(request: Request, admin_key: str = Query(...)
         raise HTTPException(status_code=500, detail="Internal server error")
     async with aiohttp.ClientSession() as session:
         try:
-            params = {"code": admin_key, "event": "FREESTUFF", "data": webhook_data}
+            params = {"code": api_key, "event": "FREESTUFF", "data": webhook_data}
             encoded_params = urlencode(params)
             url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
             async with session.get(url, timeout=10) as response:
@@ -897,10 +917,11 @@ async def get_freestuff_games():
     tags=["BotOfTheSpecter"],
     operation_id="get_account_info"
 )
-async def get_account_info(api_key: str = Query(...)):
-    username = await verify_api_key(api_key)
-    if not username:
+async def get_account_info(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
     conn = await get_mysql_connection()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
@@ -968,9 +989,9 @@ async def get_account_info(api_key: str = Query(...)):
     tags=["Commands"],
     operation_id="get_random_quote"
 )
-async def quotes(api_key: str = Query(...)):
-    valid = await verify_api_key(api_key)
-    if not valid:
+async def quotes(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     # Check for quotes file in preferred location first
     quotes_path = "/home/botofthespecter/quotes.json"
@@ -993,9 +1014,9 @@ async def quotes(api_key: str = Query(...)):
     tags=["Commands"],
     operation_id="get_random_fortune"
 )
-async def fortune(api_key: str = Query(...)):
-    valid = await verify_api_key(api_key)
-    if not valid:
+async def fortune(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     # Check for fortunes file in preferred location first
     fortunes_path = "/home/botofthespecter/fortunes.json"
@@ -1200,9 +1221,9 @@ async def api_weather_requests_remaining():
     tags=["Commands"],
     operation_id="get_kill_commands"
 )
-async def kill_responses(api_key: str = Query(...)):
-    valid = await verify_api_key(api_key)
-    if not valid:
+async def kill_responses(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     # Check for kill command file in preferred location first
     kill_command_path = "/home/botofthespecter/killCommand.json"
@@ -1223,9 +1244,9 @@ async def kill_responses(api_key: str = Query(...)):
     tags=["Commands"],
     operation_id="get_random_joke"
 )
-async def joke(api_key: str = Query(...)):
-    valid = await verify_api_key(api_key)
-    if not valid:
+async def joke(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     jokes = await Jokes()
     get_joke = await jokes.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
@@ -1241,11 +1262,11 @@ async def joke(api_key: str = Query(...)):
     tags=["Commands"],
     operation_id="get_sound_alerts"
 )
-async def get_sound_alerts(api_key: str = Query(...)):
-    valid = await verify_api_key(api_key)
-    if not valid:
+async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    channel = valid
+    username = resolve_username(key_info, channel)
     try:
         # Get SSH credentials from environment
         website_ssh_host = os.getenv('WEB-HOST')
@@ -1267,7 +1288,7 @@ async def get_sound_alerts(api_key: str = Query(...)):
         )
         try:
             # Build the command to list files in the user's sound alerts directory
-            sound_alerts_dir = f"/var/www/soundalerts/{channel}"
+            sound_alerts_dir = f"/var/www/soundalerts/{username}"
             # List only files directly in the directory (maxdepth 1), excluding the twitch subdirectory
             command = f'ls -1 "{sound_alerts_dir}" 2>/dev/null | grep -v "^twitch$" | while read f; do [ -f "{sound_alerts_dir}/$f" ] && echo "$f"; done | sort'
             # Execute command in executor to avoid blocking
@@ -1322,11 +1343,11 @@ async def get_sound_alerts(api_key: str = Query(...)):
     tags=["Commands"],
     operation_id="get_custom_commands"
 )
-async def get_custom_commands(api_key: str = Query(...)):
-    valid = await verify_api_key(api_key)
-    if not valid:
+async def get_custom_commands(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    username = valid
+    username = resolve_username(key_info, channel)
     try:
         # Connect to user's database
         connection = await get_mysql_connection_user(username)
@@ -1368,10 +1389,9 @@ async def get_custom_commands(api_key: str = Query(...)):
     tags=["Commands"],
     operation_id="get_weather_data_and_trigger_event"
 )
-async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query(...)):
-    # Validate the API key before proceeding
-    valid = await verify_api_key(api_key)
-    if not valid:
+async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     # Fetch weather data
     try:
@@ -1840,10 +1860,9 @@ async def get_allowed_callers(admin_key: str = Query(...)):
     operation_id="get_web_weather_location",
     include_in_schema=False
 )
-async def web_weather(api_key: str = Query(...), location: str = Query(...)):
-    # Validate the API key
-    valid = await verify_api_key(api_key)
-    if not valid:
+async def web_weather(api_key: str = Query(...), location: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     try:
         location_data, lat, lon = await get_weather_lat_lon(location)
@@ -1874,11 +1893,11 @@ async def web_weather(api_key: str = Query(...), location: str = Query(...)):
 async def get_game(
     api_key: str = Query(..., description="API key to authenticate the request"),
     game_name: str = Query(..., description="Name of the game to search for"),
-    twitch_auth_token: str = Query(..., description="Twitch OAuth token for IGDB authorization")
+    twitch_auth_token: str = Query(..., description="Twitch OAuth token for IGDB authorization"),
+    channel: str = Query(None)
 ):
-    # Validate API key
-    valid = await verify_api_key(api_key)
-    if not valid:
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     # IGDB API details
     igdb_url = "https://api.igdb.com/v4/games"
@@ -1911,9 +1930,9 @@ async def get_game(
     include_in_schema=False
 )
 async def authorized_users(api_key: str = Query(...)):
-    valid = await verify_admin_key(api_key)
-    if not valid:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+    key_info = await verify_key(api_key)
+    if not key_info or key_info["type"] != "admin":
+        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
     try:
         conn = await get_mysql_connection()
         try:
@@ -1935,13 +1954,12 @@ async def authorized_users(api_key: str = Query(...)):
     include_in_schema=False
 )
 async def check_key(api_key: str = Query(...)):
-    valid = await verify_api_key(api_key)
-    if not valid:
-        admin_valid = await verify_admin_key(api_key)
-        if not admin_valid:
-            return {"status": "Invalid API Key"}
+    key_info = await verify_key(api_key)
+    if not key_info:
+        return {"status": "Invalid API Key"}
+    if key_info["type"] == "admin":
         return {"status": "Valid API Key", "username": "ADMIN"}
-    return {"status": "Valid API Key", "username": valid}
+    return {"status": "Valid API Key", "username": key_info["username"]}
 
 # Check if stream is online
 @app.get(
@@ -1950,18 +1968,10 @@ async def check_key(api_key: str = Query(...)):
     include_in_schema=False
 )
 async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
-    # First check if it's an admin key
-    admin_valid = await verify_admin_key(api_key)
-    if admin_valid:
-        # Admin key: channel parameter is required
-        if not channel:
-            raise HTTPException(status_code=400, detail="Channel parameter is required when using admin key")
-        username = channel
-    else:
-        # Regular API key: validate and get username
-        username = await verify_api_key(api_key)
-        if not username:
-            raise HTTPException(status_code=401, detail="Invalid API Key")
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
     # Check stream status from database
     try:
         conn = await get_mysql_connection_user(username)
@@ -1992,9 +2002,9 @@ async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
 )
 async def discord_linked(api_key: str = Query(...), user_id: str = Query(...)):
     # Validate the admin API key
-    valid = await verify_admin_key(api_key)
-    if not valid:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+    key_info = await verify_key(api_key)
+    if not key_info or key_info["type"] != "admin":
+        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
     try:
         conn = await get_mysql_connection()
         try:
@@ -2118,14 +2128,14 @@ async def get_bot_status_via_ssh(username: str) -> dict:
     tags=["Bot Management"],
     operation_id="get_bot_status"
 )
-async def bot_status(api_key: str = Query(..., description="Your API key for authentication")):
-    # Verify API key and get username
-    username = await verify_api_key(api_key)
-    if not username:
+async def bot_status(api_key: str = Query(..., description="Your API key for authentication"), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key"
         )
+    username = resolve_username(key_info, channel)
     # Get bot status via SSH
     bot_status_info = await get_bot_status_via_ssh(username)
     return BotStatusResponse(**bot_status_info)
