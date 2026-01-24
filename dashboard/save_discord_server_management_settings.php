@@ -91,6 +91,15 @@ try {
     }
     $checkStmt->close();
     if ($success) {
+        // Special handling for freeGames - also update freestuff_settings table
+        if ($setting === 'freeGames') {
+            $freestuffStmt = $discord_conn->prepare("UPDATE freestuff_settings SET enabled = ? WHERE guild_id = ?");
+            if ($freestuffStmt) {
+                $freestuffStmt->bind_param("is", $value, $server_id);
+                $freestuffStmt->execute();
+                $freestuffStmt->close();
+            }
+        }
         echo json_encode([
             'success' => true,
             'message' => 'Setting updated successfully',
