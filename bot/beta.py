@@ -1934,7 +1934,7 @@ async def connect_to_tanggle():
             websocket_url = f"wss://api.tanggle.io/ws/communities/{tanggle_community_uuid}?events=queue+rooms"
             headers = {"Authorization": f"Bearer {tanggle_api_token}"}
             integrations_logger.info("Attempting to connect to Tanggle WebSocket")
-            async with WebSocketConnect(websocket_url, extra_headers=headers) as tanggle_ws:
+            async with WebSocketConnect(websocket_url, additional_headers=headers) as tanggle_ws:
                 integrations_logger.info("Successfully connected to Tanggle WebSocket")
                 while True:
                     try:
