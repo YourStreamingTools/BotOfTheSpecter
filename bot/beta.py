@@ -661,8 +661,13 @@ async def connect_to_integrations():
     looped_tasks["stream_bingo_websocket"] = create_task(stream_bingo_websocket())
     # Wait 2 seconds for Stream Bingo to connect and log
     await sleep(2)
+    # Start Tanggle integration
+    looped_tasks["tanggle_websocket"] = create_task(connect_to_tanggle())
+    # Wait 2 seconds for Tanggle to connect and log
+    await sleep(2)
     # Then start tipping services (StreamElements and StreamLabs)
     looped_tasks["connect_to_tipping_services"] = create_task(connect_to_tipping_services())
+
 
 async def connect_to_tipping_services():
     global CHANNEL_ID, streamelements_token, streamlabs_token
@@ -1902,6 +1907,62 @@ async def stream_bingo_websocket():
         except Exception as e:
             integrations_logger.error(f"Stream Bingo: WebSocket connection error: {e}")
             await sleep(10)  # Wait before retrying
+
+async def connect_to_tanggle():
+    global CHANNEL_NAME
+    integrations_logger.info("===== Tanggle =====")
+    while True:
+        try:
+            # Retrieve Tanggle credentials from database
+            connection = await mysql_handler.get_connection(db_name=CHANNEL_NAME)
+            tanggle_api_token = None
+            tanggle_community_uuid = None
+            try:
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute("SELECT tanggle_api_token, tanggle_community_uuid FROM profile LIMIT 1")
+                    result = await cursor.fetchone()
+                    if result:
+                        tanggle_api_token = result.get('tanggle_api_token')
+                        tanggle_community_uuid = result.get('tanggle_community_uuid')
+            finally:
+                pass
+            if not tanggle_api_token or not tanggle_community_uuid:
+                integrations_logger.info("No Tanggle credentials found, skipping connection")
+                await sleep(300)  # Wait 5 minutes before checking again
+                continue
+            # Construct WebSocket URL with events parameter
+            websocket_url = f"wss://api.tanggle.io/ws/communities/{tanggle_community_uuid}?events=queue+rooms"
+            headers = {"Authorization": f"Bearer {tanggle_api_token}"}
+            integrations_logger.info("Attempting to connect to Tanggle WebSocket")
+            async with WebSocketConnect(websocket_url, extra_headers=headers) as tanggle_ws:
+                integrations_logger.info("Successfully connected to Tanggle WebSocket")
+                while True:
+                    try:
+                        message = await tanggle_ws.recv()
+                        integrations_logger.info(f"Tanggle: Received message: {message}")
+                        # Parse JSON message
+                        try:
+                            data = json.loads(message)
+                            # Log the event type and data
+                            event_type = data.get('type', 'unknown')
+                            if event_type == 'room.complete':
+                                integrations_logger.info(f"Tanggle: A room has been completed. Raw: {data}")
+                                return
+                            integrations_logger.info(f"Tanggle Event Type: {event_type}, Data: {data}")
+                        except json.JSONDecodeError as e:
+                            integrations_logger.error(f"Tanggle: Failed to parse JSON message: {e}")
+                        except Exception as e:
+                            integrations_logger.error(f"Tanggle: Error processing message: {e}")
+                    except WebSocketConnectionClosed:
+                        integrations_logger.error("Tanggle: WebSocket connection closed, reconnecting...")
+                        break
+                    except Exception as e:
+                        integrations_logger.error(f"Tanggle: Error receiving message: {e}")
+                        break
+        except Exception as e:
+            integrations_logger.error(f"Tanggle: WebSocket connection error: {e}")
+            await sleep(10)  # Wait before retrying
+
 
 async def process_stream_bingo_message(data):
     try:
