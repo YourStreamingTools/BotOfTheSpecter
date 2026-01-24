@@ -325,7 +325,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   }
   // Handle FreeStuff (Free Games) settings save
   if (isset($_POST['save_freestuff_settings'])) {
-    if ($is_linked && $hasGuildId && isset($discord_conn) && !$discord_conn->connect_error) {
+    // Fetch guild ID from discord_users table
+    $freestuff_guild_id = null;
+    if ($is_linked) {
+      $guildStmt = $conn->prepare("SELECT guild_id FROM discord_users WHERE user_id = ?");
+      $guildStmt->bind_param("i", $user_id);
+      $guildStmt->execute();
+      $guildResult = $guildStmt->get_result();
+      if ($guildResult->num_rows > 0) {
+        $guildData = $guildResult->fetch_assoc();
+        $freestuff_guild_id = $guildData['guild_id'];
+      }
+      $guildStmt->close();
+    }
+    // Check if we have both guild ID and database connection
+    if (!empty($freestuff_guild_id) && $discord_conn && !$discord_conn->connect_error) {
       $fs_channel = trim($_POST['freestuff_channel_id'] ?? '');
       // Validate required fields
       if (empty($fs_channel)) {
@@ -333,28 +347,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       } else {
         // Check if record exists
         $checkStmt = $discord_conn->prepare("SELECT id FROM freestuff_settings WHERE guild_id = ?");
-        $checkStmt->bind_param("s", $existingGuildId);
+        $checkStmt->bind_param("s", $freestuff_guild_id);
         $checkStmt->execute();
         $checkRes = $checkStmt->get_result();
         if ($checkRes && $checkRes->num_rows > 0) {
           // Update
-          $updateStmt = $discord_conn->prepare("UPDATE freestuff_settings SET channel_id = ? WHERE guild_id = ?");
-          $updateStmt->bind_param("ss", $fs_channel, $existingGuildId);
+          $updateStmt = $discord_conn->prepare("UPDATE freestuff_settings SET channel_id = ?, enabled = 1 WHERE guild_id = ?");
+          $updateStmt->bind_param("ss", $fs_channel, $freestuff_guild_id);
           $ok = $updateStmt->execute();
           if ($ok) {
             $buildStatus .= "Free Games settings updated successfully.<br>";
             $existingFreestuffChannelID = $fs_channel;
+            $existingFreestuffEnabled = 1;
           } else {
             $errorMsg .= "Failed to update Free Games settings: " . $discord_conn->error . "<br>";
           }
           $updateStmt->close();
         } else {
           // Insert
-          $insertStmt = $discord_conn->prepare("INSERT INTO freestuff_settings (guild_id, channel_id) VALUES (?, ?)");
-          $insertStmt->bind_param("ss", $existingGuildId, $fs_channel);
+          $insertStmt = $discord_conn->prepare("INSERT INTO freestuff_settings (guild_id, channel_id, enabled) VALUES (?, ?, 1)");
+          $insertStmt->bind_param("ss", $freestuff_guild_id, $fs_channel);
           if ($insertStmt->execute()) {
             $buildStatus .= "Free Games settings saved successfully.<br>";
             $existingFreestuffChannelID = $fs_channel;
+            $existingFreestuffEnabled = 1;
           } else {
             $errorMsg .= "Failed to save Free Games settings: " . $discord_conn->error . "<br>";
           }
@@ -3419,7 +3435,7 @@ ob_start();
                 <p class="has-text-dark"><strong>Free Games:</strong> Get notified in your Discord server when free games
                   are available from various platforms.</p>
               </div>
-              <form action="" method="post">
+              <form action="" method="post" onsubmit="handleFreestuffSubmit(event)">
                 <div class="field">
                   <label class="label has-text-white" style="font-weight: 500;">Discord Channel <span
                       class="has-text-danger">*</span></label>
@@ -3430,7 +3446,7 @@ ob_start();
                 </div>
                 <div class="field">
                   <div class="control">
-                    <button class="button is-primary is-fullwidth" type="submit" name="save_freestuff_settings"
+                    <button class="button is-primary is-fullwidth" type="submit" name="save_freestuff_settings" id="save_freestuff_btn"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Free Games Settings</span>
@@ -4580,7 +4596,7 @@ ob_start();
   }
 
   // Channel/Role Configuration AJAX Handler
-  function saveChannelConfig(action, formData) {
+  function saveChannelConfig(action, formData, button = null) {
     const guildIdElement = document.getElementById('guild_id_config');
     const guildId = guildIdElement ? guildIdElement.value.trim() : '';
     // Validate that we have a guild ID
@@ -4594,6 +4610,7 @@ ob_start();
         timer: 4000,
         timerProgressBar: true
       });
+      if (button) setButtonLoading(button, false);
       return;
     }
     // Add server_id and action to the form data
@@ -4684,6 +4701,7 @@ ob_start();
             timerProgressBar: true
           });
         }
+        if (button) setButtonLoading(button, false);
       })
       .catch(error => {
         console.error('Error details:', error);
@@ -4698,11 +4716,31 @@ ob_start();
           timer: 4000,
           timerProgressBar: true
         });
+        if (button) setButtonLoading(button, false);
       });
+  }
+
+  // Helper functions to show button loading state
+  function setButtonLoading(button, isLoading = true) {
+    if (!button) return;
+    if (isLoading) {
+      // Store original content
+      button.dataset.originalHtml = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Processing...</span>';
+    } else {
+      // Restore original content
+      button.disabled = false;
+      if (button.dataset.originalHtml) {
+        button.innerHTML = button.dataset.originalHtml;
+      }
+    }
   }
 
   // Handler functions for each save button
   function saveWelcomeMessage() {
+    const button = event.target.closest('button');
+    setButtonLoading(button, true);
     const welcomeChannelId = document.getElementById('welcome_channel_id').value;
     const welcomeMessage = document.getElementById('welcome_message').value;
     const useDefault = document.getElementById('use_default_welcome_message').checked;
@@ -4732,6 +4770,7 @@ ob_start();
         timer: 4000,
         timerProgressBar: true
       });
+      setButtonLoading(button, false);
       return;
     }
 
@@ -4741,10 +4780,13 @@ ob_start();
       welcome_message_configuration_default: useDefault,
       welcome_message_configuration_embed: enableEmbed,
       welcome_message_configuration_colour: welcomeColour
-    });
+    }, button);
   }
 
   function saveAutoRole() {
+    const button = event.target.closest('button');
+    setButtonLoading(button, true);
+    
     const autoRoleId = document.getElementById('auto_role_id').value;
     if (!autoRoleId || autoRoleId === '') {
       Swal.fire({
@@ -4756,14 +4798,18 @@ ob_start();
         timer: 3000,
         timerProgressBar: true
       });
+      setButtonLoading(button, false);
       return;
     }
     saveChannelConfig('save_auto_role', {
       auto_role_id: autoRoleId
-    });
+    }, button);
   }
 
   function saveMessageTracking() {
+    const button = event.target.closest('button');
+    setButtonLoading(button, true);
+    
     const messageLogChannelId = document.getElementById('message_log_channel_id').value;
     if (!messageLogChannelId || messageLogChannelId === '') {
       Swal.fire({
@@ -4775,11 +4821,12 @@ ob_start();
         timer: 3000,
         timerProgressBar: true
       });
+      setButtonLoading(button, false);
       return;
     }
     saveChannelConfig('save_message_tracking', {
       message_log_channel_id: messageLogChannelId
-    });
+    }, button);
   }
 
   function saveRoleTracking() {
@@ -4966,10 +5013,12 @@ ob_start();
           allow_multiple_reactions: allowMultipleReactions
         });
       }
-    });
+    }, button);
   }
 
   function saveRules() {
+    const button = event.target.closest('button');
+    setButtonLoading(button, true);
     const rulesChannelId = document.getElementById('rules_channel_id').value.trim();
     const rulesTitle = document.getElementById('rules_title').value;
     const rulesContent = document.getElementById('rules_content').value;
@@ -5123,10 +5172,12 @@ ob_start();
           rules_accept_role_id: acceptRoleId
         });
       }
-    });
+    }, button);
   }
 
   function saveStreamSchedule() {
+    const button = event.target.closest('button');
+    setButtonLoading(button, true);
     const scheduleChannelId = document.getElementById('stream_schedule_channel_id').value.trim();
     const scheduleTitle = document.getElementById('stream_schedule_title').value;
     const scheduleContent = document.getElementById('stream_schedule_content').value;
@@ -5199,6 +5250,17 @@ ob_start();
     const scheduleContent = document.getElementById('stream_schedule_content').value;
     const scheduleColor = document.getElementById('stream_schedule_color').value;
     const scheduleTimezone = document.getElementById('stream_schedule_timezone').value.trim();
+  }
+
+  // Handler for Free Games form submission
+  function handleFreestuffSubmit(event) {
+    const button = document.getElementById('save_freestuff_btn');
+    if (button) {
+      setButtonLoading(button, true);
+    }
+    // Let the form submit normally
+    return true;
+  }
     // Validate required fields
     if (!scheduleChannelId || scheduleChannelId === '') {
       Swal.fire({
