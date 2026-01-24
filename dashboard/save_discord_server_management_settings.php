@@ -41,7 +41,7 @@ if (empty($server_id)) {
 // Validate setting name
 $allowed_settings = [
     'welcomeMessage',
-    'autoRole', 
+    'autoRole',
     'roleHistory',
     'messageTracking',
     'roleTracking',
@@ -50,7 +50,8 @@ $allowed_settings = [
     'reactionRoles',
     'rulesConfiguration',
     'streamSchedule',
-    'embedBuilder'
+    'embedBuilder',
+    'freeGames'
 ];
 
 if (!in_array($setting, $allowed_settings)) {
@@ -91,7 +92,7 @@ try {
     $checkStmt->close();
     if ($success) {
         echo json_encode([
-            'success' => true, 
+            'success' => true,
             'message' => 'Setting updated successfully',
             'setting' => $setting,
             'value' => $value
@@ -105,6 +106,8 @@ try {
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 } finally {
     // Close the Discord database connection
-    if (isset($discord_conn)) { $discord_conn->close(); }
+    if (isset($discord_conn)) {
+        $discord_conn->close();
+    }
 }
 ?>

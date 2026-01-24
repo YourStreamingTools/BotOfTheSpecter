@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -5311,6 +5315,11 @@ ob_start();
         title: 'Clear User Tracking?',
         text: 'This will permanently delete all user tracking configuration and settings. This action cannot be undone.',
         action: 'clear_user_tracking'
+      },
+      'freeGames': {
+        title: 'Clear Free Games Configuration?',
+        text: 'This will permanently delete all free games configuration and settings. This action cannot be undone.',
+        action: 'clear_freestuff'
       }
     };
 
@@ -5349,6 +5358,10 @@ ob_start();
     clearFeature('streamSchedule');
   }
 
+  function clearFreeGames() {
+    clearFeature('freeGames');
+  }
+
   // Add event listeners to all Discord setting toggles
   document.addEventListener('DOMContentLoaded', function () {
     // Initialize server management settings from PHP
@@ -5367,7 +5380,8 @@ ob_start();
       'reactionRoles',
       'rulesConfiguration',
       'streamSchedule',
-      'embedBuilder'
+      'embedBuilder',
+      'freeGames'
     ];
     // Set initial toggle states based on saved settings
     settingToggles.forEach(settingName => {
